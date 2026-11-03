@@ -111,7 +111,7 @@ export function MoveToFolderMenu({ position, convIds, currentFolderId, onClose }
             opacity: isCurrent ? 0.5 : 1,
           }}
           onClick={() => !isCurrent && handleMoveToFolder(folder.id, folder.name)}
-          onMouseEnter={(e) => !isCurrent && (e.currentTarget.style.background = 'var(--o-surface-raised)')}
+          onMouseEnter={(e) => !isCurrent && (e.currentTarget.style.background = 'var(--o-surface-hover)')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={getFolderColorPair(folder.colorTag)[0]} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -155,7 +155,7 @@ export function MoveToFolderMenu({ position, convIds, currentFolderId, onClose }
           type="button"
           style={{ ...itemStyle, color: 'var(--o-primary)' }}
           onClick={() => setShowCreateInput(true)}
-          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--o-surface-raised)')}
+          onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--o-surface-hover)')}
           onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -173,7 +173,7 @@ export function MoveToFolderMenu({ position, convIds, currentFolderId, onClose }
             type="button"
             style={{ ...itemStyle, color: 'var(--o-text-secondary)' }}
             onClick={handleRemoveFromFolder}
-            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--o-surface-raised)')}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--o-surface-hover)')}
             onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

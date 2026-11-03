@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">End</string>
     <string name="voice_conversation_start_failed_toast">Couldn\'t start the voice conversation. Try again.</string>
     <string name="voice_conversation_background_paused_toast">Voice conversation paused while Oriveo is in the background.</string>
+    <string name="voice_conversation_status_say_again">Didn’t catch that — say it again</string>
+    <string name="voice_conversation_status_check_language">Didn’t catch that</string>
+    <string name="voice_conversation_prompt_say_again">I didn’t catch that. Could you say it again?</string>
+    <string name="voice_conversation_prompt_check_language">I still didn’t catch that. If you’re speaking another language, tap Recognition Language to change it.</string>
+    <string name="voice_conversation_prompt_echo_hint">There’s an echo from the speaker. Headphones will work better.</string>
+    <string name="voice_conversation_language_chip">Recognition Language: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">Changes the recognition language</string>
 </resources>

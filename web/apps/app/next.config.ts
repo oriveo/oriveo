@@ -31,7 +31,8 @@ export function createOriveoNextConfig(phase: string): NextConfig {
   // never fight over the same output.
   const distDir = productionPhases.has(phase)
     ? (process.env.NEXT_DIST_DIR || '.next')
-    : '.next-dev';
+    // ORIVEO_NEXT_DEV_DIST_DIR lets an isolated dev server (web E2E) avoid the lock of a dev server already running.
+    : (process.env.ORIVEO_NEXT_DEV_DIST_DIR || '.next-dev');
 
   return {
     distDir,

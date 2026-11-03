@@ -123,6 +123,104 @@
         "iw": "he",
         "ji": "yi"
       }
+    },
+    "live": {
+      "stopTimeoutMs": 1500,
+      "fileTimeoutFactor": 1.5,
+      "fileTimeoutBaseSec": 5,
+      "supportCacheSec": 600,
+      "maxTextLength": 50000,
+      "sources": [
+        "live",
+        "file",
+        "live_partial"
+      ]
+    },
+    "systemFailure": {
+      "kinds": [
+        "network",
+        "busy",
+        "language_unsupported",
+        "no_service",
+        "other"
+      ],
+      "codes": {
+        "android": {
+          "1": "network",
+          "2": "network",
+          "3": "other",
+          "4": "other",
+          "5": "other",
+          "6": "no_transcript",
+          "7": "no_transcript",
+          "8": "busy",
+          "9": "permission",
+          "10": "busy",
+          "11": "busy",
+          "12": "language_unsupported",
+          "13": "language_unsupported",
+          "14": "other",
+          "15": "other"
+        },
+        "ios": {
+          "kAFAssistantErrorDomain": {
+            "203": "other",
+            "1100": "busy",
+            "1101": "busy",
+            "1107": "busy",
+            "1110": "no_transcript",
+            "1700": "permission"
+          },
+          "kLSRErrorDomain": {
+            "102": "language_unsupported",
+            "201": "no_service",
+            "300": "no_service",
+            "301": "cancelled"
+          },
+          "SFSpeechErrorDomain": {
+            "4": "language_unsupported",
+            "10": "language_unsupported",
+            "12": "busy",
+            "15": "language_unsupported",
+            "16": "busy"
+          },
+          "NSURLErrorDomain": "*network"
+        },
+        "conditions": {
+          "no_service": "no_service",
+          "language_unsupported": "language_unsupported",
+          "timeout": "busy",
+          "cancelled": "cancelled",
+          "thrown": "other"
+        }
+      },
+      "actions": {
+        "network": [
+          "retry",
+          "discard"
+        ],
+        "busy": [
+          "retry",
+          "discard"
+        ],
+        "language_unsupported": [
+          "change_language",
+          "discard"
+        ],
+        "no_service": [
+          "switch_engine",
+          "discard"
+        ],
+        "other": [
+          "retry",
+          "discard"
+        ],
+        "no_transcript": [
+          "change_language",
+          "retry"
+        ]
+      },
+      "busyAutoRetries": 1
     }
   },
   "rules": {
@@ -169,6 +267,25 @@
     ],
     "retention": [
       "Pending files with age > pendingRetentionSec are deleted at launch (expired, not counted as lost). Discarding a recording longer than discardUndoAboveSec shows the undo toast; exactly 5 s does not."
+    ],
+    "liveDictation": [
+      "System engine dictation listens live (E-244): Android pipe session (EXTRA_AUDIO_SOURCE, segmented session, EXTRA_PARTIAL_RESULTS) / iOS live analyzer; the AAC recording is still written for recovery. Cloud engines stay on the file path.",
+      "Live text = livePartial(finals, partial): finals are the segment results received so far, joined like join; partial is the current hypothesis, trimmed, shown as volatile (light #71717A / dark #8E8E96, E-263). One space between them only when needsSpace says so.",
+      "Recognizer callbacks → live state = liveResults(events) (E-364): text is trimmed with the constants whitespace set first. A non-empty final is appended to finals and clears partial; a non-empty partial replaces partial; an empty or null final promotes the current non-empty partial to a final (appended, partial cleared) and changes nothing when there is no partial; an empty or null partial changes nothing. SFSpeech sends the whole sentence again as a partial after endAudio and then an empty isFinal; appending the empty text would clear the words on screen, and only keeping the partial would still lose it at the next segment or when dictationOutcome ignores a leftover partial. The same rule applies to the text a segment contributes to the session result. Same on Android segment / onResults / partial callbacks (null text = empty); a recognizer error ending a self-record round (no match / speech timeout) is not a final and still clears that round's partial.",
+      "Writing into the message box = liveInsert: always recomputed from the text and selection captured when dictation started (never edited incrementally); same placement as insert (selection end, nothing deleted, needsSpace on both sides). region = the whole inserted span including added spaces (✕ removes exactly it and restores the original text); volatile = [cursor − volatile.length, cursor) in UTF-16. If the result would exceed maxLength (UTF-16, default constants.live.maxTextLength = 50,000, E-87), drop whole code points from the end of the live text, volatile first, then final, re-trimming and recomputing until it fits.",
+      "Done / ↑: stop the live session and wait at most constants.live.stopTimeoutMs (1500) for its final result, then dictationOutcome. File recognition is bounded by durationSec × fileTimeoutFactor + fileTimeoutBaseSec; a timeout is the condition timeout (busy). Android caches checkRecognitionSupport per (language, service) for supportCacheSec and creates a new recognizer only after the previous one finished destroy (S0 root cause).",
+      "dictationOutcome: every input states hasRecording (no default). live ended ok with non-empty finals → use them (a leftover partial is ignored), no file recognition — unless live.droppedAudio is true (the live session dropped queued audio, so words may be missing) and there is a recording: then recognize the file like any empty live result. Otherwise, with a recording, recognize the file once (busy auto-retry inside it); file text wins; if the file is empty or failed but text was on screen (livePartial(finals, partial).text, i.e. finals plus the last volatile) → keep it (source live_partial); else no_transcript / failed with the file failure kind. Without a recording (Android recognizer self-record) the live result is final and timeout → busy. A no_transcript code from the live session or from file recognition is reported as empty text (ended ok / {text: \"\"}), never as failureKind; failureKind is only one of the five kinds (cancelled and permission are handled before dictationOutcome).",
+      "After dictationOutcome: text → the live region is replaced by liveInsert(original, selection, [text], \"\") so the cursor ends after it; no_transcript / failed → the live region is removed (original text restored) and the card is shown; the recording is kept as today."
+    ],
+    "systemFailure": [
+      "Classify every system recognizer failure with systemFailure (E-252) by the explicit table constants.systemFailure.codes; anything not in the table is other. iOS matches (domain, code) pairs, never the code alone. Sources (checked 2026-10-27): AOSP SpeechRecognizer.ERROR_* values; iOS SDK SFSpeechRecognitionTask.h error table (kAFAssistantErrorDomain / kLSRErrorDomain) and SFSpeechError.Code; NSURLErrorDomain = network (iOS network codes are not documented for Speech; S3 logs recognizer_code to confirm).",
+      "Pre-flight conditions are classified the same way: no recognition service (Android isRecognitionAvailable false / no enabled service, iOS recognizer isAvailable false or no backend available) → no_service; language not supported by the support check / supportedLocales (iOS: SFSpeechRecognizer(locale:) returning nil means the locale is unsupported) → language_unsupported; our own bounded wait expired → timeout (busy); user cancel → cancelled.",
+      "SERVER_DISCONNECTED (11) and kAF 1101 / 1107 are busy, not no_service: on the S0 Samsung the session was dropped before startListening because the service allows one concurrent session; a fresh recognizer recovers.",
+      "busy on attempt <= busyAutoRetries (1) with canRetry → autoRetry with a recreated recognizer (after the previous instance is destroyed), no card, no event. canRetry is true only for recognizing a saved recording (file); a live session or recognizer self-record passes false (retrying would lose what the user just said; its failure goes to dictationOutcome). attempt counts from 1 and restarts at 1 when the user taps Retry. cancelled → silent. permission → the existing permission card (open_settings), no failure event. The result always has all six fields (recreateRecognizer false and telemetry null when not applicable).",
+      "iOS hosts must assert the SDK raw values of every SFSpeechError.Code they map (noModel 4, assetLocaleNotAllocated 10, timeout 12, cannotAllocateUnsupportedLocale 15, insufficientResources 16) in a unit test, so a wrong number in this table fails on the device SDK, not only in JS.",
+      "Cards: title and body by kind (p2-copy voice_dictation_fail_*; other = existing 转写失败; no_transcript = existing 没有识别出文字 + voice_dictation_no_text_body); primary / secondary actions from constants.systemFailure.actions; failure cards use the error haptic.",
+      "telemetry: voice_dictation_failed with error_code recognizer (empty_transcript for no_transcript), failure_kind for the five kinds, recognizer_code = the platform integer code (omitted for conditions and for no_transcript), recognizer_domain = the iOS NSError domain if listed in constants.recognizerDomains of the telemetry fixture else other (iOS only), auto_retried = attempt > 1.",
+      "Voice conversation uses the same table for its system recognizer: no_transcript → sttResult with empty text (the reducer miss path, E-269), cancelled → nothing, busy on the first attempt → retry once, anything else → sttFailed."
     ]
   },
   "precheckCases": [
@@ -1932,6 +2049,2078 @@
         "value": 604801
       },
       "expected": true
+    }
+  ],
+  "livePartialCases": [
+    {
+      "id": "live_partial_cjk_finals_no_space",
+      "input": {
+        "finals": [
+          "你好",
+          "世界"
+        ],
+        "partial": "今天"
+      },
+      "expected": {
+        "final": "你好世界",
+        "volatile": "今天",
+        "text": "你好世界今天"
+      }
+    },
+    {
+      "id": "live_partial_latin_space",
+      "input": {
+        "finals": [
+          "Hello there"
+        ],
+        "partial": "how are"
+      },
+      "expected": {
+        "final": "Hello there",
+        "volatile": "how are",
+        "text": "Hello there how are"
+      }
+    },
+    {
+      "id": "live_partial_finals_joined_with_space",
+      "input": {
+        "finals": [
+          "Hello",
+          "world"
+        ],
+        "partial": ""
+      },
+      "expected": {
+        "final": "Hello world",
+        "volatile": "",
+        "text": "Hello world"
+      }
+    },
+    {
+      "id": "live_partial_no_space_before_comma",
+      "input": {
+        "finals": [
+          "Wait"
+        ],
+        "partial": ", really"
+      },
+      "expected": {
+        "final": "Wait",
+        "volatile": ", really",
+        "text": "Wait, really"
+      }
+    },
+    {
+      "id": "live_partial_only_volatile_trimmed",
+      "input": {
+        "finals": [],
+        "partial": " 在听 "
+      },
+      "expected": {
+        "final": "",
+        "volatile": "在听",
+        "text": "在听"
+      }
+    },
+    {
+      "id": "live_partial_ideographic_space_partial_empty",
+      "input": {
+        "finals": [
+          "A"
+        ],
+        "partial": "　 "
+      },
+      "expected": {
+        "final": "A",
+        "volatile": "",
+        "text": "A"
+      }
+    },
+    {
+      "id": "live_partial_cjk_then_latin_no_space",
+      "input": {
+        "finals": [
+          "我用"
+        ],
+        "partial": "iPhone"
+      },
+      "expected": {
+        "final": "我用",
+        "volatile": "iPhone",
+        "text": "我用iPhone"
+      }
+    }
+  ],
+  "liveResultCases": [
+    {
+      "id": "live_result_empty_final_promotes_partial",
+      "input": {
+        "events": [
+          {
+            "text": "move my",
+            "isFinal": false
+          },
+          {
+            "text": "move my ten o'clock meeting",
+            "isFinal": false
+          },
+          {
+            "text": "move my ten o'clock meeting",
+            "isFinal": false
+          },
+          {
+            "text": "",
+            "isFinal": true
+          }
+        ]
+      },
+      "expected": {
+        "finals": [
+          "move my ten o'clock meeting"
+        ],
+        "partial": ""
+      }
+    },
+    {
+      "id": "live_result_null_final_promotes_partial",
+      "input": {
+        "events": [
+          {
+            "text": "提醒我",
+            "isFinal": false
+          },
+          {
+            "text": "提醒我下班之前",
+            "isFinal": false
+          },
+          {
+            "text": null,
+            "isFinal": true
+          }
+        ]
+      },
+      "expected": {
+        "finals": [
+          "提醒我下班之前"
+        ],
+        "partial": ""
+      }
+    },
+    {
+      "id": "live_result_whitespace_final_promotes_partial",
+      "input": {
+        "events": [
+          {
+            "text": "你好",
+            "isFinal": false
+          },
+          {
+            "text": "你好",
+            "isFinal": true
+          },
+          {
+            "text": "世界",
+            "isFinal": false
+          },
+          {
+            "text": "  ",
+            "isFinal": true
+          }
+        ]
+      },
+      "expected": {
+        "finals": [
+          "你好",
+          "世界"
+        ],
+        "partial": ""
+      }
+    },
+    {
+      "id": "live_result_empty_final_without_partial_ignored",
+      "input": {
+        "events": [
+          {
+            "text": "你好",
+            "isFinal": true
+          },
+          {
+            "text": "",
+            "isFinal": true
+          }
+        ]
+      },
+      "expected": {
+        "finals": [
+          "你好"
+        ],
+        "partial": ""
+      }
+    },
+    {
+      "id": "live_result_empty_final_then_next_segment",
+      "input": {
+        "events": [
+          {
+            "text": "A",
+            "isFinal": false
+          },
+          {
+            "text": "",
+            "isFinal": true
+          },
+          {
+            "text": "B",
+            "isFinal": false
+          }
+        ]
+      },
+      "expected": {
+        "finals": [
+          "A"
+        ],
+        "partial": "B"
+      }
+    },
+    {
+      "id": "live_result_final_appends_and_clears_partial",
+      "input": {
+        "events": [
+          {
+            "text": "Hello",
+            "isFinal": false
+          },
+          {
+            "text": "Hello there",
+            "isFinal": true
+          },
+          {
+            "text": "how",
+            "isFinal": false
+          },
+          {
+            "text": "how are you",
+            "isFinal": true
+          }
+        ]
+      },
+      "expected": {
+        "finals": [
+          "Hello there",
+          "how are you"
+        ],
+        "partial": ""
+      }
+    },
+    {
+      "id": "live_result_empty_partial_keeps_last",
+      "input": {
+        "events": [
+          {
+            "text": "今天天气",
+            "isFinal": false
+          },
+          {
+            "text": "",
+            "isFinal": false
+          },
+          {
+            "text": null,
+            "isFinal": false
+          }
+        ]
+      },
+      "expected": {
+        "finals": [],
+        "partial": "今天天气"
+      }
+    },
+    {
+      "id": "live_result_partial_trimmed",
+      "input": {
+        "events": [
+          {
+            "text": "  move my  ",
+            "isFinal": false
+          }
+        ]
+      },
+      "expected": {
+        "finals": [],
+        "partial": "move my"
+      }
+    },
+    {
+      "id": "live_result_u0085_final_appended",
+      "input": {
+        "events": [
+          {
+            "text": "x",
+            "isFinal": false
+          },
+          {
+            "text": "",
+            "isFinal": true
+          }
+        ]
+      },
+      "expected": {
+        "finals": [
+          ""
+        ],
+        "partial": ""
+      }
+    },
+    {
+      "id": "live_result_ideographic_space_partial_ignored",
+      "input": {
+        "events": [
+          {
+            "text": "你好",
+            "isFinal": false
+          },
+          {
+            "text": "　",
+            "isFinal": false
+          }
+        ]
+      },
+      "expected": {
+        "finals": [],
+        "partial": "你好"
+      }
+    }
+  ],
+  "liveInsertCases": [
+    {
+      "id": "live_insert_empty_box",
+      "input": {
+        "text": "",
+        "selectionStart": 0,
+        "selectionEnd": 0,
+        "finals": [],
+        "partial": "hello"
+      },
+      "expected": {
+        "text": "hello",
+        "cursor": 5,
+        "region": [
+          0,
+          5
+        ],
+        "volatile": [
+          0,
+          5
+        ]
+      }
+    },
+    {
+      "id": "live_insert_middle_latin_spaces",
+      "input": {
+        "text": "hello world",
+        "selectionStart": 5,
+        "selectionEnd": 5,
+        "finals": [
+          "foo"
+        ],
+        "partial": "bar"
+      },
+      "expected": {
+        "text": "hello foo bar world",
+        "cursor": 13,
+        "region": [
+          5,
+          13
+        ],
+        "volatile": [
+          10,
+          13
+        ]
+      }
+    },
+    {
+      "id": "live_insert_selection_kept_inserted_at_end",
+      "input": {
+        "text": "abc def",
+        "selectionStart": 0,
+        "selectionEnd": 3,
+        "finals": [
+          "x"
+        ],
+        "partial": ""
+      },
+      "expected": {
+        "text": "abc x def",
+        "cursor": 5,
+        "region": [
+          3,
+          5
+        ],
+        "volatile": [
+          5,
+          5
+        ]
+      }
+    },
+    {
+      "id": "live_insert_cjk_no_space",
+      "input": {
+        "text": "我想",
+        "selectionStart": 2,
+        "selectionEnd": 2,
+        "finals": [
+          "去公园"
+        ],
+        "partial": "散步"
+      },
+      "expected": {
+        "text": "我想去公园散步",
+        "cursor": 7,
+        "region": [
+          2,
+          7
+        ],
+        "volatile": [
+          5,
+          7
+        ]
+      }
+    },
+    {
+      "id": "live_insert_after_emoji_utf16",
+      "input": {
+        "text": "😀",
+        "selectionStart": 2,
+        "selectionEnd": 2,
+        "finals": [],
+        "partial": "hi"
+      },
+      "expected": {
+        "text": "😀 hi",
+        "cursor": 5,
+        "region": [
+          2,
+          5
+        ],
+        "volatile": [
+          3,
+          5
+        ]
+      }
+    },
+    {
+      "id": "live_insert_reversed_selection_uses_max",
+      "input": {
+        "text": "abcd",
+        "selectionStart": 3,
+        "selectionEnd": 1,
+        "finals": [
+          "Z"
+        ],
+        "partial": ""
+      },
+      "expected": {
+        "text": "abc Z d",
+        "cursor": 5,
+        "region": [
+          3,
+          6
+        ],
+        "volatile": [
+          5,
+          5
+        ]
+      }
+    },
+    {
+      "id": "live_insert_trailing_space_inside_region",
+      "input": {
+        "text": "ab",
+        "selectionStart": 1,
+        "selectionEnd": 1,
+        "finals": [
+          "x"
+        ],
+        "partial": "y"
+      },
+      "expected": {
+        "text": "a x y b",
+        "cursor": 5,
+        "region": [
+          1,
+          6
+        ],
+        "volatile": [
+          4,
+          5
+        ]
+      }
+    },
+    {
+      "id": "live_insert_cap_drops_volatile_first",
+      "input": {
+        "text": "abcdef",
+        "selectionStart": 6,
+        "selectionEnd": 6,
+        "finals": [
+          "xy"
+        ],
+        "partial": "zw",
+        "maxLength": 10
+      },
+      "expected": {
+        "text": "abcdef xy",
+        "cursor": 9,
+        "region": [
+          6,
+          9
+        ],
+        "volatile": [
+          9,
+          9
+        ]
+      }
+    },
+    {
+      "id": "live_insert_cap_then_final_by_code_point",
+      "input": {
+        "text": "ab",
+        "selectionStart": 2,
+        "selectionEnd": 2,
+        "finals": [
+          "c😀d"
+        ],
+        "partial": "ef",
+        "maxLength": 5
+      },
+      "expected": {
+        "text": "ab c",
+        "cursor": 4,
+        "region": [
+          2,
+          4
+        ],
+        "volatile": [
+          4,
+          4
+        ]
+      }
+    },
+    {
+      "id": "live_insert_cap_exact_fits",
+      "input": {
+        "text": "ab",
+        "selectionStart": 2,
+        "selectionEnd": 2,
+        "finals": [
+          "你好"
+        ],
+        "partial": "",
+        "maxLength": 4
+      },
+      "expected": {
+        "text": "ab你好",
+        "cursor": 4,
+        "region": [
+          2,
+          4
+        ],
+        "volatile": [
+          4,
+          4
+        ]
+      }
+    },
+    {
+      "id": "live_insert_nothing_yet_empty_region",
+      "input": {
+        "text": "draft",
+        "selectionStart": 5,
+        "selectionEnd": 5,
+        "finals": [],
+        "partial": ""
+      },
+      "expected": {
+        "text": "draft",
+        "cursor": 5,
+        "region": [
+          5,
+          5
+        ],
+        "volatile": [
+          5,
+          5
+        ]
+      }
+    }
+  ],
+  "outcomeCases": [
+    {
+      "id": "outcome_live_ok_text_skips_file",
+      "input": {
+        "live": {
+          "finals": [
+            "今天天气不错"
+          ],
+          "hasRecording": true,
+          "ended": "ok"
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "text",
+        "source": "live",
+        "text": "今天天气不错"
+      }
+    },
+    {
+      "id": "outcome_live_ok_segments_joined",
+      "input": {
+        "live": {
+          "finals": [
+            "Hello",
+            "world"
+          ],
+          "hasRecording": true,
+          "ended": "ok"
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "text",
+        "source": "live",
+        "text": "Hello world"
+      }
+    },
+    {
+      "id": "outcome_live_ok_whitespace_uses_file",
+      "input": {
+        "live": {
+          "finals": [
+            " ",
+            "　"
+          ],
+          "hasRecording": true,
+          "ended": "ok"
+        },
+        "file": {
+          "text": " 你好 "
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "text",
+        "source": "file",
+        "text": "你好"
+      }
+    },
+    {
+      "id": "outcome_live_ok_empty_file_empty_no_transcript",
+      "input": {
+        "live": {
+          "finals": [],
+          "hasRecording": true,
+          "ended": "ok"
+        },
+        "file": {
+          "text": ""
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "no_transcript"
+      }
+    },
+    {
+      "id": "outcome_live_failed_file_text_wins_over_partial",
+      "input": {
+        "live": {
+          "finals": [
+            "半句"
+          ],
+          "hasRecording": true,
+          "ended": "failed",
+          "failureKind": "busy"
+        },
+        "file": {
+          "text": "完整的一句话"
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "text",
+        "source": "file",
+        "text": "完整的一句话"
+      }
+    },
+    {
+      "id": "outcome_live_failed_file_failed_keeps_partial",
+      "input": {
+        "live": {
+          "finals": [
+            "半句"
+          ],
+          "hasRecording": true,
+          "ended": "failed",
+          "failureKind": "busy"
+        },
+        "file": {
+          "failureKind": "network"
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "text",
+        "source": "live_partial",
+        "text": "半句"
+      }
+    },
+    {
+      "id": "outcome_live_failed_file_empty_keeps_partial",
+      "input": {
+        "live": {
+          "finals": [
+            "half"
+          ],
+          "hasRecording": true,
+          "ended": "failed",
+          "failureKind": "other"
+        },
+        "file": {
+          "text": ""
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "text",
+        "source": "live_partial",
+        "text": "half"
+      }
+    },
+    {
+      "id": "outcome_live_timeout_file_failed",
+      "input": {
+        "live": {
+          "finals": [],
+          "hasRecording": true,
+          "ended": "timeout"
+        },
+        "file": {
+          "failureKind": "busy"
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "failed",
+        "failureKind": "busy"
+      }
+    },
+    {
+      "id": "outcome_live_failed_no_finals_file_text",
+      "input": {
+        "live": {
+          "finals": [],
+          "hasRecording": true,
+          "ended": "failed",
+          "failureKind": "network"
+        },
+        "file": {
+          "text": "ok"
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "text",
+        "source": "file",
+        "text": "ok"
+      }
+    },
+    {
+      "id": "outcome_no_recording_live_failed",
+      "input": {
+        "live": {
+          "finals": [],
+          "ended": "failed",
+          "failureKind": "network",
+          "hasRecording": false
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "failed",
+        "failureKind": "network"
+      }
+    },
+    {
+      "id": "outcome_no_recording_timeout_is_busy",
+      "input": {
+        "live": {
+          "finals": [],
+          "ended": "timeout",
+          "hasRecording": false
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "failed",
+        "failureKind": "busy"
+      }
+    },
+    {
+      "id": "outcome_no_recording_ok_empty_no_transcript",
+      "input": {
+        "live": {
+          "finals": [],
+          "ended": "ok",
+          "hasRecording": false
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "no_transcript"
+      }
+    },
+    {
+      "id": "outcome_no_recording_timeout_keeps_volatile",
+      "input": {
+        "live": {
+          "finals": [],
+          "partial": "我想说的话",
+          "ended": "timeout",
+          "hasRecording": false
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "text",
+        "source": "live_partial",
+        "text": "我想说的话"
+      }
+    },
+    {
+      "id": "outcome_live_timeout_file_failed_keeps_finals_and_volatile",
+      "input": {
+        "live": {
+          "finals": [
+            "Hello"
+          ],
+          "partial": "there",
+          "ended": "timeout",
+          "hasRecording": true
+        },
+        "file": {
+          "failureKind": "busy"
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "text",
+        "source": "live_partial",
+        "text": "Hello there"
+      }
+    },
+    {
+      "id": "outcome_file_no_match_is_empty_text",
+      "input": {
+        "live": {
+          "finals": [],
+          "ended": "ok",
+          "hasRecording": true
+        },
+        "file": {
+          "text": ""
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "no_transcript"
+      }
+    },
+    {
+      "id": "outcome_live_ok_partial_ignored_when_final_present",
+      "input": {
+        "live": {
+          "finals": [
+            "定稿"
+          ],
+          "partial": "残留",
+          "ended": "ok",
+          "hasRecording": true
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "text",
+        "source": "live",
+        "text": "定稿"
+      }
+    },
+    {
+      "id": "outcome_no_recording_failed_keeps_partial",
+      "input": {
+        "live": {
+          "finals": [
+            "partial"
+          ],
+          "ended": "failed",
+          "failureKind": "busy",
+          "hasRecording": false
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "text",
+        "source": "live_partial",
+        "text": "partial"
+      }
+    },
+    {
+      "id": "outcome_live_ok_dropped_audio_uses_file",
+      "input": {
+        "live": {
+          "finals": [
+            "今天天气"
+          ],
+          "hasRecording": true,
+          "ended": "ok",
+          "droppedAudio": true
+        },
+        "file": {
+          "text": "今天天气不错"
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "text",
+        "source": "file",
+        "text": "今天天气不错"
+      }
+    },
+    {
+      "id": "outcome_live_ok_dropped_audio_file_empty_keeps_live",
+      "input": {
+        "live": {
+          "finals": [
+            "今天天气"
+          ],
+          "hasRecording": true,
+          "ended": "ok",
+          "droppedAudio": true
+        },
+        "file": {
+          "text": ""
+        }
+      },
+      "expected": {
+        "fileAttempted": true,
+        "result": "text",
+        "source": "live_partial",
+        "text": "今天天气"
+      }
+    },
+    {
+      "id": "outcome_live_ok_not_dropped_skips_file",
+      "input": {
+        "live": {
+          "finals": [
+            "今天天气"
+          ],
+          "hasRecording": true,
+          "ended": "ok",
+          "droppedAudio": false
+        }
+      },
+      "expected": {
+        "fileAttempted": false,
+        "result": "text",
+        "source": "live",
+        "text": "今天天气"
+      }
+    }
+  ],
+  "systemFailureCases": [
+    {
+      "id": "system_android_1",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 1
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "network",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "network",
+          "auto_retried": false,
+          "recognizer_code": 1
+        }
+      }
+    },
+    {
+      "id": "system_android_2",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 2
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "network",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "network",
+          "auto_retried": false,
+          "recognizer_code": 2
+        }
+      }
+    },
+    {
+      "id": "system_android_3",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 3
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 3
+        }
+      }
+    },
+    {
+      "id": "system_android_4",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 4
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 4
+        }
+      }
+    },
+    {
+      "id": "system_android_5",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 5
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 5
+        }
+      }
+    },
+    {
+      "id": "system_android_6",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 6
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "no_transcript",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "retry",
+        "telemetry": {
+          "error_code": "empty_transcript",
+          "auto_retried": false
+        }
+      }
+    },
+    {
+      "id": "system_android_7",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 7
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "no_transcript",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "retry",
+        "telemetry": {
+          "error_code": "empty_transcript",
+          "auto_retried": false
+        }
+      }
+    },
+    {
+      "id": "system_android_8",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 8
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": true,
+        "recreateRecognizer": true,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_android_9",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 9
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "permission",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "open_settings",
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_android_10",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 10
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": true,
+        "recreateRecognizer": true,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_android_11",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 11
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": true,
+        "recreateRecognizer": true,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_android_12",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 12
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "language_unsupported",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "language_unsupported",
+          "auto_retried": false,
+          "recognizer_code": 12
+        }
+      }
+    },
+    {
+      "id": "system_android_13",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 13
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "language_unsupported",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "language_unsupported",
+          "auto_retried": false,
+          "recognizer_code": 13
+        }
+      }
+    },
+    {
+      "id": "system_android_14",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 14
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 14
+        }
+      }
+    },
+    {
+      "id": "system_android_15",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 15
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 15
+        }
+      }
+    },
+    {
+      "id": "system_android_8_second_attempt",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 8
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "busy",
+          "auto_retried": true,
+          "recognizer_code": 8
+        }
+      }
+    },
+    {
+      "id": "system_android_10_second_attempt",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 10
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "busy",
+          "auto_retried": true,
+          "recognizer_code": 10
+        }
+      }
+    },
+    {
+      "id": "system_android_11_second_attempt",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 11
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "busy",
+          "auto_retried": true,
+          "recognizer_code": 11
+        }
+      }
+    },
+    {
+      "id": "system_android_2_second_attempt",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 2
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "network",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "network",
+          "auto_retried": true,
+          "recognizer_code": 2
+        }
+      }
+    },
+    {
+      "id": "system_android_7_second_attempt",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 7
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "no_transcript",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "retry",
+        "telemetry": {
+          "error_code": "empty_transcript",
+          "auto_retried": true
+        }
+      }
+    },
+    {
+      "id": "system_android_8_live_session_no_auto_retry",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 8
+        },
+        "attempt": 1,
+        "canRetry": false
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "busy",
+          "auto_retried": false,
+          "recognizer_code": 8
+        }
+      }
+    },
+    {
+      "id": "system_ios_kaf_1101_busy_retry",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kAFAssistantErrorDomain",
+          "code": 1101
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": true,
+        "recreateRecognizer": true,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_ios_sfspeech_10_locale_not_allocated",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "SFSpeechErrorDomain",
+          "code": 10
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "language_unsupported",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "language_unsupported",
+          "auto_retried": false,
+          "recognizer_code": 10,
+          "recognizer_domain": "SFSpeechErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_sfspeech_12_timeout_busy_retry",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "SFSpeechErrorDomain",
+          "code": 12
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": true,
+        "recreateRecognizer": true,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_condition_cancelled_silent",
+      "input": {
+        "failure": {
+          "condition": "cancelled"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "cancelled",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_condition_timeout_live_no_retry",
+      "input": {
+        "failure": {
+          "condition": "timeout"
+        },
+        "attempt": 1,
+        "canRetry": false
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "busy",
+          "auto_retried": false
+        }
+      }
+    },
+    {
+      "id": "system_android_unknown_code_other",
+      "input": {
+        "failure": {
+          "platform": "android",
+          "code": 99
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 99
+        }
+      }
+    },
+    {
+      "id": "system_ios_kaf_1110_no_transcript",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kAFAssistantErrorDomain",
+          "code": 1110
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "no_transcript",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "retry",
+        "telemetry": {
+          "error_code": "empty_transcript",
+          "auto_retried": false
+        }
+      }
+    },
+    {
+      "id": "system_ios_kaf_1100_busy_retry",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kAFAssistantErrorDomain",
+          "code": 1100
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": true,
+        "recreateRecognizer": true,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_ios_kaf_1101_second_attempt_busy",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kAFAssistantErrorDomain",
+          "code": 1101
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "busy",
+          "auto_retried": true,
+          "recognizer_code": 1101,
+          "recognizer_domain": "kAFAssistantErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_kaf_1107_busy_retry",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kAFAssistantErrorDomain",
+          "code": 1107
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": true,
+        "recreateRecognizer": true,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_ios_kaf_203_other",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kAFAssistantErrorDomain",
+          "code": 203
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 203,
+          "recognizer_domain": "kAFAssistantErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_kaf_1700_permission",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kAFAssistantErrorDomain",
+          "code": 1700
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "permission",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "open_settings",
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_ios_klsr_102_assets_not_installed",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kLSRErrorDomain",
+          "code": 102
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "language_unsupported",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "language_unsupported",
+          "auto_retried": false,
+          "recognizer_code": 102,
+          "recognizer_domain": "kLSRErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_klsr_201_dictation_disabled",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kLSRErrorDomain",
+          "code": 201
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "no_service",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "switch_engine",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "no_service",
+          "auto_retried": false,
+          "recognizer_code": 201,
+          "recognizer_domain": "kLSRErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_klsr_300_init_failed",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kLSRErrorDomain",
+          "code": 300
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "no_service",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "switch_engine",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "no_service",
+          "auto_retried": false,
+          "recognizer_code": 300,
+          "recognizer_domain": "kLSRErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_klsr_301_cancelled_silent",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kLSRErrorDomain",
+          "code": 301
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "cancelled",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_ios_sfspeech_4_no_model",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "SFSpeechErrorDomain",
+          "code": 4
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "language_unsupported",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "language_unsupported",
+          "auto_retried": false,
+          "recognizer_code": 4,
+          "recognizer_domain": "SFSpeechErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_sfspeech_15_unsupported_locale",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "SFSpeechErrorDomain",
+          "code": 15
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "language_unsupported",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "language_unsupported",
+          "auto_retried": false,
+          "recognizer_code": 15,
+          "recognizer_domain": "SFSpeechErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_sfspeech_16_insufficient_resources_second",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "SFSpeechErrorDomain",
+          "code": 16
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "busy",
+          "auto_retried": true,
+          "recognizer_code": 16,
+          "recognizer_domain": "SFSpeechErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_sfspeech_1_internal_other",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "SFSpeechErrorDomain",
+          "code": 1
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 1,
+          "recognizer_domain": "SFSpeechErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_nsurl_offline_network",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "NSURLErrorDomain",
+          "code": -1009
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "network",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "network",
+          "auto_retried": false,
+          "recognizer_code": -1009,
+          "recognizer_domain": "NSURLErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_code_matched_with_domain_only",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "kLSRErrorDomain",
+          "code": 1110
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 1110,
+          "recognizer_domain": "kLSRErrorDomain"
+        }
+      }
+    },
+    {
+      "id": "system_ios_unknown_domain_other",
+      "input": {
+        "failure": {
+          "platform": "ios",
+          "domain": "com.apple.coreaudio.avfaudio",
+          "code": 1100
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false,
+          "recognizer_code": 1100,
+          "recognizer_domain": "other"
+        }
+      }
+    },
+    {
+      "id": "system_condition_no_service",
+      "input": {
+        "failure": {
+          "condition": "no_service"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "no_service",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "switch_engine",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "no_service",
+          "auto_retried": false
+        }
+      }
+    },
+    {
+      "id": "system_condition_language_unsupported",
+      "input": {
+        "failure": {
+          "condition": "language_unsupported"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "language_unsupported",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "change_language",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "language_unsupported",
+          "auto_retried": false
+        }
+      }
+    },
+    {
+      "id": "system_condition_timeout_retries",
+      "input": {
+        "failure": {
+          "condition": "timeout"
+        },
+        "attempt": 1
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": true,
+        "recreateRecognizer": true,
+        "primaryAction": null,
+        "secondaryAction": null,
+        "telemetry": null
+      }
+    },
+    {
+      "id": "system_condition_timeout_second_attempt",
+      "input": {
+        "failure": {
+          "condition": "timeout"
+        },
+        "attempt": 2
+      },
+      "expected": {
+        "kind": "busy",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "busy",
+          "auto_retried": true
+        }
+      }
+    },
+    {
+      "id": "system_condition_thrown_counts_other",
+      "input": {
+        "failure": {
+          "condition": "thrown"
+        },
+        "attempt": 1,
+        "canRetry": true
+      },
+      "expected": {
+        "kind": "other",
+        "autoRetry": false,
+        "recreateRecognizer": false,
+        "primaryAction": "retry",
+        "secondaryAction": "discard",
+        "telemetry": {
+          "error_code": "recognizer",
+          "failure_kind": "other",
+          "auto_retried": false
+        }
+      }
     }
   ]
 }

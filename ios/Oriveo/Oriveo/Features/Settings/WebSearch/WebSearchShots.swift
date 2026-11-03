@@ -493,6 +493,7 @@ enum WebSearchShots {
 
     private static func report(_ message: String) {
         print("[WebSearchShots] \(message)")
+        ShotsLayoutProbe.fail(message)
     }
 }
 

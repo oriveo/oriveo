@@ -17,8 +17,12 @@ export const RELAY_SHOTS_PATH_PREFIX = '/dev/relay-shots/';
 export const MEMORY_SHOTS_PATH_PREFIX = '/dev/memory-shots/';
 /** Context page family samples (`/dev/context-shots/<page>`): the same isolation fence and sample-mode switch. */
 export const CONTEXT_SHOTS_PATH_PREFIX = '/dev/context-shots/';
+/** Theme sample entry (`/dev/theme-shots/<page>`): same isolation fence; the fence persists after client navigation to the real route. */
+export const THEME_SHOTS_PATH_PREFIX = '/dev/theme-shots/';
 /** Web search page family samples (`/dev/webSearch-shots/<page>`): the same isolation fence as relay. */
 export const WEB_SEARCH_SHOTS_PATH_PREFIX = '/dev/webSearch-shots/';
+/** Skills family shots (`/dev/skills-shots/<page>`): same isolation fence and shot-mode switch. */
+export const SKILLS_SHOTS_PATH_PREFIX = '/dev/skills-shots/';
 
 /** Per-page internal state presets applied on page entry (arm / settle); omitted = normal initial values. */
 export interface RelayShotSeed {
@@ -59,7 +63,9 @@ export function isShotsPath(pathname: string): boolean {
   return isRelayShotsPath(pathname)
     || pathname.startsWith(MEMORY_SHOTS_PATH_PREFIX)
     || pathname.startsWith(CONTEXT_SHOTS_PATH_PREFIX)
-    || pathname.startsWith(WEB_SEARCH_SHOTS_PATH_PREFIX);
+    || pathname.startsWith(THEME_SHOTS_PATH_PREFIX)
+    || pathname.startsWith(WEB_SEARCH_SHOTS_PATH_PREFIX)
+    || pathname.startsWith(SKILLS_SHOTS_PATH_PREFIX);
 }
 
 /** True when the current page is a sample route (dev builds, including the memory pages); always false in production. */

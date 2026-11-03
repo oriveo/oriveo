@@ -330,6 +330,14 @@ interface ConversationDao {
     @Query("UPDATE conversations SET pinnedNoteIdsJson = :pinnedNoteIdsJson WHERE accountId = :accountId AND id = :id")
     suspend fun updatePinnedNoteIds(accountId: String, id: String, pinnedNoteIdsJson: String?)
 
+    /** Metadata-level change: only disabledAutoSkillIdsJson, never updatedAt. */
+    @Query("UPDATE conversations SET disabledAutoSkillIdsJson = :disabledAutoSkillIdsJson WHERE accountId = :accountId AND id = :id")
+    suspend fun updateDisabledAutoSkillIds(accountId: String, id: String, disabledAutoSkillIdsJson: String?)
+
+    /** Metadata-level change: skillIdsJson + legacy skillId, never updatedAt. */
+    @Query("UPDATE conversations SET skillIdsJson = :skillIdsJson, skillId = :skillId WHERE accountId = :accountId AND id = :id")
+    suspend fun updateSkillIds(accountId: String, id: String, skillIdsJson: String?, skillId: String?)
+
     @Query("UPDATE conversations SET useMemory = :useMemory WHERE accountId = :accountId AND id = :id")
     suspend fun updateUseMemory(accountId: String, id: String, useMemory: Boolean)
 

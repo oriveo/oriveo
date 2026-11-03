@@ -1,7 +1,5 @@
 package ai.oriveo.community.feature.settings
 
-import ai.oriveo.community.R
-import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.voice.VoiceCatalog
@@ -106,33 +104,6 @@ class VoiceEngineSheetModelTest {
             model.rows.map { it.option::class to (it.option as? VoiceEngineOption.Cloud)?.let { c -> c.connectionId to c.model } },
         )
         assertTrue(model.rows.all { it.connectionName == null })
-    }
-
-    @Test
-    fun `realtime follow model first then cloud rows`() {
-        val model = VoiceEngineSheetModels.build(
-            available, VoiceDirection.Realtime, VoiceEngineSelection.System,
-            listOf(usable("o1", ProviderKind.OpenAI), usable("m1", ProviderKind.Gemini)),
-            emptyMap(),
-        )
-        assertEquals(VoiceEngineOption.System, model.rows.first().option)
-        assertTrue(model.rows.first().isChecked)
-        assertEquals(UiText.Resource(R.string.voice_realtime_follow_model), model.systemTitle)
-        assertEquals(UiText.Resource(R.string.voice_realtime_follow_model_subtitle), model.systemSubtitle)
-        assertEquals(
-            setOf(
-                "o1" to "gpt-realtime-2.1",
-                "o1" to "gpt-realtime-2.1-mini",
-                "m1" to "gemini-3.8-live",
-            ),
-            model.rows.drop(1).map { (it.option as VoiceEngineOption.Cloud).let { c -> c.connectionId to c.model } }.toSet(),
-        )
-        assertEquals(4, model.rows.size)
-        assertTrue(model.rows.all { it.connectionName == null })
-
-        val stt = VoiceEngineSheetModels.build(available, VoiceDirection.Stt, VoiceEngineSelection.System, emptyList(), emptyMap())
-        assertEquals(UiText.Resource(R.string.voice_engine_system), stt.systemTitle)
-        assertEquals(UiText.Resource(R.string.voice_engine_system_subtitle), stt.systemSubtitle)
     }
 
     @Test

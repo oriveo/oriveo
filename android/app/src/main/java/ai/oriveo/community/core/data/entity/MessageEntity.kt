@@ -115,4 +115,20 @@ data class MessageEntity(
     val nonUsdCostCurrency: String? = null,
     val nonUsdCostAmount: Double? = null,
     val nonUsdCostSource: String? = null,
+    /** Since v9: user messages only, skills attached at send time (JSON array of sync ids); null means none. */
+    val attachedSkillIdsJson: String? = null,
+    /** Since v9: assistant messages only, skills this reply used (JSON array of {id,name,via,reason?}); null means none. */
+    val usedSkillsJson: String? = null,
+    /**
+     * Since v10: assistant messages only, estimated tokens of the skill list sent this turn (skill_manifest_cost.v1).
+     * Local only: not in the domain model or the backup export; null means no manifest or recorded before v10.
+     * Upsert never clears it.
+     */
+    val skillManifestTokens: Int? = null,
+)
+
+/** Projection used to keep the local-only skillManifestTokens across whole-row rewrites. */
+data class MessageSkillManifestTokensRow(
+    val id: String,
+    val skillManifestTokens: Int?,
 )

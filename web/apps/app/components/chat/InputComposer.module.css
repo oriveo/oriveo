@@ -338,7 +338,7 @@
 
 .attachedNoteIcon {
   flex-shrink: 0;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .libraryContextMonogram {
@@ -1250,6 +1250,23 @@
   flex-wrap: nowrap;
   overflow-x:auto;
   scrollbar-width:none;
+  min-height: 32px;
+}
+
+/* Trailing spacer instead of padding-inline-end: WebKit drops the end padding of a horizontally
+ * scrolling flex box, so the last capsule (wand | count) lost its end cap at 375px wide. */
+.tools::after {
+  content: '';
+  flex: 0 0 6px;
+  align-self: stretch;
+}
+
+/* Fixed slot after the scrolling tools row (skills capsule): never shrinks or scrolls, so the
+ * capsule end cap stays whole; the row gap keeps it 6px from the send button. */
+.toolsFixed {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
   min-height: 32px;
 }
 

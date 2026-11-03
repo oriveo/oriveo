@@ -6,7 +6,7 @@
   max-width: 100%;
   border-radius: 12px;
   color: var(--o-text-secondary);
-  background: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface-raised));
+  background: color-mix(in srgb, var(--o-primary) 10%, var(--o-fill-muted));
   box-shadow: 0 5px 14px color-mix(in srgb, black 8%, transparent);
 }
 
@@ -34,7 +34,7 @@
 
 .icon {
   flex: 0 0 auto;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .summary {

@@ -1480,7 +1480,7 @@ enum BackupService {
         return (restored, requiresKnowledgeReupload)
     }
 
-
+    /// Generates the default backup filename.
     static func defaultFilename() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"

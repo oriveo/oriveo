@@ -1,7 +1,6 @@
 <resources>
     <!-- App -->
     <string name="app_tagline">모든 모델을 하나의 앱으로</string>
-    <string name="provider_disclosure_ack_failed">제공업체 고지를 확인하지 못했습니다. 연결을 확인하고 다시 시도하세요.</string>
 
     <!-- Tabs -->
     <string name="tab_home">홈</string>
@@ -28,11 +27,15 @@
 
     <!-- Onboarding / Welcome -->
     <string name="get_started">시작하기</string>
+
+    <!-- Provider Setup -->
     <string name="api_key">API 키</string>
     <string name="validating">검증 중…</string>
     <string name="auto_fill_note">서비스 엔드포인트가 자동으로 채워집니다.</string>
     <string name="add_provider">제공업체 추가</string>
     <string name="add_model">모델 추가</string>
+
+    <!-- Provider Connection State -->
     <string name="status_connected">연결됨</string>
     <string name="status_syncing">동기화 중</string>
     <string name="status_issue">문제</string>
@@ -58,6 +61,7 @@
     <string name="new_chat">새 채팅</string>
     <string name="send">보내기</string>
     <string name="stop">중지</string>
+    <string name="generation_parameter_name_stop">중지 시퀀스</string>
     <string name="type_a_message">메시지를 입력하세요…</string>
     <string name="regenerate">다시 생성</string>
     <string name="continue_generating">계속 생성</string>
@@ -79,8 +83,12 @@
     <string name="rename_conversation">대화 이름 변경</string>
     <string name="delete_conversation">대화 삭제</string>
     <string name="delete_conversation_confirm">이 대화를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.</string>
+
+    <!-- Provider List -->
     <string name="providers_title">제공업체</string>
     <string name="models_count">모델 %d개</string>
+
+    <!-- Provider Detail -->
     <string name="change_api_key">API 키 변경</string>
     <string name="delete_provider">제공업체 삭제</string>
     <string name="delete_provider_confirm">이 제공업체를 삭제하시겠습니까? 관련된 모든 대화는 계속 열람할 수 있지만, 이 제공업체로 새 메시지를 보낼 수는 없습니다.</string>
@@ -95,7 +103,6 @@
     <string name="theme_light">라이트</string>
     <string name="theme_dark">다크</string>
     <string name="theme_section_palettes">팔레트</string>
-    <string name="default_model_short">기본</string>
     <string name="theme_palette_purple">퍼플</string>
     <string name="theme_palette_graphite">그래파이트</string>
     <string name="theme_palette_black">블랙</string>
@@ -237,7 +244,6 @@
     <string name="backup_error_account_changed">이 가져오기를 준비하는 동안 계정이 변경되었습니다. 현재 계정으로 가져오기를 다시 시작하세요.</string>
     <string name="backup_error_save_failed">백업 파일을 저장하지 못했습니다.</string>
     <string name="remove">제거</string>
-    <string name="legal_consent_notice">계속하면 아래의 법적 약관에 동의하는 것으로 간주됩니다.</string>
     <string name="provider_setup_relay_title">사용자 정의 릴레이</string>
     <string name="aggregator_groq_subtitle">초고속 LPU 추론</string>
     <string name="aggregator_together_subtitle">200개 이상의 오픈소스 모델</string>
@@ -262,22 +268,22 @@
     <string name="greeting_afternoon_with_name">%1$s님, 좋은 오후예요</string>
     <string name="greeting_evening_with_name">%1$s님, 저녁 드셨어요?</string>
     <string name="greeting_still_up_with_name">%1$s님, 아직 안 주무세요?</string>
-<string name="greeting_morning_2">굿모닝</string>
-<string name="greeting_morning_3">안녕하세요</string>
-<string name="greeting_morning_4">오셨어요?</string>
-<string name="greeting_morning_5">반가워요</string>
-<string name="greeting_afternoon_2">잘 지내요?</string>
-<string name="greeting_afternoon_3">오셨어요?</string>
-<string name="greeting_afternoon_4">반가워요</string>
-<string name="greeting_afternoon_5">안녕하세요</string>
-<string name="greeting_evening_2">오늘 어땠어요?</string>
-<string name="greeting_evening_3">반가워요</string>
-<string name="greeting_evening_4">안녕하세요</string>
-<string name="greeting_evening_5">오셨어요?</string>
-<string name="greeting_night_2">밤이 깊었네요</string>
-<string name="greeting_night_3">오셨어요?</string>
-<string name="greeting_night_4">반가워요</string>
-<string name="greeting_night_5">안녕하세요</string>
+    <string name="greeting_morning_2">굿모닝</string>
+    <string name="greeting_morning_3">안녕하세요</string>
+    <string name="greeting_morning_4">오셨어요?</string>
+    <string name="greeting_morning_5">반가워요</string>
+    <string name="greeting_afternoon_2">잘 지내요?</string>
+    <string name="greeting_afternoon_3">오셨어요?</string>
+    <string name="greeting_afternoon_4">반가워요</string>
+    <string name="greeting_afternoon_5">안녕하세요</string>
+    <string name="greeting_evening_2">오늘 어땠어요?</string>
+    <string name="greeting_evening_3">반가워요</string>
+    <string name="greeting_evening_4">안녕하세요</string>
+    <string name="greeting_evening_5">오셨어요?</string>
+    <string name="greeting_night_2">밤이 깊었네요</string>
+    <string name="greeting_night_3">오셨어요?</string>
+    <string name="greeting_night_4">반가워요</string>
+    <string name="greeting_night_5">안녕하세요</string>
     <string name="tagline_morning_1">천천히 해도 괜찮아요</string>
     <string name="tagline_morning_2">오늘은 편한 페이스로 해요</string>
     <string name="tagline_morning_3">작은 질문도 환영해요</string>
@@ -294,22 +300,22 @@
     <string name="tagline_night_2">잠이 안 오면 이야기해요</string>
     <string name="tagline_night_3">주변이 조용해졌어요</string>
     <string name="tagline_night_4">급할 것 없어요</string>
-<string name="tagline_morning_5">새로운 걸 시도해 봐요</string>
-<string name="tagline_morning_6">떠오르는 대로 말해 보세요</string>
-<string name="tagline_morning_7">하나씩 차근차근 해요</string>
-<string name="tagline_morning_8">생각을 정리해 봐요</string>
-<string name="tagline_afternoon_5">하던 얘기를 이어가도 좋아요</string>
-<string name="tagline_afternoon_6">준비되면 언제든 말해 주세요</string>
-<string name="tagline_afternoon_7">다른 각도로 생각해 봐요</string>
-<string name="tagline_afternoon_8">완벽하지 않아도 돼요</string>
-<string name="tagline_evening_5">나머지는 내일 해도 돼요</string>
-<string name="tagline_evening_6">가볍게 수다만 떨어도 좋아요</string>
-<string name="tagline_evening_7">생각하기 좋은 저녁이에요</string>
-<string name="tagline_evening_8">하루를 차분하게 마무리해요</string>
-<string name="tagline_night_5">마음속 생각을 적어 봐요</string>
-<string name="tagline_night_6">푹 쉬는 것도 잊지 마세요</string>
-<string name="tagline_night_7">고요한 밤엔 생각이 맑아져요</string>
-<string name="tagline_night_8">오늘 밤은 느긋하게 해요</string>
+    <string name="tagline_morning_5">새로운 걸 시도해 봐요</string>
+    <string name="tagline_morning_6">떠오르는 대로 말해 보세요</string>
+    <string name="tagline_morning_7">하나씩 차근차근 해요</string>
+    <string name="tagline_morning_8">생각을 정리해 봐요</string>
+    <string name="tagline_afternoon_5">하던 얘기를 이어가도 좋아요</string>
+    <string name="tagline_afternoon_6">준비되면 언제든 말해 주세요</string>
+    <string name="tagline_afternoon_7">다른 각도로 생각해 봐요</string>
+    <string name="tagline_afternoon_8">완벽하지 않아도 돼요</string>
+    <string name="tagline_evening_5">나머지는 내일 해도 돼요</string>
+    <string name="tagline_evening_6">가볍게 수다만 떨어도 좋아요</string>
+    <string name="tagline_evening_7">생각하기 좋은 저녁이에요</string>
+    <string name="tagline_evening_8">하루를 차분하게 마무리해요</string>
+    <string name="tagline_night_5">마음속 생각을 적어 봐요</string>
+    <string name="tagline_night_6">푹 쉬는 것도 잊지 마세요</string>
+    <string name="tagline_night_7">고요한 밤엔 생각이 맑아져요</string>
+    <string name="tagline_night_8">오늘 밤은 느긋하게 해요</string>
     <string name="aurora_placeholder_what_can_i_help">무엇을 도와드릴까요?</string>
     <string name="search_results">검색결과</string>
     <string name="select_all">모두 선택</string>
@@ -326,10 +332,9 @@
     <string name="no_providers_title">아직 추가된 제공업체가 없습니다.</string>
     <string name="no_providers_description">먼저 제공업체를 연결하세요. 모델 전환, 채팅, 비용 투명성이 모두 여기에서 시작됩니다.</string>
     <string name="provider_detail_add_model_manually">+ 수동으로 모델 ID 추가</string>
+    <string name="default_model_short">기본</string>
     <string name="provider_detail_badge_recent">최근</string>
     <string name="undo">실행 취소</string>
-    <string name="settings_source_code">소스 코드</string>
-    <string name="settings_report_issue">문제 신고</string>
     <string name="manual_model_entry_title">폴백 모델</string>
     <string name="model_id_placeholder">예: claude-4-sonnet 또는 gpt-4o</string>
     <string name="save_and_continue">저장하고 계속하기</string>
@@ -408,6 +413,7 @@
     <string name="chat_model_removed_choose">모델 선택</string>
     <string name="chat_model_retired_banner">%1$s 모델은 지원이 종료됐어요.</string>
     <string name="chat_model_retired_switch_to">%1$s(으)로 전환</string>
+    <string name="chat_last_used_model_retired_hint">지난번에 쓰던 모델의 지원이 종료되어 이제 %1$s을(를) 사용해요.</string>
     <string name="chat_issue_model_missing_title">모델을 사용할 수 없음</string>
     <string name="chat_issue_no_provider_message">제공업체를 추가하거나 다시 연결할 때까지 이 대화는 읽기 전용입니다.</string>
     <string name="chat_issue_no_provider_title">사용 가능한 제공업체 없음</string>
@@ -479,6 +485,7 @@
     <string name="this_month">이번 달</string>
     <string name="costs_title">비용</string>
     <string name="cost_summary_more">%1$d개 더</string>
+
 
     <!-- Usage Insights -->
     <string name="by_provider">제공업체별</string>
@@ -711,17 +718,15 @@
     <string name="skills_newSkill">새 스킬</string>
     <string name="skills_editSkill">스킬 편집</string>
     <string name="skills_useSkill">이 스킬 사용</string>
-    <string name="skills_pinToHome">홈에 고정</string>
     <string name="pin_conversation">고정</string>
     <string name="unpin_conversation">고정 해제</string>
     <string name="pinned_section">고정됨</string>
-    <string name="skills_unpin">고정 해제</string>
     <string name="skills_instructions">프롬프트</string>
     <string name="skills_knowledgeFiles">참고 자료</string>
     <string name="skills_advancedSettings">고급 설정</string>
     <string name="skills_useMemory">환경설정 기억</string>
     <string name="skills_noCustomSkills">아직 커스텀 스킬이 없습니다</string>
-    <string name="skills_deleteConfirmTitle">%s을(를) 삭제하시겠습니까?</string>
+    <string name="skills_deleteConfirmTitle">\'%1$s\'을(를) 삭제하시겠습니까?</string>
     <string name="skills_discardChanges">변경사항을 삭제하시겠습니까?</string>
     <string name="skills_needProviderMessage">대화를 시작하려면 AI 제공업체가 하나 이상 필요합니다.</string>
     <string name="skills_addProvider">제공업체 추가</string>
@@ -736,10 +741,10 @@
     <string name="skills_capabilityFast">빠름</string>
     <string name="skills_capabilityLargeContext">대용량 컨텍스트</string>
     <string name="skills_addFile">파일 추가</string>
-    <string name="skills_noKnowledgeFiles">참고 자료 없���</string>
+    <string name="skills_noKnowledgeFiles">참고 자료 없음</string>
     <string name="skills_useMemoryDescription">대화에 개인 환경설정 포함</string>
     <string name="skills_tipInstructions">AI의 행동을 정의합니다 — 성격, 전문 분야, 응답 스타일 등. AI만 볼 수 있으며 사용자에게는 표시되지 않습니다.</string>
-    <string name="skills_tipKnowledgeFiles">AI는 답변할 때마다 이 파일들을 전부 읽습니다. 책상 위에 항상 펼쳐 둔 메모와 같습니다. 짧고 중요한 문서(스타일 가이드, 용어집, 핵심 규칙)에 적합합니다. 파일이 클수록 응답 비용이 증가합니다.</string>
+    <string name="skills_tipKnowledgeFiles">AI는 답변할 때마다 이 파일들을 전체 읽습니다 — 책상 위에 항상 펼쳐놓은 메모와 같습니다. 짧고 핵심적인 문서(스타일 가이드, 용어집, 주요 규칙)에 적합합니다. 파일이 클수록 응답 비용이 증가합니다.</string>
     <string name="skills_tipAdvanced">모델 환경설정 및 메모리 주입을 구성합니다.</string>
     <string name="skills_filesQuota">%1$d / %2$d</string>
     <string name="skills_fileTooLarge">파일 내용이 8,000자 제한을 초과합니다</string>
@@ -798,19 +803,27 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">Query 매개변수 키</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">%1$s을(를) 사용하려고 합니다.</string>
     <string name="provider_disclosure_body_default">응답을 생성하기 위해 귀하의 메시지가 %1$s로 전송됩니다. Oriveo는 귀하의 메시지나 API 키를 당사 서버에 저장하지 않습니다.</string>
     <string name="provider_disclosure_body_relay">메시지는 사용자가 구성한 모델 서비스로 전송됩니다. Oriveo는 해당 서비스의 개인정보 보호 관행을 확인할 수 없습니다.</string>
     <string name="provider_disclosure_view_policy">%1$s 개인정보 보호정책 보기</string>
     <string name="provider_disclosure_continue">계속하다</string>
     <string name="provider_disclosure_cancel">취소</string>
+    <string name="provider_disclosure_ack_failed">제공업체 고지를 확인하지 못했습니다. 연결을 확인하고 다시 시도하세요.</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">웹 검색 지원</string>
     <string name="relay_advanced_web_search_profile">웹 검색 프로파일</string>
     <string name="relay_profile_auto">자동</string>
     <string name="relay_test_connection">연결 테스트</string>
     <string name="relay_test_connection_missing_fields">자체 요청 URL과 API 키 사용</string>
     <string name="relay_value_label">값</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">유효한 HTTPS 요청 URL을 입력하세요.</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">자동 / 비워둠</string>
     <string name="relay_disable_response_storage_footnote">OpenAI Responses 전용 · store: false 설정</string>
     <string name="relay_disable_response_storage_short">응답을 클라우드에 저장하지 않음</string>
@@ -866,10 +879,16 @@
     <string name="relay_security_mode_option_unknown_disabled">이 연결 방식을 선택하기 전에 로컬, LAN 또는 비공개 VPN 주소를 입력하세요.</string>
     <string name="relay_connection_no_key_required_cleartext">이 연결에는 키가 필요하지 않습니다 · 암호화되지 않은 연결은 인증 정보를 전송하지 않습니다.</string>
     <string name="relay_remove_api_key">키 제거</string>
-<string name="streaming_pulse_a11y">생성 중</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">생성 중</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">이번 달 활성</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">이번 달 활성</string>
     <string name="providers_all_providers">모든 제공업체</string>
     <string name="providers_today">오늘</string>
     <string name="providers_all_synced">모두 동기화됨</string>
@@ -878,6 +897,8 @@
     <string name="providers_delete_this_question">이 제공업체를 삭제하시겠습니까?</string>
     <string name="providers_delete_this_message">이 제공업체를 삭제하면 관련 채팅 및 기본 모델 구성도 제거됩니다.</string>
     <string name="manual_model_clear">지우기</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">API 키 필요</string>
     <string name="tap_to_view">탭하여 보기</string>
     <string name="tap_to_set">탭하여 설정</string>
@@ -893,6 +914,8 @@
     <string name="code_block_expand">펼치기</string>
     <string name="chat_show_full_message">전체 보기</string>
     <string name="code_block_lines">%d줄</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">인터넷 연결 없음</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -902,6 +925,7 @@
     <string name="reasoning_hide">생각 과정 숨기기</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">%1$s에서 텍스트를 추출할 수 없습니다(스캔한 PDF로 보입니다).</string>
@@ -913,7 +937,6 @@
     <string name="file_extraction_error_generic">%1$s을(를) 처리할 수 없습니다. 다시 시도하거나 다른 파일을 선택하세요.</string>
     <string name="file_extraction_truncated_notice">%1$s 파일이 길어서 전체 %3$d줄 중 처음 %2$d줄만 추가했습니다.</string>
     <string name="file_extraction_send_blocked_text_budget">보내지 못했습니다. %1$s까지 포함하면 첨부 텍스트가 이 모델의 한도를 넘습니다. 파일을 줄이거나 모델을 바꿔 주세요.</string>
-    <string name="error_attachment_not_accepted_title">첨부파일을 사용할 수 없음</string>
     <string name="file_extraction_text_budget_exceeded">%1$s 파일은 추가되지 않았습니다. 추가하면 이 메시지에 첨부할 수 있는 텍스트 한도를 넘습니다.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d줄 추출됨</string>
     <string name="file_attachment_count_limit_reached">이 모델에는 최대 %1$d개의 파일을 첨부할 수 있습니다.</string>
@@ -923,6 +946,8 @@
     <string name="empty_greeting_mind">무슨 생각 하고 계세요?</string>
     <string name="empty_greeting_together">함께 풀어 볼 문제가 있나요?</string>
     <string name="empty_chat_ask_anything">무엇이든 편하게 입력하세요</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">플래그십 GPT 모델</string>
     <string name="provider_tagline_anthropic">Claude 모델</string>
     <string name="provider_tagline_gemini">텍스트, 이미지, 동영상</string>
@@ -938,6 +963,8 @@
     <string name="provider_tagline_groq">초고속 추론</string>
     <string name="provider_tagline_together">오픈소스 모델</string>
     <string name="provider_tagline_fireworks">빠르고 경제적</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">제공업체 연결</string>
     <string name="provider_setup_hero_subtitle">AI 제공업체를 선택한 다음 API 키를 입력하세요</string>
     <string name="provider_category_all">전체</string>
@@ -950,6 +977,8 @@
     <string name="provider_already_connected_subtitle">기존 연결을 관리하거나 다른 API 키로 계정을 추가하세요.</string>
     <string name="provider_manage_existing">기존 관리</string>
     <string name="provider_add_another_account">다른 계정 추가</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="app_name">Oriveo</string>
     <string name="ok">확인</string>
     <string name="selection_label_chinese_ai">중국 AI</string>
@@ -965,7 +994,6 @@
         <item quantity="other">%d개 모델</item>
     </plurals>
     <string name="api_endpoint">API 엔드포인트</string>
-    <string name="api_endpoint_not_configured">설정되지 않음</string>
     <string name="relay_guidance_codex_identity_switch_type">이 연결은 Codex 클라이언트로 식별되어야 합니다. 제공업체 → 이 연결 → 모델 라이브러리 → 이 모델 → 고급에서 프로토콜을 OpenAI Responses로 변경한 뒤 다시 시도하세요.</string>
     <string name="relay_guidance_codex_identity_still_rejected">이 연결은 여전히 Oriveo의 Codex 클라이언트 식별 정보를 거부합니다. 제공업체 → 이 연결 → 연결 편집 → 헤더 및 쿼리 매개변수를 열고 사용자 지정 User-Agent 또는 헤더를 설정하거나 다른 연결로 전환하세요.</string>
     <string name="relay_guidance_responses_only_endpoint">이 연결은 /v1/responses만 제공하고 /chat/completions는 거부합니다. 제공업체 → 이 연결 → 모델 라이브러리 → 이 모델 → 고급에서 프로토콜을 OpenAI Responses로 변경한 뒤 다시 시도하세요.</string>
@@ -1016,10 +1044,16 @@
     <string name="outline_nav_label">대화 개요</string>
     <string name="outline_jump_to">이동: %1$s</string>
     <string name="outline_attachment_only">(첨부 파일)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">노트</string>
     <string name="notes_subtitle">채팅 내용을 노트로 저장</string>
     <string name="notes_untitled">제목 없는 노트</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="other">노트 %1$d개</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">노트</string>
     <string name="notes_tab_trash">휴지통</string>
     <!-- Actions -->
@@ -1082,7 +1116,7 @@
     <string name="notes_toast_export_failed">내보내기 실패</string>
     <string name="notes_toast_folder_created">폴더 \"%1$s\"을(를) 만들었습니다</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">노트로 저장</string>
     <string name="notes_chat_replace_current_note">선택한 내용으로 노트 업데이트</string>
     <string name="notes_chat_return_to_note">노트로 돌아가기</string>
@@ -1114,13 +1148,19 @@
     <string name="notes_detail_delete_this">이 노트 삭제</string>
     <string name="notes_nothing_written">아직 내용이 없습니다.</string>
     <!-- 업데이트 확인 (Android 전용 · Play 인앱 업데이트) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">가격을 알 수 없음</string>
     <string name="pricing_non_standard">비표준 청구</string>
     <string name="pricing_free">무료</string>
     <string name="enabled_models_help">추가한 모델은 홈 화면의 모델 선택기에 표시됩니다.</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">이 대화를 불러올 수 없습니다</string>
     <string name="chat_load_stalled_message">이 대화의 메시지가 아직 이 기기에 없습니다. 다시 시도해 클라우드에서 가져올 수 있습니다.</string>
     <string name="chat_bootstrap_in_progress">대화를 불러오는 중…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">모든 모델을 {하나의 앱}에</string>
     <string name="onboarding_title_models">모든 질문에 {가장 알맞은 모델}</string>
     <string name="onboarding_title_byok">키는 내 기기에, {청구는 내 계정으로}</string>
@@ -1137,6 +1177,8 @@
     <string name="onboarding_legal">계속하면 [서비스 약관](oriveo://terms) 및 [개인정보 처리방침](oriveo://privacy)에 동의하게 됩니다.</string>
     <string name="developer_options">개발자 옵션</string>
     <string name="replay_onboarding">온보딩 다시 보기</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">빠른 설정</string>
     <string name="relay_quick_subtitle">요청 URL과 API 키를 입력하세요. Oriveo가 연결 설정을 감지합니다.</string>
     <string name="relay_models_found">카탈로그에서 %1$d 모델을 찾았습니다.</string>
@@ -1204,9 +1246,8 @@
     <string name="generation_empty_not_verified">이 모델에는 아직 조정할 수 있는 매개변수가 없습니다</string>
     <string name="generation_empty_not_verified_detail">매개변수가 실제로 적용되는지 확인한 뒤에만 조정을 열어 둡니다. 이 연결에서는 이 모델을 아직 테스트하지 않았습니다. 모델 자체의 추론 능력에는 영향이 없습니다.</string>
     <string name="generation_empty_catalog_managed">이 모델의 매개변수는 이제 공식 카탈로그에서 관리되며 여기서 사용자 지정할 수 없습니다.</string>
-    <string name="generation_empty_runtime_locked">이 연결에서는 런타임 매개변수를 조정할 수 없습니다.</string>
     <string name="generation_empty_all_unsupported">이 연결에서는 이 모델이 조정 가능한 매개변수를 받지 않습니다.</string>
-<string name="generation_parameter_unverified_badge">미검증</string>
+    <string name="generation_parameter_unverified_badge">미검증</string>
     <string name="generation_parameter_unverified_group_note">이 매개변수는 선택한 프로토콜에서 추론한 것입니다. 이 연결에서 실제로 적용되는지는 Oriveo가 확인하지 않았습니다.</string>
     <string name="generation_parameter_dormant_summary">이전에 설정한 매개변수 %1$d개가 보관되어 있으며 지금은 전송되지 않습니다.</string>
     <string name="generation_parameter_dormant_view">보기</string>
@@ -1224,6 +1265,8 @@
     <string name="chat_token_usage_cache_write">캐시 쓰기</string>
     <string name="chat_token_usage_total">합계</string>
     <string name="chat_token_usage_unavailable">데이터 없음</string>
+    <string name="chat_token_usage_cost">비용</string>
+    <string name="chat_token_usage_estimated">예상</string>
     <string name="generation_conversation_scope_hint">이 대화에서 이 모델을 사용하는 동안에만 적용됩니다. 모델을 바꿔도 값이 복사되지 않으며, 되돌리면 복원됩니다.</string>
     <string name="generation_parameter_self_healed">이 모델이 %1$s을(를) 거부했습니다. 기본 설정으로 다시 시도했습니다.</string>
     <string name="relay_transport_llamacpp_native">llama.cpp 네이티브 completion</string>
@@ -1423,27 +1466,22 @@
     <string name="tool_call_unhandled_multiple">모델이 이 연결에서 사용할 수 없는 도구(%1$s)를 사용하려고 했습니다.</string>
     <string name="tool_call_arguments_truncated">2KB에서 잘림</string>
     <string name="tool_fallback_library_not_searched">이 연결은 도구를 지원하지 않아 라이브러리를 검색하지 않았습니다.</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">저장 공간 부족</string>
     <string name="storage_blocked_message">기기에 남은 공간이 없어 Oriveo가 로컬 데이터를 열 수 없습니다. 공간을 확보한 후 다시 시도하세요. 대화 기록은 이 기기에 그대로 저장되어 있으며 사라지지 않습니다.</string>
     <string name="storage_blocked_action_free_space">저장 공간 확보</string>
     <string name="database_unavailable_title">로컬 데이터를 열 수 없음</string>
     <string name="database_unavailable_message">이 기기에서 로컬 데이터를 열지 못했습니다. 다시 시도하거나, 계속 발생하면 지원팀에 문의하세요.</string>
     <string name="link_open_failed_message">링크를 열 수 없습니다. 브라우저를 활성화한 후 다시 시도하세요.</string>
-    <string name="contact_support">지원팀에 문의</string>
-    <string name="price_input">입력</string>
-    <string name="price_output">출력</string>
-    <string name="price_cache_read">캐시 읽기</string>
-    <string name="price_cache_write">캐시 쓰기</string>
     <string name="external_app_unavailable">열 수 있는 앱이 없습니다. 앱을 설치하거나 활성화하세요.</string>
-    <plurals name="notes_count">
-        <item quantity="other">노트 %1$d개</item>
-    </plurals>
     <string name="secure_field_show">입력 내용 표시</string>
     <string name="secure_field_hide">입력 내용 숨기기</string>
-    <string name="generation_parameter_name_stop">중지 시퀀스</string>
     <string name="generation_diagnostics_section">생성 설정 진단</string>
     <string name="generation_diagnostics_empty">진단 기록이 아직 없어요</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">이 계정으로는 피드백을 보낼 수 없어요.</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">도구</string>
     <string name="mcp_tools_chip_state_on">서버 %d개 켜짐</string>
     <string name="mcp_tools_chip_state_off">꺼짐</string>
@@ -1518,6 +1556,8 @@
     <string name="mcp_detail_seconds">%s초</string>
     <string name="mcp_detail_third_party_note">결과는 제3자 서버에서 받은 것이며 앞부분 2KB만 표시됩니다. Oriveo가 내용을 검증하지 않았습니다.</string>
     <string name="mcp_detail_not_on_device">상세 내용은 이 단계를 실행한 기기에만 저장됩니다.</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">도구 및 연결</string>
     <string name="mcp_servers_title">MCP 서버</string>
     <plurals name="mcp_settings_entry_count">
@@ -1657,109 +1697,161 @@
     <string name="mcp_reauth_failed_body">로그인 페이지가 닫혔거나 서비스에서 요청을 승인하지 않았습니다. 변경된 내용은 없습니다.</string>
     <string name="mcp_reauth_unreachable_body">지금 이 기기에서 접속할 수 있는지 확인한 뒤 다시 시도하세요.</string>
     <string name="mcp_reauth_token_title">새 액세스 토큰 붙여넣기</string>
-    <string name="additional_body_attachments_filled">첨부 파일은 Oriveo가 채워요.</string>
-    <string name="additional_body_cannot_change">변경 불가</string>
-    <string name="additional_body_check">추가 요청 본문을 확인해 주세요</string>
-    <string name="additional_body_conversation_filled">대화 내용은 Oriveo가 채워요.</string>
-    <string name="additional_body_device_only">이 기기에만 저장되며 동기화되지 않아요</string>
-    <string name="additional_body_docs_link">%1$s에서 지원하는 필드 보기</string>
-    <string name="additional_body_field_filled">이 필드는 Oriveo가 채워요.</string>
-    <string name="additional_body_field_name_invalid">이 이름은 필드 이름으로 쓸 수 없어요.</string>
-    <string name="additional_body_footer">여기에 적은 필드는 그대로 요청에 추가돼요. 서버가 받아들이는지는 Oriveo가 확인하지 않아요. 고급 설정과 이름이 같은 필드가 있으면 여기 값이 쓰이고, 나머지 설정은 평소대로 보내져요.</string>
-    <string name="additional_body_included">포함</string>
-    <string name="additional_body_model_chosen">모델은 Oriveo에서 고른 모델로 정해져요.</string>
-    <string name="additional_body_paste">붙여넣기</string>
-    <string name="additional_body_paste_replace_body">붙여넣으면 지금 내용이 클립보드 내용으로 바뀌어요.</string>
-    <string name="additional_body_paste_replace_title">지금 내용을 교체할까요?</string>
-    <string name="additional_body_reason_blocked_segment">‘%1$s’ 필드 이름은 추가 요청 본문에서 쓸 수 없어요.</string>
-    <string name="additional_body_reason_invalid_json">추가 요청 본문이 올바른 JSON이 아니에요.</string>
-    <string name="additional_body_reason_not_object">추가 요청 본문은 { }로 감싼 JSON 객체여야 해요.</string>
-    <string name="additional_body_reason_protected_field">‘%1$s’ 필드는 Oriveo가 채우므로 추가 요청 본문에서 설정할 수 없어요.</string>
-    <string name="additional_body_reason_too_deep">추가 요청 본문의 중첩이 32단계를 넘었어요.</string>
-    <string name="additional_body_reason_too_large">추가 요청 본문이 64 KB를 넘었어요.</string>
-    <string name="additional_body_rejected_upstream">추가 요청 본문이 포함된 요청이 거부됐어요</string>
-    <string name="additional_body_remove_line">%1$s 보내려면 %2$d번째 줄을 지워 주세요.</string>
-    <string name="additional_body_retry_without">추가 요청 본문 없이 다시 시도</string>
-    <string name="additional_body_send_toggle">요청과 함께 보내기</string>
-    <string name="additional_body_send_toggle_note">꺼도 내용은 남지만 보내지는 않아요</string>
-    <string name="additional_body_switch_blocked_invalid">추가 요청 본문에 문제가 있어서 이 스위치로 바꿀 수 없어요. 먼저 그곳에서 고쳐 주세요.</string>
-    <string name="additional_body_switch_blocked_off">추가 요청 본문이 지금 요청과 함께 보내지지 않고 있어요. 먼저 그곳에서 켜 주세요.</string>
-    <string name="additional_body_system_prompt_filled">시스템 프롬프트는 Oriveo가 채워요.</string>
-    <string name="additional_body_tidy">정리</string>
-    <string name="additional_body_tidy_invalid">아직 올바른 JSON이 아니라서 아무것도 바꾸지 않았어요.</string>
-    <string name="additional_body_title">추가 요청 본문</string>
-    <string name="additional_body_when_sending">보낼 때</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">기능</string>
+    <string name="model_options_local">로컬</string>
+    <string name="model_options_web_note">필요할 때 먼저 웹을 검색한 뒤 답해요</string>
+    <string name="model_options_always_thinks">답변하기 전에 항상 생각해요</string>
+    <string name="model_options_thinks_first_note">먼저 충분히 생각하므로 답변이 조금 늦어져요</string>
+    <string name="model_options_higher_levels_note">단계가 높을수록 오래 걸리고 비용이 늘 수 있어요.</string>
+    <string name="model_options_template_thinking_note">채팅 템플릿으로 사고를 켜거나 꺼요. 실제로 적용되는지는 서버에 따라 달라요.</string>
+    <string name="model_options_connection_cannot">이 연결에서는 지원하지 않음</string>
+    <string name="model_options_uses_model_default">모델 기본값을 따라요</string>
+    <string name="model_options_reasoning_not_catalogued">Oriveo에 아직 이 모델의 사고 설정이 없어서 모델 자체 기본값으로 동작해요.</string>
+    <string name="model_options_web_not_catalogued">Oriveo에 아직 이 모델의 웹 검색 설정이 없어서 여기서 켤 수 없어요.</string>
+    <string name="model_options_see_adjustable_models">조정 가능한 모델 보기</string>
+    <string name="model_options_no_thinking_mode">이 모델은 사고를 지원하지 않아요</string>
+    <string name="model_options_shows_thinking_fixed">사고 과정을 보여줘요 · 조절할 수 없어요</string>
+    <string name="model_options_cannot_search">이 모델은 웹 검색을 지원하지 않아요</string>
+    <string name="model_options_always_on">항상 켜짐</string>
+    <string name="model_options_subscription_always_searches">이 구독에서는 이 모델이 항상 웹 검색을 해요.</string>
+    <string name="model_options_web_when_needed">필요할 때</string>
+    <string name="model_options_web_every_message">매번</string>
+    <string name="model_options_needs_manual_setup">직접 설정 필요</string>
+    <string name="model_options_reasoning_no_generic_switch">이 제공업체에는 사고용 표준 스위치가 없어요. 추가 요청 본문에 해당 제공업체의 필드를 넣어 주세요.</string>
+    <string name="model_options_web_no_generic_switch">이 제공업체에는 웹 검색용 표준 스위치가 없어요. 추가 요청 본문에 해당 제공업체의 필드를 넣어 주세요.</string>
+    <string name="model_options_open_additional_body">추가 요청 본문 열기</string>
+    <string name="model_options_choose_protocol_first">먼저 이 연결의 프로토콜을 선택해 주세요</string>
+    <string name="model_options_protocol_auto_note">프로토콜이 아직 ‘자동’이라 Oriveo가 웹 검색과 사고 설정을 어떻게 보낼지 알 수 없어요.</string>
+    <string name="model_options_choose_protocol">프로토콜 선택</string>
+    <string name="model_options_tier_rejected_title">‘%1$s’ 값이 거부됐어요</string>
+    <string name="model_options_tier_rejected_body">이 모델이 지금은 ‘%1$s’ 단계를 받지 않아 ‘%2$s’ 단계로 되돌렸어요. 모델이 다시 지원하면 원래 단계로 자동으로 돌아가요.</string>
+    <string name="model_options_more_count">외 %1$d개</string>
+    <string name="model_options_cant_switch_here">아직 여기서 바꿀 수 없음</string>
+    <string name="model_options_not_available_yet">아직 사용할 수 없음</string>
+    <string name="model_options_web_and_thinking_fields">웹 검색·사고 필드</string>
+    <string name="model_options_vision_available">사용 가능 · 입력창에 앨범 표시</string>
+    <string name="model_options_vision_unknown">알 수 없음 · 보낸 뒤 기억</string>
+    <string name="model_options_vision_hidden">사용 불가 · 입력창에 앨범 숨김</string>
+    <string name="model_options_file_pdf_native">PDF는 원본 그대로 · 나머지는 텍스트로</string>
+    <string name="model_options_file_native_when_supported">지원 형식은 원본 그대로 · 나머지는 텍스트로</string>
+    <string name="model_options_file_text">텍스트로 변환해 전송</string>
+    <string name="model_options_turn_summary">이번에 보낼 항목: %1$s</string>
+    <string name="model_options_summary_web_on">웹 검색 켜짐</string>
+    <string name="model_options_summary_thinking_level">사고: %1$s</string>
+    <string name="model_options_summary_thinking_on">사고 켜짐</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="other">%d단계</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">이 대화에만</string>
+    <string name="advanced_reset">재설정</string>
+    <string name="advanced_reset_conversation_title">이 대화의 설정을 재설정할까요?</string>
+    <string name="advanced_reset_conversation_body">이 대화에서 바꾼 매개변수만 지워요. 모델 기본값과 추가 요청 본문은 그대로 남아요.</string>
+    <string name="advanced_reset_conversation_action">이 대화의 변경 사항 재설정</string>
+    <string name="advanced_reset_model_title">이 모델의 기본값을 재설정할까요?</string>
+    <string name="advanced_reset_model_body">이 연결에서 이 모델에 지정한 기본 매개변수를 지워요. 각 대화에서 따로 바꾼 값은 그대로 남아요.</string>
+    <string name="advanced_reset_model_action">모델 기본값 재설정</string>
+    <string name="advanced_more">더보기</string>
+    <string name="advanced_not_adjusted">조정 없음</string>
+    <string name="advanced_entries_count">%1$d개</string>
+    <string name="advanced_fields_count">필드 %1$d개</string>
+    <string name="advanced_random_each_time">매번 무작위</string>
+    <string name="advanced_plain_text">일반 텍스트</string>
+    <string name="advanced_write_your_own">직접 작성</string>
     <string name="advanced_additional_body_subtitle">위에 없는 필드를 JSON으로 추가</string>
+    <string name="advanced_not_in_use">사용 안 함</string>
+    <string name="advanced_changed_in_conversation">이 대화에서 변경함</string>
+    <string name="advanced_using_your_default">직접 정한 모델 기본값 사용 중</string>
+    <string name="advanced_model_defaults">모델 기본값</string>
+    <string name="advanced_your_default">모델 기본값</string>
+    <string name="advanced_state_set">설정됨</string>
+    <string name="advanced_state_on">켜짐</string>
+    <string name="advanced_use_model_default">모델 기본값 사용</string>
+    <string name="advanced_dont_send">이 설정 보내지 않기</string>
     <string name="advanced_allowed_range">허용 범위: %1$s</string>
     <string name="advanced_also_covers">%1$s 포함</string>
-    <string name="advanced_changed_in_conversation">이 대화에서 변경함</string>
-    <string name="advanced_crossed_out_legend">줄이 그어진 설정은 지금 %1$s 기능이 관리하고 있어요.</string>
-    <string name="advanced_diagnostics_delete_body">이 모델에 표시된 진단 기록을 삭제해요. 다른 모델의 기록은 남아요.</string>
-    <string name="advanced_diagnostics_delete_title">이 진단 기록을 삭제할까요?</string>
-    <string name="advanced_dont_send">이 설정 보내지 않기</string>
+    <string name="advanced_no_limit">제한 없음</string>
+    <string name="advanced_stop_sequences">중지 시퀀스</string>
+    <string name="advanced_new_stop_sequence">새 중지 시퀀스</string>
+    <string name="advanced_stop_sequences_note">모델은 이 중 하나라도 쓰면 바로 멈춰요. 시퀀스에는 쉼표, 공백, 줄바꿈을 넣을 수 있어요.</string>
+    <string name="advanced_remove_item">%1$s 삭제</string>
+    <string name="advanced_error_max_tokens">이 모델은 최대 %1$s까지 쓸 수 있어요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_error_number">숫자를 입력해 주세요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_error_integer">정수를 입력해 주세요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_error_highest">이 모델은 최대 %1$s까지만 받아요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_error_lowest">이 모델은 최소 %1$s부터 받아요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_error_greater_than">%1$s보다 커야 해요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_error_less_than">%1$s보다 작아야 해요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_error_json_schema">올바른 JSON Schema가 아니에요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_error_value_rejected">이 모델이 받지 않는 값이에요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
+    <string name="advanced_dropped_thinking">사고가 켜져 있으면 모델이 이 항목을 받지 않아서 보내지 않아요.</string>
     <string name="advanced_dropped_conflict">다른 설정과 충돌해 이 항목은 빼고 보내요.</string>
     <string name="advanced_dropped_conflict_with">%1$s 항목과 함께 보낼 수 없어 이 항목은 빼고 보내요.</string>
     <string name="advanced_dropped_depends">이 항목에 필요한 다른 설정이 비어 있어 보내지 않아요.</string>
-    <string name="advanced_dropped_reasoning_budget">추론 예산보다 작아서 대신 기본값을 보내요.</string>
-    <string name="advanced_dropped_required_default">이 모델은 이 항목이 꼭 있어야 해서 기본값을 계속 보내요.</string>
     <string name="advanced_dropped_requires">%1$s 항목도 설정해야 보내져요.</string>
-    <string name="advanced_dropped_thinking">사고가 켜져 있으면 모델이 이 항목을 받지 않아서 보내지 않아요.</string>
     <string name="advanced_dropped_value">이 모델이 받지 않는 값이라 이 설정은 보내지 않아요.</string>
+    <string name="advanced_dropped_required_default">이 모델은 이 항목이 꼭 있어야 해서 기본값을 계속 보내요.</string>
+    <string name="advanced_dropped_reasoning_budget">추론 예산보다 작아서 대신 기본값을 보내요.</string>
+    <string name="advanced_taken_over">%1$s 설정이 켜져 있어 이 항목은 쓰이지 않아요.</string>
+    <string name="advanced_crossed_out_legend">줄이 그어진 설정은 지금 %1$s 기능이 관리하고 있어요.</string>
+    <string name="advanced_grey_defaults_legend">회색 숫자는 %1$s 자체 기본값이에요. 바꾸지 않으면 보내지 않아요.</string>
+    <string name="advanced_mirostat_note">출력의 무작위성을 목표값 근처로 유지해요. Top K와 Top P 대신 쓰여요.</string>
+    <string name="advanced_target_entropy">목표 엔트로피</string>
+    <string name="advanced_learning_rate">학습률</string>
+    <string name="advanced_repetition">반복 억제</string>
     <string name="advanced_dry_note">앞 내용을 통째로 되풀이하지 않게 억제해요</string>
+    <string name="advanced_more_sampling">기타 샘플링</string>
+    <string name="advanced_xtc_note">가장 유력한 단어를 가끔 피해서 표현을 다양하게 해요</string>
     <string name="advanced_dynamic_temperature">동적 온도</string>
     <string name="advanced_dynamic_temperature_note">모델이 얼마나 확신하는지에 따라 온도가 달라져요</string>
-    <string name="advanced_entries_count">%1$d개</string>
-    <string name="advanced_error_greater_than">%1$s보다 커야 해요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_error_highest">이 모델은 최대 %1$s까지만 받아요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_error_integer">정수를 입력해 주세요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_error_json_schema">올바른 JSON Schema가 아니에요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_error_less_than">%1$s보다 작아야 해요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_error_lowest">이 모델은 최소 %1$s부터 받아요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_error_max_tokens">이 모델은 최대 %1$s까지 쓸 수 있어요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_error_number">숫자를 입력해 주세요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_error_value_rejected">이 모델이 받지 않는 값이에요. 고치기 전까지 이 설정은 보내지 않으며, 다른 설정에는 영향이 없어요.</string>
-    <string name="advanced_fields_count">필드 %1$d개</string>
-    <string name="advanced_grey_defaults_legend">회색 숫자는 %1$s 자체 기본값이에요. 바꾸지 않으면 보내지 않아요.</string>
-    <string name="advanced_learning_rate">학습률</string>
-    <string name="advanced_mirostat_note">출력의 무작위성을 목표값 근처로 유지해요. Top K와 Top P 대신 쓰여요.</string>
-    <string name="advanced_model_defaults">모델 기본값</string>
-    <string name="advanced_more">더보기</string>
-    <string name="advanced_more_sampling">기타 샘플링</string>
-    <string name="advanced_new_stop_sequence">새 중지 시퀀스</string>
-    <string name="advanced_no_limit">제한 없음</string>
-    <string name="advanced_not_adjusted">조정 없음</string>
-    <string name="advanced_not_in_use">사용 안 함</string>
-    <string name="advanced_plain_text">일반 텍스트</string>
-    <string name="advanced_preset_apply">프리셋 적용</string>
-    <string name="advanced_preset_apply_body">‘%1$s’ 프리셋을 적용하면 이 모델에 지정한 값이 모두 바뀌어요: %2$s.</string>
-    <string name="advanced_preset_apply_title">이 프리셋을 적용할까요?</string>
-    <string name="advanced_random_each_time">매번 무작위</string>
-    <string name="advanced_reasoning_set_by_thinking">이 모델은 \'모델 옵션\'의 \'사고\'에서 단계를 설정해요. 원하는 단계를 기본값으로 두려면 거기서 고른 뒤 \'이 모델의 기본값으로 설정\'을 탭하세요. 이 항목은 요청에 포함되지 않아요.</string>
-    <string name="advanced_remove_item">%1$s 삭제</string>
-    <string name="advanced_repetition">반복 억제</string>
-    <string name="advanced_reset">재설정</string>
-    <string name="advanced_reset_conversation_action">이 대화의 변경 사항 재설정</string>
-    <string name="advanced_reset_conversation_body">이 대화에서 바꾼 매개변수만 지워요. 모델 기본값과 추가 요청 본문은 그대로 남아요.</string>
-    <string name="advanced_reset_conversation_title">이 대화의 설정을 재설정할까요?</string>
-    <string name="advanced_reset_model_action">모델 기본값 재설정</string>
-    <string name="advanced_reset_model_body">이 연결에서 이 모델에 지정한 기본 매개변수를 지워요. 각 대화에서 따로 바꾼 값은 그대로 남아요.</string>
-    <string name="advanced_reset_model_title">이 모델의 기본값을 재설정할까요?</string>
-    <string name="advanced_state_on">켜짐</string>
-    <string name="advanced_state_set">설정됨</string>
-    <string name="advanced_stop_sequences">중지 시퀀스</string>
-    <string name="advanced_stop_sequences_note">모델은 이 중 하나라도 쓰면 바로 멈춰요. 시퀀스에는 쉼표, 공백, 줄바꿈을 넣을 수 있어요.</string>
-    <string name="advanced_taken_over">%1$s 설정이 켜져 있어 이 항목은 쓰이지 않아요.</string>
-    <string name="advanced_target_entropy">목표 엔트로피</string>
-    <string name="advanced_this_conversation_only">이 대화에만</string>
-    <string name="advanced_use_model_default">모델 기본값 사용</string>
-    <string name="advanced_using_your_default">직접 정한 모델 기본값 사용 중</string>
-    <string name="advanced_write_your_own">직접 작성</string>
-    <string name="advanced_xtc_note">가장 유력한 단어를 가끔 피해서 표현을 다양하게 해요</string>
-    <string name="advanced_your_default">모델 기본값</string>
+    <string name="additional_body_title">추가 요청 본문</string>
+    <string name="additional_body_send_toggle">요청과 함께 보내기</string>
+    <string name="additional_body_send_toggle_note">꺼도 내용은 남지만 보내지는 않아요</string>
+    <string name="additional_body_device_only">이 기기에만 저장되며 동기화되지 않아요</string>
+    <string name="additional_body_paste">붙여넣기</string>
+    <string name="additional_body_tidy">정리</string>
+    <string name="additional_body_when_sending">보낼 때</string>
+    <string name="additional_body_included">포함</string>
+    <string name="additional_body_cannot_change">변경 불가</string>
+    <string name="additional_body_footer">여기에 적은 필드는 그대로 요청에 추가돼요. 서버가 받아들이는지는 Oriveo가 확인하지 않아요. 고급 설정과 이름이 같은 필드가 있으면 여기 값이 쓰이고, 나머지 설정은 평소대로 보내져요.</string>
+    <string name="additional_body_docs_link">%1$s에서 지원하는 필드 보기</string>
+    <string name="additional_body_remove_line">%1$s 보내려면 %2$d번째 줄을 지워 주세요.</string>
+    <string name="additional_body_conversation_filled">대화 내용은 Oriveo가 채워요.</string>
+    <string name="additional_body_attachments_filled">첨부 파일은 Oriveo가 채워요.</string>
+    <string name="additional_body_system_prompt_filled">시스템 프롬프트는 Oriveo가 채워요.</string>
+    <string name="additional_body_tools_managed">도구는 Oriveo가 관리해요.</string>
+    <string name="additional_body_model_chosen">모델은 Oriveo에서 고른 모델로 정해져요.</string>
+    <string name="additional_body_streaming_by_oriveo">답변을 어떻게 스트리밍할지는 Oriveo가 정해요.</string>
+    <string name="additional_body_field_filled">이 필드는 Oriveo가 채워요.</string>
+    <string name="additional_body_field_name_invalid">이 이름은 필드 이름으로 쓸 수 없어요.</string>
+    <string name="additional_body_paste_replace_title">지금 내용을 교체할까요?</string>
+    <string name="additional_body_paste_replace_body">붙여넣으면 지금 내용이 클립보드 내용으로 바뀌어요.</string>
+    <string name="additional_body_tidy_invalid">아직 올바른 JSON이 아니라서 아무것도 바꾸지 않았어요.</string>
+    <string name="additional_body_switch_blocked_invalid">추가 요청 본문에 문제가 있어서 이 스위치로 바꿀 수 없어요. 먼저 그곳에서 고쳐 주세요.</string>
+    <string name="additional_body_switch_blocked_off">추가 요청 본문이 지금 요청과 함께 보내지지 않고 있어요. 먼저 그곳에서 켜 주세요.</string>
+    <string name="additional_body_check">추가 요청 본문을 확인해 주세요</string>
+    <string name="additional_body_rejected_upstream">추가 요청 본문이 포함된 요청이 거부됐어요</string>
+    <string name="additional_body_reason_too_large">추가 요청 본문이 64 KB를 넘었어요.</string>
+    <string name="additional_body_reason_invalid_json">추가 요청 본문이 올바른 JSON이 아니에요.</string>
+    <string name="additional_body_reason_not_object">추가 요청 본문은 { }로 감싼 JSON 객체여야 해요.</string>
+    <string name="additional_body_reason_too_deep">추가 요청 본문의 중첩이 32단계를 넘었어요.</string>
+    <string name="additional_body_reason_blocked_segment">‘%1$s’ 필드 이름은 추가 요청 본문에서 쓸 수 없어요.</string>
+    <string name="additional_body_reason_protected_field">‘%1$s’ 필드는 Oriveo가 채우므로 추가 요청 본문에서 설정할 수 없어요.</string>
+    <string name="additional_body_retry_without">추가 요청 본문 없이 다시 시도</string>
+    <string name="local_request_line_format">%1$d번째 줄: %2$s</string>
+    <string name="local_request_custom_line_format">%1$s 필드 %2$d행: %3$s</string>
+    <string name="local_request_custom_format">%1$s 필드: %2$s</string>
+    <string name="local_request_not_sent">이 메시지는 보내지 않았어요.</string>
     <string name="generation_parameter_name_grammar">문법 제약(GBNF)</string>
     <string name="generation_parameter_name_min_tokens">최소 출력 토큰 수</string>
     <string name="generation_parameter_name_skip_special_tokens">출력에서 특수 토큰 숨기기</string>
     <string name="generation_parameter_omitted_value">생략</string>
+    <string name="advanced_reasoning_set_by_thinking">이 모델은 \'모델 옵션\'의 \'사고\'에서 단계를 설정해요. 원하는 단계를 기본값으로 두려면 거기서 고른 뒤 \'이 모델의 기본값으로 설정\'을 탭하세요. 이 항목은 요청에 포함되지 않아요.</string>
+    <string name="advanced_preset_apply">프리셋 적용</string>
+    <string name="advanced_preset_apply_title">이 프리셋을 적용할까요?</string>
+    <string name="advanced_preset_apply_body">‘%1$s’ 프리셋을 적용하면 이 모델에 지정한 값이 모두 바뀌어요: %2$s.</string>
+    <string name="advanced_diagnostics_delete_title">이 진단 기록을 삭제할까요?</string>
+    <string name="advanced_diagnostics_delete_body">이 모델에 표시된 진단 기록을 삭제해요. 다른 모델의 기록은 남아요.</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">사용자 지정 LLM · 사용자 정의 릴레이</string>
     <string name="relay_setup_hero_title">사용자 정의 릴레이 연결</string>
@@ -1830,6 +1922,7 @@
     <string name="relay_relative_minutes_ago">%d분 전</string>
     <string name="relay_relative_hours_ago">%d시간 전</string>
     <string name="relay_detail_default_model">기본 모델</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">주소와 키를 입력하고 다음 단계에서 사용할 모델을 고릅니다. 프로토콜과 기능은 모델별로 감지합니다.</string>
     <string name="relay_setup_will_request">요청 주소: %1$s</string>
     <string name="relay_setup_key_name">이름(선택)</string>
@@ -1919,6 +2012,14 @@
     <string name="relay_catalog_status_denied">현재 키에 접근 권한이 없습니다</string>
     <string name="relay_catalog_unreachable_title">연결되지 않는 이유</string>
     <string name="relay_catalog_enable_hint">활성화하면 사용할 수 있는지 확인하기 위해 아주 작은 요청을 1회 보냅니다. 카탈로그에서 모델을 탭하면 요청 없이 “고급”을 먼저 볼 수 있습니다.</string>
+    <string name="relay_catalog_add_all">모두 추가</string>
+    <string name="relay_catalog_enable_hint_explicit">카탈로그에서 모델을 탭하면 요청 없이 “고급”을 먼저 볼 수 있습니다.</string>
+    <string name="relay_catalog_remove_last_reason">이 연결에는 모델이 하나 이상 있어야 합니다.</string>
+    <string name="relay_model_advanced_auto_equals_connection">자동 = 이 연결의 기본 프로토콜(%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">변경하면 바로 적용되며 이 기기에만 저장됩니다.</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="other">모델 %1$d개를 추가했습니다</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">모델 목록을 가져오지 못했습니다</string>
     <string name="relay_catalog_group_other">기타</string>
     <string name="relay_advanced_key_section">키</string>
@@ -2007,6 +2108,7 @@
     <string name="relay_web_chat_note">Chat Completions에는 웹 검색용 표준 필드가 없습니다. 템플릿은 검색 모델에서만 작동하니 서비스 문서를 확인하세요.</string>
     <string name="relay_web_other_protocols">기타 프로토콜</string>
     <string name="relay_web_template_replace_body">템플릿을 넣으면 이 프로토콜에 입력한 내용이 교체됩니다.</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">인증, 헤더 및 쿼리 매개변수</string>
     <string name="relay_manual_connection_name">연결 이름</string>
     <string name="relay_manual_model_footnote">사용자 정의 릴레이에 표시된 모델 ID를 그대로 정확히 입력하세요. 나중에 모델 라이브러리에서 더 추가할 수 있습니다.</string>
@@ -2020,64 +2122,6 @@
     <string name="relay_manual_model_entry_note_exact">사용자 정의 릴레이에 표시된 모델 ID를 그대로 정확히 입력하세요.</string>
     <string name="relay_manual_model_entry_note_capabilities">이 모델이 지원하는 기능은 메시지를 보낸 뒤 기억됩니다. ‘고급’에서 직접 테스트할 수도 있습니다.</string>
     <string name="relay_connection_not_verified">연결이 확인되지 않았습니다.</string>
-    <string name="local_request_custom_format">%1$s 필드: %2$s</string>
-    <string name="local_request_custom_line_format">%1$s 필드 %2$d행: %3$s</string>
-    <string name="local_request_line_format">%1$d번째 줄: %2$s</string>
-    <string name="local_request_not_sent">이 메시지는 보내지 않았어요.</string>
-    <string name="model_options_always_thinks">답변하기 전에 항상 생각해요</string>
-    <string name="model_options_cannot_search">이 모델은 웹 검색을 지원하지 않아요</string>
-    <string name="model_options_always_on">항상 켜짐</string>
-    <string name="model_options_subscription_always_searches">이 구독에서는 이 모델이 항상 웹 검색을 해요.</string>
-    <string name="model_options_cant_switch_here">아직 여기서 바꿀 수 없음</string>
-    <string name="model_options_capabilities">기능</string>
-    <string name="model_options_choose_protocol">프로토콜 선택</string>
-    <string name="model_options_choose_protocol_first">먼저 이 연결의 프로토콜을 선택해 주세요</string>
-    <string name="model_options_connection_cannot">이 연결에서는 지원하지 않음</string>
-    <string name="model_options_higher_levels_note">단계가 높을수록 오래 걸리고 비용이 늘 수 있어요.</string>
-    <string name="model_options_local">로컬</string>
-    <string name="model_options_more_count">외 %1$d개</string>
-    <string name="model_options_needs_manual_setup">직접 설정 필요</string>
-    <string name="model_options_no_thinking_mode">이 모델은 사고를 지원하지 않아요</string>
-    <string name="model_options_not_available_yet">아직 사용할 수 없음</string>
-    <string name="model_options_open_additional_body">추가 요청 본문 열기</string>
-    <string name="model_options_protocol_auto_note">프로토콜이 아직 ‘자동’이라 Oriveo가 웹 검색과 사고 설정을 어떻게 보낼지 알 수 없어요.</string>
-    <string name="model_options_reasoning_no_generic_switch">이 제공업체에는 사고용 표준 스위치가 없어요. 추가 요청 본문에 해당 제공업체의 필드를 넣어 주세요.</string>
-    <string name="model_options_reasoning_not_catalogued">Oriveo에 아직 이 모델의 사고 설정이 없어서 모델 자체 기본값으로 동작해요.</string>
-    <string name="model_options_see_adjustable_models">조정 가능한 모델 보기</string>
-    <string name="model_options_template_thinking_note">채팅 템플릿으로 사고를 켜거나 꺼요. 실제로 적용되는지는 서버에 따라 달라요.</string>
-    <string name="model_options_thinks_first_note">먼저 충분히 생각하므로 답변이 조금 늦어져요</string>
-    <string name="model_options_tier_rejected_body">이 모델이 지금은 ‘%1$s’ 단계를 받지 않아 ‘%2$s’ 단계로 되돌렸어요. 모델이 다시 지원하면 원래 단계로 자동으로 돌아가요.</string>
-    <string name="model_options_tier_rejected_title">‘%1$s’ 값이 거부됐어요</string>
-    <string name="model_options_uses_model_default">모델 기본값을 따라요</string>
-    <string name="model_options_web_and_thinking_fields">웹 검색·사고 필드</string>
-    <string name="model_options_vision_available">사용 가능 · 입력창에 앨범 표시</string>
-    <string name="model_options_vision_unknown">알 수 없음 · 보낸 뒤 기억</string>
-    <string name="model_options_vision_hidden">사용 불가 · 입력창에 앨범 숨김</string>
-    <string name="model_options_file_pdf_native">PDF는 원본 그대로 · 나머지는 텍스트로</string>
-    <string name="model_options_file_native_when_supported">지원 형식은 원본 그대로 · 나머지는 텍스트로</string>
-    <string name="model_options_file_text">텍스트로 변환해 전송</string>
-    <string name="model_options_turn_summary">이번에 보낼 항목: %1$s</string>
-    <string name="model_options_summary_web_on">웹 검색 켜짐</string>
-    <string name="model_options_summary_thinking_level">사고: %1$s</string>
-    <string name="model_options_summary_thinking_on">사고 켜짐</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="other">%d단계</item>
-    </plurals>
-    <string name="model_options_web_every_message">매번</string>
-    <string name="model_options_web_no_generic_switch">이 제공업체에는 웹 검색용 표준 스위치가 없어요. 추가 요청 본문에 해당 제공업체의 필드를 넣어 주세요.</string>
-    <string name="model_options_web_not_catalogued">Oriveo에 아직 이 모델의 웹 검색 설정이 없어서 여기서 켤 수 없어요.</string>
-    <string name="model_options_web_note">필요할 때 먼저 웹을 검색한 뒤 답해요</string>
-    <string name="model_options_web_when_needed">필요할 때</string>
-    <string name="additional_body_tools_managed">도구는 Oriveo가 관리해요.</string>
-    <string name="additional_body_streaming_by_oriveo">답변을 어떻게 스트리밍할지는 Oriveo가 정해요.</string>
-    <string name="relay_catalog_add_all">모두 추가</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="other">모델 %1$d개를 추가했습니다</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">이 연결에는 모델이 하나 이상 있어야 합니다.</string>
-    <string name="relay_catalog_enable_hint_explicit">카탈로그에서 모델을 탭하면 요청 없이 “고급”을 먼저 볼 수 있습니다.</string>
-    <string name="relay_model_advanced_changes_apply">변경하면 바로 적용되며 이 기기에만 저장됩니다.</string>
-    <string name="relay_model_advanced_auto_equals_connection">자동 = 이 연결의 기본 프로토콜(%1$s)</string>
     <string name="relay_avatar_change_icon">아이콘 변경</string>
     <string name="relay_avatar_letter">첫 글자</string>
     <string name="relay_avatar_icon_paper_plane">종이비행기</string>
@@ -2289,7 +2333,7 @@
     <string name="memory_editor_category">카테고리</string>
     <string name="memory_editor_too_long">최대 2,000자</string>
     <string name="memory_delete_confirm_title">이 메모리를 삭제할까요?</string>
-    <string name="memory_delete_confirm_body">이 기기에서 영구적으로 삭제돼요.</string>
+    <string name="memory_delete_confirm_body">모든 기기에서 삭제돼요.</string>
     <string name="memory_action_organize">항목으로 나누기</string>
     <string name="memory_raw_view">일반 텍스트</string>
     <string name="memory_raw_view_hint">항목 사이에 ---만 있는 줄을 넣어 구분하세요.</string>
@@ -2319,8 +2363,165 @@
     <string name="context_confirm_also_price_line">%1$s의 %2$s 할증 기준선도 넘어서, 요청 전체에 긴 컨텍스트 요금이 적용돼요.</string>
     <string name="context_confirm_dont_ask">이 대화에서는 다시 묻지 않기</string>
     <string name="context_confirm_send">그래도 보내기</string>
-    <string name="chat_last_used_model_retired_hint">지난번에 쓰던 모델의 지원이 종료되어 이제 %1$s을(를) 사용해요.</string>
-    <string name="model_options_shows_thinking_fixed">사고 과정을 보여줘요 · 조절할 수 없어요</string>
     <string name="settings_section_general">일반</string>
     <string name="settings_section_help_about">도움말 및 정보</string>
+    <string name="settings_footer_poem">수많은 모델 속에서, 내게 닿는 단 하나의 대답을 들어요.</string>
+    <string name="skills_home_autoCount">자동 · %1$d</string>
+    <string name="skills_home_slashHint">/를 입력해 사용하세요</string>
+    <string name="skills_home_empty">원하는 방식을 저장해 보세요</string>
+    <string name="skills_list_subtitle">원하는 작업 방식을 저장해 두면 AI가 적절할 때 사용합니다.</string>
+    <string name="skills_create_describePlaceholder">원하는 방식을 설명하면 AI가 스킬로 만들어 드립니다</string>
+    <string name="skills_create_fromChat">채팅에서 만들기</string>
+    <string name="skills_create_manual">직접 만들기</string>
+    <string name="skills_segment_mine">내 스킬</string>
+    <string name="skills_segment_templates">템플릿</string>
+    <string name="skills_group_auto">자동 사용</string>
+    <string name="skills_group_manual">수동 전용</string>
+    <string name="skills_card_usageCount">사용 횟수: %1$d</string>
+    <string name="skills_row_slashHint">%1$s 입력 시 사용</string>
+    <string name="skills_auto_needWhenTitle">먼저 언제 사용할지 적어 주세요</string>
+    <string name="skills_auto_suggest">AI 추천</string>
+    <string name="skills_auto_limitReached">자동 사용이 한도(%1$d)에 도달했습니다. 먼저 하나를 꺼 주세요.</string>
+    <string name="skills_search_placeholder">스킬 검색</string>
+    <string name="skills_empty_title">아직 스킬이 없습니다</string>
+    <string name="skills_empty_body">자주 쓰는 방식을 저장해 두면 매번 설명하지 않아도 됩니다.</string>
+    <string name="skills_empty_browseTemplates">템플릿 둘러보기</string>
+    <string name="skills_migrate_banner">‘사용 시점’이 없는 스킬: %1$d. 한 줄만 추가하면 자동으로 사용할 수 있습니다.</string>
+    <string name="skills_migrate_review">하나씩 채우기</string>
+    <string name="skills_templates_note">템플릿은 ‘내 스킬’에 추가한 뒤에만 자동으로 사용됩니다.</string>
+    <string name="skills_templates_featured">추천</string>
+    <string name="skills_templates_addToMine">내 스킬에 추가</string>
+    <string name="skills_templates_add">추가</string>
+    <string name="skills_templates_added">추가됨</string>
+    <string name="skills_templates_tryOnce">한 번 써 보기</string>
+    <string name="skills_detail_useInNewChat">새 채팅에서 사용</string>
+    <string name="skills_detail_orSlash">또는 입력창에 %1$s 입력</string>
+    <string name="skills_detail_usage">사용 횟수: %1$d · 마지막 사용 %2$s</string>
+    <string name="skills_detail_neverUsed">아직 사용하지 않음</string>
+    <string name="skills_detail_autoInvoke">자동으로 사용</string>
+    <string name="skills_detail_whenToUse">사용 시점</string>
+    <string name="skills_detail_whenToUseNote">AI가 이 내용으로 사용 여부를 판단합니다</string>
+    <string name="skills_detail_instructions">지침</string>
+    <string name="skills_detail_showAll">모두 보기</string>
+    <string name="skills_detail_references">참고 자료</string>
+    <string name="skills_detail_starters">대화 시작 문구</string>
+    <string name="skills_detail_recentChats">이 스킬을 쓴 최근 채팅</string>
+    <string name="skills_detail_try">써 보기</string>
+    <string name="skills_edit_changeIcon">아이콘 변경</string>
+    <string name="skills_edit_name">이름</string>
+    <string name="skills_edit_whenBadge">자동 사용 여부 결정</string>
+    <string name="skills_edit_whenPlaceholder">예: 메모를 주간 보고서로 정리해 달라고 할 때. 일일 보고에는 사용하지 않음.</string>
+    <string name="skills_edit_keywordsCaption">이 단어에 반응합니다 · 상황만 적어도 충분합니다</string>
+    <string name="skills_edit_whenTip">무엇을 하는지, 언제 쓰는지, 평소 어떻게 요청하는지 적어 주세요. ‘…에는 사용하지 않음’을 덧붙이면 잘못 쓰이는 일을 줄일 수 있습니다. 따옴표로 묶은 단어는 강조 표시됩니다.</string>
+    <string name="skills_edit_polish">AI로 다듬기</string>
+    <string name="skills_edit_addStarter">시작 문구 추가</string>
+    <string name="skills_edit_modelAndFeatures">모델 및 기능</string>
+    <string name="skills_edit_followChat">채팅 설정 따름</string>
+    <string name="skills_edit_needWhenForAuto">‘사용 시점’을 입력하거나 자동 사용을 꺼 주세요.</string>
+    <string name="skills_draft_askScenarios">이 스킬을 쓸 만한 상황을 한두 가지 알려 주세요</string>
+    <string name="skills_draft_askQuality">어떤 결과가 좋은 결과인가요?</string>
+    <string name="skills_draft_skip">건너뛰기</string>
+    <string name="skills_draft_generating">초안 작성 중…</string>
+    <string name="skills_draft_title">초안</string>
+    <string name="skills_draft_editFirst">먼저 편집</string>
+    <string name="skills_draft_suggestedIcon">추천 아이콘</string>
+    <string name="skills_draft_failed">초안을 끝까지 만들지 못했습니다. 사용할 수 있는 부분은 채워 두었습니다.</string>
+    <string name="skills_fromChat_menuConversation">스킬로 저장</string>
+    <string name="skills_fromChat_menuMessage">이 방식을 스킬로 저장</string>
+    <string name="skills_fromChat_messages">메시지: %1$d</string>
+    <string name="skills_fromChat_extracting">정리하는 중…</string>
+    <string name="skills_limit_upgrade">업그레이드하고 더 만들기</string>
+    <string name="skills_limit_draftKept">초안은 이 기기에 보관되어 있습니다.</string>
+    <string name="skills_composer_placeholder">/를 입력해 스킬 사용</string>
+    <string name="skills_picker_title">내 스킬</string>
+    <string name="skills_picker_multi">여러 개 선택 가능</string>
+    <string name="skills_picker_auto">자동</string>
+    <string name="skills_picker_manual">수동</string>
+    <string name="skills_picker_manage">스킬 관리</string>
+    <string name="skills_picker_maxReached">한 번에 최대 %1$d개</string>
+    <string name="skills_chip_deleted">삭제됨</string>
+    <string name="skills_message_attached">%1$s 사용</string>
+    <string name="skills_used_chip">사용: %1$s</string>
+    <string name="skills_used_loading">%1$s 사용 중…</string>
+    <string name="skills_used_byChoice">직접 선택해서 사용됨</string>
+    <string name="skills_used_why">사용된 이유</string>
+    <string name="skills_used_disableHere">이 채팅에서는 자동으로 사용 안 함</string>
+    <string name="skills_used_view">스킬 보기</string>
+    <string name="skills_settings_autoToggle">스킬 자동 사용</string>
+    <string name="skills_settings_autoToggleFooter">끄면 모델이 스스로 스킬을 고르지 않습니다. /를 입력하면 직접 사용할 수 있습니다.</string>
+    <string name="skills_try_banner">체험 중 · 기록에 저장되지 않음</string>
+    <string name="skills_try_saveToSkill">스킬에 반영</string>
+    <string name="skills_try_adjust">지침 수정</string>
+    <string name="skills_try_saved">‘%1$s’에 반영했습니다</string>
+    <string name="skills_try_savedToDraft">편집 화면에 반영했습니다. 저장해야 적용됩니다.</string>
+    <string name="skills_improve_prompt">이 요청을 ‘%1$s’에 추가하시겠습니까?</string>
+    <string name="skills_improve_review">변경 사항 보기</string>
+    <string name="skills_improve_accept">스킬에 추가</string>
+    <string name="skills_improve_dismiss">나중에</string>
+    <string name="skills_improve_addedLine">추가됨</string>
+    <string name="skills_improve_removedLine">삭제됨</string>
+    <string name="skills_improve_saved">‘%1$s’에 추가했습니다</string>
+    <string name="skills_saveFailed">변경 사항을 저장할 수 없습니다. 다시 시도해 주세요.</string>
+    <string name="skills_usage_manifestRow">스킬 목록 오버헤드</string>
+    <string name="skills_glyph_writing">글쓰기</string>
+    <string name="skills_glyph_report">보고서</string>
+    <string name="skills_glyph_code">코드</string>
+    <string name="skills_glyph_study">공부</string>
+    <string name="skills_glyph_travel">여행</string>
+    <string name="skills_glyph_health">건강</string>
+    <string name="skills_glyph_meeting">회의</string>
+    <string name="skills_glyph_idea">아이디어</string>
+    <string name="skills_glyph_translate">번역</string>
+    <string name="skills_glyph_email">이메일</string>
+    <string name="skills_glyph_data">데이터</string>
+    <string name="skills_glyph_design">디자인</string>
+    <string name="skills_glyph_legal">법률</string>
+    <string name="skills_glyph_finance">재무</string>
+    <string name="skills_glyph_marketing">마케팅</string>
+    <string name="skills_glyph_support">고객 지원</string>
+    <string name="skills_glyph_teaching">교육</string>
+    <string name="skills_glyph_research">연구</string>
+    <string name="skills_glyph_life">일상</string>
+    <string name="skills_glyph_food">음식</string>
+    <string name="skills_glyph_music">음악</string>
+    <string name="skills_glyph_photo">사진</string>
+    <string name="skills_glyph_product">제품</string>
+    <string name="skills_glyph_general">일반</string>
+    <string name="skills_home_notesRecent">최근 편집</string>
+    <string name="skills_search_noResults">결과 없음</string>
+    <string name="generic_error_try_again">문제가 발생했습니다. 다시 시도해 주세요.</string>
+    <string name="loading_usage_trends">사용 추세를 불러오는 중…</string>
+    <string name="usage_vs_last_month">지난달 대비</string>
+    <string name="usage_section_insights">인사이트</string>
+    <string name="usage_section_budgets">예산</string>
+    <string name="usage_sample_report">샘플 보고서</string>
+    <string name="usage_clear">지우기</string>
+    <string name="usage_monthly_budget_eyebrow">월예산</string>
+    <string name="skills_knowledgeErrorOpenAI">기술 자료에는 공식 OpenAI API 키가 필요합니다.</string>
+    <string name="skills_knowledgeErrorEndpoint">기술 자료는 공식 OpenAI 엔드포인트에서만 작동합니다.</string>
+    <string name="skills_knowledgeErrorModelDisabled">먼저 OpenAI 제공업체에서 %1$s 모델을 추가하고 활성화하세요.</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">지금은 지식 베이스를 사용할 수 없습니다.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">기술 자료 파일은 20MB 이하여야 합니다.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">스킬에는 최대 5개의 기술 자료 파일과 총 100MB가 포함될 수 있습니다.</string>
+    <string name="skills_knowledgeErrorExtractFailed">이 파일에서 텍스트를 추출하지 못했습니다.</string>
+    <string name="skills_knowledgeErrorUploadFailed">이 파일을 업로드하지 못했습니다.</string>
+    <string name="skills_knowledgeErrorIndexFailed">이 파일을 색인화하지 못했습니다.</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">이 메시지에 대한 지식 검색에 실패했습니다.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">원격 파일을 정리하지 못했습니다. 나중에 다시 시도하세요.</string>
+    <string name="custom_llm_connection_method">연결 방식</string>
+    <string name="local_compute_pairing_code">페어링 코드</string>
+    <string name="local_compute_scan_qr">QR 코드 스캔</string>
+    <string name="api_endpoint_not_configured">설정되지 않음</string>
+    <string name="contact_support">지원팀에 문의</string>
+    <string name="error_attachment_not_accepted_title">첨부파일을 사용할 수 없음</string>
+    <string name="generation_empty_runtime_locked">이 연결에서는 런타임 매개변수를 조정할 수 없습니다.</string>
+    <string name="legal_consent_notice">계속하면 아래의 법적 약관에 동의하는 것으로 간주됩니다.</string>
+    <string name="price_cache_read">캐시 읽기</string>
+    <string name="price_cache_write">캐시 쓰기</string>
+    <string name="price_input">입력</string>
+    <string name="price_output">출력</string>
+    <string name="settings_report_issue">문제 신고</string>
+    <string name="settings_source_code">소스 코드</string>
+    <string name="skills_pinToHome">홈에 고정</string>
+    <string name="skills_unpin">고정 해제</string>
 </resources>

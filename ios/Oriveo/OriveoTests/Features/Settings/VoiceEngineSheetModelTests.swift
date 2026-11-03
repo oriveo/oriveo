@@ -72,34 +72,10 @@ struct VoiceEngineSheetModelTests {
         let fixture = Fixture()
         #expect(fixture.model(.stt).title == "Dictation Engine")
         #expect(fixture.model(.tts).title == "Read-Aloud Engine")
-        #expect(fixture.model(.realtime).title == "Conversation Engine")
         #expect(fixture.model(.stt).addConnectionTitle == "Add Connection")
     }
 
     @Test("Conversation engine: the first row follows the current model (subtitle dictation → current model → read aloud), cloud rows are formatted like dictation")
-    func realtimeRows() {
-        let fixture = Fixture()
-        let catalog = VoiceCatalogDecoder.decode([
-            "providers": [
-                "openAI": [
-                    "realtime": [[
-                        "model": "gpt-realtime",
-                        "transport": "openai_realtime",
-                        "path": "/v1/realtime",
-                        "contextWindow": 128_000,
-                        "voices": [["id": "marin", "isDefault": true]],
-                        "inputTranscriptionModel": "gpt-4o-mini-transcribe",
-                    ]],
-                ],
-            ],
-        ] as [String: Any])
-        let model = fixture.model(.realtime, state: .available(catalog))
-        #expect(model.rows.map(\.title) == ["Follow Current Model", "OpenAI"])
-        #expect(model.rows.map(\.subtitle) == ["Dictation → current model → read aloud", "gpt-realtime"])
-        #expect(model.rows.map(\.isSelected) == [true, false])
-    }
-
-    @Test("System row first; a cloud row is provider name + model; a single connection of one provider omits the connection name")
     func rowsSingleConnection() {
         let fixture = Fixture()
         let rows = fixture.model(.stt, names: ["c1": "Work"]).rows

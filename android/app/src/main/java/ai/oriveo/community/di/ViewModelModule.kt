@@ -39,6 +39,8 @@ val viewModelModule = module {
             globalSnackbarManager = get(),
             skillRepository = get(),
             databaseHealthProbe = get(),
+            voiceCatalog = cachedVoiceCatalog(),
+            voiceCatalogStates = voiceCatalogStates(),
         )
     }
     viewModelOf(::OnboardingViewModel)
@@ -104,6 +106,7 @@ val viewModelModule = module {
             memoryAccountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
             readAloudController = get(),
             modelControlsWebSearch = getOrNull(),
+            voiceCatalog = cachedVoiceCatalog(),
         )
     }
     viewModel {
@@ -148,6 +151,8 @@ val viewModelModule = module {
                 preferences = get(),
             ),
             searchServiceStore = get(),
+            voiceCatalog = cachedVoiceCatalog(),
+            voiceCatalogStates = voiceCatalogStates(),
         )
     }
     viewModel {
@@ -221,7 +226,8 @@ val viewModelModule = module {
     }
     viewModelOf(::ContextSettingsViewModel)
     viewModelOf(::ThemeSettingsViewModel)
-    viewModelOf(::VoiceSettingsViewModel)
+    // Home realtime selection store uses its in-process singleton default, not Koin (viewModelOf would get() every constructor parameter)
+    viewModel { VoiceSettingsViewModel(get(), get(), get(), get()) }
     viewModelOf(::WebSearchSettingsViewModel)
     viewModel { (conversationId: String) ->
         val generationParameters = GenerationParameterSettingsStore.from(androidContext())
@@ -247,4 +253,16 @@ val viewModelModule = module {
         )
     }
     viewModelOf(::LocalComputeSetupViewModel)
+}
+
+/** Synchronous snapshot of the latest voice catalog verdict: realtime judgement reads the cache only and sends no request; the client is first read lazily (startup warm-up builds it in the background). */
+/** Catalog state flow: the VM subscribes itself [internal: E-610]; the client is fetched lazily on collection, like [cachedVoiceCatalog]. */
+private fun org.koin.core.scope.Scope.voiceCatalogStates(): kotlinx.coroutines.flow.Flow<ai.oriveo.community.core.voice.VoiceCatalogState?> {
+    val client by lazy { get<ai.oriveo.community.core.voice.VoiceCatalogClient>() }
+    return kotlinx.coroutines.flow.flow { client.state.collect { emit(it) } }
+}
+
+private fun org.koin.core.scope.Scope.cachedVoiceCatalog(): () -> ai.oriveo.community.core.voice.VoiceCatalog? {
+    val client by lazy { get<ai.oriveo.community.core.voice.VoiceCatalogClient>() }
+    return { (client.state.value as? ai.oriveo.community.core.voice.VoiceCatalogState.Available)?.catalog }
 }

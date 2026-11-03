@@ -35,6 +35,8 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.int
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonPrimitive
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -174,6 +176,40 @@ class ContextPipelineMaxTokensTest {
         is TextContent -> body.text
         is OutgoingContent.ByteArrayContent -> body.bytes().decodeToString()
         else -> error("Unsupported request body type: ${body::class.java.name}")
+    }
+
+    // The three roles come from the recorded catalog (the first three windowed models in
+    // recording order), not hard-coded ids: the fixture is re-recorded daily, and a hard-coded
+    // poolside/laguna-xs-2.1:free would turn the case red once delisted (2026-10-26).
+    private val windowedRecordedIds by lazy {
+        recordedFreeCatalog().getValue("data").jsonObject.getValue("models").jsonArray.map { it.jsonObject }
+            .filter { (it["contextLength"]?.jsonPrimitive?.intOrNull ?: 0) > 0 && (it["maxOutputTokens"]?.jsonPrimitive?.intOrNull ?: 0) > 0 }
+            .map { it.getValue("sourceModelId").jsonPrimitive.content }
+            .also { check(it.size >= 3) { "Fewer than 3 windowed models in the recorded Free catalog: $it" } }
+    }
+    private val WINDOWED_MODEL get() = windowedRecordedIds[0]
+    private val BARE_MODEL get() = windowedRecordedIds[1]
+    private val ZERO_MODEL get() = windowedRecordedIds[2]
+
+    private fun recordedFreeModel(id: String): JsonObject =
+        recordedFreeCatalog().getValue("data").jsonObject.getValue("models").jsonArray.map { it.jsonObject }
+            .single { it.getValue("sourceModelId").jsonPrimitive.content == id }
+
+    /** Free catalog response recorded from production, kept in the cross-platform contract. */
+    private fun recordedFreeCatalog(): JsonObject {
+        val repoRoot = File(System.getProperty("user.dir") ?: ".").absoluteFile.parentFile!!.parentFile!!.parentFile!!
+        val contract = json.parseToJsonElement(
+            File(repoRoot, "shared/model-contracts/capability_truth_contract.v1.json").readText(),
+        ).jsonObject
+        return contract.getValue("fixtures").jsonObject.getValue("free_catalog").jsonObject.getValue("response").jsonObject
+    }
+
+    /** Keeps only the recorded models named in [transforms] (in recording order) and applies each transform. */
+    private fun JsonObject.withFreeModels(transforms: Map<String, (JsonObject) -> JsonObject>): JsonObject {
+        val data = getValue("data").jsonObject
+        val models = data.getValue("models").jsonArray.map { it.jsonObject }
+            .mapNotNull { model -> transforms[model.getValue("sourceModelId").jsonPrimitive.content]?.invoke(model) }
+        return JsonObject(this + ("data" to JsonObject(data + ("models" to JsonArray(models)))))
     }
 
     private companion object {

@@ -12,9 +12,11 @@ interface MessageActionsProps {
   text: string;
   onEdit?: () => void;
   onSaveNote?: () => void;
+  /** Host-module class that reveals the row on host hover, e.g. `.container:hover .actions`. */
+  className?: string;
 }
 
-export function MessageActions({ role, text, onEdit, onSaveNote }: MessageActionsProps) {
+export function MessageActions({ role, text, onEdit, onSaveNote, className }: MessageActionsProps) {
   const t = useTranslations('pages.chat');
   const tCtx = useTranslations('contextMenu');
   const [copied, setCopied] = useState(false);
@@ -28,7 +30,7 @@ export function MessageActions({ role, text, onEdit, onSaveNote }: MessageAction
   }, [text, tCtx]);
 
   return (
-    <div className={styles.actions} data-role={role}>
+    <div className={className ? `${styles.actions} ${className}` : styles.actions} data-role={role}>
       {/* Copy */}
       <button
         type="button"

@@ -348,7 +348,7 @@ class ModelOptionsBoardStructureTest {
         val sheet = source("feature/chat/composer/ModelControlsSheet.kt")
         val panel = source("feature/chat/modelcontrols/ModelOptionsPanel.kt")
         assertTrue(sheet.contains("ModelOptionsTiles.board("))
-        assertTrue(sheet.contains("ModelOptionsTiles.summary(webShape, reasoningShape)"))
+        assertTrue(sheet.contains("ModelOptionsTiles.summary(webShape, reasoningShape, realtime = isRealtimeModel)"))
         assertTrue(sheet.contains("ModelOptionsTiles.parameterRows("))
         assertTrue("vision / file cards share the input box's attachment menu model", sheet.contains("ModelOptionsTiles.vision(attachmentEntry.image)"))
         assertTrue("file card takes the panel's web-search switch, tool loop is false", sheet.contains("ModelOptionsPanelInput.fileDelivery("))

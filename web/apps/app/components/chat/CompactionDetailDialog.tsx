@@ -10,6 +10,7 @@ import {
   recompact,
   type CompactionToast,
 } from '../../lib/core/chat/context-compaction/context-compaction-actions';
+import { formatCost } from '../../lib/utils/format-utils';
 import { showToast } from '../Toast';
 import { MarkdownRenderer } from './MarkdownRenderer';
 import styles from './CompactionDetailDialog.module.css';
@@ -41,17 +42,14 @@ export function CompactionDetailDialog({
   const [running, setRunning] = useState(false);
   const detail = compactionDetailOf(row);
 
+  // Same tiers as message cost; an amount at or below epsilon reads as unavailable (iOS parity).
   const costText =
     detail.cost.kind === 'noExtraCost'
       ? t('detailNoExtraCost')
       : detail.cost.kind === 'unavailable'
         ? t('detailCostUnavailable')
-        : new Intl.NumberFormat(locale, {
-            style: 'currency',
-            currency: 'USD',
-            maximumFractionDigits: 4,
-          }).format(detail.cost.amount);
-  // Same as iOS / Android: omit the year within the same year, keep it across years (same as formatLedgerDate).
+        : formatCost(detail.cost.amount, locale) || t('detailCostUnavailable');
+  // Matches iOS / Android: the year is omitted within the same year and kept across years (same as formatLedgerDate).
   const createdAt = new Date(detail.createdAt);
   const timeText = new Intl.DateTimeFormat(locale, {
     year: createdAt.getFullYear() === new Date().getFullYear() ? undefined : 'numeric',

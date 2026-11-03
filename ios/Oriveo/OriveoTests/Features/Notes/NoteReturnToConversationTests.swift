@@ -179,13 +179,11 @@ struct NoteReturnToConversationTests {
 
     @Test("AppState return-to-conversation route does not seed pinned note context")
     @MainActor
-    func returnToConversationRouteDoesNotPinNoteContext() {
+    func returnToConversationRouteDoesNotPinNoteContext() async {
         let uid = "note-return-\(UUID().uuidString)"
         let state = AppState(seedDemoData: false, sessionUID: uid)
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         let noteID = UUID()

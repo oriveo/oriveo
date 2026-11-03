@@ -35,6 +35,8 @@ interface ComposerToolButtonProps {
   title?: string;
   /** Lets the owner return focus here when the surface it opened closes. */
   buttonRef?: React.Ref<HTMLButtonElement>;
+  /** Hide the visible label on narrow composers (the accessible name stays the label). */
+  compactOnNarrow?: boolean;
 }
 
 export function ComposerToolButton({
@@ -57,6 +59,7 @@ export function ComposerToolButton({
   ariaPressed,
   title,
   buttonRef,
+  compactOnNarrow = false,
 }: ComposerToolButtonProps) {
   const meta = count != null && count > 0 ? String(count) : value;
   const accessibleLabel = ariaLabel ?? (readOnly && value ? `${label}: ${value}` : label);
@@ -84,6 +87,7 @@ export function ComposerToolButton({
       className={styles.button}
       data-active={active}
       data-emphasized={emphasized}
+      data-compact-narrow={compactOnNarrow || undefined}
       data-disabled={disabled || undefined}
       disabled={disabled || undefined}
       aria-label={accessibleLabel}

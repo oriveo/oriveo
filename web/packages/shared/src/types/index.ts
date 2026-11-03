@@ -32,6 +32,7 @@ export type {
   RelayKeyStatus,
   RelayKeyStatusState,
   ChatMessage,
+  UsedSkill,
   QuoteContentKind,
   QuoteContext,
   McpToolStep,
@@ -49,6 +50,8 @@ export type {
   NoteFolder,
   ProvenanceEntry,
 } from './models';
+
+export { conversationSkillIds, conversationSkillFields } from './models';
 
 export type {
   RelayTransport,

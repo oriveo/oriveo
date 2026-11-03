@@ -293,6 +293,7 @@ val repositoryModule = module {
     single {
         ai.oriveo.community.core.data.attachment.AttachmentOrphanSweeper(
             messageDao = get(),
+            studioWorkDao = get(),
             attachmentStore = get(),
         )
     }

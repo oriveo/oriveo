@@ -13,10 +13,11 @@ import Testing
 struct ConversationPendingDeletionTests {
 
     @Test("Deleting a conversation records it in the journal")
-    func deleteRecordsInJournal() throws {
+    func deleteRecordsInJournal() async throws {
         let uid = makeUID()
-        defer { cleanup(uid) }
-        let store = try makeStore(uid: uid)
+        defer { await cleanup(uid) }
+        let (store, dbPool) = try makeStore(uid: uid)
+        defer { try? dbPool.close() }
         let conv = TestFactories.makeConversation(title: "To Delete")
         try store.replaceAllConversations([conv])
 
@@ -27,10 +28,11 @@ struct ConversationPendingDeletionTests {
     }
 
     @Test("Batch delete records every conversation")
-    func batchDeleteRecordsAll() throws {
+    func batchDeleteRecordsAll() async throws {
         let uid = makeUID()
-        defer { cleanup(uid) }
-        let store = try makeStore(uid: uid)
+        defer { await cleanup(uid) }
+        let (store, dbPool) = try makeStore(uid: uid)
+        defer { try? dbPool.close() }
         let convs = (0..<3).map { TestFactories.makeConversation(title: "Chat \($0)") }
         try store.replaceAllConversations(convs)
 
@@ -41,10 +43,11 @@ struct ConversationPendingDeletionTests {
     }
 
     @Test("Deleting the same id twice is idempotent")
-    func repeatedDeleteIsIdempotent() throws {
+    func repeatedDeleteIsIdempotent() async throws {
         let uid = makeUID()
-        defer { cleanup(uid) }
-        let store = try makeStore(uid: uid)
+        defer { await cleanup(uid) }
+        let (store, dbPool) = try makeStore(uid: uid)
+        defer { try? dbPool.close() }
         let conv = TestFactories.makeConversation(title: "Dup")
         try store.replaceAllConversations([conv])
 
@@ -57,10 +60,11 @@ struct ConversationPendingDeletionTests {
     /// A local rewrite is not a deletion. Recording one would tell cold start that every
     /// conversation the rewrite happened to drop must never come back.
     @Test("Replacing the whole table records nothing")
-    func replaceAllRecordsNothing() throws {
+    func replaceAllRecordsNothing() async throws {
         let uid = makeUID()
-        defer { cleanup(uid) }
-        let store = try makeStore(uid: uid)
+        defer { await cleanup(uid) }
+        let (store, dbPool) = try makeStore(uid: uid)
+        defer { try? dbPool.close() }
         let old = (0..<2).map { TestFactories.makeConversation(title: "Old \($0)") }
         try store.replaceAllConversations(old)
 
@@ -70,10 +74,11 @@ struct ConversationPendingDeletionTests {
     }
 
     @Test("Pruning only drops rows past the retention window")
-    func pruneOnlyDropsExpiredRows() throws {
+    func pruneOnlyDropsExpiredRows() async throws {
         let uid = makeUID()
-        defer { cleanup(uid) }
-        let store = try makeStore(uid: uid)
+        defer { await cleanup(uid) }
+        let (store, dbPool) = try makeStore(uid: uid)
+        defer { try? dbPool.close() }
         let conv = TestFactories.makeConversation(title: "Old Deletion")
         try store.replaceAllConversations([conv])
         try store.deleteConversation(id: conv.id)
@@ -90,7 +95,7 @@ struct ConversationPendingDeletionTests {
 
     private func makeUID() -> String { "deletion-journal-\(UUID().uuidString)" }
 
-    private func makeStore(uid: String) throws -> ConversationStore {
+    private func makeStore(uid: String) throws -> (ConversationStore, DatabasePool) {
         try FileManager.default.createDirectory(
             at: AppSessionStore.userDir(for: uid),
             withIntermediateDirectories: true
@@ -103,10 +108,10 @@ struct ConversationPendingDeletionTests {
             rootDirectory: AppSessionStore.userDir(for: uid).appendingPathComponent("Files", isDirectory: true)
         )
         try DatabaseSchema.makeMigrator(attachmentFileStore: attachmentFileStore).migrate(dbPool)
-        return ConversationStore(dbPool: dbPool, attachmentFileStore: attachmentFileStore)
+        return (ConversationStore(dbPool: dbPool, attachmentFileStore: attachmentFileStore), dbPool)
     }
 
-    private func cleanup(_ uid: String) {
-        try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+    private func cleanup(_ uid: String) async {
+        await TestPartitionCleanup.remove(uid)
     }
 }

@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">बंद करें</string>
     <string name="voice_conversation_start_failed_toast">बोलकर बातचीत शुरू नहीं हो सकी। फिर से कोशिश करें।</string>
     <string name="voice_conversation_background_paused_toast">Oriveo बैकग्राउंड में है, इसलिए बोलकर बातचीत रोक दी गई है।</string>
+    <string name="voice_conversation_status_say_again">सुनाई नहीं दिया, फिर से बोलें</string>
+    <string name="voice_conversation_status_check_language">सुनाई नहीं दिया</string>
+    <string name="voice_conversation_prompt_say_again">मुझे ठीक से सुनाई नहीं दिया। कृपया फिर से बोलें।</string>
+    <string name="voice_conversation_prompt_check_language">अब भी ठीक से सुनाई नहीं दिया। अगर आप किसी दूसरी भाषा में बोल रहे हैं, तो इसे बदलने के लिए “पहचान की भाषा” पर टैप करें।</string>
+    <string name="voice_conversation_prompt_echo_hint">स्पीकर से गूँज आ रही है। हेडफ़ोन लगाने पर बेहतर रहेगा।</string>
+    <string name="voice_conversation_language_chip">पहचान की भाषा: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">पहचान की भाषा बदलता है</string>
 </resources>

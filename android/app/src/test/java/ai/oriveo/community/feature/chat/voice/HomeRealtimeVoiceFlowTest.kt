@@ -18,6 +18,7 @@ import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.navigation.AppRoute
@@ -29,6 +30,7 @@ import ai.oriveo.community.core.voice.VoiceEngineSettings
 import ai.oriveo.community.core.voice.VoiceOption
 import ai.oriveo.community.core.voice.VoiceProviderCatalog
 import ai.oriveo.community.core.voice.VoiceRealtimeEntry
+import ai.oriveo.community.core.voice.VoiceTelemetry
 import ai.oriveo.community.core.voice.VoiceTransport
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.voice.conversation.ConversationStatusKey
@@ -39,8 +41,11 @@ import ai.oriveo.community.core.voice.conversation.VoiceReplyEvent
 import ai.oriveo.community.core.voice.conversation.EarconKind
 import ai.oriveo.community.core.voice.conversation.EndReason
 import ai.oriveo.community.core.voice.realtime.RealtimeAudioIO
+import ai.oriveo.community.core.voice.realtime.RealtimeModel
+import ai.oriveo.community.core.voice.realtime.RealtimePCM
 import ai.oriveo.community.core.voice.realtime.RealtimeSessionEvent
 import ai.oriveo.community.core.voice.realtime.RealtimeTransportKind
+import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveClosedException
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveEventMapper
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveSessionExpiredException
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeSessionTransport
@@ -94,8 +99,8 @@ import org.robolectric.shadows.ShadowLog
 
 /**
  * Full home ≋ realtime conversation path: Gemini wire messages → production mapper → real builder / controller reducer → real sink
- * (write loop on real Dispatchers.IO) → in-memory Room; navigation goes through a real NavController. The conversation creation and
- * navigation triggered by the first persist must run on the main thread; the first user transcript is the conversation's first user message.
+ * (write loop on the real Dispatchers.IO) → in-memory Room; navigation goes through a real NavController. The conversation creation and navigation triggered by the first persist must run on the main thread,
+ * and the first user transcript is the conversation's first user message.
  */
 @RunWith(RobolectricTestRunner::class)
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -115,15 +120,6 @@ class HomeRealtimeVoiceFlowTest {
         }
     }
 
-    private class FakeAudio : RealtimeAudioIO {
-        override fun start(onFrame: (ByteArray) -> Unit, onInterruption: () -> Unit) = Unit
-        override fun enqueue(pcm16: ByteArray, itemId: String) = Unit
-        override fun playedMs(itemId: String): Long = 0L
-        override val isPlaying: Boolean get() = false
-        override fun stopPlayback() = Unit
-        override fun stop() = Unit
-        override suspend fun playEarcon(kind: EarconKind) = Unit
-    }
 
     private class TestLifecycle : LifecycleOwner {
         val registry = LifecycleRegistry(this)
@@ -150,16 +146,16 @@ class HomeRealtimeVoiceFlowTest {
     private lateinit var nav: NavHostController
     private val extraDbs = mutableListOf<OriveoDatabase>()
     private val lifecycle = TestLifecycle()
-    // The production sink write loop lives on applicationScope (not the main thread): use a real IO thread here.
+    // The production sink write loop is attached to applicationScope (not the main thread): a real IO thread is used here.
     private val sinkScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     @Before
     fun setUp() {
-        // Main uses the test scheduler (under Robolectric that is the main thread = the test thread): runTest runs the continuations that hop from IO to Main on the test thread.
+        // Main uses the test scheduler (under Robolectric that is the main thread = the test thread): continuations that hop from IO to Main run on the test thread via runTest.
         Dispatchers.setMain(StandardTestDispatcher())
         db = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), OriveoDatabase::class.java)
             .allowMainThreadQueries()
-            // Creating the conversation on the main thread finishes in place: don't wait for the Room thread in real time, or virtual time jumps to the idle timeout while waiting.
+            // Creating the conversation on the main thread completes in place: it does not wait for the Room thread in real time, so virtual time does not jump to the idle timeout while waiting.
             .setQueryExecutor { it.run() }
             .setTransactionExecutor { it.run() }
             .build()
@@ -202,8 +198,8 @@ class HomeRealtimeVoiceFlowTest {
     }
 
     /**
-     * Home wiring like rememberVoiceConversationHost: through the production prepareRealtimeVoiceSession and VoiceConversationTarget,
-     * with a real repository and navigation. [homeCreate] null = HomeViewModel.createVoiceConversation (creates a real conversation with the pill model).
+     * Home wiring as in rememberVoiceConversationHost: through the production prepareRealtimeVoiceSession and VoiceConversationTarget,
+     * with a real repository and real navigation. [homeCreate] null = HomeViewModel.createVoiceConversation (creates a real conversation with the pill model).
      */
     private inner class HomeFlow(
         val test: TestScope,
@@ -217,13 +213,14 @@ class HomeRealtimeVoiceFlowTest {
         val sinks = mutableListOf<RepositoryRealtimeTranscriptSink>()
         val created = mutableListOf<String>()
 
-        /** Per navigate: (on the main thread?, conversation id). */
+        /** Each navigate: (whether on the main thread, conversation id). */
         val navigated = mutableListOf<Pair<Boolean, String>>()
         val navigatedOnce = CompletableDeferred<Unit>()
 
         /** The state the home voice bar published at the moment of navigation. */
         var statusAtNavigate: ConversationStatusKey? = null
         lateinit var engine: RealtimeVoiceConversationEngine
+        lateinit var handoff: VoiceConversationSessions.HandoffPort
 
         /** Every state and event the engine published. */
         val statuses = mutableListOf<ConversationStatusKey?>()
@@ -240,19 +237,16 @@ class HomeRealtimeVoiceFlowTest {
                     .also { sinks += it }
             },
             transport = { _, _ -> connection },
-            audio = { FakeAudio() },
+            audio = { IdealRealtimeAudio() },
             scope = scope,
             clock = { test.testScheduler.currentTime },
-            rememberLastUsed = { _, _ -> },
             replanContext = UnconfinedTestDispatcher(test.testScheduler),
         )
 
-        private fun select() {
-            settings.setSelection(
-                VoiceDirection.Realtime,
-                VoiceEngineSelection.Cloud(ProviderKind.Gemini, provider.id, entry.model, null),
-            )
+        /** Home pill has the realtime model selected: same as HomeViewModel.realtimeVoiceSelection, consent already given; does not write engine settings. */
+        private fun select(): VoiceEngineSelection.Cloud {
             settings.disclosure.markAccepted(provider.kind, VoiceDirection.Realtime)
+            return VoiceEngineSelection.Cloud(ProviderKind.Gemini, provider.id, entry.model)
         }
 
         private fun observe() {
@@ -266,7 +260,7 @@ class HomeRealtimeVoiceFlowTest {
         }
 
         suspend fun start(): RealtimeVoiceConversationEngine {
-            select()
+            val selection = select()
             var port: VoiceConversationSessions.HandoffPort? = null
             val target = VoiceConversationTarget.Home(
                 createConversation = homeCreate ?: {
@@ -282,6 +276,7 @@ class HomeRealtimeVoiceFlowTest {
                 },
                 // OriveoNavHost's onReturnHome: only returns home when the current page is the deleted conversation.
                 returnHome = { id -> nav.returnHomeAfterDeleting(id) },
+                realtimeSelection = selection,
             )
             val choice = prepareRealtimeVoiceSession(builder, target, context) { port?.conversationId() }
             engine = (choice as RealtimeVoiceSessionChoice.Realtime).engine
@@ -289,6 +284,7 @@ class HomeRealtimeVoiceFlowTest {
             // Same as startConversation (home branch) in rememberVoiceConversationHost.
             val handoff = sessions.beginHome(home, target.createConversation, target.navigate)
             port = handoff
+            this.handoff = handoff
             engine.start(handoff)
             test.testScheduler.runCurrent()
             return engine
@@ -296,13 +292,14 @@ class HomeRealtimeVoiceFlowTest {
 
         /** Chat page draft entry: the conversation row is created by the page's own [create]. */
         suspend fun startChatDraft(create: suspend () -> String?): RealtimeVoiceConversationEngine {
-            select()
+            val selection = select()
             val draft = Conversation(id = "", title = "", providerID = provider.id, providerKind = provider.kind, modelID = entry.model)
             val target = VoiceConversationTarget.Chat(
                 conversationId = null,
                 context = context,
                 createConversation = create,
                 newConversation = { draft },
+                realtimeSelection = selection,
             ) { NoChat }
             val choice = prepareRealtimeVoiceSession(builder, target, context) { null }
             engine = (choice as RealtimeVoiceSessionChoice.Realtime).engine
@@ -320,7 +317,7 @@ class HomeRealtimeVoiceFlowTest {
         }
 
         /**
-         * Recording replay: advances virtual time by ms (relative to the start moment), restores audioBytes to equal-length silent PCM, and feeds each message to the connection through the production mapper.
+         * Recording playback: advances virtual time by ms (relative to the start moment), restores audioBytes to equal-length silent PCM, and feeds each message to the connection through the production mapper.
          */
         fun replay(recorded: List<JsonObject>) {
             val origin = test.testScheduler.currentTime
@@ -332,19 +329,19 @@ class HomeRealtimeVoiceFlowTest {
             }
         }
 
-        /** The home conversation was created and navigation happened (creation finishes in place on the main thread); fails right away when it did not, without waiting. */
+        /** The home conversation was created and navigation happened (creation completes in place on the main thread); if it did not happen, fail right away without waiting. */
         fun awaitNavigation() {
             test.testScheduler.runCurrent()
             assertTrue("home did not create a conversation and navigate", navigatedOnce.isCompleted)
         }
 
-        /** After navigation, waits for the sink write loop (IO) to persist every queued write; returns the written conversation. */
+        /** After navigation, the sink write loop (IO) persists everything queued; returns the conversation written to. */
         suspend fun settle(): String? {
             awaitNavigation()
             return sinks.single().drain().also { test.testScheduler.runCurrent() }
         }
 
-        /** After the end, waits for the write loop to wrap up (including deleting an empty conversation); the loop runs on an IO thread while main-thread tasks keep running. */
+        /** After ending, wait for the write loop to finish up (including deleting an empty conversation); the write loop is on the IO thread, and main-thread tasks run normally in the meantime. */
         suspend fun finish() {
             withContext(Dispatchers.Default) { withTimeout(5_000) { sinks.single().drain() } }
             test.testScheduler.runCurrent()
@@ -359,7 +356,7 @@ class HomeRealtimeVoiceFlowTest {
     private val assistantAudio =
         wire("""{"serverContent":{"modelTurn":{"parts":[{"inlineData":{"mimeType":"audio/pcm;rate=24000","data":"AAAA"}}]}}}""")
 
-    /** In the same turn the assistant audio and transcript arrive first and inputTranscription arrives late (before turnComplete). */
+    /** In the same round, the assistant audio and transcript arrive first, and inputTranscription arrives late (before turnComplete). */
     private val assistantFirstTurn = listOf(
         setup,
         assistantAudio,
@@ -388,6 +385,38 @@ class HomeRealtimeVoiceFlowTest {
     }
 
     @Test
+    fun home_model_gone_switch_reverts_to_last_text_model() = runTest {
+        // The realtime model selected on the home pill has been retired from the catalog: a tap on the orb does not fall back into a cascade and does not create a conversation; failure card model_gone;
+        // "Switch model" first switches the pill back to the last-used text model (HomeScreen onSwitchModel -> HomeViewModel.setActiveModel).
+        val f = HomeFlow(this)
+        f.settings.disclosure.markAccepted(provider.kind, VoiceDirection.Realtime)
+        val retired = VoiceEngineSelection.Cloud(ProviderKind.Gemini, provider.id, "gemini-live-retired")
+        val target = VoiceConversationTarget.Home(
+            createConversation = { error("model_gone: no conversation created") },
+            navigate = { error("model_gone: no navigation") },
+            realtimeSelection = retired,
+        )
+        val choice = prepareRealtimeVoiceSession(f.builder, target, { c ->
+            ChatContextRequest(ContextConversation(id = c.id, useMemory = false))
+        }) { null }
+
+        val failure = (choice as RealtimeVoiceSessionChoice.Failed).failure
+        assertEquals(RealtimeModel.CATEGORY_MODEL_GONE, failure.category)
+        assertEquals("gemini-live-retired", failure.model)
+        assertFalse(f.builder.realtimeActive)
+        assertEquals(0, conversationCount(db))
+        assertTrue("switching model restores the text model first", realtimeFailureRestoresTextModel(failure))
+        val lastText = LastUsedModelRef(providerID = provider.id, modelID = "gemini-2.5-flash")
+        assertEquals(lastText, lastTextModelToRestore(listOf(provider), lastText))
+        // After returning to the text model the ≋ has no realtime selection: always cascade.
+        val text = VoiceConversationTarget.Home(createConversation = { null }, navigate = {})
+        assertEquals(RealtimeVoiceSessionChoice.Cascade, prepareRealtimeVoiceSession(f.builder, text, { c ->
+            ChatContextRequest(ContextConversation(id = c.id, useMemory = false))
+        }) { null })
+        f.scope.cancel()
+    }
+
+    @Test
     fun navigate_on_main() = runTest {
         val f = HomeFlow(this)
         f.start()
@@ -410,12 +439,12 @@ class HomeRealtimeVoiceFlowTest {
         val id = f.settle()!!
 
         engine.end(EndReason.USER)
-        // The voice bar disappears immediately after the close button.
+        // The voice bar disappears immediately after ✕.
         assertFalse(engine.active.value)
         testScheduler.runCurrent()
         assertFalse(engine.active.value)
 
-        // Open the conversation again from the main thread: the top of the stack is this conversation's Chat and all messages are there.
+        // Reopen the conversation from the main thread: the top of the stack is this conversation's Chat, and the messages are all there.
         assertTrue(Looper.myLooper() == Looper.getMainLooper())
         nav.navigate(AppRoute.Chat(conversationId = id))
         assertEquals(id, nav.currentBackStackEntry!!.toRoute<AppRoute.Chat>().conversationId)
@@ -431,7 +460,7 @@ class HomeRealtimeVoiceFlowTest {
         val f = HomeFlow(this)
         f.start()
         f.feed(assistantFirstTurn)
-        // realtime-events.v1.json: an inputTranscription that arrives after turnComplete belongs to the next turn.
+        // realtime-events.v1.json: an inputTranscription that arrives after turnComplete belongs to the next round.
         f.feed(fixtureMessages("gemini_late_input_transcription_goes_to_next_turn"))
         val id = f.settle()!!
 
@@ -456,7 +485,7 @@ class HomeRealtimeVoiceFlowTest {
         f.feed(listOf(setup))
         assertEquals(emptyList<Pair<Boolean, String>>(), f.navigated)
 
-        // The first turn event is assistant audio: create the conversation and navigate first, then reduce and publish speaking.
+        // The first round event is assistant audio: create the conversation and navigate first, then reduce and publish speaking.
         f.feed(listOf(assistantAudio))
         f.awaitNavigation()
         val id = f.created.single()
@@ -500,7 +529,7 @@ class HomeRealtimeVoiceFlowTest {
 
         engine.end(EndReason.USER)
         assertFalse(engine.active.value)
-        // Write loop wraps up: a conversation with zero persisted messages is deleted.
+        // Write loop finishing: the conversation that was persisted with zero rows is deleted.
         withContext(Dispatchers.Default) { withTimeout(5_000) { f.sinks.single().drain() } }
         testScheduler.runCurrent()
         assertNull(repository.getWithMessages(id))
@@ -527,7 +556,7 @@ class HomeRealtimeVoiceFlowTest {
 
     @Test
     fun chat_draft_entry_never_deletes() = runTest {
-        // The chat page draft already created its conversation row; the first realtime turn event does not create from home, and ending with nothing persisted does not delete it.
+        // The chat page draft has already created the conversation row; a realtime first round event does not create the conversation from home, and ending with zero rows does not delete it.
         val draftRow = repository.create(providerID = provider.id, providerKind = provider.kind, modelID = entry.model).id
         var pageCreates = 0
         val f = HomeFlow(this)
@@ -548,7 +577,7 @@ class HomeRealtimeVoiceFlowTest {
 
     @Test
     fun end_during_creation_still_deletes_empty() = runTest {
-        // Real Room async executor: the creating insert runs on the Room thread, and the conversation is ended before returning to the main thread.
+        // Real Room async executor: the conversation insert runs on the Room thread, and the conversation has already ended before returning to the main thread.
         val asyncDb = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), OriveoDatabase::class.java)
             .allowMainThreadQueries()
             .build()
@@ -560,9 +589,31 @@ class HomeRealtimeVoiceFlowTest {
         assertFalse(engine.active.value)
 
         f.finish()
-        // Conversation creation cannot be cancelled midway: the created id is still recorded, the empty conversation is deleted, and the user returns home.
+        // Conversation creation cannot be cancelled midway: the id that was created is still recorded, the empty conversation is deleted, and it returns home.
         assertEquals(0, conversationCount(asyncDb))
         assertTrue(onHome())
+        f.scope.cancel()
+    }
+
+    @Test
+    fun zero_turn_failure_keeps_card_on_home() = runTest {
+        // Samsung A17: after the tap, Gemini Live closes before setup -> home releases ownership with zero rounds, and the failure card is hidden with it, looking like "tapped with no response".
+        val f = HomeFlow(this)
+        val engine = f.start()
+        f.connection.events.close(GeminiLiveClosedException("Gemini Live connection closed unexpectedly"))
+        testScheduler.runCurrent()
+
+        assertFalse(engine.active.value)
+        val failure = engine.failure.value
+        assertEquals("unknown", failure?.category)
+        // Same as the LaunchedEffect(active) in rememberVoiceConversationHost: zero rounds still release ownership and no conversation is kept.
+        val released = releaseHomeZeroTurn(f.handoff, failure)
+        assertFalse(f.sessions.ownedBy(f.home))
+        assertEquals(0, conversationCount(db))
+        // The failure card stays on the home stage; it is no longer shown once another page takes over.
+        assertEquals(failure, stageFailure(failure, owned = false, releasedOnFailure = released, sessions = f.sessions))
+        f.sessions.beginChat(Any())
+        assertEquals(null, stageFailure(failure, owned = false, releasedOnFailure = released, sessions = f.sessions))
         f.scope.cancel()
     }
 
@@ -577,12 +628,13 @@ class HomeRealtimeVoiceFlowTest {
         f.feed(listOf(setup, assistantAudio))
         f.feed(assistantFirstTurn.drop(2))
 
-        // Tried only once; a failure ends with the same error as a home cascade first-send failure, and the home voice bar never reaches speaking.
+        // Try only once; on failure, end with the same error that the home cascade's first-send failure ends with; the home voice bar never reaches speaking.
         assertEquals(1, attempts)
         assertFalse(engine.active.value)
         assertFalse(ConversationStatusKey.SPEAKING in f.statuses)
         assertEquals(
-            VoiceConversationEvent.Ended(EndReason.ERROR, VoiceConversationController.SEND_FAILED),
+            // The reducer maps codes outside the six categories to unknown.
+            VoiceConversationEvent.Ended(EndReason.ERROR, "unknown"),
             f.events.filterIsInstance<VoiceConversationEvent.Ended>().single(),
         )
         assertTrue(f.navigated.isEmpty())
@@ -620,7 +672,7 @@ class HomeRealtimeVoiceFlowTest {
             role to it["text"]!!.jsonPrimitive.content
         }
 
-    /** The redacted {"audioBytes": n} is restored to the base64 of n bytes of silent PCM. */
+    /** Base64 of the n-byte silent PCM restored from a redacted {"audioBytes": n}. */
     private fun restoreAudio(element: JsonElement): JsonElement = when (element) {
         is JsonObject -> if (element.keys == setOf("audioBytes")) {
             JsonPrimitive(Base64.getEncoder().encodeToString(ByteArray(element["audioBytes"]!!.jsonPrimitive.content.toInt())))
@@ -642,7 +694,7 @@ class HomeRealtimeVoiceFlowTest {
         assertEquals(listOf(id), f.created)
         assertEquals(listOf(true to id), f.navigated)
         assertEquals(expectedMessages, f.messages(id))
-        // Every realtime event was logged.
+        // Every realtime event is logged.
         val logged = ShadowLog.getLogsForTag("RealtimeVoice").map { it.msg }
         assertTrue(logged.any { "userTranscript" in it })
         assertTrue(logged.any { "assistantTurnDone" in it })
@@ -651,7 +703,7 @@ class HomeRealtimeVoiceFlowTest {
 
     @Test
     fun replay_recorded_gemini_barge_in() = runTest {
-        // Real recording: interrupting a long story midway to switch to a joke; persistence follows expectedMessages (the interrupted half-sentence assistant message + the new turn).
+        // Real recording: mid-story the speaker interrupts a long story and switches to telling a joke; the persisted messages match expectedMessages (the interrupted half-sentence from the assistant + the new round).
         val bargeIn = Json.parseToJsonElement(
             workspaceFile("shared/voice-contracts/recordings/gemini-live-barge-in.v1.json").readText(),
         ).jsonObject
@@ -667,7 +719,7 @@ class HomeRealtimeVoiceFlowTest {
 
     @Test
     fun replay_human_pauses_fragments() = runTest {
-        // The first-turn inputTranscription is split into three parts, the first earlier than modelTurn and itself the conversation-creating event: still the 4 expectedMessages.
+        // The first round's inputTranscription splits into three segments; the first segment comes before modelTurn and is itself the event that triggers creating the conversation: still 4 expectedMessages.
         val f = HomeFlow(this)
         f.start()
         f.replay(recordedMessages("human_pauses_first_turn_three_fragments"))
@@ -681,7 +733,7 @@ class HomeRealtimeVoiceFlowTest {
 
     @Test
     fun replay_speaker_echo_during_first_reply() = runTest {
-        // Speaker echo: an inputTranscription arriving after the first reply started belongs to the next turn; in persisted order the user comes before the assistant in every turn.
+        // Loudspeaker echo: an inputTranscription that arrives only after the first round's reply has started belongs to the next round; the persisted order has the user before the assistant in each round.
         val f = HomeFlow(this)
         f.start()
         f.replay(recordedMessages("speaker_echo_during_first_reply"))
@@ -703,7 +755,7 @@ class HomeRealtimeVoiceFlowTest {
         engine.end(EndReason.USER)
         assertFalse(engine.active.value)
         f.finish()
-        // A conversation with persisted messages is neither deleted nor returned home from; opening it again shows all four messages.
+        // A conversation with persisted content is not deleted and does not return home; reopening it shows all four messages.
         assertFalse(onHome())
         nav.navigate(AppRoute.Chat(conversationId = id))
         assertEquals(id, nav.currentBackStackEntry!!.toRoute<AppRoute.Chat>().conversationId)
@@ -719,7 +771,7 @@ class HomeRealtimeVoiceFlowTest {
         f.feed(listOf(setup, assistantAudio))
         f.awaitNavigation()
         val id = f.created.single()
-        // Before the empty deletion the user already moved to another conversation: the empty conversation is deleted but the user stays on the current page.
+        // Before deleting the empty one, the user has already moved to another conversation: delete the empty conversation, but stay on the current page.
         nav.navigate(AppRoute.Chat(conversationId = other))
 
         engine.end(EndReason.USER)
@@ -732,7 +784,7 @@ class HomeRealtimeVoiceFlowTest {
 
     @Test
     fun empty_delete_races_new_message_keeps_it() = runTest {
-        // Real Room executor; the sink write loop runs on a real IO thread; leaving the page uses real navigation.
+        // Real Room executor; the sink write loop runs on a real IO thread, and leaving the page takes the real navigation.
         val asyncDb = Room.inMemoryDatabaseBuilder(RuntimeEnvironment.getApplication(), OriveoDatabase::class.java)
             .build()
             .also { extraDbs += it }
@@ -747,7 +799,7 @@ class HomeRealtimeVoiceFlowTest {
                 add = repo::addMessage,
                 update = repo::updateMessage,
                 scope = sinkScope,
-                // Same as the home wiring in VoiceConversationHost: switch to the main thread to leave the page (only when the current page is this conversation).
+                // Same as the home wiring of VoiceConversationHost: switch to the main thread to leave the page (only when the current page is that conversation).
                 createConversation = RealtimeConversationCreator(
                     home = true,
                     create = { id },
@@ -765,7 +817,7 @@ class HomeRealtimeVoiceFlowTest {
             )
             assertTrue(sink.ensureConversation())
             val sent = round % 2 == 0
-            // A message the chat page sent before leaving (concurrent with the conversation wrap-up, on another IO thread).
+            // Messages the chat page has already emitted before leaving (running concurrently with conversation teardown on another IO thread).
             if (sent) {
                 async(Dispatchers.IO) { repo.addMessage(id, userMessage("m-$round", "hello $round")) }.await()
             }
@@ -773,12 +825,12 @@ class HomeRealtimeVoiceFlowTest {
             withContext(Dispatchers.Default) { withTimeout(5_000) { sink.drain() } }
             testScheduler.runCurrent()
 
-            // Leave the page first, then delete from the database; even if the deletion is skipped, navigation happens only once.
+            // Leave the page first, then delete from the database; even when the delete is skipped, navigate only once.
             assertEquals(listOf("returnHome", "deleteIfEmpty"), order.toList())
             assertTrue(onHome())
             val stored = repo.getWithMessages(id)
             if (sent) {
-                // A message that was sent: the conversation and its messages are kept, not deleted.
+                // Messages already emitted: the conversation and messages are both there, nothing is deleted.
                 assertEquals(listOf(ChatRole.User to "hello $round"), stored!!.messages.map { it.role to it.text })
                 assertEquals(1, messageCount(asyncDb, id))
             } else {
@@ -795,14 +847,14 @@ class HomeRealtimeVoiceFlowTest {
         f.feed(listOf(setup, assistantAudio))
         f.awaitNavigation()
         val id = f.created.single()
-        // The reply has started, then a late user text arrives (not final).
+        // The reply has started, and then the user's text arrives late (not final).
         f.feed(
             listOf(
                 wire("""{"serverContent":{"outputTranscription":{"text":"Sure"}}}"""),
                 wire("""{"serverContent":{"inputTranscription":{"text":"Hey"}}}"""),
             ),
         )
-        // GeminiLiveTransport's 1008 branch: flush the user text as final first, then end with session expiry.
+        // The 1008 branch of GeminiLiveTransport: first flush the user's text as final, then end with session expiry.
         f.connection.events.trySend(RealtimeSessionEvent.UserTranscript(null, "Hey", final = true))
         f.connection.events.close(GeminiLiveSessionExpiredException("Gemini Live session expired (1008)"))
         testScheduler.runCurrent()
@@ -810,7 +862,7 @@ class HomeRealtimeVoiceFlowTest {
         assertFalse(engine.active.value)
         f.finish()
 
-        // Read the database: that user message is there, exactly one; the conversation is not deleted as an empty one.
+        // Read the database: that user message is there, exactly one; the conversation is not deleted as an empty conversation.
         val stored = repository.getWithMessages(id)
         assertNotNull(stored)
         assertEquals(
@@ -831,10 +883,10 @@ class HomeRealtimeVoiceFlowTest {
         f.connection.events.trySend(RealtimeSessionEvent.UserTranscript(null, "remind me to ", final = false))
         testScheduler.runCurrent()
 
-        // The same end is triggered repeatedly (user taps end, leaves the page, goes to the background): the draft is delivered only once.
+        // The same end is triggered repeatedly (the user taps end, leaves the page, goes to background): the draft is delivered only once.
         engine.end(EndReason.USER)
         engine.end(EndReason.USER)
-        engine.endLeavingPage()
+        engine.end(EndReason.SYSTEM)
         engine.systemInterruption()
         testScheduler.runCurrent()
         assertFalse(engine.active.value)
@@ -874,6 +926,34 @@ class HomeRealtimeVoiceFlowTest {
             if (candidate.exists()) return candidate
             dir = dir.parentFile
         }
-        throw IllegalStateException("cannot find $relative")
+        throw IllegalStateException("could not find $relative")
     }
+}
+
+/**
+ * Ideal player (following the recording-playback section of scripts/voice-contracts-check.mjs): fed by the audioBytes count; each segment is played out at 24 kHz 16-bit as soon as it is queued
+ * (playedMs = samples received for the item × 1000 / 24000, rounded down), so the queue never backs up -- isPlaying is always false, and during speaking the controller issues playbackDrained right after turnDone.
+ * stopPlayback freezes what has been played.
+ */
+internal open class IdealRealtimeAudio(
+    override val route: VoiceTelemetry.ConversationRoute = VoiceTelemetry.ConversationRoute.Speaker,
+) : RealtimeAudioIO {
+    /** Samples played (= received) per item. */
+    private val played = mutableMapOf<String, Long>()
+
+    override fun start(onFrame: (ByteArray) -> Unit, onInterruption: () -> Unit) = Unit
+
+    override fun enqueue(pcm16: ByteArray, itemId: String) {
+        played[itemId] = (played[itemId] ?: 0L) + pcm16.size / 2
+    }
+
+    override fun playedMs(itemId: String): Long = (played[itemId] ?: 0L) * 1000 / RealtimePCM.OUTPUT_RATE
+
+    override val isPlaying: Boolean get() = false
+
+    override fun stopPlayback() = Unit
+
+    override fun stop() = Unit
+
+    override suspend fun playEarcon(kind: EarconKind) = Unit
 }

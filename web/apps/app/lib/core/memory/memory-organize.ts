@@ -6,6 +6,7 @@ import { requestBaseURLText } from '../providers/endpoint-source';
 import { readStream } from '../../utils/chat-stream-utils';
 import { assemblePurposeRequest } from '../chat/context-pipeline/purpose-request';
 import { transportInput } from '../chat/context-pipeline/transport-input';
+import { buildProviderStreamOptions } from '../chat/stream-options';
 
 export interface MemoryModelCandidate {
   provider: Provider;
@@ -55,7 +56,8 @@ export async function requestMemoryOrganize(input: {
     purposeSystem: request.system,
     userText: request.messages.map((m) => m.text).join('\n'),
   });
-  const transport = transportInput(planned, { options: undefined, planMessages: true });
+  // Relay runtime options (security mode, transport, resolved root) must ride along; without them a LocalHttp relay is rejected as cleartext.
+  const transport = transportInput(planned, { options: buildProviderStreamOptions(input.provider, undefined, input.model), planMessages: true });
   const { stream } = sendStream(
     input.provider.kind,
     resolveProviderAPIKey(input.provider, input.model.id),

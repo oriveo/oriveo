@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/email.svg (glyphs.v1.json glyph:email, hue #EC4899); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4.4 4.8h15.2A2.4 2.4 0 0 1 22 7.2v9.6a2.4 2.4 0 0 1-2.4 2.4H4.4A2.4 2.4 0 0 1 2 16.8V7.2a2.4 2.4 0 0 1 2.4-2.4Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="2"
+                android:startY="4.8"
+                android:endX="22"
+                android:endY="19.2">
+                <item android:offset="0" android:color="#FBCFE8" />
+                <item android:offset="1" android:color="#EC4899" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M5.6 8.4l6.4 4.6 6.4-4.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.92"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

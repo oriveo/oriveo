@@ -1,6 +1,11 @@
 package ai.oriveo.community.core.data.repository.streaming
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
+import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -11,7 +16,54 @@ import org.junit.Test
  * granularity makes the pacing backlog jagged and the visuals feel rushed again, so they are
  * locked down against regression.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class StreamingTokenBufferTest {
+
+    // ===== Trailing flush when the stream stalls =====
+
+    @Test
+    fun `stalled stream flushes buffered tail after window`() = runTest {
+        val b = StreamingTokenBuffer("")
+        val t0 = 1_000_000L
+        b.drainTextToAccumulated(t0)
+        assertFalse(b.appendDelta("tail", t0))
+        val wait = b.millisUntilFlush(t0)
+        assertEquals(StreamingTokenBuffer.FLUSH_INTERVAL_MS, wait)
+        val flushed = mutableListOf<String>()
+        val scheduler = TrailingFlushScheduler(this) {
+            b.drainTextToAccumulated(t0 + StreamingTokenBuffer.FLUSH_INTERVAL_MS)
+            flushed += b.accumulatedText
+        }
+        scheduler.arm(wait!!)
+        advanceTimeBy(StreamingTokenBuffer.FLUSH_INTERVAL_MS - 1)
+        runCurrent()
+        assertEquals(emptyList<String>(), flushed)
+        advanceTimeBy(1)
+        runCurrent()
+        assertEquals(listOf("tail"), flushed)
+        assertNull(b.millisUntilFlush(t0 + StreamingTokenBuffer.FLUSH_INTERVAL_MS))
+    }
+
+    @Test
+    fun `new delta flush cancels pending trailing flush`() = runTest {
+        val b = StreamingTokenBuffer("")
+        val t0 = 1_000_000L
+        b.drainTextToAccumulated(t0)
+        assertFalse(b.appendDelta("ab", t0))
+        var trailingCalls = 0
+        val scheduler = TrailingFlushScheduler(this) { trailingCalls++ }
+        scheduler.arm(b.millisUntilFlush(t0)!!)
+        advanceTimeBy(10)
+        // Next delta arrives: the collector cancels first, then the newline flush drains the buffer.
+        scheduler.cancel()
+        assertTrue(b.appendDelta("c\n", t0 + 10))
+        b.drainTextToAccumulated(t0 + 10)
+        assertNull(b.millisUntilFlush(t0 + 10))
+        advanceTimeBy(StreamingTokenBuffer.FLUSH_INTERVAL_MS * 3)
+        runCurrent()
+        assertEquals(0, trailingCalls)
+        assertEquals("abc\n", b.accumulatedText)
+    }
 
     @Test
     fun `appendDelta does not flush below char threshold`() {

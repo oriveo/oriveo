@@ -1,6 +1,16 @@
 {
-  "$comment": "Per-currency message cost, conversation totals, display and migration. Message shape: estimatedCost always holds only the USD part (may be 0) and costSource describes the USD part ('unknown' when there is no USD part); nullable nonUsdCost {currencyCode (ISO 4217 upper case), amount, costSource} holds the single non-USD part. Amounts are never converted. recordCases: 'estimate' is one priced result, 'estimates' lists every priced part of one message (e.g. CNY generation + USD retrieval); USD parts add into estimatedCost, the non-USD part goes to nonUsdCost; expect gives {estimatedCost, costSource, nonUsdCost|null}, or {recorded:false} when nothing is recorded. A second, different non-USD currency in the same message sets nonUsdCost to {first currency code, 0, 'unknown'}: amounts are never added, that part displays as each end's existing 'not available' text and the USD part displays as usual. totalCases: messages are in the message shape; estimatedCost adds into the USD total and nonUsdCost into its currency's total; totals are per currency and never added across currencies; parts are ordered USD first, then other codes ascending; zero-amount currencies are omitted; unrecorded parts are skipped. All USD consumers (conversation total, monthly summary, budget) read estimatedCost without currency filtering. displayCases: parts are joined by ' + '; one message may render two parts; USD keeps each end's existing '$' rendering and precision; other currencies use the platform currency formatter with the UI locale and the standard symbol, and each part is rounded by the same digit rule used for USD in that place, evaluated on that part's own amount (cases give the resolved digits per part). migrationCases: the schema adds a nullable nonUsdCost (three fields); existing rows get nonUsdCost null; past messages whose CNY estimate was dropped stay unknown. Tests are named COST_CURRENCY_<id> (Web: it('COST-CURRENCY-<id> ...')).",
+  "$comment": "Per-currency cost record, totals, display, and sync. Supersedes cost-result.v1.json currencyCases on each end's P6·U19 unit (see the cost-currency section of the model catalog and capability truth contract). Message shape (local and Firestore identical): estimatedCost always holds only the USD part (may be 0), and costSource describes the USD part ('unknown' when there is no USD part). The nullable nonUsdCost {currencyCode (ISO 4217 upper case), amount, costSource} holds the single non-USD part. This replaces the single-currency 'amount + estimatedCostCurrency' shape. Amounts are never converted. recordCases: 'estimate' is one priced result; 'estimates' lists every priced part of one message (e.g. CNY generation plus USD retrieval). USD parts add into estimatedCost; the non-USD part goes to nonUsdCost. expect gives {estimatedCost, costSource, nonUsdCost|null}, or {recorded:false} when nothing is recorded. A second, different non-USD currency in the same message (not expected: retrieval is always USD) sets nonUsdCost to {first currency code, 0, 'unknown'}: amounts are never added; that part displays as each end's existing 'not available' text, and the USD part displays as usual. totalCases: messages use the message shape; estimatedCost adds into the USD total and nonUsdCost into its currency's total. Totals are per currency and never added across currencies. Parts are ordered USD first, then other codes ascending. Zero-amount currencies are omitted; unrecorded parts are skipped. All USD consumers (conversation total, monthly summary, usage report, budget) read estimatedCost without currency filtering. displayCases: parts are joined by ' + '; one message may render two parts. USD keeps each end's existing '$' rendering and precision. Other currencies use the platform currency formatter with the UI locale and the standard symbol (Intl currencyDisplay 'symbol' / Apple .standard / ICU unit-width-short); each part is rounded by the same digit rule the end uses for USD in that place, evaluated on that part's own amount (cases give the resolved digits per part). No new localized strings. syncCases: the Firestore message uses the same shape as local. Wire costSource values (top level and inside nonUsdCost) use the existing Firestore vocabulary 'upstream' / 'localEstimate' / 'unknown' (readers also accept 'estimated', written by development builds). local / localBefore / expectLocal keep the recordCases vocabulary ('estimated' = each end's local estimate value). A mixed message writes estimatedCost = USD part with the USD part's costSource plus nonUsdCost; a non-USD-only message writes estimatedCost 0 plus costSource 'unknown'. Old clients only see the USD part (known backward-compatible behaviour; no data is lost). Conversation estimatedCost stays the USD total, and nonUsdCostTotals maps other codes to totals (omitted when none). If the remote lacks nonUsdCost while the local message holds one (an older client overwrote the document), keep the local nonUsdCost and do not write back. Amount merges (e.g. max) are per part and only compare the same currency; a remote nonUsdCost in a different currency wins. Conversation totals are recomputed from local messages; nonUsdCostTotals is only used when the conversation's messages are not loaded locally. Re-merging the same remote document is a no-op (no local write, no outbound write). migrationCases: each end adds nullable nonUsdCost (three fields); existing rows get nonUsdCost null; past messages whose CNY estimate was dropped stay unknown; rows already stored in the superseded shape (Android DB 46 estimatedCostCurrency) with a non-USD currency move the amount and costSource into nonUsdCost and set estimatedCost 0 plus costSource 'unknown'. USD display: app-language platform currency format, symbol forced to $ (no US$ / $US), Latin digits for ar, grouping on, each site keeps its own fraction digits and rounding. displayCases comparison normalizes the formatted string first: delete U+200E / U+200F / U+061C and map U+00A0 / U+202F to U+0020 (ICU / CLDR builds differ only there). ledgerAmountCases (hosted wallet ledger row): the row is formatted on the client from amount_microusd and never shows the server display_amount string; app-language USD format as above, fraction digits min 2 / max 6 with trailing zeros trimmed (the exact micro-USD value, so no rounding happens); negatives use the platform native minus, positives carry no plus sign, zero renders with 2 digits; same normalization as displayCases. Tests are named COST_CURRENCY_<id> (Web: it('COST-CURRENCY-<id> ...')).",
   "v": 1,
+  "pendingUntil": {
+    "web": "P6·U19b",
+    "ios": "P6·U19d"
+  },
+  "totalsIncompleteThreadPendingUntil": {
+    "web": "P6·U19k",
+    "android": "P6·U19k",
+    "ios": "P6·U19k",
+    "desktop": "P6·U19k"
+  },
   "recordCases": [
     {
       "id": "usd_estimate_recorded",
@@ -576,6 +586,661 @@
       ],
       "expect": "¥0.13",
       "note": "X-G2a: half rounds away from zero on every end (not banker's rounding)"
+    },
+    {
+      "id": "de_usd_small_locale_currency",
+      "locale": "de",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 0.0023,
+          "fractionDigits": 4
+        }
+      ],
+      "expect": "0,0023 $",
+      "note": "F-U6: USD uses the app-language platform currency format with the symbol forced to $ (never US$ / $US); each site keeps its own fraction tiers"
+    },
+    {
+      "id": "de_usd_grouping",
+      "locale": "de",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1234.5,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "1.234,50 $"
+    },
+    {
+      "id": "fr_usd_no_us_suffix",
+      "locale": "fr",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "1,20 $",
+      "note": "platform symbol is $US; forced to $"
+    },
+    {
+      "id": "ja_usd",
+      "locale": "ja",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "$1.20"
+    },
+    {
+      "id": "ar_usd_latin_digits",
+      "locale": "ar",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "1.20 $",
+      "note": "ar always renders Latin digits (RL2-DIGITS-01); platform symbol US$ forced to $"
+    },
+    {
+      "id": "pt_br_usd_no_us_prefix",
+      "locale": "pt-BR",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "$ 1,20",
+      "note": "platform symbol is US$; forced to $"
+    },
+    {
+      "id": "de_mixed_usd_cny",
+      "locale": "de",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2,
+          "fractionDigits": 2
+        },
+        {
+          "currencyCode": "CNY",
+          "amount": 3.5,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "1,20 $ + 3,50 CN¥"
+    },
+    {
+      "id": "usd_half_rounds_away_from_zero",
+      "locale": "en-US",
+      "parts": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.005,
+          "fractionDigits": 2
+        }
+      ],
+      "expect": "$1.01",
+      "note": "F-U6: cost USD rounds half away from zero on the shortest decimal of the amount (1.005 is stored as 1.00499..., must still render $1.01), same as cny_half_rounds_away_from_zero"
+    }
+  ],
+  "ledgerAmountCases": [
+    {
+      "id": "ledger_en_purchase",
+      "locale": "en-US",
+      "amountMicrousd": 1200000,
+      "expect": "$1.20"
+    },
+    {
+      "id": "ledger_en_small_charge",
+      "locale": "en-US",
+      "amountMicrousd": -23000,
+      "expect": "-$0.023"
+    },
+    {
+      "id": "ledger_en_zero",
+      "locale": "en-US",
+      "amountMicrousd": 0,
+      "expect": "$0.00"
+    },
+    {
+      "id": "ledger_en_one_micro_charge",
+      "locale": "en-US",
+      "amountMicrousd": -1,
+      "expect": "-$0.000001"
+    },
+    {
+      "id": "ledger_en_whole_dollars",
+      "locale": "en-US",
+      "amountMicrousd": 10000000,
+      "expect": "$10.00"
+    },
+    {
+      "id": "ledger_en_grouping_negative",
+      "locale": "en-US",
+      "amountMicrousd": -1234567890,
+      "expect": "-$1,234.56789"
+    },
+    {
+      "id": "ledger_de_purchase",
+      "locale": "de",
+      "amountMicrousd": 1200000,
+      "expect": "1,20 $"
+    },
+    {
+      "id": "ledger_de_small_charge",
+      "locale": "de",
+      "amountMicrousd": -23000,
+      "expect": "-0,023 $"
+    },
+    {
+      "id": "ledger_de_zero",
+      "locale": "de",
+      "amountMicrousd": 0,
+      "expect": "0,00 $"
+    },
+    {
+      "id": "ledger_de_one_micro_charge",
+      "locale": "de",
+      "amountMicrousd": -1,
+      "expect": "-0,000001 $"
+    },
+    {
+      "id": "ledger_de_whole_dollars",
+      "locale": "de",
+      "amountMicrousd": 10000000,
+      "expect": "10,00 $"
+    },
+    {
+      "id": "ledger_de_grouping_negative",
+      "locale": "de",
+      "amountMicrousd": -1234567890,
+      "expect": "-1.234,56789 $"
+    },
+    {
+      "id": "ledger_ar_purchase",
+      "locale": "ar",
+      "amountMicrousd": 1200000,
+      "expect": "1.20 $"
+    },
+    {
+      "id": "ledger_ar_small_charge",
+      "locale": "ar",
+      "amountMicrousd": -23000,
+      "expect": "-0.023 $"
+    },
+    {
+      "id": "ledger_ar_zero",
+      "locale": "ar",
+      "amountMicrousd": 0,
+      "expect": "0.00 $"
+    },
+    {
+      "id": "ledger_ar_one_micro_charge",
+      "locale": "ar",
+      "amountMicrousd": -1,
+      "expect": "-0.000001 $"
+    },
+    {
+      "id": "ledger_ar_whole_dollars",
+      "locale": "ar",
+      "amountMicrousd": 10000000,
+      "expect": "10.00 $"
+    },
+    {
+      "id": "ledger_ar_grouping_negative",
+      "locale": "ar",
+      "amountMicrousd": -1234567890,
+      "expect": "-1,234.56789 $"
+    },
+    {
+      "id": "ledger_en_grouping_positive",
+      "locale": "en-US",
+      "amountMicrousd": 1234567890,
+      "expect": "$1,234.56789"
+    },
+    {
+      "id": "ledger_en_six_digits",
+      "locale": "en-US",
+      "amountMicrousd": 1234567,
+      "expect": "$1.234567"
+    },
+    {
+      "id": "ledger_de_grouping_positive",
+      "locale": "de",
+      "amountMicrousd": 1234567890,
+      "expect": "1.234,56789 $"
+    },
+    {
+      "id": "ledger_de_six_digits",
+      "locale": "de",
+      "amountMicrousd": 1234567,
+      "expect": "1,234567 $"
+    },
+    {
+      "id": "ledger_ar_grouping_positive",
+      "locale": "ar",
+      "amountMicrousd": 1234567890,
+      "expect": "1,234.56789 $"
+    },
+    {
+      "id": "ledger_ar_six_digits",
+      "locale": "ar",
+      "amountMicrousd": 1234567,
+      "expect": "1.234567 $"
+    }
+  ],
+  "syncCases": [
+    {
+      "id": "usd_message_wire_unchanged",
+      "local": {
+        "estimatedCost": 0.01,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      },
+      "expectFirestore": {
+        "estimatedCost": 0.01,
+        "costSource": "localEstimate"
+      },
+      "expectAbsentKeys": [
+        "nonUsdCost"
+      ]
+    },
+    {
+      "id": "cny_message_wire",
+      "local": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "estimated"
+        }
+      },
+      "expectFirestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "localEstimate"
+        }
+      }
+    },
+    {
+      "id": "cny_message_read_back",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "localEstimate"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "estimated"
+        }
+      }
+    },
+    {
+      "id": "mixed_message_wire",
+      "local": {
+        "estimatedCost": 0.25,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.12,
+          "costSource": "estimated"
+        }
+      },
+      "expectFirestore": {
+        "estimatedCost": 0.25,
+        "costSource": "localEstimate",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.12,
+          "costSource": "localEstimate"
+        }
+      },
+      "note": "old clients read only estimatedCost (the USD part); known backward-compatible behaviour, the CNY part stays in nonUsdCost"
+    },
+    {
+      "id": "legacy_message_read_as_usd",
+      "firestore": {
+        "estimatedCost": 0.02,
+        "costSource": "localEstimate"
+      },
+      "expectLocal": {
+        "estimatedCost": 0.02,
+        "costSource": "estimated",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "conversation_totals_wire",
+      "localTotals": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2
+        },
+        {
+          "currencyCode": "CNY",
+          "amount": 3.5
+        }
+      ],
+      "expectFirestore": {
+        "estimatedCost": 1.2,
+        "nonUsdCostTotals": {
+          "CNY": 3.5
+        }
+      }
+    },
+    {
+      "id": "usd_only_conversation_writes_empty_map",
+      "localTotals": [
+        {
+          "currencyCode": "USD",
+          "amount": 1.2
+        }
+      ],
+      "expectFirestore": {
+        "estimatedCost": 1.2,
+        "nonUsdCostTotals": {}
+      },
+      "note": "No non-USD part: write an explicit empty map (E-645) so other ends clear their local value; a missing key only means an older client."
+    },
+    {
+      "id": "legacy_overwrite_keeps_local_non_usd",
+      "localBefore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "estimated"
+        }
+      },
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown"
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "estimated"
+        }
+      },
+      "expect": {
+        "outboundWrites": 0
+      }
+    },
+    {
+      "id": "legacy_overwrite_mixed_keeps_local_non_usd",
+      "localBefore": {
+        "estimatedCost": 0.25,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.12,
+          "costSource": "estimated"
+        }
+      },
+      "firestore": {
+        "estimatedCost": 0.25,
+        "costSource": "localEstimate"
+      },
+      "expectLocal": {
+        "estimatedCost": 0.25,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.12,
+          "costSource": "estimated"
+        }
+      },
+      "expect": {
+        "outboundWrites": 0
+      },
+      "note": "an older client rewrote a mixed message keeping only the USD part; the local nonUsdCost is kept"
+    },
+    {
+      "id": "max_merge_same_currency_only",
+      "localBefore": {
+        "estimatedCost": 0.001,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.5,
+          "costSource": "estimated"
+        }
+      },
+      "firestore": {
+        "estimatedCost": 0.25,
+        "costSource": "localEstimate",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.4,
+          "costSource": "localEstimate"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0.25,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.5,
+          "costSource": "estimated"
+        }
+      },
+      "note": "max merge is per part: USD against USD, nonUsdCost only against the same currency (a remote nonUsdCost in a different currency wins instead of being compared by size)"
+    },
+    {
+      "id": "same_remote_merge_is_quiescent",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.0039,
+          "costSource": "localEstimate"
+        }
+      },
+      "mergeTwice": true,
+      "expect": {
+        "secondMergeLocalWrites": 0,
+        "secondMergeOutboundWrites": 0
+      }
+    },
+    {
+      "id": "wire_estimated_alias_read_as_local_estimate",
+      "firestore": {
+        "estimatedCost": 0.02,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.1,
+          "costSource": "estimated"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0.02,
+        "costSource": "estimated",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.1,
+          "costSource": "estimated"
+        }
+      },
+      "note": "X-G2a: read vocabulary is {upstream, localEstimate, unknown, subscription, managed}; 'estimated' (written during development) reads as the local estimate"
+    },
+    {
+      "id": "wire_subscription_source_kept",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "subscription"
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "subscription",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "wire_managed_source_kept",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "managed"
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "managed",
+        "nonUsdCost": null
+      },
+      "note": "Hosted messages are billed by the server; read and written back verbatim"
+    },
+    {
+      "id": "wire_unrecognised_source_read_as_unknown",
+      "firestore": {
+        "estimatedCost": 0.02,
+        "costSource": "bogus"
+      },
+      "expectLocal": {
+        "estimatedCost": 0.02,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      },
+      "note": "X-G2a: any other word reads as unknown (never stored verbatim)"
+    },
+    {
+      "id": "invalid_non_usd_code_not_three_letters",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CN",
+          "amount": 0.1,
+          "costSource": "localEstimate"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      },
+      "note": "X-G2a: on read, a remote nonUsdCost is kept when currencyCode (trimmed, upper-cased) is three letters and not USD, and amount is finite and > 0; epsilon applies only to totals and display"
+    },
+    {
+      "id": "invalid_non_usd_code_usd",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "USD",
+          "amount": 0.1,
+          "costSource": "localEstimate"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "invalid_non_usd_amount_negative",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": -0.5,
+          "costSource": "localEstimate"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "invalid_non_usd_amount_zero",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0,
+          "costSource": "localEstimate"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": null
+      }
+    },
+    {
+      "id": "tiny_non_usd_part_kept_on_read",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 5e-06,
+          "costSource": "localEstimate"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 5e-06,
+          "costSource": "estimated"
+        }
+      },
+      "note": "X-G2a: per-message amounts below epsilon are kept so every device sums the same raw parts"
+    },
+    {
+      "id": "lowercase_code_normalized_on_read",
+      "firestore": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": " cny ",
+          "amount": 0.1,
+          "costSource": "localEstimate"
+        }
+      },
+      "expectLocal": {
+        "estimatedCost": 0,
+        "costSource": "unknown",
+        "nonUsdCost": {
+          "currencyCode": "CNY",
+          "amount": 0.1,
+          "costSource": "estimated"
+        }
+      }
     }
   ],
   "migrationCases": [
@@ -620,7 +1285,7 @@
       "note": "rows stored in the superseded single-currency shape (Android DB 46); USD or empty-currency rows keep estimatedCost and get nonUsdCost null"
     }
   ],
-  "totalsIncompleteThreadComment": "Conversation totals when the local thread may be partial. Totals shape = conversation {estimatedCost (USD only), nonUsdCostTotals {CODE: amount} | null}. isComplete = the per-conversation local-only 'thread complete' flag (never synced): true only after the conversation was created locally or its whole thread was pulled from the cloud; set false whenever messages are written from a window / fragment / interrupted or failed backfill; rows without the flag count as false. messageCount is never used. Complete: apply the change to localMessages, then recompute all currencies from every local message (same as totalCases). Incomplete: never recompute; start from remoteTotals (latest conversation totals) and add (after - before) per currency for locally originated changes only (add: before=null, delete: after=null, costChange: both). Messages merged in from the cloud (remoteWindowMerged) are already counted remotely and contribute no delta. Each currency total is clamped at >= 0; a non-USD currency whose total is 0 is dropped and an empty map is written as null. Compare amounts with 1e-9 tolerance. rejectTotals lists results that must not be produced. The result is written locally and synced.",
+  "totalsIncompleteThreadComment": "Conversation totals when the local thread may be partial. Totals shape = conversation {estimatedCost (USD only), nonUsdCostTotals {CODE: amount} | null}. isComplete = the per-conversation local-only 'thread complete' flag (never synced): true only after the conversation was created locally or its whole thread was pulled from the cloud; set false whenever messages are written from a window, a fragment, or an interrupted or failed backfill; rows without the flag count as false. messageCount is never used. Complete: apply the change to localMessages, then recompute all currencies from every local message (same as totalCases). Incomplete: never recompute; start from remoteTotals (latest conversation totals) and add (after - before) per currency for locally originated changes only (add: before=null, delete: after=null, costChange: both). Messages merged in from the cloud (remoteWindowMerged) are already counted remotely and contribute no delta. Each currency total is clamped at >= 0; a non-USD currency whose total is 0 is dropped, and an empty map is written as null. Compare amounts with a 1e-9 tolerance. rejectTotals lists results that must not be produced. The result is written locally and synced.",
   "totalsIncompleteThreadCases": [
     {
       "id": "complete_thread_recomputes",
@@ -888,7 +1553,12 @@
       ]
     }
   ],
-  "relayPricingComment": "Relay message cost. A relay model priced through the relay official match (literal id / canonicalModelId matched to an official catalog entry, same cross-provider match as relay capability inheritance) goes through the very same estimate entry as an official message: upstream-reported cost > the matched entry's pricingV2 > its legacy single-tier price; currency is the matched entry's currencyCode and a non-USD estimate is recorded in nonUsdCost (never unknown, never converted). Without a match the model's local price (user-entered or previously inherited legacy price) is used on the legacy single-tier path; with neither the cost is unknown. No region selection for relay. Fields: catalogMatch = null or {canonicalModelId, pricingV2} (the matched official entry); localPrice = null or {inputPerMToken, outputPerMToken} stored on the relay model; upstreamCost = null or {amount, currencyCode}; usage buckets as pricing-v2-estimate.v1.json; at = pricing instant; expect = the recorded message cost (recordCases shape). Ends assert through their production relay delivery/cost entry with a relay connection. Desktop consumes this section in the desktop package unit 'Chats send relay model' ; test names COST_CURRENCY_<id>. relayModelId defaults to catalogMatch.canonicalModelId (literal-id match); when given, the relay model stores that id with canonicalModelId = catalogMatch.canonicalModelId. connection defaults to 'relay'; 'official' runs the same record through the official connection of the matched provider. upstreamCost is always USD; relays never adopt it ; a reported 0 is a real upstream 0. usage null = the upstream reported no usage. catalogMatch.pricingStatus (default 'priced') is the matched entry's legacy pricingStatus. usage with every bucket 0 is a reported usage (a real 0), usage null is no usage (unknown). Official match: canonicalModelId first, then the literal id when the canonical id has no entry; the provider order is the server transportRules order used by capability inheritance. Once an official entry matched (relay or official connection) only the entry's own prices are used; whatever it cannot price is unknown — the local price is used only when nothing matched. 'usage null' must be produced by the end's real response parsing (an explicit usage-reported signal), not synthesized in the test. catalogMatch.pricingUnit / perUnitPrice = the entry's legacy per-unit price (per_image / per_second); units = images (or seconds) produced. Per-unit pricing never depends on token usage.",
+  "relayPricingPendingUntil": {
+    "web": "P6·U19m",
+    "android": "P6·U19m",
+    "ios": "P6·U19m"
+  },
+  "relayPricingComment": "Relay message cost. A relay model priced through the relay official match (literal id or canonicalModelId matched to an official catalog entry, the same cross-provider match as relay capability inheritance) goes through the same estimate entry as an official message: upstream-reported cost > the matched entry's pricingV2 > its legacy single-tier price. The currency is the matched entry's currencyCode, and a non-USD estimate is recorded in nonUsdCost (never unknown, never converted). Without a match, the model's local price (user-entered or previously inherited legacy price) is used on the legacy single-tier path; with neither, the cost is unknown. No region selection for relay. Fields: catalogMatch = null or {canonicalModelId, pricingV2} (the matched official entry); localPrice = null or {inputPerMToken, outputPerMToken} stored on the relay model; upstreamCost = null or {amount, currencyCode}; usage buckets as in pricing-v2-estimate.v1.json; at = pricing instant; expect = the recorded message cost (recordCases shape). Ends assert through their production relay delivery/cost entry with a relay connection. The desktop consumes this section in its package unit 'Chats send relay model'; test names COST_CURRENCY_<id>. relayModelId defaults to catalogMatch.canonicalModelId (literal-id match); when given, the relay model stores that id with canonicalModelId = catalogMatch.canonicalModelId. connection defaults to 'relay'; 'official' runs the same record through the official connection of the matched provider. upstreamCost is always USD; relays never adopt it; a reported 0 is a real upstream 0. usage null = the upstream reported no usage. catalogMatch.pricingStatus (default 'priced') is the matched entry's legacy pricingStatus. usage with every bucket 0 is a reported usage (a real 0); usage null is no usage (unknown). Official match: canonicalModelId first, then the literal id when the canonical id has no entry; the provider order is the server transportRules order used by capability inheritance. Once an official entry matched (relay or official connection), only the entry's own prices are used; whatever it cannot price is unknown. The local price is used only when nothing matched. 'usage null' must come from the end's real response parsing (an explicit usage-reported signal), not be synthesized in the test. catalogMatch.pricingUnit / perUnitPrice = the entry's legacy per-unit price (per_image / per_second); units = images (or seconds) produced. Per-unit pricing never depends on token usage.",
   "relayPricingCases": [
     {
       "id": "relay_matched_usd_uses_pricing_v2",
@@ -1028,7 +1698,7 @@
     },
     {
       "id": "relay_ignores_upstream_cost",
-      "note": "A relay is an arbitrary endpoint: an upstream-reported cost (usage.cost) has no trustworthy unit or currency, so relays never adopt it; the matched entry's pricingV2 prices the message .",
+      "note": "A relay is an arbitrary endpoint: an upstream-reported cost (usage.cost) has no trustworthy unit or currency, so relays never adopt it; the matched entry's pricingV2 prices the message (E-656).",
       "catalogMatch": {
         "canonicalModelId": "gpt-next",
         "pricingV2": {
@@ -1267,7 +1937,7 @@
     },
     {
       "id": "official_v2_unavailable_no_local_fallback",
-      "note": "Official connection (not relay): the catalog entry has a pricingV2 that cannot price; unknown, the model's local price is not used (v2 unavailable = price unknown, no legacy fallback).",
+      "note": "Official connection (not relay): the catalog entry has a pricingV2 that cannot price; unknown, the model's local price is not used (§5.7 P3·U4: v2 unavailable = price unknown, no legacy fallback).",
       "connection": "official",
       "catalogMatch": {
         "canonicalModelId": "gpt-next",
@@ -1423,7 +2093,7 @@
     },
     {
       "id": "official_matched_status_unknown_with_v2_is_unknown",
-      "note": "Official connection; the matched entry carries a pricingV2 but its legacy pricingStatus is unknown, so v2 is ignored and the entry has no price: unknown; the local price is never used once an official entry matched.",
+      "note": "Official connection; the matched entry carries a pricingV2 but its legacy pricingStatus is unknown, so v2 is ignored (E-312) and the entry has no price: unknown; the local price is never used once an official entry matched.",
       "connection": "official",
       "catalogMatch": {
         "canonicalModelId": "gpt-next",
@@ -1494,7 +2164,7 @@
     },
     {
       "id": "official_per_image_without_usage_estimates_by_units",
-      "note": "Per-unit pricing (per_image) does not depend on token usage: units x perUnit, even when no usage object was reported .",
+      "note": "Per-unit pricing (per_image) does not depend on token usage: units x perUnit, even when no usage object was reported (E-658).",
       "connection": "official",
       "catalogMatch": {
         "canonicalModelId": "img-next",
@@ -1525,7 +2195,7 @@
       "usage": null,
       "at": "2026-10-19T12:00:00Z",
       "id": "per_image_zero_units_is_unknown",
-      "note": "No image was produced (units 0): unknown, never a 1-image minimum .",
+      "note": "No image was produced (units 0): unknown, never a 1-image minimum (E-659).",
       "catalogMatch": {
         "canonicalModelId": "img-next",
         "pricingStatus": "priced",
@@ -1553,7 +2223,7 @@
       "usage": null,
       "at": "2026-10-19T12:00:00Z",
       "id": "per_image_upstream_cost_wins",
-      "note": "Upstream-reported cost beats the per-unit estimate .",
+      "note": "Upstream-reported cost beats the per-unit estimate (E-659).",
       "catalogMatch": {
         "canonicalModelId": "img-next",
         "pricingStatus": "priced",
@@ -1579,7 +2249,7 @@
       "usage": null,
       "at": "2026-10-19T12:00:00Z",
       "id": "per_image_free_entry_is_zero",
-      "note": "A free per-unit entry is a real 0 .",
+      "note": "A free per-unit entry is a real 0 (E-659).",
       "catalogMatch": {
         "canonicalModelId": "img-next",
         "pricingStatus": "free",
@@ -1599,7 +2269,693 @@
       }
     }
   ],
-  "multiLegCostComment": "One assistant message produced by several upstream requests (tool loop, library first leg + answer, MCP, resend / propose tail leg). Each leg is priced on its own with the same entry (upstream cost of that leg > its estimate) and the parts are added; if any leg reported no usage (usage null) the whole message is unknown. legs[].usage null = that leg reported no usage. Ends assert through their production leg-merge entry. legs[].pricingV2 overrides the case pricingV2 for that leg. A leg's usage (cache buckets, upstream cost such as OpenRouter usage.cost or Grok ticks) comes from the provider's ordinary chat usage parser. Different currencies across legs are summed per currency (USD part + the single non-USD part); a second distinct non-USD currency follows recordCases second_non_usd_currency_marks_unknown. legs[].pricingV2 differing per leg has no production path today (all legs share one model / entry): those cases lock the per-currency summing function itself. connection 'subscription' = the whole message is recorded as subscription, decided once by the connection authMode. The USD part's costSource is upstream only when every leg's USD part came from an upstream cost, otherwise estimated.  A test builds each leg through the production leg parser and sums through the production multi-leg path (never adds legs itself). Connection: unless a case says otherwise (connection 'subscription'), multi-leg cases run on an official connection that reports upstream cost (OpenRouter), never a relay (relays ignore upstream cost,).",
+  "totalsMergeEventPendingUntil": {
+    "web": "P6·U19k",
+    "android": "P6·U19k",
+    "ios": "P6·U19k",
+    "desktop": "P6·U19k"
+  },
+  "totalsMergeEventComment": "Conversation totals on merge events. Every end follows messages only of the conversation it has open, so a 'thread complete' flag on a conversation that is not followed can be stale. event.kind 'conversationDoc' = a remote conversation-level document merged in: totals are never recomputed from local messages; USD and nonUsdCostTotals both take the remote value (a key missing remotely keeps the local value; no max). If the conversation is not followed (following=false), the flag becomes false only when the remote totals differ from the local totals. event.kind 'messagesSnapshot' = the first server snapshot of the message listener for the opened conversation: whole=true (unbounded, not a window) lands the messages, sets the flag true, and recomputes from all local messages; whole=false (a window) keeps the flag and totals as they are (window messages are already in the remote totals). Fields: isComplete/following = state before the event; localTotals = conversation totals before; localMessages = messages stored locally before (snapshot messages are added to them); expectTotals / expectComplete = after. Test names COST_CURRENCY_<id>; ends assert through their production merge / listener entry. An empty non-USD map is written explicitly as {} and read as 'none' (expectTotals nonUsdCostTotals null = none); a missing key only means an older client and keeps the local value. Whole-thread totals are recomputed from every local delivered row after the snapshot lands (pendingUpload rows included). A whole snapshot containing a document that cannot be parsed sets nothing and recomputes nothing. The ids of a whole snapshot are all documents of the snapshot, never only its changes. Conversation totals keys are not subject to last-writer-wins on updatedAt: a totals-only write (which does not bump updatedAt) is still taken. Whenever the flag turns true, totals are recomputed; a whole listener snapshot uploads them if changed; a completed backfill never writes (read-only channel) (expectUpload). event.kind 'backfillComplete': conversationDocChangedDuring=true (the conversation document was merged after the backfill started) never sets the flag true. A remote metadata-only change (e.g. rename) is a conversation document like any other. messages[].unparseable=true is a document the end cannot parse: on a complete thread it drops the flag. The backfill race fingerprint includes the conversation totals fields.",
+  "totalsMergeEventCases": [
+    {
+      "id": "conversation_doc_not_followed_takes_remote_and_degrades",
+      "note": "Complete local thread, not open; another device added messages: remote totals win and the flag drops to false.",
+      "isComplete": true,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "conversationDoc",
+        "remoteTotals": {
+          "estimatedCost": 1.5,
+          "nonUsdCostTotals": {
+            "CNY": 3.0
+          }
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 1.5,
+        "nonUsdCostTotals": {
+          "CNY": 3.0
+        }
+      },
+      "expectComplete": false
+    },
+    {
+      "id": "conversation_doc_followed_takes_remote_keeps_flag",
+      "note": "Open conversation: the conversation doc can arrive before its messages; remote totals are taken without recompute, the flag stays true (the listener brings the messages).",
+      "isComplete": true,
+      "following": true,
+      "localTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "conversationDoc",
+        "remoteTotals": {
+          "estimatedCost": 1.5,
+          "nonUsdCostTotals": {
+            "CNY": 3.0
+          }
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 1.5,
+        "nonUsdCostTotals": {
+          "CNY": 3.0
+        }
+      },
+      "expectComplete": true
+    },
+    {
+      "id": "conversation_doc_smaller_remote_wins_no_max",
+      "note": "Incomplete thread; another device deleted messages so the remote totals shrank: USD and CNY both follow the remote value (no max).",
+      "isComplete": false,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 3.0,
+        "nonUsdCostTotals": {
+          "CNY": 4.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "conversationDoc",
+        "remoteTotals": {
+          "estimatedCost": 2.0,
+          "nonUsdCostTotals": {
+            "CNY": 1.0
+          }
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 2.0,
+        "nonUsdCostTotals": {
+          "CNY": 1.0
+        }
+      },
+      "expectComplete": false
+    },
+    {
+      "id": "conversation_doc_missing_non_usd_key_keeps_local",
+      "note": "An older client rewrote the document without nonUsdCostTotals: the key missing remotely keeps the local value.",
+      "isComplete": false,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "conversationDoc",
+        "remoteTotals": {
+          "estimatedCost": 1.2
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 1.2,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "expectComplete": false
+    },
+    {
+      "id": "whole_listener_snapshot_restores_complete",
+      "note": "Opening an incomplete conversation: the first unbounded listener snapshot is the whole thread; the flag becomes true, totals are recomputed from the snapshot (every local delivered row, E-647) and uploaded.",
+      "isComplete": false,
+      "following": true,
+      "localTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "messagesSnapshot",
+        "whole": true,
+        "messages": [
+          {
+            "id": "m1",
+            "estimatedCost": 1.0,
+            "costSource": "estimated",
+            "nonUsdCost": null
+          },
+          {
+            "id": "m2",
+            "estimatedCost": 0,
+            "costSource": "unknown",
+            "nonUsdCost": {
+              "currencyCode": "CNY",
+              "amount": 2.0,
+              "costSource": "estimated"
+            }
+          },
+          {
+            "id": "m3",
+            "estimatedCost": 0.5,
+            "costSource": "estimated",
+            "nonUsdCost": null
+          },
+          {
+            "id": "m4",
+            "estimatedCost": 0,
+            "costSource": "unknown",
+            "nonUsdCost": {
+              "currencyCode": "CNY",
+              "amount": 1.5,
+              "costSource": "estimated"
+            }
+          }
+        ]
+      },
+      "expectTotals": {
+        "estimatedCost": 1.5,
+        "nonUsdCostTotals": {
+          "CNY": 3.5
+        }
+      },
+      "expectComplete": true,
+      "expectUpload": true
+    },
+    {
+      "id": "window_listener_snapshot_keeps_incomplete",
+      "note": "A windowed listener snapshot does not prove the whole thread: flag and totals unchanged.",
+      "isComplete": false,
+      "following": true,
+      "localTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "messagesSnapshot",
+        "whole": false,
+        "messages": [
+          {
+            "id": "m3",
+            "estimatedCost": 0.5,
+            "costSource": "estimated",
+            "nonUsdCost": null
+          }
+        ]
+      },
+      "expectTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "expectComplete": false,
+      "expectUpload": false
+    },
+    {
+      "id": "conversation_doc_empty_non_usd_clears",
+      "note": "Remote wrote an explicit empty map: the local non-USD totals are cleared (only a missing key keeps the local value).",
+      "isComplete": false,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "conversationDoc",
+        "remoteTotals": {
+          "estimatedCost": 1.0,
+          "nonUsdCostTotals": {}
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": null
+      },
+      "expectComplete": false
+    },
+    {
+      "id": "whole_snapshot_recomputes_from_all_local_rows",
+      "note": "After the whole-thread snapshot lands, totals are recomputed from every local delivered row (local rows are a superset of the snapshot). A local row already uploaded but absent from the snapshot is still counted: totals may only err high, never shrink, and every later full recompute gives the same answer; cleaning such rows belongs to deletion sync, not here.",
+      "isComplete": false,
+      "following": true,
+      "localTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          },
+          "pendingUpload": true
+        }
+      ],
+      "event": {
+        "kind": "messagesSnapshot",
+        "whole": true,
+        "messages": [
+          {
+            "id": "m3",
+            "estimatedCost": 0.5,
+            "costSource": "estimated",
+            "nonUsdCost": null
+          }
+        ]
+      },
+      "expectTotals": {
+        "estimatedCost": 1.5,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "expectComplete": true,
+      "expectUpload": true
+    },
+    {
+      "id": "backfill_complete_recomputes_locally",
+      "note": "A backfill that wrote every page with no skipped document: flag true and totals recomputed locally. The backfill stays strictly read-only (cloud sync read-only backfill rules): nothing is uploaded here; the next ordinary synced conversation write carries the totals.",
+      "isComplete": false,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "localMessages": [],
+      "event": {
+        "kind": "backfillComplete",
+        "conversationDocChangedDuring": false,
+        "messages": [
+          {
+            "id": "m1",
+            "estimatedCost": 1.0,
+            "costSource": "estimated",
+            "nonUsdCost": null
+          },
+          {
+            "id": "m2",
+            "estimatedCost": 0,
+            "costSource": "unknown",
+            "nonUsdCost": {
+              "currencyCode": "CNY",
+              "amount": 2.0,
+              "costSource": "estimated"
+            }
+          }
+        ]
+      },
+      "expectTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "expectComplete": true,
+      "expectUpload": false
+    },
+    {
+      "id": "backfill_raced_by_conversation_doc_stays_incomplete",
+      "note": "The conversation document changed while the backfill was reading (another device added messages): the flag stays false and totals stay as merged from the remote document.",
+      "isComplete": false,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "localMessages": [],
+      "event": {
+        "kind": "backfillComplete",
+        "conversationDocChangedDuring": true,
+        "messages": [
+          {
+            "id": "m1",
+            "estimatedCost": 1.0,
+            "costSource": "estimated",
+            "nonUsdCost": null
+          },
+          {
+            "id": "m2",
+            "estimatedCost": 0,
+            "costSource": "unknown",
+            "nonUsdCost": {
+              "currencyCode": "CNY",
+              "amount": 2.0,
+              "costSource": "estimated"
+            }
+          }
+        ]
+      },
+      "expectTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "expectComplete": false,
+      "expectUpload": false
+    },
+    {
+      "id": "conversation_doc_totals_only_not_newer_takes_remote",
+      "note": "A totals-only write from another end does not bump updatedAt / metadataUpdatedAt (remoteNotNewer=true): the totals keys are still taken from the remote (not subject to last-writer-wins); other fields keep the local value.",
+      "isComplete": false,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "conversationDoc",
+        "remoteNotNewer": true,
+        "remoteTotals": {
+          "estimatedCost": 1.4,
+          "nonUsdCostTotals": {}
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 1.4,
+        "nonUsdCostTotals": null
+      },
+      "expectComplete": false
+    },
+    {
+      "id": "conversation_doc_same_totals_keeps_complete",
+      "note": "Not followed, complete, the remote conversation document carries the same totals as local (own write echo, restart snapshot, a rename elsewhere): the flag stays true. Only a remote totals change means messages this device lacks.",
+      "isComplete": true,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "conversationDoc",
+        "remoteTotals": {
+          "estimatedCost": 1.0,
+          "nonUsdCostTotals": {
+            "CNY": 2.0
+          }
+        }
+      },
+      "expectTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "expectComplete": true
+    },
+    {
+      "id": "unparseable_message_on_complete_thread_degrades",
+      "note": "A complete, followed thread receives a message document this end cannot parse (e.g. written by a newer client): the flag drops to false so later recomputes cannot shrink the totals; totals stay as they are.",
+      "isComplete": true,
+      "following": true,
+      "localTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "localMessages": [
+        {
+          "id": "m1",
+          "estimatedCost": 1.0,
+          "costSource": "estimated",
+          "nonUsdCost": null
+        },
+        {
+          "id": "m2",
+          "estimatedCost": 0,
+          "costSource": "unknown",
+          "nonUsdCost": {
+            "currencyCode": "CNY",
+            "amount": 2.0,
+            "costSource": "estimated"
+          }
+        }
+      ],
+      "event": {
+        "kind": "messagesSnapshot",
+        "whole": false,
+        "messages": [
+          {
+            "id": "m9",
+            "unparseable": true
+          }
+        ]
+      },
+      "expectTotals": {
+        "estimatedCost": 1.0,
+        "nonUsdCostTotals": {
+          "CNY": 2.0
+        }
+      },
+      "expectComplete": false
+    },
+    {
+      "id": "backfill_raced_by_totals_only_write_stays_incomplete",
+      "note": "While the backfill was reading, a totals-only conversation document arrived (remoteNotNewer: updatedAt unchanged, totals differ) and was merged (totals taken from the remote). The backfill must still detect the race (fingerprint includes the totals): the flag stays false and totals stay as merged from the remote document.",
+      "isComplete": false,
+      "following": false,
+      "localTotals": {
+        "estimatedCost": 0,
+        "nonUsdCostTotals": null
+      },
+      "localMessages": [],
+      "event": {
+        "kind": "backfillComplete",
+        "conversationDocChangedDuring": true,
+        "racingDoc": {
+          "remoteNotNewer": true,
+          "remoteTotals": {
+            "estimatedCost": 9.0,
+            "nonUsdCostTotals": {
+              "CNY": 9.0
+            }
+          }
+        },
+        "messages": [
+          {
+            "id": "m1",
+            "estimatedCost": 1.0,
+            "costSource": "estimated",
+            "nonUsdCost": null
+          },
+          {
+            "id": "m2",
+            "estimatedCost": 0,
+            "costSource": "unknown",
+            "nonUsdCost": {
+              "currencyCode": "CNY",
+              "amount": 2.0,
+              "costSource": "estimated"
+            }
+          }
+        ]
+      },
+      "expectTotals": {
+        "estimatedCost": 9.0,
+        "nonUsdCostTotals": {
+          "CNY": 9.0
+        }
+      },
+      "expectComplete": false,
+      "expectUpload": false
+    }
+  ],
+  "multiLegCostPendingUntil": {
+    "web": "P6·U19m",
+    "android": "P6·U19m",
+    "ios": "P6·U19m"
+  },
+  "multiLegCostComment": "One assistant message produced by several upstream requests (tool loop, library first leg plus answer, MCP, resend / propose tail leg). Each leg is priced on its own with the same entry (the leg's upstream cost, else its estimate), and the parts are added. If any leg reported no usage (usage null), the whole message is unknown. legs[].usage null = that leg reported no usage. Ends assert through their production leg-merge entry. legs[].pricingV2 overrides the case pricingV2 for that leg. A leg's usage (cache buckets, upstream cost such as OpenRouter usage.cost or Grok ticks) comes from the provider's ordinary chat usage parser. Different currencies across legs are summed per currency (USD part plus the single non-USD part); a second distinct non-USD currency follows recordCases second_non_usd_currency_marks_unknown. legs[].pricingV2 differing per leg has no production path today (all legs share one model and entry); those cases lock the per-currency summing function itself. connection 'subscription' = the whole message is recorded as subscription, decided once by the connection authMode. The USD part's costSource is upstream only when every leg's USD part came from an upstream cost; otherwise estimated. A test builds each leg through the production leg parser and sums through the production multi-leg path (never adds legs itself). Connection: unless a case says otherwise (connection 'subscription'), multi-leg cases run on an official connection that reports upstream cost (OpenRouter), never a relay (relays ignore upstream cost).",
   "multiLegCostCases": [
     {
       "id": "all_legs_reported_sum",
@@ -1716,7 +3072,7 @@
     },
     {
       "id": "legs_in_two_currencies_record_both_parts",
-      "note": "Legs priced in USD and CNY (e.g. a tail leg on another entry): each currency is summed on its own and recorded as the USD part plus the single non-USD part (never converted, never dropped).",
+      "note": "Legs priced in USD and CNY (e.g. a tail leg on another entry): each currency is summed on its own and recorded as the USD part plus the single non-USD part (currency results are never converted, never dropped).",
       "pricingV2": null,
       "at": "2026-10-19T12:00:00Z",
       "legs": [
@@ -1843,7 +3199,7 @@
     },
     {
       "id": "two_non_usd_currencies_marks_non_usd_unknown",
-      "note": "Two distinct non-USD currencies across legs: same rule as recordCases second_non_usd_currency_marks_unknown — the USD part is kept, the non-USD part keeps the first non-USD currency code with amount 0 and costSource unknown; currencies are never added .",
+      "note": "Two distinct non-USD currencies across legs: same rule as recordCases second_non_usd_currency_marks_unknown — the USD part is kept, the non-USD part keeps the first non-USD currency code with amount 0 and costSource unknown; currencies are never added (E-658).",
       "pricingV2": null,
       "at": "2026-10-19T12:00:00Z",
       "legs": [
@@ -1958,7 +3314,7 @@
     },
     {
       "id": "per_image_counted_once_across_legs",
-      "note": "Per-unit pricing is charged once per message from the produced unit count, never once per leg .",
+      "note": "Per-unit pricing is charged once per message from the produced unit count, never once per leg (E-659).",
       "pricingV2": {
         "currencyCode": "USD",
         "unit": "per_image",
@@ -1984,7 +3340,7 @@
     },
     {
       "id": "per_image_partial_upstream_estimates_by_units",
-      "note": "Per-unit pricing across legs where only some legs reported an upstream cost: the upstream cost is adopted only when every leg reported one; otherwise the message is estimated once from the produced units .",
+      "note": "Per-unit pricing across legs where only some legs reported an upstream cost: the upstream cost is adopted only when every leg reported one; otherwise the message is estimated once from the produced units (E-660).",
       "pricingV2": {
         "currencyCode": "USD",
         "unit": "per_image",
@@ -2012,7 +3368,7 @@
     },
     {
       "id": "per_image_relay_legs_with_upstream_estimated_once",
-      "note": "Relay connection: upstream cost is never adopted; per-unit pricing is estimated once for the message, never once per leg .",
+      "note": "Relay connection: upstream cost is never adopted; per-unit pricing is estimated once for the message, never once per leg (E-660).",
       "connection": "relay",
       "pricingV2": {
         "currencyCode": "USD",

@@ -750,11 +750,6 @@ struct ComposerTextViewTests {
     func productionChatViewLongPaste() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "composer-long-paste-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
         let provider = TestFactories.makeProvider(kind: .openAI)
         let conversation = TestFactories.makeConversation(
@@ -769,6 +764,10 @@ struct ComposerTextViewTests {
         _ = try ConversationRuntimeBridge().replaceAllConversations([conversation], uid: uid)
         DatabaseManager.shared.close()
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         defer { state.flushConversationPersistQueue() }
         // Switch after creating AppState: in a clean container the first AppState runs the partition migration and
         // switches back to the guest user.

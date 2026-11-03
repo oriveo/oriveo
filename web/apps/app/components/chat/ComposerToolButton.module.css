@@ -4,6 +4,8 @@
   gap: 6px;
   min-height: 30px;
   max-width: 100%;
+  /* The tools row scrolls horizontally; a shrunk capsule would lose its end cap (wand | count) instead of scrolling. */
+  flex-shrink: 0;
   padding: 3px 10px 3px 4px;
   border: 1px solid transparent;
   border-radius: var(--o-radius-full);
@@ -27,7 +29,7 @@
 
 .button:hover {
   color: var(--o-text);
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   border-color: var(--o-border);
 }
 
@@ -37,7 +39,7 @@
 }
 
 .button[data-active='true'] {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   background: var(--o-primary-subtle);
   border-color: color-mix(in srgb, var(--o-primary) 22%, transparent);
   box-shadow: inset 0 1px 0 0 var(--o-hairline);
@@ -55,7 +57,7 @@
 }
 
 .button[data-emphasized='true'] .iconWrap {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .button[data-disabled],
@@ -107,7 +109,7 @@
   align-items: center;
   gap: 3.5px;
   flex-shrink: 0;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .capabilityIcons > span {
@@ -175,12 +177,23 @@
 }
 
 .button[data-active='true'] .chevron {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   transform: rotate(180deg);
 }
 
 @media (max-width: 767px) {
   .meta {
     max-width: min(13rem, 100%);
+  }
+}
+
+/* Phone-width composers: a third labelled tool would push past the send button, so it keeps its icon only. */
+@media (max-width: 480px) {
+  .button[data-compact-narrow='true'] {
+    padding-right: 4px;
+  }
+
+  .button[data-compact-narrow='true'] .label {
+    display: none;
   }
 }

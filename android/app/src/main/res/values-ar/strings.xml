@@ -1,7 +1,6 @@
 <resources>
     <!-- App -->
     <string name="app_tagline">كل نماذجك، تطبيق واحد</string>
-    <string name="provider_disclosure_ack_failed">لم نتمكّن من تأكيد إشعار المزوّد. تحقّق من اتصالك وحاول مرة أخرى.</string>
 
     <!-- Tabs -->
     <string name="tab_home">الرئيسية</string>
@@ -28,11 +27,15 @@
 
     <!-- Onboarding / Welcome -->
     <string name="get_started">ابدأ</string>
+
+    <!-- Provider Setup -->
     <string name="api_key">مفتاح API</string>
     <string name="validating">جارٍ التحقق…</string>
     <string name="auto_fill_note">يتم ملء نقطة نهاية الخدمة تلقائيًا نيابةً عنك.</string>
     <string name="add_provider">إضافة مزوّد</string>
     <string name="add_model">إضافة نموذج</string>
+
+    <!-- Provider Connection State -->
     <string name="status_connected">متصل</string>
     <string name="status_syncing">جاري المزامنة</string>
     <string name="status_issue">مشكلة</string>
@@ -58,6 +61,7 @@
     <string name="new_chat">محادثة جديدة</string>
     <string name="send">إرسال</string>
     <string name="stop">إيقاف</string>
+    <string name="generation_parameter_name_stop">تسلسلات الإيقاف</string>
     <string name="type_a_message">اكتب رسالة…</string>
     <string name="regenerate">إعادة الإنشاء</string>
     <string name="continue_generating">متابعة التوليد</string>
@@ -79,8 +83,12 @@
     <string name="rename_conversation">إعادة تسمية المحادثة</string>
     <string name="delete_conversation">حذف المحادثة</string>
     <string name="delete_conversation_confirm">هل أنت متأكد من حذف هذه المحادثة؟ لا يمكن التراجع عن هذا الإجراء.</string>
+
+    <!-- Provider List -->
     <string name="providers_title">مزودو الخدمة</string>
     <string name="models_count">%d نماذج</string>
+
+    <!-- Provider Detail -->
     <string name="change_api_key">تغيير مفتاح API</string>
     <string name="delete_provider">حذف المزوّد</string>
     <string name="delete_provider_confirm">هل أنت متأكد من حذف هذا المزوّد؟ ستظل جميع المحادثات المرتبطة متاحة، لكنك لن تتمكن من إرسال رسائل جديدة باستخدام هذا المزوّد.</string>
@@ -95,7 +103,6 @@
     <string name="theme_light">فاتح</string>
     <string name="theme_dark">داكن</string>
     <string name="theme_section_palettes">لوحات الألوان</string>
-    <string name="default_model_short">افتراضي</string>
     <string name="theme_palette_purple">بنفسجي</string>
     <string name="theme_palette_graphite">غرافيت</string>
     <string name="theme_palette_black">أسود</string>
@@ -237,7 +244,6 @@
     <string name="backup_error_account_changed">تغيّر الحساب أثناء التحضير لهذا الاستيراد. أعد بدء الاستيراد للحساب الحالي.</string>
     <string name="backup_error_save_failed">فشل في حفظ ملف النسخة الاحتياطية.</string>
     <string name="remove">إزالة</string>
-    <string name="legal_consent_notice">بمتابعة الاستخدام، فإنك توافق على الشروط القانونية أدناه.</string>
     <string name="provider_setup_relay_title">مرحل مخصص</string>
     <string name="aggregator_groq_subtitle">استدلال LPU فائق السرعة</string>
     <string name="aggregator_together_subtitle">أكثر من 200 نموذج مفتوح المصدر</string>
@@ -269,10 +275,9 @@
     <string name="no_providers_title">لم تتم إضافة أي مزوّد بعد</string>
     <string name="no_providers_description">قم بتوصيل المزود أولاً. يبدأ تبديل النماذج والدردشة وشفافية التكلفة هنا.</string>
     <string name="provider_detail_add_model_manually">+ إضافة معرف النموذج يدويًا</string>
+    <string name="default_model_short">افتراضي</string>
     <string name="provider_detail_badge_recent">الأخيرة</string>
     <string name="undo">تراجع</string>
-    <string name="settings_source_code">كود المصدر</string>
-    <string name="settings_report_issue">الإبلاغ عن مشكلة</string>
     <string name="manual_model_entry_title">النموذج الاحتياطي</string>
     <string name="model_id_placeholder">على سبيل المثال: claude-4-sonnet أو gpt-4o</string>
     <string name="save_and_continue">حفظ ومتابعة</string>
@@ -351,6 +356,7 @@
     <string name="chat_model_removed_choose">اختيار نموذج</string>
     <string name="chat_model_retired_banner">تم إيقاف %1$s نهائيًا.</string>
     <string name="chat_model_retired_switch_to">التبديل إلى %1$s</string>
+    <string name="chat_last_used_model_retired_hint">النموذج الذي استخدمته آخر مرة أُوقف نهائيًا. يُستخدم الآن %1$s.</string>
     <string name="chat_issue_model_missing_title">النموذج غير متاح</string>
     <string name="chat_issue_no_provider_message">هذه المحادثة للقراءة فقط حتى تضيف مزوداً أو تعيد الاتصال به.</string>
     <string name="chat_issue_no_provider_title">لا يوجد مزود متاح</string>
@@ -422,6 +428,7 @@
     <string name="this_month">هذا الشهر</string>
     <string name="costs_title">التكاليف</string>
     <string name="cost_summary_more">%1$d أخرى</string>
+
 
     <!-- Usage Insights -->
     <string name="by_provider">حسب المزوّد</string>
@@ -506,31 +513,31 @@
     <string name="skill_fitness_coach_name">مدرب اللياقة</string>
     <string name="skill_image_analyst_name">محلل الصور</string>
     <!-- Built-in Skill descriptions -->
-    <string name="skill_code_assistant_desc">أسئلة البرمجة وتوليد الكود وتصحيح الأخطاء</string>
-    <string name="skill_code_review_desc">جودة الكود والأمان ومراجعة الأداء</string>
-    <string name="skill_sql_expert_desc">استعلامات SQL والتحسين وتصميم المخططات</string>
-    <string name="skill_git_assistant_desc">أوامر Git وسير العمل وحل التعارضات</string>
-    <string name="skill_writing_coach_desc">تحسين أسلوب الكتابة والبنية والوضوح</string>
+    <string name="skill_code_assistant_desc">أسئلة البرمجة، إنشاء الكود، تصحيح الأخطاء</string>
+    <string name="skill_code_review_desc">مراجعة جودة الكود والأمان والأداء</string>
+    <string name="skill_sql_expert_desc">استعلامات SQL، التحسين، تصميم المخططات</string>
+    <string name="skill_git_assistant_desc">أوامر Git، سير العمل، حل التعارضات</string>
+    <string name="skill_writing_coach_desc">تحسين أسلوب الكتابة والهيكل والوضوح</string>
     <string name="skill_email_assistant_desc">صياغة رسائل بريد إلكتروني مهنية وشخصية</string>
-    <string name="skill_copywriting_desc">نصوص تسويقية ووسائل التواصل ورسائل العلامة التجارية</string>
-    <string name="skill_blog_writer_desc">محتوى طويل جذاب ومقالات مدونة</string>
+    <string name="skill_copywriting_desc">نصوص تسويقية، وسائل التواصل الاجتماعي، رسائل العلامة التجارية</string>
+    <string name="skill_blog_writer_desc">محتوى طويل جذاب ومقالات مدونات</string>
     <string name="skill_translation_expert_desc">ترجمة دقيقة مع الحفاظ على النبرة والفروق الدقيقة</string>
     <string name="skill_proofreader_desc">تصحيح القواعد والإملاء وتحسين الوضوح</string>
-    <string name="skill_learning_tutor_desc">تدريس صبور بأسلوب سقراط</string>
+    <string name="skill_learning_tutor_desc">تدريس صبور بالطريقة السقراطية</string>
     <string name="skill_research_assistant_desc">مراجعة الأدبيات والكتابة الأكاديمية والبحث</string>
     <string name="skill_language_teacher_desc">ممارسة وتعلم اللغات الأجنبية</string>
-    <string name="skill_data_analyst_desc">تفسير البيانات والتصور والرؤى</string>
-    <string name="skill_math_tutor_desc">حل مسائل الرياضيات خطوة بخطوة</string>
+    <string name="skill_data_analyst_desc">تفسير البيانات، التصور، الرؤى</string>
+    <string name="skill_math_tutor_desc">حل المسائل الرياضية خطوة بخطوة</string>
     <string name="skill_document_summarizer_desc">تلخيص المستندات واستخراج النقاط الرئيسية</string>
     <string name="skill_brainstorm_desc">توليد الأفكار واستكشاف الاحتمالات</string>
-    <string name="skill_story_creator_desc">كتابة الخيال والسرد وبناء العوالم</string>
+    <string name="skill_story_creator_desc">كتابة الخيال، السرد القصصي، بناء العوالم</string>
     <string name="skill_meeting_notes_desc">تحويل محاضر الاجتماعات إلى ملخصات منظمة</string>
     <string name="skill_interview_coach_desc">التحضير للمقابلات والمقابلات التجريبية</string>
-    <string name="skill_presentation_outliner_desc">مخططات العروض التقديمية ونقاط الحديث والمحتوى</string>
-    <string name="skill_recipe_assistant_desc">وصفات وتقنيات الطبخ وتخطيط الوجبات</string>
+    <string name="skill_presentation_outliner_desc">مخططات العروض التقديمية والنقاط الرئيسية ومحتوى الشرائح</string>
+    <string name="skill_recipe_assistant_desc">وصفات، تقنيات الطبخ، تخطيط الوجبات</string>
     <string name="skill_travel_planner_desc">خطط السفر وتوصيات الوجهات</string>
-    <string name="skill_fitness_coach_desc">خطط التمرين والتمارين وإرشادات التغذية</string>
-    <string name="skill_image_analyst_desc">وصف الصور وتحليلها واستخراج المعلومات</string>
+    <string name="skill_fitness_coach_desc">خطط التمارين والتغذية</string>
+    <string name="skill_image_analyst_desc">وصف وتحليل واستخراج المعلومات من الصور</string>
     <!-- Skill starter messages -->
     <string name="skill_code_assistant_starter_0">ساعدني في تصحيح هذا الكود</string>
     <string name="skill_code_assistant_starter_1">اكتب دالة تقوم بـ...</string>
@@ -652,23 +659,21 @@
     <string name="skills_newSkill">مهارة جديدة</string>
     <string name="skills_editSkill">تعديل المهارة</string>
     <string name="skills_useSkill">استخدام هذه المهارة</string>
-    <string name="skills_pinToHome">تثبيت في الرئيسية</string>
     <string name="pin_conversation">تثبيت</string>
     <string name="unpin_conversation">إلغاء التثبيت</string>
     <string name="pinned_section">مثبّت</string>
-    <string name="skills_unpin">إلغاء التثبيت</string>
     <string name="skills_instructions">الأوامر</string>
     <string name="skills_knowledgeFiles">مواد مرجعية</string>
     <string name="skills_advancedSettings">الإعدادات المتقدمة</string>
     <string name="skills_useMemory">تذكر التفضيلات</string>
     <string name="skills_noCustomSkills">لا توجد مهارات مخصصة بعد</string>
-    <string name="skills_deleteConfirmTitle">حذف %s؟</string>
+    <string name="skills_deleteConfirmTitle">حذف «%1$s»؟</string>
     <string name="skills_discardChanges">تجاهل التغييرات؟</string>
     <string name="skills_needProviderMessage">تحتاج إلى مزود ذكاء اصطناعي واحد على الأقل لبدء محادثة.</string>
-    <string name="skills_addProvider">إضافة مزود</string>
+    <string name="skills_addProvider">إضافة مزوّد</string>
     <string name="skills_providerRequiredMessage">تحتاج هذه المهارة إلى مزوّد ذكاء اصطناعي متاح قبل بدء محادثة.</string>
     <string name="skills_providerRequiredTitle">أضف مزوّدًا لاستخدام هذه المهارة</string>
-    <string name="skills_systemPromptPlaceholder">مثال: أنت مراجع كود خبير. راجع الكود من حيث الأمان والأداء والقابلية للقراءة. أجب بلغة المستخدم.</string>
+    <string name="skills_systemPromptPlaceholder">مثال: أنت مراجع كود خبير. راجع الكود من حيث الأمان والأداء وسهولة القراءة. أجب بلغة المستخدم.</string>
     <string name="skills_advanced">متقدم</string>
     <string name="skills_modelCapability">تفضيل النموذج</string>
     <string name="skills_capabilityAny">أي</string>
@@ -680,12 +685,12 @@
     <string name="skills_noKnowledgeFiles">لا توجد مواد مرجعية بعد</string>
     <string name="skills_useMemoryDescription">تضمين تفضيلاتك الشخصية في المحادثات</string>
     <string name="skills_tipInstructions">يحدد كيف يتصرف الذكاء الاصطناعي — شخصيته وخبرته وأسلوب الرد. فقط الذكاء الاصطناعي يرى هذا، المستخدمون لا يرونه.</string>
-    <string name="skills_tipKnowledgeFiles">يقرأ الذكاء الاصطناعي هذه الملفات بالكامل في كل مرة يرد فيها — كملاحظات مفتوحة دائمًا على مكتبه. مثالي للمستندات القصيرة والأساسية (أدلة الأسلوب، المسارد، القواعد الرئيسية). الملفات الأكبر ستزيد تكلفة الاستجابة.</string>
+    <string name="skills_tipKnowledgeFiles">يقرأ الذكاء الاصطناعي هذه الملفات بالكامل في كل مرة يرد فيها — كأنها ملاحظات مفتوحة دائمًا على مكتبه. مناسبة للمستندات القصيرة والأساسية (أدلة الأسلوب، المسارد، القواعد الرئيسية). الملفات الأكبر ستزيد تكلفة الاستجابة.</string>
     <string name="skills_tipAdvanced">تكوين تفضيلات النموذج وحقن الذاكرة.</string>
     <string name="skills_filesQuota">%1$d / %2$d</string>
     <string name="skills_fileTooLarge">محتوى الملف يتجاوز حد 8,000 حرف</string>
     <string name="skills_emojiIcon">رمز Emoji</string>
-    <string name="skills_nChars">%d حرف</string>
+    <string name="skills_nChars">%1$d حرفًا</string>
     <string name="skills_skillName">اسم المهارة</string>
     <string name="skills_briefDescription">وصف مختصر</string>
     <string name="skills_discardMessage">لديك تغييرات غير محفوظة. هل أنت متأكد من أنك تريد تجاهلها؟</string>
@@ -739,18 +744,24 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">مفتاح معامل الاستعلام</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">أنت على وشك استخدام %1$s</string>
     <string name="provider_disclosure_body_default">سيتم إرسال رسالتك إلى %1$s لإنشاء الرد. لا تقوم Oriveo بتخزين رسائلك أو مفاتيح واجهة برمجة التطبيقات (API) على خوادمنا.</string>
     <string name="provider_disclosure_body_relay">ستُرسل رسالتك إلى خدمة النموذج التي أعددتها. لا تستطيع Oriveo التحقق من ممارسات الخصوصية لدى هذه الخدمة.</string>
     <string name="provider_disclosure_view_policy">عرض %1$s سياسة الخصوصية</string>
     <string name="provider_disclosure_continue">يكمل</string>
     <string name="provider_disclosure_cancel">يلغي</string>
+    <string name="provider_disclosure_ack_failed">لم نتمكّن من تأكيد إشعار المزوّد. تحقّق من اتصالك وحاول مرة أخرى.</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">يدعم البحث على الويب</string>
     <string name="relay_advanced_web_search_profile">ملف تعريف البحث على الويب</string>
     <string name="relay_profile_auto">تلقائي</string>
     <string name="relay_test_connection">اختبار الاتصال</string>
     <string name="relay_test_connection_missing_fields">استخدم عنوان URL للطلب ومفتاح API الخاصين بك</string>
     <string name="relay_value_label">القيمة</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">أدخل عنوان URL صالحًا لطلب HTTPS.</string>
     <string name="greeting_morning">صباح الخير</string>
     <string name="greeting_afternoon">طاب يومك</string>
@@ -760,22 +771,22 @@
     <string name="greeting_afternoon_with_name">طاب يومك يا %1$s</string>
     <string name="greeting_evening_with_name">مساء الخير يا %1$s</string>
     <string name="greeting_still_up_with_name">ألم يغلبك النعاس بعد يا %1$s؟</string>
-<string name="greeting_morning_2">صباحك سعيد</string>
-<string name="greeting_morning_3">مرحبًا</string>
-<string name="greeting_morning_4">أهلًا</string>
-<string name="greeting_morning_5">يسعدني رؤيتك</string>
-<string name="greeting_afternoon_2">كيف يمضي يومك؟</string>
-<string name="greeting_afternoon_3">أهلًا</string>
-<string name="greeting_afternoon_4">يسعدني رؤيتك</string>
-<string name="greeting_afternoon_5">مرحبًا</string>
-<string name="greeting_evening_2">مساؤك سعيد</string>
-<string name="greeting_evening_3">يسعدني رؤيتك</string>
-<string name="greeting_evening_4">مرحبًا</string>
-<string name="greeting_evening_5">أهلًا</string>
-<string name="greeting_night_2">تقدّم الليل</string>
-<string name="greeting_night_3">أهلًا</string>
-<string name="greeting_night_4">يسعدني رؤيتك</string>
-<string name="greeting_night_5">مرحبًا</string>
+    <string name="greeting_morning_2">صباحك سعيد</string>
+    <string name="greeting_morning_3">مرحبًا</string>
+    <string name="greeting_morning_4">أهلًا</string>
+    <string name="greeting_morning_5">يسعدني رؤيتك</string>
+    <string name="greeting_afternoon_2">كيف يمضي يومك؟</string>
+    <string name="greeting_afternoon_3">أهلًا</string>
+    <string name="greeting_afternoon_4">يسعدني رؤيتك</string>
+    <string name="greeting_afternoon_5">مرحبًا</string>
+    <string name="greeting_evening_2">مساؤك سعيد</string>
+    <string name="greeting_evening_3">يسعدني رؤيتك</string>
+    <string name="greeting_evening_4">مرحبًا</string>
+    <string name="greeting_evening_5">أهلًا</string>
+    <string name="greeting_night_2">تقدّم الليل</string>
+    <string name="greeting_night_3">أهلًا</string>
+    <string name="greeting_night_4">يسعدني رؤيتك</string>
+    <string name="greeting_night_5">مرحبًا</string>
     <string name="tagline_morning_1">على مهلك، لا داعي للعجلة</string>
     <string name="tagline_morning_2">ليكن يومك على إيقاعك</string>
     <string name="tagline_morning_3">كل سؤال يستحق أن يُطرح</string>
@@ -792,23 +803,25 @@
     <string name="tagline_night_2">إن جافاك النوم، فلنتحدث</string>
     <string name="tagline_night_3">هدأ كل شيء من حولك</string>
     <string name="tagline_night_4">الوقت متّسع</string>
-<string name="tagline_morning_5">اليوم مناسب لتجربة شيء جديد</string>
-<string name="tagline_morning_6">هنا يمكنك التفكير بصوت عالٍ</string>
-<string name="tagline_morning_7">خطوة بخطوة</string>
-<string name="tagline_morning_8">لنرتّب الأفكار معًا</string>
-<string name="tagline_afternoon_5">يمكنك المتابعة من حيث توقفت</string>
-<string name="tagline_afternoon_6">الأسئلة مرحّب بها في أي وقت</string>
-<string name="tagline_afternoon_7">النظر من زاوية أخرى قد يفيد</string>
-<string name="tagline_afternoon_8">لا يلزم أن يكون كل شيء مثاليًا</string>
-<string name="tagline_evening_5">ما تبقّى يمكنه الانتظار إلى الغد</string>
-<string name="tagline_evening_6">لا بأس بمجرد الدردشة أيضًا</string>
-<string name="tagline_evening_7">المساء وقت جميل للتأمل</string>
-<string name="tagline_evening_8">ختام هادئ ليومك</string>
-<string name="tagline_night_5">ما يدور في ذهنك يستحق أن يُكتب</string>
-<string name="tagline_night_6">الراحة مهمة أيضًا</string>
-<string name="tagline_night_7">في الهدوء تصفو الأفكار</string>
-<string name="tagline_night_8">لا عجلة الليلة</string>
+    <string name="tagline_morning_5">اليوم مناسب لتجربة شيء جديد</string>
+    <string name="tagline_morning_6">هنا يمكنك التفكير بصوت عالٍ</string>
+    <string name="tagline_morning_7">خطوة بخطوة</string>
+    <string name="tagline_morning_8">لنرتّب الأفكار معًا</string>
+    <string name="tagline_afternoon_5">يمكنك المتابعة من حيث توقفت</string>
+    <string name="tagline_afternoon_6">الأسئلة مرحّب بها في أي وقت</string>
+    <string name="tagline_afternoon_7">النظر من زاوية أخرى قد يفيد</string>
+    <string name="tagline_afternoon_8">لا يلزم أن يكون كل شيء مثاليًا</string>
+    <string name="tagline_evening_5">ما تبقّى يمكنه الانتظار إلى الغد</string>
+    <string name="tagline_evening_6">لا بأس بمجرد الدردشة أيضًا</string>
+    <string name="tagline_evening_7">المساء وقت جميل للتأمل</string>
+    <string name="tagline_evening_8">ختام هادئ ليومك</string>
+    <string name="tagline_night_5">ما يدور في ذهنك يستحق أن يُكتب</string>
+    <string name="tagline_night_6">الراحة مهمة أيضًا</string>
+    <string name="tagline_night_7">في الهدوء تصفو الأفكار</string>
+    <string name="tagline_night_8">لا عجلة الليلة</string>
     <string name="aurora_placeholder_what_can_i_help">كيف يمكنني مساعدتك؟</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">تلقائي / اتركه فارغًا</string>
     <string name="relay_disable_response_storage_footnote">OpenAI Responses فقط · يعيّن store: false</string>
     <string name="relay_disable_response_storage_short">عدم الاحتفاظ بالاستجابات في السحابة</string>
@@ -869,10 +882,16 @@
     <string name="relay_security_mode_option_unknown_disabled">أدخل عنوانًا محليًا أو عنوان VPN خاصًا أولًا.</string>
     <string name="relay_connection_no_key_required_cleartext">لا يحتاج هذا الاتصال إلى مفتاح · الاتصالات غير المشفّرة لا ترسل بيانات اعتماد.</string>
     <string name="relay_remove_api_key">إزالة المفتاح</string>
-<string name="streaming_pulse_a11y">جارٍ التوليد</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">جارٍ التوليد</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">نشط هذا الشهر</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">نشط هذا الشهر</string>
     <string name="providers_all_providers">جميع المزودين</string>
     <string name="providers_today">اليوم</string>
     <string name="providers_all_synced">تمت مزامنة الكل</string>
@@ -881,6 +900,8 @@
     <string name="providers_delete_this_question">هل تريد حذف هذا المزوّد؟</string>
     <string name="providers_delete_this_message">يؤدي حذف هذا المزوّد أيضًا إلى إزالة الدردشات ذات الصلة وتكوين النموذج الافتراضي.</string>
     <string name="manual_model_clear">مسح</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">مفتاح API مطلوب</string>
     <string name="tap_to_view">اضغط للعرض</string>
     <string name="tap_to_set">اضغط للإعداد</string>
@@ -896,6 +917,8 @@
     <string name="code_block_expand">توسيع</string>
     <string name="chat_show_full_message">عرض الرسالة كاملة</string>
     <string name="code_block_lines">%d سطر</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">لا يوجد اتصال بالإنترنت</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -905,6 +928,7 @@
     <string name="reasoning_hide">إخفاء التفكير</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">تعذّر استخراج النص من \u2066%1$s\u2069 (يبدو أنه ملف PDF ممسوح ضوئيًا).</string>
@@ -916,7 +940,6 @@
     <string name="file_extraction_error_generic">تعذّر معالجة \u2066%1$s\u2069. حاول مجدداً أو اختر ملفاً آخر.</string>
     <string name="file_extraction_truncated_notice">الملف \u2066%1$s\u2069 طويل، فأُضيف أوله فقط (الأسطر: %2$d من أصل %3$d).</string>
     <string name="file_extraction_send_blocked_text_budget">لم تُرسل الرسالة: بإضافة \u2066%1$s\u2069 يتجاوز النص المرفق الحد الأقصى لهذا النموذج. يُرجى إزالة ملف أو تغيير النموذج.</string>
-    <string name="error_attachment_not_accepted_title">المرفق غير مقبول</string>
     <string name="file_extraction_text_budget_exceeded">لم تتم إضافة \u2066%1$s\u2069: إضافته تجعل النص المرفق بهذه الرسالة يتجاوز الحد الأقصى.</string>
     <string name="file_extraction_chip_extracted_lines">تم استخراج %1$d سطر</string>
     <string name="file_attachment_count_limit_reached">يمكنك إرفاق ما يصل إلى %1$d ملفات لهذا النموذج.</string>
@@ -926,6 +949,8 @@
     <string name="empty_greeting_mind">ما الذي يدور في ذهنك؟</string>
     <string name="empty_greeting_together">ما الذي نحلّه معًا؟</string>
     <string name="empty_chat_ask_anything">يمكنك السؤال عن أي شيء، أو البدء بالكتابة مباشرة.</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">نماذج GPT الرائدة</string>
     <string name="provider_tagline_anthropic">نماذج Claude</string>
     <string name="provider_tagline_gemini">نص وصورة وفيديو</string>
@@ -941,6 +966,8 @@
     <string name="provider_tagline_groq">استدلال فائق السرعة</string>
     <string name="provider_tagline_together">نماذج مفتوحة المصدر</string>
     <string name="provider_tagline_fireworks">سريع وبأسعار معقولة</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">ربط مزوّد</string>
     <string name="provider_setup_hero_subtitle">اختر مزوّد الذكاء الاصطناعي، ثم أدخل مفتاح API</string>
     <string name="provider_category_all">الكل</string>
@@ -953,6 +980,8 @@
     <string name="provider_already_connected_subtitle">أدِر الاتصال الحالي، أو أضِف حسابًا آخر بمفتاح API مختلف.</string>
     <string name="provider_manage_existing">إدارة الحالي</string>
     <string name="provider_add_another_account">إضافة حساب آخر</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="app_name">Oriveo</string>
     <string name="ok">موافق</string>
     <string name="selection_label_chinese_ai">ذكاء اصطناعي صيني</string>
@@ -973,7 +1002,6 @@
         <item quantity="other">%d نموذج</item>
     </plurals>
     <string name="api_endpoint">نقطة نهاية API</string>
-    <string name="api_endpoint_not_configured">غير مُهيأ</string>
     <string name="relay_guidance_codex_identity_switch_type">يتطلب هذا الاتصال هوية عميل Codex. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← مكتبة النماذج ← هذا النموذج ← متقدم، واضبط البروتوكول على OpenAI Responses، ثم أعد المحاولة.</string>
     <string name="relay_guidance_codex_identity_still_rejected">لا يزال هذا الاتصال يرفض هوية عميل Codex من Oriveo. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← تعديل الاتصال ← الترويسات ومعاملات الاستعلام، واضبط User-Agent أو ترويسة مخصصة، أو بدّل إلى اتصال آخر.</string>
     <string name="relay_guidance_responses_only_endpoint">لا يوفّر هذا الاتصال سوى ‎/v1/responses ويرفض ‎/chat/completions. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← مكتبة النماذج ← هذا النموذج ← متقدم، واضبط البروتوكول على OpenAI Responses، ثم أعد المحاولة.</string>
@@ -1008,7 +1036,7 @@
     <string name="discard">تجاهل</string>
     <string name="skills_knowledgeImportEmpty">الملف فارغ</string>
     <string name="skills_knowledgeImportFailed">فشل استيراد الملف</string>
-    <string name="skills_knowledgeErrorUnsupportedType">نوع الملف هذا غير مدعوم في قاعدة المعرفة.</string>
+    <string name="skills_knowledgeErrorUnsupportedType">نوع الملف هذا غير مدعوم لقاعدة المعرفة.</string>
     <string name="provider_balance_title">رصيد الحساب</string>
     <string name="provider_balance_refresh">تحديث</string>
     <string name="provider_balance_granted_label">ممنوح</string>
@@ -1025,10 +1053,21 @@
     <string name="outline_nav_label">مخطط المحادثة</string>
     <string name="outline_jump_to">الانتقال إلى: %1$s</string>
     <string name="outline_attachment_only">(مرفق)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">الملاحظات</string>
     <string name="notes_subtitle">احفظ محتوى الدردشة كملاحظات</string>
     <string name="notes_untitled">ملاحظة بلا عنوان</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="zero">لا ملاحظات</item>
+        <item quantity="one">%1$d ملاحظة</item>
+        <item quantity="two">ملاحظتان</item>
+        <item quantity="few">%1$d ملاحظات</item>
+        <item quantity="many">%1$d ملاحظة</item>
+        <item quantity="other">%1$d ملاحظات</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">الملاحظات</string>
     <string name="notes_tab_trash">سلة المهملات</string>
     <!-- Actions -->
@@ -1091,7 +1130,7 @@
     <string name="notes_toast_export_failed">فشل التصدير</string>
     <string name="notes_toast_folder_created">تم إنشاء المجلد \"%1$s\"</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">حفظ كملاحظة</string>
     <string name="notes_chat_replace_current_note">تحديث الملاحظة بالمحدد</string>
     <string name="notes_chat_return_to_note">العودة إلى الملاحظة</string>
@@ -1123,13 +1162,19 @@
     <string name="notes_detail_delete_this">حذف هذه الملاحظة</string>
     <string name="notes_nothing_written">لا يوجد محتوى بعد.</string>
     <!-- التحقق من التحديثات (Android فقط · Play In-App Updates) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">السعر غير معروف</string>
     <string name="pricing_non_standard">الفواتير غير القياسية</string>
     <string name="pricing_free">مجاني</string>
     <string name="enabled_models_help">تظهر النماذج المضافة في مُنتقي النماذج على الشاشة الرئيسية.</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">تعذّر تحميل هذه المحادثة</string>
     <string name="chat_load_stalled_message">رسائل هذه المحادثة ليست على هذا الجهاز بعد. أعد المحاولة لجلبها من السحابة.</string>
     <string name="chat_bootstrap_in_progress">جارٍ تحميل المحادثة…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">كل نماذجك، {تطبيق واحد}</string>
     <string name="onboarding_title_models">لكل سؤال، {النموذج الأنسب}</string>
     <string name="onboarding_title_byok">مفاتيحك، {وفاتورتك}</string>
@@ -1146,6 +1191,8 @@
     <string name="onboarding_legal">بالمتابعة، فإنك توافق على [شروط الخدمة](oriveo://terms) و[سياسة الخصوصية](oriveo://privacy).</string>
     <string name="developer_options">خيارات المطوّر</string>
     <string name="replay_onboarding">إعادة عرض الجولة التعريفية</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">الإعداد السريع</string>
     <string name="relay_quick_subtitle">أدخل عنوان URL للطلب ومفتاح واجهة برمجة التطبيقات. سوف يكتشف Oriveo إعدادات الاتصال لك.</string>
     <string name="relay_models_found">تم العثور على طراز (نماذج) %1$d في الكتالوج.</string>
@@ -1213,9 +1260,8 @@
     <string name="generation_empty_not_verified">لا توجد بعد معاملات قابلة للتعديل لهذا النموذج</string>
     <string name="generation_empty_not_verified_detail">لا نفتح التعديل إلا بعد أن نتحقق فعليًا من أن المعامل يعمل، ولم نختبر هذا النموذج على هذا الاتصال بعد. وهذا لا يؤثر على قدرته على الاستدلال.</string>
     <string name="generation_empty_catalog_managed">أصبحت معاملات هذا الطراز الآن تحت إدارة الدليل الرسمي ولا يمكن تخصيصها هنا.</string>
-    <string name="generation_empty_runtime_locked">معاملات التشغيل غير قابلة للتعديل على هذا الاتصال.</string>
     <string name="generation_empty_all_unsupported">لا يقبل هذا النموذج معاملات قابلة للتعديل على هذا الاتصال.</string>
-<string name="generation_parameter_unverified_badge">غير مُتحقَّق منه</string>
+    <string name="generation_parameter_unverified_badge">غير مُتحقَّق منه</string>
     <string name="generation_parameter_unverified_group_note">هذه المعاملات مستنتجة من البروتوكول الذي اخترته. لم يتحقق Oriveo من أنها تعمل فعليًا على هذا الاتصال.</string>
     <string name="generation_parameter_dormant_summary">تم الاحتفاظ بـ %1$d من المعاملات التي ضبطتها، ولن يتم إرسالها حاليًا.</string>
     <string name="generation_parameter_dormant_view">عرض</string>
@@ -1233,6 +1279,8 @@
     <string name="chat_token_usage_cache_write">كتابة التخزين المؤقت</string>
     <string name="chat_token_usage_total">الإجمالي</string>
     <string name="chat_token_usage_unavailable">لا توجد بيانات</string>
+    <string name="chat_token_usage_cost">التكلفة</string>
+    <string name="chat_token_usage_estimated">تقديرية</string>
     <string name="generation_conversation_scope_hint">ينطبق فقط أثناء استخدام هذا النموذج في هذه المحادثة. تبديل النماذج لا ينسخ القيم، والعودة تستعيدها.</string>
     <string name="generation_parameter_self_healed">رفض هذا النموذج %1$s. تمت إعادة المحاولة بالإعداد الافتراضي.</string>
     <string name="relay_transport_llamacpp_native">completion الأصلي في llama.cpp</string>
@@ -1432,32 +1480,22 @@
     <string name="tool_call_unhandled_multiple">حاول النموذج استخدام أدوات (%1$s) غير متاحة لهذا الاتصال.</string>
     <string name="tool_call_arguments_truncated">تم الاقتطاع عند 2 كيلوبايت</string>
     <string name="tool_fallback_library_not_searched">لا يدعم هذا الاتصال الأدوات، لذلك لم يتم البحث في المكتبة.</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">لا تتوفر مساحة تخزين</string>
     <string name="storage_blocked_message">لم تعد هناك مساحة خالية على جهازك، لذا لا يستطيع Oriveo فتح بياناته المحلية. أفرغ بعض المساحة ثم أعد المحاولة — محادثاتك ما زالت محفوظة على هذا الجهاز ولن تُفقد.</string>
     <string name="storage_blocked_action_free_space">تفريغ مساحة</string>
     <string name="database_unavailable_title">تعذّر فتح البيانات المحلية</string>
     <string name="database_unavailable_message">تعذّر على Oriveo فتح بياناته المحلية على هذا الجهاز. أعد المحاولة، أو تواصل مع الدعم إذا استمر ذلك.</string>
     <string name="link_open_failed_message">تعذّر فتح الرابط. يُرجى تفعيل متصفّح ثم إعادة المحاولة.</string>
-    <string name="contact_support">التواصل مع الدعم</string>
-    <string name="price_input">الإدخال</string>
-    <string name="price_output">الإخراج</string>
-    <string name="price_cache_read">قراءة التخزين المؤقت</string>
-    <string name="price_cache_write">كتابة التخزين المؤقت</string>
     <string name="external_app_unavailable">لا يوجد تطبيق يمكنه فتح هذا. يُرجى تثبيت تطبيق أو تفعيله ثم إعادة المحاولة.</string>
-    <plurals name="notes_count">
-        <item quantity="zero">لا ملاحظات</item>
-        <item quantity="one">%1$d ملاحظة</item>
-        <item quantity="two">ملاحظتان</item>
-        <item quantity="few">%1$d ملاحظات</item>
-        <item quantity="many">%1$d ملاحظة</item>
-        <item quantity="other">%1$d ملاحظات</item>
-    </plurals>
     <string name="secure_field_show">إظهار الأحرف</string>
     <string name="secure_field_hide">إخفاء الأحرف</string>
-    <string name="generation_parameter_name_stop">تسلسلات الإيقاف</string>
     <string name="generation_diagnostics_section">تشخيص إعدادات التوليد</string>
     <string name="generation_diagnostics_empty">لا توجد سجلات تشخيص بعد</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">لا يمكن إرسال الملاحظات من هذا الحساب.</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">الأدوات</string>
     <string name="mcp_tools_chip_state_on">الخوادم المفعّلة: %d</string>
     <string name="mcp_tools_chip_state_off">غير مفعّلة</string>
@@ -1552,6 +1590,8 @@
     <string name="mcp_detail_seconds">%s ث</string>
     <string name="mcp_detail_third_party_note">النتائج واردة من خادم تابع لجهة خارجية، ويُعرض منها أول 2 كيلوبايت فقط. لم يتحقق Oriveo من المحتوى.</string>
     <string name="mcp_detail_not_on_device">التفاصيل محفوظة فقط على الجهاز الذي نفّذ هذه الخطوة.</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">الأدوات والاتصالات</string>
     <string name="mcp_servers_title">خوادم MCP</string>
     <plurals name="mcp_settings_entry_count">
@@ -1706,109 +1746,166 @@
     <string name="mcp_reauth_failed_body">أُغلقت صفحة تسجيل الدخول، أو لم توافق الخدمة على الطلب. لم يتغيّر شيء.</string>
     <string name="mcp_reauth_unreachable_body">تأكّد من قدرة هذا الجهاز على الوصول إليه الآن ثم أعد المحاولة.</string>
     <string name="mcp_reauth_token_title">الصق رمز وصول جديدًا</string>
-    <string name="additional_body_attachments_filled">يتولى Oriveo تعبئة المرفقات.</string>
-    <string name="additional_body_cannot_change">غير قابل للتغيير</string>
-    <string name="additional_body_check">يُرجى مراجعة نص الطلب الإضافي</string>
-    <string name="additional_body_conversation_filled">يتولى Oriveo تعبئة المحادثة.</string>
-    <string name="additional_body_device_only">محفوظ على هذا الجهاز فقط، دون مزامنة</string>
-    <string name="additional_body_docs_link">عرض الحقول التي يدعمها %1$s</string>
-    <string name="additional_body_field_filled">يتولى Oriveo تعبئة هذا الحقل.</string>
-    <string name="additional_body_field_name_invalid">لا يمكن استخدام هذا الاسم اسمًا لحقل.</string>
-    <string name="additional_body_footer">تُضاف الحقول هنا إلى الطلب كما هي، ولا يتحقق Oriveo من قبول الخادم لها. إذا تطابق اسم حقل مع أحد الإعدادات المتقدمة، فتُستخدم القيمة الواردة هنا، وتُرسل بقية الإعدادات كالمعتاد.</string>
-    <string name="additional_body_included">مُضمَّن</string>
-    <string name="additional_body_model_chosen">النموذج هو المختار في Oriveo.</string>
-    <string name="additional_body_paste">لصق</string>
-    <string name="additional_body_paste_replace_body">يستبدل اللصق المحتوى الحالي بما في الحافظة.</string>
-    <string name="additional_body_paste_replace_title">استبدال المحتوى الحالي؟</string>
-    <string name="additional_body_reason_blocked_segment">لا يمكن استخدام «%1$s» اسمًا لحقل في نص الطلب الإضافي.</string>
-    <string name="additional_body_reason_invalid_json">نص الطلب الإضافي ليس JSON صالحًا.</string>
-    <string name="additional_body_reason_not_object">يجب أن يكون نص الطلب الإضافي كائن JSON محاطًا بـ { }.</string>
-    <string name="additional_body_reason_protected_field">يتولى Oriveo تعبئة «%1$s»، ولا يمكن تحديده في نص الطلب الإضافي.</string>
-    <string name="additional_body_reason_too_deep">يتجاوز تداخل نص الطلب الإضافي 32 مستوى.</string>
-    <string name="additional_body_reason_too_large">حجم نص الطلب الإضافي أكبر من 64 KB.</string>
-    <string name="additional_body_rejected_upstream">رُفض الطلب الذي يتضمن نص الطلب الإضافي</string>
-    <string name="additional_body_remove_line">%1$s يلزم حذف السطر %2$d قبل الإرسال.</string>
-    <string name="additional_body_retry_without">إعادة المحاولة دون نص الطلب الإضافي</string>
-    <string name="additional_body_send_toggle">الإرسال مع الطلبات</string>
-    <string name="additional_body_send_toggle_note">عند الإيقاف يُحتفظ بالمحتوى دون إرساله</string>
-    <string name="additional_body_switch_blocked_invalid">توجد مشكلة في نص الطلب الإضافي، لذا لا يمكن لهذا المفتاح تغييره. يلزم إصلاحها هناك أولًا.</string>
-    <string name="additional_body_switch_blocked_off">لا يُرسل نص الطلب الإضافي مع الطلبات حاليًا. يلزم تفعيله هناك أولًا.</string>
-    <string name="additional_body_system_prompt_filled">يتولى Oriveo تعبئة موجّه النظام.</string>
-    <string name="additional_body_tidy">تنسيق</string>
-    <string name="additional_body_tidy_invalid">هذا ليس JSON صالحًا بعد، لذا لم يُغيَّر شيء.</string>
-    <string name="additional_body_title">نص الطلب الإضافي</string>
-    <string name="additional_body_when_sending">عند الإرسال</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">القدرات</string>
+    <string name="model_options_local">محلي</string>
+    <string name="model_options_web_note">يبحث في الويب أولًا عندما يتطلب السؤال ذلك</string>
+    <string name="model_options_always_thinks">يفكر دائمًا قبل الإجابة</string>
+    <string name="model_options_thinks_first_note">يفكر مليًا أولًا، لذا تستغرق الإجابات وقتًا أطول قليلًا</string>
+    <string name="model_options_higher_levels_note">المستويات الأعلى تستغرق وقتًا أطول وقد تكلّف أكثر.</string>
+    <string name="model_options_template_thinking_note">يشغّل التفكير أو يوقفه عبر قالب المحادثة. يتوقف نجاح ذلك على الخادم.</string>
+    <string name="model_options_connection_cannot">لا يدعم هذا الاتصال ذلك</string>
+    <string name="model_options_uses_model_default">يستخدم الإعداد الافتراضي للنموذج</string>
+    <string name="model_options_reasoning_not_catalogued">لا تتوفر في Oriveo بعدُ إعدادات التفكير لهذا النموذج، لذا يعمل بإعداده الافتراضي.</string>
+    <string name="model_options_web_not_catalogued">لا تتوفر في Oriveo بعدُ إعدادات بحث الويب لهذا النموذج، لذا لا يمكن تفعيله هنا.</string>
+    <string name="model_options_see_adjustable_models">عرض النماذج القابلة للضبط</string>
+    <string name="model_options_no_thinking_mode">لا يدعم هذا النموذج التفكير</string>
+    <string name="model_options_shows_thinking_fixed">يعرض تفكيره · لا يمكن تعديله</string>
+    <string name="model_options_cannot_search">لا يستطيع هذا النموذج البحث في الويب</string>
+    <string name="model_options_always_on">مفعّل دائمًا</string>
+    <string name="model_options_subscription_always_searches">مع هذا الاشتراك، يبحث هذا النموذج في الويب دائمًا.</string>
+    <string name="model_options_web_when_needed">عند الحاجة</string>
+    <string name="model_options_web_every_message">كل رسالة</string>
+    <string name="model_options_needs_manual_setup">يتطلب إعدادًا يدويًا</string>
+    <string name="model_options_reasoning_no_generic_switch">لا يوفّر هذا المزوّد مفتاحًا قياسيًا للتفكير. يلزم إضافة حقوله في نص الطلب الإضافي.</string>
+    <string name="model_options_web_no_generic_switch">لا يوفّر هذا المزوّد مفتاحًا قياسيًا لبحث الويب. يلزم إضافة حقوله في نص الطلب الإضافي.</string>
+    <string name="model_options_open_additional_body">فتح نص الطلب الإضافي</string>
+    <string name="model_options_choose_protocol_first">يلزم اختيار بروتوكول هذا الاتصال أولًا</string>
+    <string name="model_options_protocol_auto_note">لا يزال البروتوكول مضبوطًا على «تلقائي»، لذا لا يستطيع Oriveo تحديد طريقة إرسال إعدادات بحث الويب والتفكير.</string>
+    <string name="model_options_choose_protocol">اختيار البروتوكول</string>
+    <string name="model_options_tier_rejected_title">رُفض «%1$s»</string>
+    <string name="model_options_tier_rejected_body">لا يقبل هذا النموذج «%1$s» حاليًا، لذا أُعيد إلى «%2$s». سيعود هذا المستوى تلقائيًا عندما يدعمه النموذج مجددًا.</string>
+    <string name="model_options_more_count">المزيد: %1$d</string>
+    <string name="model_options_cant_switch_here">لا يمكن التبديل هنا بعد</string>
+    <string name="model_options_not_available_yet">غير متاح بعد</string>
+    <string name="model_options_web_and_thinking_fields">حقول بحث الويب والتفكير</string>
+    <string name="model_options_vision_available">متاح · يظهر منتقي الصور في حقل الكتابة</string>
+    <string name="model_options_vision_unknown">غير معروف · يُحفَظ بعد الإرسال</string>
+    <string name="model_options_vision_hidden">غير متاح · لا يظهر منتقي الصور في حقل الكتابة</string>
+    <string name="model_options_file_pdf_native">PDF كما هو · والباقي كنص</string>
+    <string name="model_options_file_native_when_supported">الصيغ المدعومة كما هي · والباقي كنص</string>
+    <string name="model_options_file_text">يُرسَل كنص</string>
+    <string name="model_options_turn_summary">سيُرسَل في هذه المرة: %1$s</string>
+    <string name="model_options_summary_web_on">بحث الويب مفعّل</string>
+    <string name="model_options_summary_thinking_level">التفكير: %1$s</string>
+    <string name="model_options_summary_thinking_on">التفكير مفعّل</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="zero">لا مستويات</item>
+        <item quantity="one">مستوى واحد</item>
+        <item quantity="two">مستويان</item>
+        <item quantity="few">%d مستويات</item>
+        <item quantity="many">%d مستوى</item>
+        <item quantity="other">%d مستوى</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">هذه المحادثة فقط</string>
+    <string name="advanced_reset">إعادة التعيين</string>
+    <string name="advanced_reset_conversation_title">إعادة تعيين إعدادات هذه المحادثة؟</string>
+    <string name="advanced_reset_conversation_body">يمسح هذا المعاملات التي غُيّرت في هذه المحادثة فقط. تبقى الإعدادات الافتراضية للنموذج ونص الطلب الإضافي كما هي.</string>
+    <string name="advanced_reset_conversation_action">إعادة تعيين تغييرات هذه المحادثة</string>
+    <string name="advanced_reset_model_title">إعادة تعيين الإعدادات الافتراضية لهذا النموذج؟</string>
+    <string name="advanced_reset_model_body">يمسح هذا المعاملات الافتراضية المحددة لهذا النموذج على هذا الاتصال. تبقى التغييرات التي أُجريت داخل كل محادثة كما هي.</string>
+    <string name="advanced_reset_model_action">إعادة تعيين الإعدادات الافتراضية للنموذج</string>
+    <string name="advanced_more">المزيد</string>
+    <string name="advanced_not_adjusted">غير معدّل</string>
+    <string name="advanced_entries_count">عدد العناصر: %1$d</string>
+    <string name="advanced_fields_count">عدد الحقول: %1$d</string>
+    <string name="advanced_random_each_time">عشوائي في كل مرة</string>
+    <string name="advanced_plain_text">نص عادي</string>
+    <string name="advanced_write_your_own">كتابة يدوية</string>
     <string name="advanced_additional_body_subtitle">إضافة حقول غير مدرجة أعلاه بصيغة JSON</string>
+    <string name="advanced_not_in_use">غير مستخدم</string>
+    <string name="advanced_changed_in_conversation">مُعدَّل في هذه المحادثة</string>
+    <string name="advanced_using_your_default">يُستخدم الإعداد الافتراضي الذي حدّدته للنموذج</string>
+    <string name="advanced_model_defaults">الإعدادات الافتراضية للنموذج</string>
+    <string name="advanced_your_default">الإعداد الافتراضي للنموذج</string>
+    <string name="advanced_state_set">محدد</string>
+    <string name="advanced_state_on">تشغيل</string>
+    <string name="advanced_use_model_default">استخدام الإعداد الافتراضي للنموذج</string>
+    <string name="advanced_dont_send">عدم إرسال هذا الإعداد</string>
     <string name="advanced_allowed_range">النطاق المسموح: %1$s</string>
     <string name="advanced_also_covers">يشمل أيضًا %1$s</string>
-    <string name="advanced_changed_in_conversation">مُعدَّل في هذه المحادثة</string>
-    <string name="advanced_crossed_out_legend">الإعدادات المشطوبة يتولاها %1$s حاليًا.</string>
-    <string name="advanced_diagnostics_delete_body">يحذف هذا سجلات التشخيص المعروضة لهذا النموذج، وتبقى سجلات النماذج الأخرى.</string>
-    <string name="advanced_diagnostics_delete_title">حذف سجلات التشخيص هذه؟</string>
-    <string name="advanced_dont_send">عدم إرسال هذا الإعداد</string>
+    <string name="advanced_no_limit">بلا حد</string>
+    <string name="advanced_stop_sequences">تسلسلات الإيقاف</string>
+    <string name="advanced_new_stop_sequence">تسلسل إيقاف جديد</string>
+    <string name="advanced_stop_sequences_note">يتوقف النموذج فور كتابة أي من هذه التسلسلات. يمكن أن يحتوي التسلسل على فواصل ومسافات وأسطر جديدة.</string>
+    <string name="advanced_remove_item">إزالة %1$s</string>
+    <string name="advanced_error_max_tokens">أقصى ما يمكن لهذا النموذج كتابته هو %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_error_number">يجب إدخال رقم. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_error_integer">يجب إدخال عدد صحيح. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_error_highest">أعلى قيمة يقبلها هذا النموذج هي %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_error_lowest">أدنى قيمة يقبلها هذا النموذج هي %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_error_greater_than">يجب أن تكون القيمة أكبر من %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_error_less_than">يجب أن تكون القيمة أصغر من %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_error_json_schema">هذا ليس JSON Schema صالحًا. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_error_value_rejected">لا يقبل هذا النموذج هذه القيمة. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
+    <string name="advanced_dropped_thinking">لا يقبل النموذج هذا الإعداد أثناء تفعيل التفكير، لذا لا يُرسل.</string>
     <string name="advanced_dropped_conflict">يتعارض مع إعداد آخر، لذا يُستبعد هذا الإعداد.</string>
     <string name="advanced_dropped_conflict_with">لا يمكن إرساله مع %1$s، لذا يُستبعد هذا الإعداد.</string>
     <string name="advanced_dropped_depends">يعتمد على إعداد آخر غير محدد، لذا لا يُرسل.</string>
-    <string name="advanced_dropped_reasoning_budget">أصغر من ميزانية الاستدلال، لذا تُرسل القيمة الافتراضية بدلًا منه.</string>
-    <string name="advanced_dropped_required_default">يتطلب هذا النموذج هذا الحقل، لذا تُرسل القيمة الافتراضية مع ذلك.</string>
     <string name="advanced_dropped_requires">لا يُرسل إلا عند تحديد %1$s أيضًا.</string>
-    <string name="advanced_dropped_thinking">لا يقبل النموذج هذا الإعداد أثناء تفعيل التفكير، لذا لا يُرسل.</string>
     <string name="advanced_dropped_value">لا يقبل هذا النموذج هذه القيمة، لذا لا يُرسل هذا الإعداد.</string>
+    <string name="advanced_dropped_required_default">يتطلب هذا النموذج هذا الحقل، لذا تُرسل القيمة الافتراضية مع ذلك.</string>
+    <string name="advanced_dropped_reasoning_budget">أصغر من ميزانية الاستدلال، لذا تُرسل القيمة الافتراضية بدلًا منه.</string>
+    <string name="advanced_taken_over">%1$s مفعّل، لذا لا يُستخدم هذا الإعداد.</string>
+    <string name="advanced_crossed_out_legend">الإعدادات المشطوبة يتولاها %1$s حاليًا.</string>
+    <string name="advanced_grey_defaults_legend">الأرقام الرمادية هي القيم الافتراضية الخاصة بـ %1$s، ولا تُرسل ما لم تُغيَّر.</string>
+    <string name="advanced_mirostat_note">يُبقي عشوائية المخرجات ثابتة حول قيمة مستهدفة، بدلًا من Top K وTop P.</string>
+    <string name="advanced_target_entropy">الإنتروبيا المستهدفة</string>
+    <string name="advanced_learning_rate">معدل التعلّم</string>
+    <string name="advanced_repetition">منع التكرار</string>
     <string name="advanced_dry_note">يحدّ من تكرار مقاطع كاملة من النص السابق</string>
+    <string name="advanced_more_sampling">معاملات أخذ العينات الأخرى</string>
+    <string name="advanced_xtc_note">يتخطى أحيانًا الكلمة الأكثر احتمالًا لتنويع الصياغة</string>
     <string name="advanced_dynamic_temperature">درجة الحرارة الديناميكية</string>
     <string name="advanced_dynamic_temperature_note">تتغير درجة الحرارة بحسب مدى ثقة النموذج</string>
-    <string name="advanced_entries_count">عدد العناصر: %1$d</string>
-    <string name="advanced_error_greater_than">يجب أن تكون القيمة أكبر من %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_error_highest">أعلى قيمة يقبلها هذا النموذج هي %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_error_integer">يجب إدخال عدد صحيح. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_error_json_schema">هذا ليس JSON Schema صالحًا. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_error_less_than">يجب أن تكون القيمة أصغر من %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_error_lowest">أدنى قيمة يقبلها هذا النموذج هي %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_error_max_tokens">أقصى ما يمكن لهذا النموذج كتابته هو %1$s. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_error_number">يجب إدخال رقم. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_error_value_rejected">لا يقبل هذا النموذج هذه القيمة. لن يُرسل هذا الإعداد حتى يُصحَّح، ولا تتأثر الإعدادات الأخرى.</string>
-    <string name="advanced_fields_count">عدد الحقول: %1$d</string>
-    <string name="advanced_grey_defaults_legend">الأرقام الرمادية هي القيم الافتراضية الخاصة بـ %1$s، ولا تُرسل ما لم تُغيَّر.</string>
-    <string name="advanced_learning_rate">معدل التعلّم</string>
-    <string name="advanced_mirostat_note">يُبقي عشوائية المخرجات ثابتة حول قيمة مستهدفة، بدلًا من Top K وTop P.</string>
-    <string name="advanced_model_defaults">الإعدادات الافتراضية للنموذج</string>
-    <string name="advanced_more">المزيد</string>
-    <string name="advanced_more_sampling">معاملات أخذ العينات الأخرى</string>
-    <string name="advanced_new_stop_sequence">تسلسل إيقاف جديد</string>
-    <string name="advanced_no_limit">بلا حد</string>
-    <string name="advanced_not_adjusted">غير معدّل</string>
-    <string name="advanced_not_in_use">غير مستخدم</string>
-    <string name="advanced_plain_text">نص عادي</string>
-    <string name="advanced_preset_apply">تطبيق الإعداد المسبق</string>
-    <string name="advanced_preset_apply_body">سيستبدل «%1$s» كل القيم المحددة لهذا النموذج: %2$s.</string>
-    <string name="advanced_preset_apply_title">تطبيق هذا الإعداد المسبق؟</string>
-    <string name="advanced_random_each_time">عشوائي في كل مرة</string>
-    <string name="advanced_reasoning_set_by_thinking">يُضبط التفكير لهذا النموذج من «خيارات النموذج» › «التفكير». لاعتماد مستوى ما كإعداد افتراضي، يكفي اختياره هناك ثم الضغط على «تعيين كافتراضي لهذا النموذج». لا يُرسَل هذا الصف مع الطلب.</string>
-    <string name="advanced_remove_item">إزالة %1$s</string>
-    <string name="advanced_repetition">منع التكرار</string>
-    <string name="advanced_reset">إعادة التعيين</string>
-    <string name="advanced_reset_conversation_action">إعادة تعيين تغييرات هذه المحادثة</string>
-    <string name="advanced_reset_conversation_body">يمسح هذا المعاملات التي غُيّرت في هذه المحادثة فقط. تبقى الإعدادات الافتراضية للنموذج ونص الطلب الإضافي كما هي.</string>
-    <string name="advanced_reset_conversation_title">إعادة تعيين إعدادات هذه المحادثة؟</string>
-    <string name="advanced_reset_model_action">إعادة تعيين الإعدادات الافتراضية للنموذج</string>
-    <string name="advanced_reset_model_body">يمسح هذا المعاملات الافتراضية المحددة لهذا النموذج على هذا الاتصال. تبقى التغييرات التي أُجريت داخل كل محادثة كما هي.</string>
-    <string name="advanced_reset_model_title">إعادة تعيين الإعدادات الافتراضية لهذا النموذج؟</string>
-    <string name="advanced_state_on">تشغيل</string>
-    <string name="advanced_state_set">محدد</string>
-    <string name="advanced_stop_sequences">تسلسلات الإيقاف</string>
-    <string name="advanced_stop_sequences_note">يتوقف النموذج فور كتابة أي من هذه التسلسلات. يمكن أن يحتوي التسلسل على فواصل ومسافات وأسطر جديدة.</string>
-    <string name="advanced_taken_over">%1$s مفعّل، لذا لا يُستخدم هذا الإعداد.</string>
-    <string name="advanced_target_entropy">الإنتروبيا المستهدفة</string>
-    <string name="advanced_this_conversation_only">هذه المحادثة فقط</string>
-    <string name="advanced_use_model_default">استخدام الإعداد الافتراضي للنموذج</string>
-    <string name="advanced_using_your_default">يُستخدم الإعداد الافتراضي الذي حدّدته للنموذج</string>
-    <string name="advanced_write_your_own">كتابة يدوية</string>
-    <string name="advanced_xtc_note">يتخطى أحيانًا الكلمة الأكثر احتمالًا لتنويع الصياغة</string>
-    <string name="advanced_your_default">الإعداد الافتراضي للنموذج</string>
+    <string name="additional_body_title">نص الطلب الإضافي</string>
+    <string name="additional_body_send_toggle">الإرسال مع الطلبات</string>
+    <string name="additional_body_send_toggle_note">عند الإيقاف يُحتفظ بالمحتوى دون إرساله</string>
+    <string name="additional_body_device_only">محفوظ على هذا الجهاز فقط، دون مزامنة</string>
+    <string name="additional_body_paste">لصق</string>
+    <string name="additional_body_tidy">تنسيق</string>
+    <string name="additional_body_when_sending">عند الإرسال</string>
+    <string name="additional_body_included">مُضمَّن</string>
+    <string name="additional_body_cannot_change">غير قابل للتغيير</string>
+    <string name="additional_body_footer">تُضاف الحقول هنا إلى الطلب كما هي، ولا يتحقق Oriveo من قبول الخادم لها. إذا تطابق اسم حقل مع أحد الإعدادات المتقدمة، فتُستخدم القيمة الواردة هنا، وتُرسل بقية الإعدادات كالمعتاد.</string>
+    <string name="additional_body_docs_link">عرض الحقول التي يدعمها %1$s</string>
+    <string name="additional_body_remove_line">%1$s يلزم حذف السطر %2$d قبل الإرسال.</string>
+    <string name="additional_body_conversation_filled">يتولى Oriveo تعبئة المحادثة.</string>
+    <string name="additional_body_attachments_filled">يتولى Oriveo تعبئة المرفقات.</string>
+    <string name="additional_body_system_prompt_filled">يتولى Oriveo تعبئة موجّه النظام.</string>
+    <string name="additional_body_tools_managed">يتولى Oriveo إدارة الأدوات.</string>
+    <string name="additional_body_model_chosen">النموذج هو المختار في Oriveo.</string>
+    <string name="additional_body_streaming_by_oriveo">يحدد Oriveo طريقة بث الرد.</string>
+    <string name="additional_body_field_filled">يتولى Oriveo تعبئة هذا الحقل.</string>
+    <string name="additional_body_field_name_invalid">لا يمكن استخدام هذا الاسم اسمًا لحقل.</string>
+    <string name="additional_body_paste_replace_title">استبدال المحتوى الحالي؟</string>
+    <string name="additional_body_paste_replace_body">يستبدل اللصق المحتوى الحالي بما في الحافظة.</string>
+    <string name="additional_body_tidy_invalid">هذا ليس JSON صالحًا بعد، لذا لم يُغيَّر شيء.</string>
+    <string name="additional_body_switch_blocked_invalid">توجد مشكلة في نص الطلب الإضافي، لذا لا يمكن لهذا المفتاح تغييره. يلزم إصلاحها هناك أولًا.</string>
+    <string name="additional_body_switch_blocked_off">لا يُرسل نص الطلب الإضافي مع الطلبات حاليًا. يلزم تفعيله هناك أولًا.</string>
+    <string name="additional_body_check">يُرجى مراجعة نص الطلب الإضافي</string>
+    <string name="additional_body_rejected_upstream">رُفض الطلب الذي يتضمن نص الطلب الإضافي</string>
+    <string name="additional_body_reason_too_large">حجم نص الطلب الإضافي أكبر من 64 KB.</string>
+    <string name="additional_body_reason_invalid_json">نص الطلب الإضافي ليس JSON صالحًا.</string>
+    <string name="additional_body_reason_not_object">يجب أن يكون نص الطلب الإضافي كائن JSON محاطًا بـ { }.</string>
+    <string name="additional_body_reason_too_deep">يتجاوز تداخل نص الطلب الإضافي 32 مستوى.</string>
+    <string name="additional_body_reason_blocked_segment">لا يمكن استخدام «%1$s» اسمًا لحقل في نص الطلب الإضافي.</string>
+    <string name="additional_body_reason_protected_field">يتولى Oriveo تعبئة «%1$s»، ولا يمكن تحديده في نص الطلب الإضافي.</string>
+    <string name="additional_body_retry_without">إعادة المحاولة دون نص الطلب الإضافي</string>
+    <string name="local_request_line_format">السطر %1$d: %2$s</string>
+    <string name="local_request_custom_line_format">حقول %1$s، السطر %2$d: %3$s</string>
+    <string name="local_request_custom_format">حقول %1$s: %2$s</string>
+    <string name="local_request_not_sent">لم تُرسل هذه الرسالة.</string>
     <string name="generation_parameter_name_grammar">قيد القواعد (GBNF)</string>
     <string name="generation_parameter_name_min_tokens">الحد الأدنى لرموز المخرجات</string>
     <string name="generation_parameter_name_skip_special_tokens">إخفاء الرموز الخاصة في المخرجات</string>
     <string name="generation_parameter_omitted_value">لن يُرسَل</string>
+    <string name="advanced_reasoning_set_by_thinking">يُضبط التفكير لهذا النموذج من «خيارات النموذج» › «التفكير». لاعتماد مستوى ما كإعداد افتراضي، يكفي اختياره هناك ثم الضغط على «تعيين كافتراضي لهذا النموذج». لا يُرسَل هذا الصف مع الطلب.</string>
+    <string name="advanced_preset_apply">تطبيق الإعداد المسبق</string>
+    <string name="advanced_preset_apply_title">تطبيق هذا الإعداد المسبق؟</string>
+    <string name="advanced_preset_apply_body">سيستبدل «%1$s» كل القيم المحددة لهذا النموذج: %2$s.</string>
+    <string name="advanced_diagnostics_delete_title">حذف سجلات التشخيص هذه؟</string>
+    <string name="advanced_diagnostics_delete_body">يحذف هذا سجلات التشخيص المعروضة لهذا النموذج، وتبقى سجلات النماذج الأخرى.</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">نموذج لغوي مخصص · مرحل مخصص</string>
     <string name="relay_setup_hero_title">اتصل بمرحل مخصص</string>
@@ -1899,6 +1996,7 @@
     <string name="relay_relative_minutes_ago">منذ %d دقيقة</string>
     <string name="relay_relative_hours_ago">منذ %d ساعة</string>
     <string name="relay_detail_default_model">النموذج الافتراضي</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">أدخل العنوان والمفتاح، ثم اختر النماذج في الخطوة التالية. يُكتشف البروتوكول والقدرات لكل نموذج على حدة.</string>
     <string name="relay_setup_will_request">سيُرسَل الطلب إلى %1$s</string>
     <string name="relay_setup_key_name">الاسم (اختياري)</string>
@@ -2038,6 +2136,19 @@
     <string name="relay_catalog_status_denied">لا يملك المفتاح الحالي صلاحية الوصول</string>
     <string name="relay_catalog_unreachable_title">سبب تعذّر الاتصال</string>
     <string name="relay_catalog_enable_hint">عند التفعيل يُرسَل طلب صغير جدًا واحد للتأكد من أن النموذج يعمل. اضغط على نموذج في الكتالوج لعرض «متقدم» أولًا، ولن يُرسَل أي طلب.</string>
+    <string name="relay_catalog_add_all">إضافة الكل</string>
+    <string name="relay_catalog_enable_hint_explicit">اضغط على نموذج في الكتالوج لعرض «متقدم» أولًا، ولن يُرسَل أي طلب.</string>
+    <string name="relay_catalog_remove_last_reason">يحتاج هذا الاتصال إلى نموذج واحد على الأقل.</string>
+    <string name="relay_model_advanced_auto_equals_connection">تلقائي = البروتوكول الافتراضي لهذا الاتصال (%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">تُطبَّق التغييرات فورًا وتُحفَظ على هذا الجهاز فقط.</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="zero">النماذج المضافة: %1$d</item>
+        <item quantity="one">النماذج المضافة: %1$d</item>
+        <item quantity="two">النماذج المضافة: %1$d</item>
+        <item quantity="few">النماذج المضافة: %1$d</item>
+        <item quantity="many">النماذج المضافة: %1$d</item>
+        <item quantity="other">النماذج المضافة: %1$d</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">تعذّر الحصول على قائمة النماذج</string>
     <string name="relay_catalog_group_other">أخرى</string>
     <string name="relay_advanced_key_section">المفتاح</string>
@@ -2146,6 +2257,7 @@
     <string name="relay_web_chat_note">لا يحتوي Chat Completions على حقل قياسي للبحث على الويب. يعمل القالب مع نماذج البحث فقط؛ راجع وثائق الخدمة.</string>
     <string name="relay_web_other_protocols">بروتوكولات أخرى</string>
     <string name="relay_web_template_replace_body">سيحلّ القالب محلّ ما أدخلته لهذا البروتوكول.</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">المصادقة والترويسات ومعاملات الاستعلام</string>
     <string name="relay_manual_connection_name">اسم الاتصال</string>
     <string name="relay_manual_model_footnote">أدخل معرّف النموذج تمامًا كما يظهر في مرحلك المخصص. يمكن إضافة نماذج أخرى لاحقًا من مكتبة النماذج.</string>
@@ -2159,74 +2271,6 @@
     <string name="relay_manual_model_entry_note_exact">أدخل معرّف النموذج تمامًا كما يظهر في مرحلك المخصص.</string>
     <string name="relay_manual_model_entry_note_capabilities">تُحفظ قدرات النموذج بعد إرسال رسالة، ويمكن اختبارها أيضًا من «متقدم».</string>
     <string name="relay_connection_not_verified">لم يتم التحقق من الاتصال.</string>
-    <string name="local_request_custom_format">حقول %1$s: %2$s</string>
-    <string name="local_request_custom_line_format">حقول %1$s، السطر %2$d: %3$s</string>
-    <string name="local_request_line_format">السطر %1$d: %2$s</string>
-    <string name="local_request_not_sent">لم تُرسل هذه الرسالة.</string>
-    <string name="model_options_always_thinks">يفكر دائمًا قبل الإجابة</string>
-    <string name="model_options_cannot_search">لا يستطيع هذا النموذج البحث في الويب</string>
-    <string name="model_options_always_on">مفعّل دائمًا</string>
-    <string name="model_options_subscription_always_searches">مع هذا الاشتراك، يبحث هذا النموذج في الويب دائمًا.</string>
-    <string name="model_options_cant_switch_here">لا يمكن التبديل هنا بعد</string>
-    <string name="model_options_capabilities">القدرات</string>
-    <string name="model_options_choose_protocol">اختيار البروتوكول</string>
-    <string name="model_options_choose_protocol_first">يلزم اختيار بروتوكول هذا الاتصال أولًا</string>
-    <string name="model_options_connection_cannot">لا يدعم هذا الاتصال ذلك</string>
-    <string name="model_options_higher_levels_note">المستويات الأعلى تستغرق وقتًا أطول وقد تكلّف أكثر.</string>
-    <string name="model_options_local">محلي</string>
-    <string name="model_options_more_count">المزيد: %1$d</string>
-    <string name="model_options_needs_manual_setup">يتطلب إعدادًا يدويًا</string>
-    <string name="model_options_no_thinking_mode">لا يدعم هذا النموذج التفكير</string>
-    <string name="model_options_not_available_yet">غير متاح بعد</string>
-    <string name="model_options_open_additional_body">فتح نص الطلب الإضافي</string>
-    <string name="model_options_protocol_auto_note">لا يزال البروتوكول مضبوطًا على «تلقائي»، لذا لا يستطيع Oriveo تحديد طريقة إرسال إعدادات بحث الويب والتفكير.</string>
-    <string name="model_options_reasoning_no_generic_switch">لا يوفّر هذا المزوّد مفتاحًا قياسيًا للتفكير. يلزم إضافة حقوله في نص الطلب الإضافي.</string>
-    <string name="model_options_reasoning_not_catalogued">لا تتوفر في Oriveo بعدُ إعدادات التفكير لهذا النموذج، لذا يعمل بإعداده الافتراضي.</string>
-    <string name="model_options_see_adjustable_models">عرض النماذج القابلة للضبط</string>
-    <string name="model_options_template_thinking_note">يشغّل التفكير أو يوقفه عبر قالب المحادثة. يتوقف نجاح ذلك على الخادم.</string>
-    <string name="model_options_thinks_first_note">يفكر مليًا أولًا، لذا تستغرق الإجابات وقتًا أطول قليلًا</string>
-    <string name="model_options_tier_rejected_body">لا يقبل هذا النموذج «%1$s» حاليًا، لذا أُعيد إلى «%2$s». سيعود هذا المستوى تلقائيًا عندما يدعمه النموذج مجددًا.</string>
-    <string name="model_options_tier_rejected_title">رُفض «%1$s»</string>
-    <string name="model_options_uses_model_default">يستخدم الإعداد الافتراضي للنموذج</string>
-    <string name="model_options_web_and_thinking_fields">حقول بحث الويب والتفكير</string>
-    <string name="model_options_vision_available">متاح · يظهر منتقي الصور في حقل الكتابة</string>
-    <string name="model_options_vision_unknown">غير معروف · يُحفَظ بعد الإرسال</string>
-    <string name="model_options_vision_hidden">غير متاح · لا يظهر منتقي الصور في حقل الكتابة</string>
-    <string name="model_options_file_pdf_native">PDF كما هو · والباقي كنص</string>
-    <string name="model_options_file_native_when_supported">الصيغ المدعومة كما هي · والباقي كنص</string>
-    <string name="model_options_file_text">يُرسَل كنص</string>
-    <string name="model_options_turn_summary">سيُرسَل في هذه المرة: %1$s</string>
-    <string name="model_options_summary_web_on">بحث الويب مفعّل</string>
-    <string name="model_options_summary_thinking_level">التفكير: %1$s</string>
-    <string name="model_options_summary_thinking_on">التفكير مفعّل</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="zero">لا مستويات</item>
-        <item quantity="one">مستوى واحد</item>
-        <item quantity="two">مستويان</item>
-        <item quantity="few">%d مستويات</item>
-        <item quantity="many">%d مستوى</item>
-        <item quantity="other">%d مستوى</item>
-    </plurals>
-    <string name="model_options_web_every_message">كل رسالة</string>
-    <string name="model_options_web_no_generic_switch">لا يوفّر هذا المزوّد مفتاحًا قياسيًا لبحث الويب. يلزم إضافة حقوله في نص الطلب الإضافي.</string>
-    <string name="model_options_web_not_catalogued">لا تتوفر في Oriveo بعدُ إعدادات بحث الويب لهذا النموذج، لذا لا يمكن تفعيله هنا.</string>
-    <string name="model_options_web_note">يبحث في الويب أولًا عندما يتطلب السؤال ذلك</string>
-    <string name="model_options_web_when_needed">عند الحاجة</string>
-    <string name="additional_body_tools_managed">يتولى Oriveo إدارة الأدوات.</string>
-    <string name="additional_body_streaming_by_oriveo">يحدد Oriveo طريقة بث الرد.</string>
-    <string name="relay_catalog_add_all">إضافة الكل</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="zero">النماذج المضافة: %1$d</item>
-        <item quantity="one">النماذج المضافة: %1$d</item>
-        <item quantity="two">النماذج المضافة: %1$d</item>
-        <item quantity="few">النماذج المضافة: %1$d</item>
-        <item quantity="many">النماذج المضافة: %1$d</item>
-        <item quantity="other">النماذج المضافة: %1$d</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">يحتاج هذا الاتصال إلى نموذج واحد على الأقل.</string>
-    <string name="relay_catalog_enable_hint_explicit">اضغط على نموذج في الكتالوج لعرض «متقدم» أولًا، ولن يُرسَل أي طلب.</string>
-    <string name="relay_model_advanced_changes_apply">تُطبَّق التغييرات فورًا وتُحفَظ على هذا الجهاز فقط.</string>
-    <string name="relay_model_advanced_auto_equals_connection">تلقائي = البروتوكول الافتراضي لهذا الاتصال (%1$s)</string>
     <string name="relay_avatar_change_icon">تغيير الأيقونة</string>
     <string name="relay_avatar_letter">حرف</string>
     <string name="relay_avatar_icon_paper_plane">طائرة من ورق</string>
@@ -2478,7 +2522,7 @@
     <string name="memory_editor_category">الفئة</string>
     <string name="memory_editor_too_long">الحد الأقصى 2000 حرف</string>
     <string name="memory_delete_confirm_title">حذف عنصر الذاكرة هذا؟</string>
-    <string name="memory_delete_confirm_body">سيُحذف نهائيًا من هذا الجهاز.</string>
+    <string name="memory_delete_confirm_body">سيُحذف من جميع أجهزتك.</string>
     <string name="memory_action_organize">تقسيم إلى عناصر</string>
     <string name="memory_raw_view">نص عادي</string>
     <string name="memory_raw_view_hint">يُفصل بين العناصر بسطر لا يحتوي إلا على ---.</string>
@@ -2508,8 +2552,165 @@
     <string name="context_confirm_also_price_line">ويتجاوز الطلب أيضًا عتبة السعر لدى %1$s عند %2$s، لذا يُحتسب الطلب كاملًا بسعر السياق الطويل.</string>
     <string name="context_confirm_dont_ask">عدم السؤال مجددًا في هذه المحادثة</string>
     <string name="context_confirm_send">إرسال على أي حال</string>
-    <string name="chat_last_used_model_retired_hint">النموذج الذي استخدمته آخر مرة أُوقف نهائيًا. يُستخدم الآن %1$s.</string>
-    <string name="model_options_shows_thinking_fixed">يعرض تفكيره · لا يمكن تعديله</string>
     <string name="settings_section_general">عام</string>
     <string name="settings_section_help_about">المساعدة والمعلومات</string>
+    <string name="settings_footer_poem">بين آلاف النماذج، إجابةٌ واحدة تخصّك.</string>
+    <string name="skills_home_autoCount">تلقائية · %1$d</string>
+    <string name="skills_home_slashHint">اكتب / للاستخدام</string>
+    <string name="skills_home_empty">احفظ طريقتك المفضّلة في العمل</string>
+    <string name="skills_list_subtitle">احفظ طريقتك المفضّلة في إنجاز الأمور، وسيستخدمها الذكاء الاصطناعي عند الحاجة.</string>
+    <string name="skills_create_describePlaceholder">صف طريقة العمل وسيكتبها الذكاء الاصطناعي مهارةً</string>
+    <string name="skills_create_fromChat">من محادثة</string>
+    <string name="skills_create_manual">إنشاء يدوي</string>
+    <string name="skills_segment_mine">مهاراتي</string>
+    <string name="skills_segment_templates">القوالب</string>
+    <string name="skills_group_auto">تلقائية</string>
+    <string name="skills_group_manual">يدوية فقط</string>
+    <string name="skills_card_usageCount">مرات الاستخدام: %1$d</string>
+    <string name="skills_row_slashHint">تُستخدم عند كتابة %1$s</string>
+    <string name="skills_auto_needWhenTitle">حدّد أولًا متى تُستخدم</string>
+    <string name="skills_auto_suggest">اقتراح</string>
+    <string name="skills_auto_limitReached">بلغ الاستخدام التلقائي حدّه الأقصى (%1$d). يلزم إيقاف إحداها أولًا.</string>
+    <string name="skills_search_placeholder">البحث في المهارات</string>
+    <string name="skills_empty_title">لا توجد مهارات بعد</string>
+    <string name="skills_empty_body">احفظ طريقتك المعتادة، فلا حاجة إلى شرحها في كل مرة.</string>
+    <string name="skills_empty_browseTemplates">تصفّح القوالب</string>
+    <string name="skills_migrate_banner">مهارات بلا «متى تُستخدم»: %1$d. أضف جملة واحدة لتعمل تلقائيًا.</string>
+    <string name="skills_migrate_review">مراجعتها</string>
+    <string name="skills_templates_note">لا تُستخدم القوالب تلقائيًا إلا بعد إضافتها إلى «مهاراتي».</string>
+    <string name="skills_templates_featured">مختارات</string>
+    <string name="skills_templates_addToMine">إضافة إلى مهاراتي</string>
+    <string name="skills_templates_add">إضافة</string>
+    <string name="skills_templates_added">تمت الإضافة</string>
+    <string name="skills_templates_tryOnce">تجربة مرة واحدة</string>
+    <string name="skills_detail_useInNewChat">الاستخدام في محادثة جديدة</string>
+    <string name="skills_detail_orSlash">أو اكتب %1$s في خانة الرسالة</string>
+    <string name="skills_detail_usage">مرات الاستخدام: %1$d · آخر استخدام %2$s</string>
+    <string name="skills_detail_neverUsed">لم تُستخدم بعد</string>
+    <string name="skills_detail_autoInvoke">الاستخدام التلقائي</string>
+    <string name="skills_detail_whenToUse">متى تُستخدم</string>
+    <string name="skills_detail_whenToUseNote">يعتمد عليه الذكاء الاصطناعي في اتخاذ القرار</string>
+    <string name="skills_detail_instructions">التعليمات</string>
+    <string name="skills_detail_showAll">عرض الكل</string>
+    <string name="skills_detail_references">مواد مرجعية</string>
+    <string name="skills_detail_starters">عبارات افتتاحية</string>
+    <string name="skills_detail_recentChats">المحادثات الأخيرة</string>
+    <string name="skills_detail_try">تجربة</string>
+    <string name="skills_edit_changeIcon">تغيير الأيقونة</string>
+    <string name="skills_edit_name">الاسم</string>
+    <string name="skills_edit_whenBadge">يحدد الاستخدام التلقائي</string>
+    <string name="skills_edit_whenPlaceholder">مثال: عندما أطلب تحويل الملاحظات إلى تقرير أسبوعي. ليس للتحديثات اليومية.</string>
+    <string name="skills_edit_keywordsCaption">تُفعَّل بهذه الكلمات · يكفي وصف الموقف</string>
+    <string name="skills_edit_whenTip">اذكر ما تفعله المهارة ومتى تُستخدم والصيغة المعتادة لطلبها. أضف «ليس لـ…» لتجنّب الاستخدام الخاطئ. تُميَّز الكلمات الموضوعة بين علامتي تنصيص.</string>
+    <string name="skills_edit_polish">تحسين بالذكاء الاصطناعي</string>
+    <string name="skills_edit_addStarter">إضافة عبارة افتتاحية</string>
+    <string name="skills_edit_modelAndFeatures">النموذج والميزات</string>
+    <string name="skills_edit_followChat">حسب المحادثة</string>
+    <string name="skills_edit_needWhenForAuto">املأ «متى تُستخدم» أو أوقف الاستخدام التلقائي.</string>
+    <string name="skills_draft_askScenarios">في أي موقف أو موقفين تُستخدم هذه المهارة؟</string>
+    <string name="skills_draft_askQuality">كيف تبدو النتيجة الجيدة؟</string>
+    <string name="skills_draft_skip">تخطي</string>
+    <string name="skills_draft_generating">جارٍ كتابة المسودة…</string>
+    <string name="skills_draft_title">مسودة</string>
+    <string name="skills_draft_editFirst">التعديل أولًا</string>
+    <string name="skills_draft_suggestedIcon">الأيقونة المقترحة</string>
+    <string name="skills_draft_failed">تعذّر إكمال المسودة، وقد عُبّئت الأجزاء الجاهزة منها.</string>
+    <string name="skills_fromChat_menuConversation">حفظ كمهارة</string>
+    <string name="skills_fromChat_menuMessage">حفظ هذا الأسلوب كمهارة</string>
+    <string name="skills_fromChat_messages">الرسائل: %1$d</string>
+    <string name="skills_fromChat_extracting">جارٍ الاستخلاص…</string>
+    <string name="skills_limit_upgrade">الترقية للمزيد</string>
+    <string name="skills_limit_draftKept">مسودتك محفوظة على هذا الجهاز.</string>
+    <string name="skills_composer_placeholder">اكتب / لاستخدام مهارة</string>
+    <string name="skills_picker_title">مهاراتي</string>
+    <string name="skills_picker_multi">يمكن اختيار أكثر من واحدة</string>
+    <string name="skills_picker_auto">تلقائية</string>
+    <string name="skills_picker_manual">يدوية</string>
+    <string name="skills_picker_manage">إدارة المهارات</string>
+    <string name="skills_picker_maxReached">الحد الأقصى في المرة الواحدة: %1$d</string>
+    <string name="skills_chip_deleted">محذوفة</string>
+    <string name="skills_message_attached">باستخدام %1$s</string>
+    <string name="skills_used_chip">استخدام: %1$s</string>
+    <string name="skills_used_loading">جارٍ استخدام %1$s…</string>
+    <string name="skills_used_byChoice">استُخدمت لأنك اخترتها</string>
+    <string name="skills_used_why">سبب الاستخدام</string>
+    <string name="skills_used_disableHere">عدم الاستخدام التلقائي في هذه المحادثة</string>
+    <string name="skills_used_view">عرض المهارة</string>
+    <string name="skills_settings_autoToggle">استخدام المهارات تلقائيًا</string>
+    <string name="skills_settings_autoToggleFooter">عند الإيقاف لن يختار النموذج المهارات من تلقاء نفسه، ويظل بإمكانك كتابة / لاستخدام إحداها.</string>
+    <string name="skills_try_banner">تجربة · لا تُحفظ في السجل</string>
+    <string name="skills_try_saveToSkill">الحفظ في المهارة</string>
+    <string name="skills_try_adjust">تعديل التعليمات</string>
+    <string name="skills_try_saved">تم الحفظ في «%1$s»</string>
+    <string name="skills_try_savedToDraft">نُسخ إلى المحرر. احفظه هناك للاحتفاظ به.</string>
+    <string name="skills_improve_prompt">إضافة هذا الطلب إلى «%1$s»؟</string>
+    <string name="skills_improve_review">عرض التغيير</string>
+    <string name="skills_improve_accept">إضافة إلى المهارة</string>
+    <string name="skills_improve_dismiss">ليس الآن</string>
+    <string name="skills_improve_addedLine">مُضاف</string>
+    <string name="skills_improve_removedLine">محذوف</string>
+    <string name="skills_improve_saved">تمت الإضافة إلى «%1$s»</string>
+    <string name="skills_saveFailed">تعذّر حفظ التغييرات. يُرجى المحاولة مرة أخرى.</string>
+    <string name="skills_usage_manifestRow">الرموز الإضافية لقائمة المهارات</string>
+    <string name="skills_glyph_writing">الكتابة</string>
+    <string name="skills_glyph_report">تقرير</string>
+    <string name="skills_glyph_code">البرمجة</string>
+    <string name="skills_glyph_study">الدراسة</string>
+    <string name="skills_glyph_travel">السفر</string>
+    <string name="skills_glyph_health">الصحة</string>
+    <string name="skills_glyph_meeting">اجتماع</string>
+    <string name="skills_glyph_idea">فكرة</string>
+    <string name="skills_glyph_translate">الترجمة</string>
+    <string name="skills_glyph_email">البريد الإلكتروني</string>
+    <string name="skills_glyph_data">البيانات</string>
+    <string name="skills_glyph_design">التصميم</string>
+    <string name="skills_glyph_legal">القانون</string>
+    <string name="skills_glyph_finance">المالية</string>
+    <string name="skills_glyph_marketing">التسويق</string>
+    <string name="skills_glyph_support">الدعم</string>
+    <string name="skills_glyph_teaching">التدريس</string>
+    <string name="skills_glyph_research">البحث</string>
+    <string name="skills_glyph_life">الحياة اليومية</string>
+    <string name="skills_glyph_food">الطعام</string>
+    <string name="skills_glyph_music">الموسيقى</string>
+    <string name="skills_glyph_photo">التصوير</string>
+    <string name="skills_glyph_product">المنتج</string>
+    <string name="skills_glyph_general">عام</string>
+    <string name="skills_home_notesRecent">آخر تعديل</string>
+    <string name="skills_search_noResults">لا نتائج</string>
+    <string name="generic_error_try_again">حدث خطأ ما. حاول مرة أخرى.</string>
+    <string name="loading_usage_trends">جارٍ تحميل اتجاهات الاستخدام…</string>
+    <string name="usage_vs_last_month">مقارنة بالشهر الماضي</string>
+    <string name="usage_section_insights">إحصاءات</string>
+    <string name="usage_section_budgets">الميزانيات</string>
+    <string name="usage_sample_report">تقرير عينة</string>
+    <string name="usage_clear">مسح</string>
+    <string name="usage_monthly_budget_eyebrow">الميزانية الشهرية</string>
+    <string name="skills_knowledgeErrorOpenAI">تتطلب قاعدة المعرفة مفتاح OpenAI API الرسمي.</string>
+    <string name="skills_knowledgeErrorEndpoint">تعمل قاعدة المعرفة فقط مع نقطة نهاية OpenAI الرسمية.</string>
+    <string name="skills_knowledgeErrorModelDisabled">أضِف %1$s وفعّله في مزوّد OpenAI الخاص بك أولاً.</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">قاعدة المعرفة غير متاحة حاليًا.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">يجب أن يكون حجم ملفات قاعدة المعرفة 20 ميغابايت أو أصغر.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">يمكن أن تحتوي المهارة على ما يصل إلى 5 ملفات قاعدة المعرفة ويبلغ إجمالي حجمها 100 ميجابايت.</string>
+    <string name="skills_knowledgeErrorExtractFailed">فشل استخراج النص من هذا الملف.</string>
+    <string name="skills_knowledgeErrorUploadFailed">فشل تحميل هذا الملف.</string>
+    <string name="skills_knowledgeErrorIndexFailed">فشل في فهرسة هذا الملف.</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">فشل استرداد المعرفة لهذه الرسالة.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">فشل في تنظيف الملف البعيد. حاول مرة أخرى لاحقًا.</string>
+    <string name="custom_llm_connection_method">طريقة الاتصال</string>
+    <string name="local_compute_pairing_code">رمز الاقتران</string>
+    <string name="local_compute_scan_qr">مسح رمز QR</string>
+    <string name="api_endpoint_not_configured">غير مُهيأ</string>
+    <string name="contact_support">التواصل مع الدعم</string>
+    <string name="error_attachment_not_accepted_title">المرفق غير مقبول</string>
+    <string name="generation_empty_runtime_locked">معاملات التشغيل غير قابلة للتعديل على هذا الاتصال.</string>
+    <string name="legal_consent_notice">بمتابعة الاستخدام، فإنك توافق على الشروط القانونية أدناه.</string>
+    <string name="price_cache_read">قراءة التخزين المؤقت</string>
+    <string name="price_cache_write">كتابة التخزين المؤقت</string>
+    <string name="price_input">الإدخال</string>
+    <string name="price_output">الإخراج</string>
+    <string name="settings_report_issue">الإبلاغ عن مشكلة</string>
+    <string name="settings_source_code">كود المصدر</string>
+    <string name="skills_pinToHome">تثبيت في الرئيسية</string>
+    <string name="skills_unpin">إلغاء التثبيت</string>
 </resources>

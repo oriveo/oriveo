@@ -44,6 +44,7 @@ import ai.oriveo.community.ui.theme.OriveoRadius
 import ai.oriveo.community.ui.theme.OriveoSurfaceStyle
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.oriveoSurface
+import ai.oriveo.community.ui.util.userContentTextStyle
 import kotlinx.coroutines.launch
 
 @Composable
@@ -113,7 +114,7 @@ internal fun SkillStarterView(
         // Skill name
         Text(
             text = skill.localizedName(),
-            style = OriveoTheme.typography.hero,
+            style = OriveoTheme.typography.hero.merge(userContentTextStyle),
             color = colors.textPrimary,
             modifier = Modifier.alpha(appearAlpha.value),
         )
@@ -123,7 +124,7 @@ internal fun SkillStarterView(
             Spacer(Modifier.height(OriveoTheme.spacing.sm))
             Text(
                 text = skill.localizedDescription(),
-                style = OriveoTheme.typography.caption,
+                style = OriveoTheme.typography.caption.merge(userContentTextStyle),
                 color = colors.textSecondary,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.alpha(appearAlpha.value),
@@ -166,7 +167,7 @@ internal fun SkillStarterView(
                     ) {
                         Text(
                             text = message,
-                            style = OriveoTheme.typography.body.copy(fontSize = 15.sp),
+                            style = OriveoTheme.typography.body.copy(fontSize = 15.sp).merge(userContentTextStyle),
                             color = colors.textPrimary,
                             modifier = Modifier.weight(1f),
                         )

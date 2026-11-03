@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "清除",
     "generationParameterDormantRestored": "已恢复 {count} 项参数",
     "generationPresetName": "预设名称",
-    "capabilityControlFixedByConnection": "由当前连接决定",
     "capabilityControlReasonPending": "自动配置暂未就绪",
     "capabilityControlReasonUnsupported": "此模型不支持该请求",
     "capabilityControlReasonExternalConnector": "由独立的外部服务提供，不在此聊天请求中",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "最难的问题，不惜时间。",
     "capabilityControlReasoningFixedLevel": "此模型的思考档位是固定的，无法调节。",
     "capabilityControlCannotAdjustYet": "暂不支持调节",
+    "capabilityControlGoToParameters": "前往参数",
     "customRequestFieldsNotAllowed": "此字段不可用。此模型允许的字段：{fields}",
     "customRequestFieldsFooter": "字段会原样加入发送给模型的请求，仅支持该供应商官方声明的字段；填错可能导致请求失败。草稿只保存在本机。",
     "customRequestFieldsScopeConnectionModel": "作用域：此连接下的该模型，作为其对话的默认设置。",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "添加",
     "advancedStopSequenceRemove": "删除 {sequence}",
     "advancedMore": "更多",
-    "add": "添加",
-    "capabilityControlGoToParameters": "前往参数"
+    "add": "添加"
   },
   "pages": {
     "welcome": {
       "title": "欢迎使用 Oriveo",
       "tagline": "所有模型，一个应用。",
-      "slogan": "你的密钥，你的成本，你的数据。",
       "description": "配置你的第一个 AI 供应商，开始多模型对话。",
       "addProvider": "添加供应商",
       "enterHome": "进入首页"
@@ -502,7 +500,6 @@
       "stop": "停止生成",
       "generating": "生成中",
       "activityWebSearch": "正在联网搜索",
-      "activityMcpTool": "正在使用 {server} · {tool}",
       "aiAnswering": "AI 正在回答…",
       "export": "导出",
       "continueAnswering": "继续回答",
@@ -586,7 +583,9 @@
         "cacheRead": "缓存读取",
         "cacheWrite": "缓存写入",
         "total": "总计",
-        "unavailable": "暂无"
+        "unavailable": "暂无",
+        "cost": "费用",
+        "estimated": "估算"
       },
       "attachedNotesTitle": "已带入当前对话的笔记",
       "removeNoteContext": "移除上下文：{title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "经 Ollama 云端",
       "modelRemovedBanner": "这个对话用的模型已不在 {connection} 里。",
       "modelRemovedChoose": "选择模型",
+      "connectionRemovedBanner": "这个对话用的连接已删除。",
+      "modelRetiredBanner": "{model} 已下架。",
+      "modelRetiredSwitchTo": "切换到 {model}",
+      "lastUsedModelRetiredHint": "上次使用的模型已下架，已改用 {model}。",
       "copyFailed": "复制失败",
+      "activityMcpTool": "正在使用 {server} · {tool}",
       "contextCompaction": {
         "summaryLine1": "{count, plural, other {已整理较早的 {count} 条消息 · {before} → {after} token}}",
         "summaryLine2": "由 {model} 整理 · 查看摘要",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "这次还会越过 {model} 的 {line} 加价线，整个请求按长上下文价计费。",
         "confirmDontAsk": "本对话不再提示",
         "confirmSend": "仍然发送"
-      },
-      "connectionRemovedBanner": "这个对话用的连接已删除。",
-      "modelRetiredBanner": "{model} 已下架。",
-      "modelRetiredSwitchTo": "切换到 {model}",
-      "lastUsedModelRetiredHint": "上次使用的模型已下架，已改用 {model}。"
+      }
     },
     "providerSetup": {
       "title": "添加供应商",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "改用 API Key",
         "disabledFallback": "ChatGPT 订阅登录当前不可用。你可以改用 API Key，或删除此连接。"
       },
-      "subscription": "订阅",
-      "tokenPrices": {
-        "input": "输入 {count}",
-        "cacheRead": "缓存读 {count}",
-        "cacheWrite": "缓存写 {count}",
-        "output": "输出 {count}",
-        "unit": "tokens"
-      }
+      "subscription": "订阅"
     },
     "providers": {
       "title": "供应商",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "隐私政策",
-      "sourceCode": "源代码",
       "aiSection": "AI",
       "skills": "技能",
       "backupImportExport": "备份与导入/导出",
-      "reportIssue": "反馈问题",
-      "documentation": "文档",
       "aboutTagline": "所有模型，一个应用。",
       "context": {
         "title": "上下文",
@@ -1781,7 +1771,7 @@
       "editorCategory": "分类",
       "editorTooLong": "最多 2000 字",
       "deleteConfirmTitle": "删除这条记忆？",
-      "deleteConfirmBody": "将从这台设备上永久删除。",
+      "deleteConfirmBody": "所有设备上都会删除。",
       "actionOrganize": "整理成条目",
       "rawView": "原文",
       "rawViewHint": "每条之间用单独一行「---」分隔。",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "供应商错误",
       "message": "供应商对此请求返回了错误。请重试或切换模型。"
+    },
+    "emptyReply": {
+      "title": "供应商返回了空响应",
+      "message": "供应商未返回这条消息的回复内容。"
     },
     "moderationBlocked": {
       "title": "内容被拦截",
@@ -2060,14 +2054,11 @@
     "title": "技能",
     "mySkills": "我的技能",
     "builtinSkills": "内置技能",
-    "pinned": "已置顶",
     "newSkill": "新建技能",
     "editSkill": "编辑技能",
     "deleteSkill": "删除技能",
     "forkSkill": "复制为我的技能",
-    "useSkill": "使用",
-    "pinToHome": "置顶到首页",
-    "unpinFromHome": "取消置顶",
+    "useSkill": "使用此技能",
     "instructions": "提示词",
     "instructionsPlaceholder": "例如：你是一位资深代码审查员，擅长安全性和性能审查。用用户的语言回复。",
     "starterMessages": "对话开场白",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "Skill 知识库需要官方 OpenAI API Key。",
     "openai_endpoint_not_official": "Skill 知识库仅支持官方 OpenAI endpoint。",
     "retrieval_model_not_enabled": "请先在 OpenAI provider 中添加并启用 {model}。",
-    "knowledge_service_unavailable": "Skill 知识库暂时不可用，你仍可继续编辑并保存这个 Skill。",
+    "knowledge_service_unavailable": "知识库暂时不可用。",
     "unsupported_file_type": "这种文件类型暂不支持用于知识库。",
     "reference_file_too_large": "参考文件必须小于等于 3 MB。",
     "knowledge_file_too_large": "知识库文件必须小于等于 20 MB。",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "添加供应商后即可使用此技能",
     "providerRequiredMessage": "此技能需要先有一个可用的 AI 供应商，才能开始对话。",
     "providerRequiredAction": "添加供应商",
-    "promptCancel": "暂不"
+    "promptCancel": "暂不",
+    "home": {
+      "autoCount": "自动调用 · {count}",
+      "slashHint": "输入 / 使用",
+      "empty": "存下你的做法",
+      "notesRecent": "最近编辑"
+    },
+    "list": {
+      "subtitle": "存下你的做法，AI 会在合适的时候用上。"
+    },
+    "create": {
+      "describePlaceholder": "描述一个做法，AI 帮你写",
+      "fromChat": "从对话存",
+      "manual": "手动新建"
+    },
+    "segment": {
+      "mine": "我的",
+      "templates": "模板"
+    },
+    "group": {
+      "auto": "自动调用",
+      "manual": "仅手动"
+    },
+    "card": {
+      "usageCount": "用过 {count} 次"
+    },
+    "row": {
+      "slashHint": "{slash} 点名时使用"
+    },
+    "auto": {
+      "needWhenTitle": "先说一下什么时候用它",
+      "suggest": "AI 建议",
+      "limitReached": "已有 {count} 个在自动调用，先关一个"
+    },
+    "search": {
+      "placeholder": "搜索技能"
+    },
+    "empty": {
+      "title": "还没有技能",
+      "body": "把常用的做法存下来，下次不用再交代一遍。",
+      "browseTemplates": "看看模板"
+    },
+    "migrate": {
+      "banner": "给 {count} 个技能补一句「何时使用」，它们就能自动用上",
+      "review": "逐个补全"
+    },
+    "templates": {
+      "note": "加到「我的」之后，才会自动调用。",
+      "featured": "精选",
+      "addToMine": "加到我的",
+      "add": "添加",
+      "added": "已添加",
+      "tryOnce": "直接试用"
+    },
+    "detail": {
+      "useInNewChat": "在新对话中使用",
+      "orSlash": "或在输入框打 {slash} 点名",
+      "usage": "用过 {count} 次 · 上次 {time}",
+      "neverUsed": "还没用过",
+      "autoInvoke": "自动调用",
+      "whenToUse": "何时使用",
+      "whenToUseNote": "AI 据此判断要不要用",
+      "instructions": "做法",
+      "showAll": "展开全部",
+      "references": "参考资料",
+      "starters": "开场白",
+      "recentChats": "最近用到它的对话",
+      "try": "试一试"
+    },
+    "edit": {
+      "changeIcon": "更换图标",
+      "name": "名称",
+      "whenBadge": "决定自动调用",
+      "whenPlaceholder": "例如：让我把零散事项整理成周报时使用；不用于写日报",
+      "keywordsCaption": "会触发 · 写清场景就够",
+      "whenTip": "写清做什么、什么时候用、你通常怎么说；可以加一句「不用于……」减少误用。用「」括起的词会高亮。",
+      "polish": "AI 润色",
+      "addStarter": "添加开场白",
+      "modelAndFeatures": "模型与能力",
+      "followChat": "跟随对话",
+      "needWhenForAuto": "开着自动调用时，「何时使用」不能为空"
+    },
+    "draft": {
+      "askScenarios": "举一两个你会用到它的场景",
+      "askQuality": "怎样算做得好？",
+      "skip": "跳过",
+      "generating": "正在写草稿…",
+      "title": "草稿",
+      "editFirst": "先编辑",
+      "suggestedIcon": "建议图标",
+      "failed": "没能生成完整草稿，已帮你填好能用的部分。"
+    },
+    "fromChat": {
+      "menuConversation": "存为技能",
+      "menuMessage": "把这个做法存为技能",
+      "messages": "{count} 条消息",
+      "extracting": "正在提炼…"
+    },
+    "limit": {
+      "upgrade": "升级解锁更多",
+      "draftKept": "草稿已保留在本机。"
+    },
+    "composer": {
+      "placeholder": "输入 / 使用技能"
+    },
+    "picker": {
+      "title": "我的技能",
+      "multi": "可多选",
+      "auto": "自动",
+      "manual": "手动",
+      "manage": "管理技能",
+      "maxReached": "最多同时用 {count} 个"
+    },
+    "chip": {
+      "deleted": "已删除"
+    },
+    "message": {
+      "attached": "用了 {names}"
+    },
+    "used": {
+      "chip": "已使用 {names}",
+      "loading": "正在使用 {names}…",
+      "byChoice": "按你的选择使用",
+      "why": "为什么用了它",
+      "disableHere": "本对话不再自动用",
+      "view": "查看技能"
+    },
+    "settings": {
+      "autoToggle": "自动调用技能",
+      "autoToggleFooter": "关闭后，模型不会自己挑技能；输入 / 仍可手动使用。"
+    },
+    "try": {
+      "banner": "试用中 · 不保存到历史",
+      "saveToSkill": "写回技能",
+      "adjust": "调整做法",
+      "saved": "已写回「{name}」",
+      "savedToDraft": "已带回编辑页，保存后才生效"
+    },
+    "improve": {
+      "prompt": "要把这条要求记进「{name}」吗？",
+      "review": "查看改动",
+      "accept": "写入技能",
+      "dismiss": "暂不",
+      "addedLine": "新增",
+      "removedLine": "删除",
+      "saved": "已记进「{name}」"
+    },
+    "usage": {
+      "manifestRow": "技能清单额外用量"
+    },
+    "glyph": {
+      "writing": "写作",
+      "report": "报告",
+      "code": "代码",
+      "study": "学习",
+      "travel": "旅行",
+      "health": "健康",
+      "meeting": "会议",
+      "idea": "灵感",
+      "translate": "翻译",
+      "email": "邮件",
+      "data": "数据",
+      "design": "设计",
+      "legal": "法律",
+      "finance": "财务",
+      "marketing": "营销",
+      "support": "客服",
+      "teaching": "教学",
+      "research": "研究",
+      "life": "生活",
+      "food": "美食",
+      "music": "音乐",
+      "photo": "摄影",
+      "product": "产品",
+      "general": "通用"
+    },
+    "capability": {
+      "title": "模型偏好",
+      "any": "任意",
+      "reasoning": "推理",
+      "vision": "视觉",
+      "fast": "快速",
+      "largeContext": "大上下文"
+    },
+    "saveFailed": "无法保存更改，请重试。"
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2636,8 +2811,7 @@
       "stepLimit": "本次选择的文档过多或过长，请减少勾选后重试。",
       "notConnected": "开始研究前，请先连接资料库来源。",
       "sourceForbidden": "来源因权限或策略限制拒绝了访问，重新连接无法解决，请检查来源端的共享/合规设置。",
-      "unavailable": "资料库暂时不可用，请稍后重试。",
-      "retry": "重试"
+      "unavailable": "资料库暂时不可用，请稍后重试。"
     }
   },
   "notes": {

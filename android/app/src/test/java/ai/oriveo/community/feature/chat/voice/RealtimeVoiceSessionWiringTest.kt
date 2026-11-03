@@ -1,6 +1,7 @@
 package ai.oriveo.community.feature.chat.voice
 
 import ai.oriveo.community.feature.chat.realtimeVoiceTarget
+import ai.oriveo.community.feature.chat.isRealtimeModelSelected
 import ai.oriveo.community.R
 import ai.oriveo.community.core.context.ChatContextRequest
 import ai.oriveo.community.core.context.ContextConversation
@@ -17,6 +18,7 @@ import ai.oriveo.community.core.model.Note
 import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.streaming.ChatStreamingManager
@@ -24,33 +26,28 @@ import ai.oriveo.community.core.voice.VoiceCatalog
 import ai.oriveo.community.core.voice.VoiceDirection
 import ai.oriveo.community.core.voice.VoiceEngineSelection
 import ai.oriveo.community.core.voice.VoiceEngineSettings
-import ai.oriveo.community.core.voice.VoiceFallbackReason
 import ai.oriveo.community.core.voice.VoiceOption
 import ai.oriveo.community.core.voice.VoiceProviderCatalog
 import ai.oriveo.community.core.voice.VoiceRealtimeEntry
 import ai.oriveo.community.core.voice.VoiceTransport
 import ai.oriveo.community.core.voice.conversation.ConversationStatusKey
-import ai.oriveo.community.core.voice.conversation.EarconKind
 import ai.oriveo.community.core.voice.conversation.EndReason
 import ai.oriveo.community.core.voice.conversation.VoiceConversationChatPort
 import ai.oriveo.community.core.voice.conversation.VoiceConversationEngine
 import ai.oriveo.community.core.voice.conversation.VoiceConversationEvent
 import ai.oriveo.community.core.voice.conversation.VoiceReplyEvent
-import ai.oriveo.community.core.voice.realtime.RealtimeAudioIO
 import ai.oriveo.community.core.voice.realtime.RealtimeSessionEvent
 import ai.oriveo.community.core.voice.realtime.RealtimeTransportKind
 import ai.oriveo.community.core.voice.realtime.RealtimeTurnStatus
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveSessionExpiredException
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeEndpoint
+import ai.oriveo.community.core.voice.realtime.wire.RealtimeHandshakeException
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeSessionTransport
-import ai.oriveo.community.core.model.SkillKnowledgeBase
-import ai.oriveo.community.core.model.SkillKnowledgeBaseFile
-import ai.oriveo.community.core.model.SkillKnowledgeFile
-import ai.oriveo.community.core.model.SkillKnowledgeFileStatus
-import ai.oriveo.community.core.model.SkillKnowledgeIngestionMode
 import ai.oriveo.community.feature.chat.ChatSendCoordinator
 import ai.oriveo.community.feature.chat.DraftChatViewModelFixture
 import ai.oriveo.community.testing.TestSharedPreferences
+import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -68,6 +65,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -79,11 +77,25 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.File
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonNull
+import ai.oriveo.community.core.voice.conversation.StartFailure
+import ai.oriveo.community.core.voice.conversation.VoiceConversationForeground
+import ai.oriveo.community.core.voice.conversation.VoiceConversationService
+import ai.oriveo.community.core.voice.conversation.VoiceConversationServiceStarter
+import ai.oriveo.community.core.voice.realtime.RealtimeConversationConstants
+import ai.oriveo.community.core.voice.realtime.RealtimeModel
+import kotlinx.coroutines.flow.MutableSharedFlow
 
-/** Realtime sessions opened by the chat page / home ≋ according to the conversation engine: real builder + real sink + fake connection / audio. */
+/** Chat page / home ≋ opens a realtime session by the conversation engine (contract items 1, 2, 3, 5, 6, 7): real builder + real sink + fake connection / audio. */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RealtimeVoiceSessionWiringTest {
 
@@ -106,7 +118,18 @@ class RealtimeVoiceSessionWiringTest {
             sent++
         }
 
-        override fun truncate(itemId: String?, contentIndex: Int, playedMs: Double) = Unit
+        /** Truncation and typed sends are recorded in the order they happen (barge-in truncates first, then sends). */
+        val log = mutableListOf<String>()
+        val texts = mutableListOf<String>()
+
+        override fun truncate(itemId: String?, contentIndex: Int, playedMs: Double) {
+            log += "truncate:$itemId"
+        }
+
+        override fun sendUserText(text: String) {
+            log += "text:$text"
+            texts += text
+        }
 
         override fun close() {
             closes++
@@ -114,18 +137,60 @@ class RealtimeVoiceSessionWiringTest {
         }
     }
 
-    private class FakeAudio : RealtimeAudioIO {
+    /** Ideal player (same as HomeRealtimeVoiceFlowTest) with a downlink callback recorded on top. */
+    private class FakeAudio : IdealRealtimeAudio() {
         var onFrame: ((ByteArray) -> Unit)? = null
+
+        var playbackStarts = 0
+        var captureStarts = 0
+        var playing = false
+
+        override val isPlaying: Boolean get() = playing
 
         override fun start(onFrame: (ByteArray) -> Unit, onInterruption: () -> Unit) {
             this.onFrame = onFrame
         }
-        override fun enqueue(pcm16: ByteArray, itemId: String) = Unit
-        override fun playedMs(itemId: String): Long = 0L
-        override val isPlaying: Boolean get() = false
-        override fun stopPlayback() = Unit
-        override fun stop() = Unit
-        override suspend fun playEarcon(kind: EarconKind) = Unit
+
+        override fun startPlayback(onInterruption: () -> Unit, onActivationFailed: (Throwable) -> Unit) {
+            playbackStarts++
+        }
+
+        override fun startCapture(onFrame: (ByteArray) -> Unit, uplinkRateHz: Int) {
+            captureStarts++
+            this.onFrame = onFrame
+        }
+
+        override fun stopPlayback() {
+            playing = false
+        }
+    }
+
+    /**
+     * Fake foreground service paired with ≋: [started] = whether the service ran into the foreground; [refused] = types that cannot run in the foreground; [kinds] = types awaited in order;
+     * [ends] = the notification "end".
+     */
+    private class FakeForeground(var started: Boolean = true) : VoiceConversationForeground {
+        var awaits = 0
+        var stops = 0
+        val kinds = mutableListOf<VoiceConversationService.Kind>()
+        val refused = mutableSetOf<VoiceConversationService.Kind>()
+        val ends = MutableSharedFlow<Unit>(extraBufferCapacity = 4)
+
+        override suspend fun awaitStarted(): Boolean {
+            awaits++
+            return started
+        }
+
+        override suspend fun awaitStarted(kind: VoiceConversationService.Kind): Boolean {
+            kinds += kind
+            return awaitStarted() && kind !in refused
+        }
+
+        override val endRequests: Flow<Unit> = ends
+
+        override fun stop() {
+            stops++
+        }
     }
 
     private object NoChat : VoiceConversationChatPort {
@@ -157,18 +222,21 @@ class RealtimeVoiceSessionWiringTest {
         voice = "cedar",
     )
 
-    /** [replanInline] = the turn-boundary replan runs on the test scheduler (IO in production), so the result is back in the same turn. */
+    /** [replanInline] = the turn-boundary replan runs on the test scheduler (IO in production), and the result comes back in the same turn. */
     private class Rig(
         val test: TestScope,
         catalogEntry: VoiceRealtimeEntry,
         val provider: Provider,
         replanInline: Boolean = false,
+        /** Host recognition language (production reads the voice settings / UI language by default; injected under plain JVM). */
+        language: () -> String? = { null },
     ) {
         val prefs = TestSharedPreferences()
         val settings = VoiceEngineSettings { prefs }
         val connection = FakeConnection(RealtimeTransportKind.fromRawValue(catalogEntry.transport.rawValue)!!)
+        val foreground = FakeForeground()
 
-        /** In connection order: one for the first open, another for every reopen. */
+        /** In connect order: one is opened first, and each reopen adds one more. */
         val connections = mutableListOf(connection)
         val made = mutableListOf<Pair<RealtimeTransportKind, RealtimeEndpoint>>()
         val added = mutableListOf<ChatMessage>()
@@ -176,7 +244,7 @@ class RealtimeVoiceSessionWiringTest {
         val sessions = VoiceConversationSessions()
         val created = mutableListOf<String>()
         val navigated = mutableListOf<String>()
-        /** Whether each navigate ran on the Main dispatcher (the production HandoffPort switches to Dispatchers.Main.immediate). */
+        /** Whether each navigate runs on the Main dispatcher (production HandoffPort switches to Dispatchers.Main.immediate). */
         val navigatedOnMain = mutableListOf<Boolean>()
         private var onMain = false
         val updated = mutableListOf<ChatMessage>()
@@ -184,10 +252,17 @@ class RealtimeVoiceSessionWiringTest {
         val sinks = mutableListOf<RepositoryRealtimeTranscriptSink>()
         val audios = mutableListOf<FakeAudio>()
         val planned = mutableListOf<Conversation>()
-        /** The (connection, model) written as last used. */
-        val remembered = mutableListOf<Pair<String, String>>()
+        /** Realtime model selected on the chat page session / home pill (used by the [realtime], [home] and direct prepare cases). */
+        var selected: VoiceEngineSelection.Cloud? = null
+
+        /** Realtime model selected for the session [selection]; the old engine setting is written too: prepare does not read it (kept only for upgrade migration). */
+        fun selectRealtime(selection: VoiceEngineSelection.Cloud) {
+            settings.setSelection(VoiceDirection.Realtime, selection)
+            selected = selection
+        }
+
         var catalogCalls = 0
-        /** The chat connection the conversation lives on (besides the realtime connection). */
+        /** The chat connection the session belongs to (other than the realtime connection). */
         var chatProviders: List<Provider> = emptyList()
         var instructions = ""
         var edit: (Conversation) -> Conversation = { it }
@@ -195,7 +270,7 @@ class RealtimeVoiceSessionWiringTest {
             planned += c
             ChatContextRequest(ContextConversation(id = c.id, useMemory = false, instructions = c.instructions))
         }
-        // Attached under backgroundScope: on a failed assertion it is cancelled with the test, so the test reports red instead of hanging.
+        // Attached to backgroundScope: if an assertion fails it is cancelled with the test, so it reports red instead of hanging (contract card D item 4)
         val scope = CoroutineScope(UnconfinedTestDispatcher(test.testScheduler) + Job(test.backgroundScope.coroutineContext.job))
         val catalog = VoiceCatalog(
             providers = mapOf(provider.kind to VoiceProviderCatalog(realtime = listOf(catalogEntry))),
@@ -215,7 +290,7 @@ class RealtimeVoiceSessionWiringTest {
                     providerKind = provider.kind,
                     modelID = "gpt-5",
                     instructions = instructions,
-                    // Fake repository: persisted transcripts are read back with the conversation.
+                    // Fake repository: transcripts that were persisted are read back with the conversation.
                     messages = added.filterIndexed { i, _ -> addedTo[i] == id },
                 ).let(edit)
             },
@@ -239,13 +314,14 @@ class RealtimeVoiceSessionWiringTest {
             audio = { FakeAudio().also { audios += it } },
             scope = scope,
             clock = { test.testScheduler.currentTime },
-            rememberLastUsed = { providerId, modelId -> remembered += providerId to modelId },
             replanContext = if (replanInline) UnconfinedTestDispatcher(test.testScheduler) else kotlinx.coroutines.Dispatchers.IO,
+            foreground = foreground,
+            language = language,
         )
 
         suspend fun realtime(): RealtimeVoiceConversationEngine {
             settings.disclosure.markAccepted(provider.kind, VoiceDirection.Realtime)
-            val choice = builder.prepare("c1", contextRequest)
+            val choice = builder.prepare("c1", contextRequest, selected = selected)
             val engine = (choice as RealtimeVoiceSessionChoice.Realtime).engine
             scope.launch { engine.events.collect { events += it } }
             engine.start(NoChat)
@@ -253,13 +329,13 @@ class RealtimeVoiceSessionWiringTest {
             return engine
         }
 
-        /** Home wiring like rememberVoiceConversationHost: the builder gets the handoff port to create the conversation, and beginHome gets the pill model to create it. */
+        /** As rememberVoiceConversationHost's home wiring: the builder creates the conversation using the handoff port, and beginHome creates it using the pill model. */
         suspend fun home(
             owner: Any,
             newConversation: (suspend () -> Conversation?)? = null,
         ): RealtimeVoiceConversationEngine {
             settings.disclosure.markAccepted(provider.kind, VoiceDirection.Realtime)
-            // Main = a marked test scheduler: onMain is true while the code the sink write loop switched in is running.
+            // Main = a marked test dispatcher: onMain is true while the code the sink write loop switches into runs.
             val main = StandardTestDispatcher(test.testScheduler)
             Dispatchers.setMain(
                 object : CoroutineDispatcher() {
@@ -277,7 +353,7 @@ class RealtimeVoiceSessionWiringTest {
                 },
             )
             var port: VoiceConversationSessions.HandoffPort? = null
-            val choice = builder.prepare(null, contextRequest, newConversation) { port?.conversationId() }
+            val choice = builder.prepare(null, contextRequest, newConversation, { port?.conversationId() }, selected)
             val engine = (choice as RealtimeVoiceSessionChoice.Realtime).engine
             scope.launch { engine.events.collect { events += it } }
             val handoff = sessions.beginHome(
@@ -309,9 +385,26 @@ class RealtimeVoiceSessionWiringTest {
     }
 
     @Test
+    fun endpoint_carries_host_recognition_language() = runTest {
+        // The injected host recognition language goes through to the endpoint unchanged (mapping is at the wire layer).
+        val zh = Rig(this, entry, provider, language = { "zh-Hans-CN" })
+        zh.selectRealtime(cloud)
+        zh.realtime()
+        assertEquals("zh-Hans-CN", zh.made.single().second.language)
+        zh.scope.cancel()
+
+        // No host language → null, leaving automatic detection to the server.
+        val none = Rig(this, entry, provider, language = { null })
+        none.selectRealtime(cloud)
+        none.realtime()
+        assertEquals(null, none.made.single().second.language)
+        none.scope.cancel()
+    }
+
+    @Test
     fun realtime_selection_starts_realtime() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val engine = r.realtime()
 
         assertEquals(1, r.made.size)
@@ -321,39 +414,366 @@ class RealtimeVoiceSessionWiringTest {
         assertEquals("sk-live", endpoint.apiKey)
         assertEquals("gpt-realtime", endpoint.model)
         assertEquals("/v1/realtime", endpoint.path)
-        assertEquals("cedar", endpoint.voice)
+        // Voice takes the catalog default (the cedar from the old engine setting is not read).
+        assertEquals("marin", endpoint.voice)
         assertEquals("gpt-4o-transcribe", endpoint.inputTranscriptionModel)
         assertEquals(1, r.connection.opened)
         assertTrue(engine.active.value)
         assertTrue(r.builder.realtimeActive)
-        // Starting a realtime voice call counts as a send: the conversation's connection and chat model are written as last used (not the voice model).
-        assertEquals(listOf(provider.id to "gpt-5"), r.remembered)
+        r.scope.cancel()
+    }
+
+    /** As rememberVoiceConversationHost's wiring: hands the engine's failure to the voice station handle and records the exit. */
+    private class FailureRig(engine: RealtimeVoiceConversationEngine, retry: () -> Unit = {}, continueWithHistory: () -> Unit = {}) {
+        val opened = mutableListOf<String>()
+        var retried = 0
+        var switched = 0
+        var continued = 0
+        var orbTaps = 0
+        val handle = VoiceConversationHandle(
+            page = VoiceConversationPage.Chat,
+            statusState = mutableStateOf(ConversationStatusKey.ERROR),
+            level = null,
+            onEnd = {},
+            onTapOrb = { orbTaps++ },
+            onToggleMute = {},
+            captionState = mutableStateOf(""),
+            nudgesState = mutableStateOf(0),
+            failureState = mutableStateOf(engine.failure.value),
+            failureActions = RealtimeFailureActions(
+                retry = {
+                    retried++
+                    retry()
+                },
+                openConnection = { opened += it },
+                switchModel = { switched++ },
+                continueWithHistory = {
+                    continued++
+                    continueWithHistory()
+                },
+            ),
+        )
+    }
+
+    /** Session that ended in failure: the engine carries the failure, emits Ended(ERROR), and no event shows a toast (the failure is presented within the voice station). */
+    private fun Rig.assertEndedOnFailureWithoutToast(engine: RealtimeVoiceConversationEngine) {
+        assertFalse(engine.active.value)
+        assertEquals(EndReason.ERROR, events.filterIsInstance<VoiceConversationEvent.Ended>().single().reason)
+        assertTrue(events.all { voiceConversationEventToast(it) == null })
+    }
+
+    @Test
+    fun failure_auth_shows_card_with_open_connection() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        r.connection.events.close(RealtimeHandshakeException(401, "ProtocolException"))
+        testScheduler.runCurrent()
+
+        r.assertEndedOnFailureWithoutToast(engine)
+        assertEquals(RealtimeFailure("auth", provider.id, "Work OpenAI", "gpt-realtime"), engine.failure.value)
+        val card = realtimeFailureCard(engine.failure.value)!!
+        assertEquals(R.string.voice_realtime_failure_auth, card.title)
+        assertEquals(listOf<Any>("Work OpenAI"), card.titleArgs)
+        assertEquals(
+            listOf(RealtimeFailureButton(RealtimeFailureAction.OpenConnection, R.string.voice_realtime_action_open_connection)),
+            card.buttons,
+        )
+        assertNull(realtimeFailureStatusWord(engine.failure.value))
+        // Screen reader reads the failure text itself, not the generic "error" status word.
+        assertEquals(
+            R.string.voice_realtime_failure_auth to listOf<Any>("Work OpenAI"),
+            voiceStatusAnnouncement(ConversationStatusKey.ERROR, engine.failure.value),
+        )
+
+        val f = FailureRig(engine)
+        f.handle.perform(RealtimeFailureAction.OpenConnection)
+        assertEquals(listOf(provider.id), f.opened)
+        // A tap on the orb does not reopen: only max_duration is "tap to continue".
+        f.handle.tapOrb()
+        assertEquals(0, f.continued)
+        assertEquals(1, f.orbTaps)
+
+        engine.dismissFailure()
+        assertNull(engine.failure.value)
         r.scope.cancel()
     }
 
     @Test
-    fun realtime_error_shows_toast_once() = runTest {
+    fun failure_quota_shows_retry_and_switch() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        r.connection.events.close(RealtimeHandshakeException(429, "ProtocolException"))
+        testScheduler.runCurrent()
+
+        r.assertEndedOnFailureWithoutToast(engine)
+        assertEquals("quota", engine.failure.value?.category)
+        val card = realtimeFailureCard(engine.failure.value)!!
+        assertEquals(R.string.voice_realtime_failure_quota, card.title)
+        assertEquals(listOf<Any>("Work OpenAI"), card.titleArgs)
+        assertEquals(
+            listOf(
+                RealtimeFailureButton(RealtimeFailureAction.Retry, R.string.voice_realtime_action_retry),
+                RealtimeFailureButton(RealtimeFailureAction.SwitchModel, R.string.voice_realtime_action_switch_model),
+            ),
+            card.buttons,
+        )
+
+        val f = FailureRig(engine)
+        f.handle.perform(RealtimeFailureAction.Retry)
+        f.handle.perform(RealtimeFailureAction.SwitchModel)
+        assertEquals(1, f.retried)
+        assertEquals(1, f.switched)
+        assertTrue(f.opened.isEmpty())
+        r.scope.cancel()
+    }
+
+    @Test
+    fun failure_max_duration_tap_reopens_with_history() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
         val engine = r.realtime()
         r.send(RealtimeSessionEvent.Ready)
+        r.turn("first question", "first answer")
+        r.send(RealtimeSessionEvent.SessionEnded("max_duration"))
+
+        r.assertEndedOnFailureWithoutToast(engine)
+        assertEquals("max_duration", engine.failure.value?.category)
+        // No card shown: the hint text becomes "Single realtime call limit reached, tap to continue".
+        assertNull(realtimeFailureCard(engine.failure.value))
+        assertEquals(R.string.voice_realtime_failure_max_duration, realtimeFailureStatusWord(engine.failure.value))
+        assertEquals(
+            R.string.voice_realtime_failure_max_duration to emptyList<Any>(),
+            voiceStatusAnnouncement(ConversationStatusKey.ERROR, engine.failure.value),
+        )
+        // Without failure the status word is still read as before.
+        assertEquals(
+            R.string.voice_conversation_status_error to emptyList<Any>(),
+            voiceStatusAnnouncement(ConversationStatusKey.ERROR, null),
+        )
+
+        // A tap = start a new call with history (the host goes through the same entry flow: prepare the same conversation again).
+        var next: RealtimeVoiceConversationEngine? = null
+        val f = FailureRig(engine, continueWithHistory = {
+            r.scope.launch {
+                val choice = r.builder.prepare("c1", r.contextRequest, selected = r.selected)
+                next = (choice as RealtimeVoiceSessionChoice.Realtime).engine.also { it.start(NoChat) }
+            }
+        })
+        f.handle.tapOrb()
+        testScheduler.runCurrent()
+
+        assertEquals(1, f.continued)
+        assertEquals(0, f.orbTaps)
+        assertEquals(2, r.made.size)
+        val second = r.connections[1]
+        assertTrue(r.connection.inputs.single().history.isEmpty())
+        assertEquals(
+            listOf(ChatRole.User to "first question", ChatRole.Assistant to "first answer"),
+            second.inputs.single().history.map { it.role to it.text },
+        )
+        assertTrue(next!!.active.value)
+        assertNull(next!!.failure.value)
+        r.scope.cancel()
+    }
+
+    /** Design §6.6: for model_gone's "switch model", selectModel first switches the session back to the last-used text model, then opens the picker; if the last-used one is invalid, only the picker opens. */
+    @Test
+    fun model_gone_switch_reverts_to_last_text_model() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        r.connection.events.close(RealtimeHandshakeException(404, "ProtocolException"))
+        testScheduler.runCurrent()
+        r.assertEndedOnFailureWithoutToast(engine)
+        assertEquals("model_gone", engine.failure.value?.category)
+        assertEquals(listOf<Any>("gpt-realtime"), realtimeFailureCard(engine.failure.value)!!.titleArgs)
+
+        suspend fun switchWith(lastUsed: LastUsedModelRef?): Pair<String?, Int> {
+            val viewModel = DraftChatViewModelFixture(
+                provider = DraftChatViewModelFixture.sendable(provider, modelId = "gpt-5"),
+                applicationScope = r.scope,
+            ).create()
+            testScheduler.runCurrent()
+            // The session currently has a realtime model selected.
+            viewModel.selectModel(provider.id, "gpt-realtime")
+            testScheduler.runCurrent()
+            assertEquals("gpt-realtime", viewModel.activeModelId)
+            var pickerOpened = 0
+            val target = viewModel.realtimeVoiceTarget(
+                "c1",
+                openModelPicker = { pickerOpened++ },
+                lastUsedModel = { lastUsed },
+            )
+            // As rememberVoiceConversationHost: the failure card's switch-model is handed to the target.
+            val handle = VoiceConversationHandle(
+                page = VoiceConversationPage.Chat,
+                statusState = mutableStateOf(ConversationStatusKey.ERROR),
+                level = null,
+                onEnd = {},
+                onTapOrb = {},
+                onToggleMute = {},
+                captionState = mutableStateOf(""),
+                nudgesState = mutableStateOf(0),
+                failureState = mutableStateOf(engine.failure.value),
+                failureActions = RealtimeFailureActions(switchModel = target.onSwitchModel),
+            )
+            handle.perform(RealtimeFailureAction.SwitchModel)
+            testScheduler.runCurrent()
+            return viewModel.activeModelId to pickerOpened
+        }
+
+        assertEquals("gpt-5" to 1, switchWith(LastUsedModelRef(provider.id, "gpt-5")))
+        // Last-used is empty / the connection is gone: do not change the selection, just open the picker.
+        assertEquals("gpt-realtime" to 1, switchWith(null))
+        assertEquals("gpt-realtime" to 1, switchWith(LastUsedModelRef("gone-connection", "gpt-5")))
+        // Switching the model for other classes does not switch back.
+        assertFalse(realtimeFailureRestoresTextModel(RealtimeFailure("quota", provider.id, "Work OpenAI", "gpt-realtime")))
+        r.scope.cancel()
+    }
+
+    /** Consent to realtime disclosure on the voice station is recorded in disclosure storage (provider disclosure is recorded by the storage hook at the same time, see ProviderDisclosureCoRecorderTest). */
+    @Test
+    fun accepting_realtime_disclosure_also_accepts_provider_disclosure() = runTest {
+        val r = Rig(this, entry, provider)
+
+        r.builder.acceptDisclosure(provider.kind)
+
+        assertTrue(r.settings.disclosure.isAccepted(provider.kind, VoiceDirection.Realtime))
+        r.scope.cancel()
+    }
+
+    /** The realtime model is selected mid-way through a text session; the session store does not push back, but it is judged realtime immediately by the current selection, and the orb opens realtime accordingly. */
+    @Test
+    fun mid_text_conversation_select_realtime_starts_realtime_before_store_echo() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val r = Rig(this, entry, provider)
+        r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val viewModel = DraftChatViewModelFixture(
+            provider = DraftChatViewModelFixture.sendable(provider, modelId = "gpt-5"),
+            applicationScope = r.scope,
+            voiceCatalog = { r.catalog },
+        ).create()
+        testScheduler.runCurrent()
+        viewModel.selectModel(provider.id, "gpt-5")
+        testScheduler.runCurrent()
+        // Realtime model selected: the fake repository does not push back the session; the judgment can only read the current selection.
+        viewModel.selectModel(provider.id, "gpt-realtime")
+        assertTrue(viewModel.isRealtimeModelSelected())
+        val choice = prepareRealtimeVoiceSession(r.builder, viewModel.realtimeVoiceTarget("c1"), r.contextRequest) { null }
+        assertTrue(choice is RealtimeVoiceSessionChoice.Realtime)
+        assertEquals(1, r.made.size)
+        r.scope.cancel()
+    }
+
+    /** Session on connection A's text model; switching across providers to B's realtime model, with the store not pushing back → both realtime target and disclosure use B (in-memory selection). */
+    @Test
+    fun cross_provider_select_realtime_before_store_echo_uses_new_provider() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val r = Rig(this, entry, provider)
+        val textConnection = DraftChatViewModelFixture.sendable(
+            Provider(id = "conn-a", kind = ProviderKind.Anthropic, apiKey = "sk-ant"),
+            modelId = "claude-text",
+        )
+        val viewModel = DraftChatViewModelFixture(
+            provider = textConnection,
+            applicationScope = r.scope,
+            voiceCatalog = { r.catalog },
+            providersFlow = flowOf(listOf(textConnection, provider)),
+        ).create()
+        testScheduler.runCurrent()
+        viewModel.selectModel(textConnection.id, "claude-text")
+        testScheduler.runCurrent()
+        assertEquals(textConnection.id, viewModel.conversationState.provider?.id)
+        // Cross-provider realtime model selection: the fake repository does not push back the session, so the session projection is still A.
+        viewModel.selectModel(provider.id, "gpt-realtime")
+        val target = viewModel.realtimeVoiceTarget("c1")
+        assertEquals(provider.id, target.realtimeSelection?.connectionId)
+        assertEquals(provider.kind, target.realtimeSelection?.providerKind)
+        // Realtime disclosure not consented: disclosure first, the kind is B's.
+        val choice = prepareRealtimeVoiceSession(r.builder, target, r.contextRequest) { null }
+        assertEquals(RealtimeVoiceSessionChoice.Disclosure(provider.kind), choice)
+        r.scope.cancel()
+    }
+
+    /** Selecting a text model again switches the voice station target back to the cascade (without a realtime selection). */
+    @Test
+    fun realtime_back_to_text_target_is_cascade() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+        val r = Rig(this, entry, provider)
+        val viewModel = DraftChatViewModelFixture(
+            provider = DraftChatViewModelFixture.sendable(provider, modelId = "gpt-5"),
+            applicationScope = r.scope,
+            voiceCatalog = { r.catalog },
+        ).create()
+        testScheduler.runCurrent()
+        viewModel.selectModel(provider.id, "gpt-realtime")
+        assertNotNull(viewModel.realtimeVoiceTarget("c1").realtimeSelection)
+        viewModel.selectModel(provider.id, "gpt-5")
+        assertNull(viewModel.realtimeVoiceTarget("c1").realtimeSelection)
+        r.scope.cancel()
+    }
+
+    @Test
+    fun handle_caption_follows_realtime_caption() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        // As rememberVoiceConversationHost: the realtime engine's caption stream is connected to the handle.
+        val flow = voiceConversationCaption(engine)
+        val handle = VoiceConversationHandle(
+            page = VoiceConversationPage.Chat,
+            statusState = mutableStateOf(ConversationStatusKey.LISTENING),
+            level = null,
+            onEnd = {},
+            onTapOrb = {},
+            onToggleMute = {},
+            captionState = object : State<String> {
+                override val value: String get() = flow.value
+            },
+            nudgesState = mutableStateOf(0),
+        )
+        r.send(RealtimeSessionEvent.Ready, RealtimeSessionEvent.UserSpeechStarted("u1"))
+        assertEquals("", handle.caption)
+        r.send(RealtimeSessionEvent.UserTranscript("u1", "hello", false))
+        assertEquals("hello", handle.caption)
+        assertEquals(engine.caption.value, handle.caption)
+        engine.end(EndReason.USER)
+        testScheduler.runCurrent()
+        assertEquals("", handle.caption)
+        r.scope.cancel()
+    }
+
+    @Test
+    fun realtime_failure_never_toasts() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        // Failure before connecting: an unexpected drop after connecting first reopens with history (design 6.6); here we want the path that goes straight to a failure card.
         r.connection.events.close(IllegalStateException("boom"))
         testScheduler.runCurrent()
         engine.end(EndReason.USER)
         testScheduler.runCurrent()
 
-        val toasts = r.events.filterIsInstance<VoiceConversationEvent.Ended>().mapNotNull { realtimeEndedToast(engine, it) }
-        assertEquals(listOf(R.string.voice_conversation_status_error), toasts)
-        // The cascade shows no toast: its error is presented by the failed-message card; a realtime session that ends without an error shows none either.
-        assertNull(realtimeEndedToast(mockk<VoiceConversationEngine>(), VoiceConversationEvent.Ended(EndReason.ERROR, "x")))
-        assertNull(realtimeEndedToast(engine, VoiceConversationEvent.Ended(EndReason.USER, null)))
+        // Failure card state: unknown failure, title carries the model, exits are retry / switch model; one Ended(ERROR), zero toasts.
+        r.assertEndedOnFailureWithoutToast(engine)
+        val failure = engine.failure.value!!
+        val card = realtimeFailureCard(failure)!!
+        assertEquals(R.string.voice_realtime_failure_unknown, card.title)
+        assertEquals(listOf<Any>("gpt-realtime"), card.titleArgs)
+        assertEquals(listOf(RealtimeFailureAction.Retry, RealtimeFailureAction.SwitchModel), card.buttons.map { it.action })
+        // A cascade error end and a realtime non-error end likewise do not toast.
+        assertNull(voiceConversationEventToast(VoiceConversationEvent.Ended(EndReason.ERROR, "x")))
+        assertNull(voiceConversationEventToast(VoiceConversationEvent.Ended(EndReason.USER, null)))
         r.scope.cancel()
     }
 
     @Test
     fun status_announcement_pauses_realtime_uplink() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val engine = r.realtime()
         r.send(RealtimeSessionEvent.Ready)
         val frame = ByteArray(480) { 0x40 }
@@ -361,7 +781,7 @@ class RealtimeVoiceSessionWiringTest {
         audio.onFrame!!(frame)
         assertEquals(1, r.connection.sent)
 
-        // Wiring like rememberVoiceConversationHost: the announcer's onSpeaking is forwarded to the engine.
+        // As rememberVoiceConversationHost's wiring: the read-aloud speaker's onSpeaking is handed to the engine.
         val announcer = StatusAnnouncer(
             scope = r.scope,
             screenReaderOn = { true },
@@ -381,58 +801,53 @@ class RealtimeVoiceSessionWiringTest {
     }
 
     @Test
-    fun realtime_call_on_unsendable_chat_model_does_not_write_last_used() = runTest {
-        // When the conversation's chat model can't be sent on (relay model removed / connection deleted), starting the call does not write last used; the call opens as usual.
-        val relay = Provider(id = "conn-relay", kind = ProviderKind.Relay, apiKey = "sk-relay", models = listOf(AIModel(id = "kept", name = "Kept")))
-        val removed = Conversation(id = "", title = "", providerID = "conn-relay", providerKind = ProviderKind.Relay, modelID = "gone")
-        suspend fun remembered(chat: Conversation): List<Pair<String, String>> {
-            val r = Rig(this, entry, provider)
-            r.settings.setSelection(VoiceDirection.Realtime, cloud)
-            r.chatProviders = listOf(relay)
-            val engine = r.home(Any()) { chat }
-            assertTrue("the call opens as usual", engine.active.value)
-            return r.remembered.toList().also { r.scope.cancel() }
-        }
-
-        assertEquals(emptyList<Pair<String, String>>(), remembered(removed))
-        assertEquals(emptyList<Pair<String, String>>(), remembered(removed.copy(providerID = "conn-deleted", providerKind = ProviderKind.Anthropic)))
-        assertEquals(listOf("conn-relay" to "kept"), remembered(removed.copy(modelID = "kept")))
-    }
-
-    @Test
-    fun system_selection_keeps_cascade() = runTest {
+    fun voice_entry_always_cascade() = runTest {
+        // ≋ (no realtime model selected on the page) always cascades: the realtime selection in the old engine setting is neither read nor opened nor checked against the catalog; the old key is kept for upgrade migration.
         val r = Rig(this, entry, provider)
-        val choice = r.builder.prepare("c1", r.contextRequest)
-        assertEquals(RealtimeVoiceSessionChoice.Cascade(), choice)
-        assertTrue(r.made.isEmpty())
-        assertTrue("last used is not written when no realtime call was opened", r.remembered.isEmpty())
-        assertFalse(r.builder.realtimeActive)
-        r.scope.cancel()
-    }
-
-    @Test
-    fun fallback_consumes_use_notice_and_uses_cascade() = runTest {
-        val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud.copy(connectionId = "gone"))
+        r.selectRealtime(cloud)
         r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
-        val first = r.builder.prepare("c1", r.contextRequest)
-        assertEquals(RealtimeVoiceSessionChoice.Cascade(fallback = VoiceFallbackReason.ConnectionMissing), first)
-        assertEquals(VoiceEngineSelection.System, r.settings.selection(VoiceDirection.Realtime))
-        // Consumed only once here: entering again carries no fallback reason.
-        assertEquals(RealtimeVoiceSessionChoice.Cascade(), r.builder.prepare("c1", r.contextRequest))
+        assertEquals(RealtimeVoiceSessionChoice.Cascade, r.builder.prepare("c1", r.contextRequest))
+        val home = VoiceConversationTarget.Home(createConversation = { null }, navigate = {})
+        assertEquals(RealtimeVoiceSessionChoice.Cascade, prepareRealtimeVoiceSession(r.builder, home, r.contextRequest) { null })
+        val chat = VoiceConversationTarget.Chat(conversationId = "c1", context = r.contextRequest) { NoChat }
+        assertEquals(RealtimeVoiceSessionChoice.Cascade, prepareRealtimeVoiceSession(r.builder, chat, r.contextRequest) { null })
+        assertTrue(r.made.isEmpty())
+        assertEquals(0, r.catalogCalls)
+        assertFalse(r.builder.realtimeActive)
+        assertEquals(cloud, r.settings.legacyRealtimeChoice())
+        r.scope.cancel()
+    }
+
+    @Test
+    fun selected_connection_gone_fails_model_gone_without_rewrite() = runTest {
+        val r = Rig(this, entry, provider)
+        val gone = cloud.copy(connectionId = "gone")
+        r.selectRealtime(gone)
+        r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val expected = RealtimeVoiceSessionChoice.Failed(
+            RealtimeFailure(RealtimeModel.CATEGORY_MODEL_GONE, providerId = "gone", providerName = "", model = "gpt-realtime"),
+        )
+        assertEquals(expected, r.builder.prepare("c1", r.contextRequest, selected = gone))
+        // No fallback, no settings rewrite, no hint consumed: entering again is still the same failure card.
+        assertEquals(gone, r.settings.selection(VoiceDirection.Realtime))
+        assertEquals(expected, r.builder.prepare("c1", r.contextRequest, selected = gone))
         assertTrue(r.made.isEmpty())
         r.scope.cancel()
     }
 
     @Test
-    fun plan_rejected_toasts_and_uses_cascade() = runTest {
+    fun plan_rejected_fails_unknown_without_toast() = runTest {
         val r = Rig(this, entry.copy(contextWindow = 2_000), provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
         r.instructions = "word ".repeat(20_000)
-        val choice = r.builder.prepare("c1", r.contextRequest)
-        assertEquals(RealtimeVoiceSessionChoice.Cascade(planRejected = true), choice)
-        assertEquals(R.string.voice_conversation_start_failed_toast, (choice as RealtimeVoiceSessionChoice.Cascade).toast)
+        val choice = r.builder.prepare("c1", r.contextRequest, selected = r.selected)
+        assertEquals(
+            RealtimeVoiceSessionChoice.Failed(
+                RealtimeFailure(RealtimeModel.CATEGORY_UNKNOWN, provider.id, "Work OpenAI", "gpt-realtime"),
+            ),
+            choice,
+        )
         assertTrue(r.made.isEmpty())
         r.scope.cancel()
     }
@@ -440,7 +855,7 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun assistant_attributed_to_realtime_model() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         r.realtime()
         r.send(
             RealtimeSessionEvent.Ready,
@@ -468,10 +883,11 @@ class RealtimeVoiceSessionWiringTest {
         r.scope.cancel()
     }
 
+    /** Incoming call / Siri / permanent focus loss: the reducer's systemInterruption still closes as before. */
     @Test
-    fun background_closes_realtime() = runTest {
+    fun realtime_system_interruption_closes() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val engine = r.realtime()
         r.send(RealtimeSessionEvent.Ready)
         engine.systemInterruption()
@@ -480,13 +896,138 @@ class RealtimeVoiceSessionWiringTest {
         assertFalse(engine.active.value)
         assertFalse(r.builder.realtimeActive)
         assertEquals(VoiceConversationEvent.Ended(EndReason.SYSTEM, null), r.events.last())
+        assertEquals(1, r.foreground.stops)
         r.scope.cancel()
+    }
+
+    /** Going to background / screen lock is not a reducer input: the session does not drop and turns keep going; 120 s with nobody speaking in the background still ends. */
+    @Test
+    fun realtime_background_keeps_session() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        r.send(RealtimeSessionEvent.Ready)
+        for (event in listOf("enterBackground", "screenLock")) {
+            assertEquals(RealtimeModel.LifecycleResult(RealtimeModel.LIFECYCLE_CONTINUE, null), RealtimeModel.lifecycle(event))
+        }
+        testScheduler.advanceTimeBy(60_000)
+        testScheduler.runCurrent()
+        assertTrue(engine.active.value)
+        assertEquals(0, r.connection.closes)
+        r.turn("still there?", "yes")
+        assertEquals(listOf("still there?", "yes"), r.added.map { it.text })
+        assertTrue(engine.active.value)
+        assertEquals(0, r.foreground.stops)
+        testScheduler.advanceTimeBy(RealtimeConversationConstants.IDLE_END_MS + 1)
+        testScheduler.runCurrent()
+        assertFalse(engine.active.value)
+        assertEquals(1, r.connection.closes)
+        assertEquals(VoiceConversationEvent.Ended(EndReason.IDLE, null), r.events.last())
+        assertEquals(1, r.foreground.stops)
+        r.scope.cancel()
+    }
+
+    @Test
+    fun realtime_starts_foreground_service() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        assertEquals(1, r.foreground.awaits)
+        assertEquals(1, r.connection.opened)
+        assertTrue(engine.active.value)
+        assertEquals(0, r.foreground.stops)
+        r.scope.cancel()
+
+        // The service did not run into the foreground: same as the cascade, a start failure does not enter the session and reports no telemetry; the connection and sink are closed and the service is stopped.
+        val failed = Rig(this, entry, provider)
+        failed.foreground.started = false
+        failed.selectRealtime(cloud)
+        val refused = failed.realtime()
+        assertEquals(0, failed.connection.opened)
+        assertEquals(1, failed.connection.closes)
+        assertFalse(refused.active.value)
+        assertFalse(failed.builder.realtimeActive)
+        assertEquals(listOf<VoiceConversationEvent>(VoiceConversationEvent.StartFailed(StartFailure.FOREGROUND)), failed.events)
+        assertEquals(1, failed.foreground.stops)
+        assertTrue(failed.sinks.single().closed)
+        failed.scope.cancel()
+    }
+
+    @Test
+    fun notification_end_ends_as_user() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        r.send(RealtimeSessionEvent.Ready)
+        r.foreground.ends.tryEmit(Unit)
+        testScheduler.runCurrent()
+        assertFalse(engine.active.value)
+        assertEquals(1, r.connection.closes)
+        assertEquals(VoiceConversationEvent.Ended(EndReason.USER, null), r.events.last())
+        assertEquals(1, r.foreground.stops)
+        // No more "end" notifications after the session ends.
+        val events = r.events.size
+        r.foreground.ends.tryEmit(Unit)
+        testScheduler.runCurrent()
+        assertEquals(events, r.events.size)
+        r.scope.cancel()
+    }
+
+    @Test
+    fun realtime_end_stops_service() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        r.send(RealtimeSessionEvent.Ready)
+        assertEquals(0, r.foreground.stops)
+        engine.end(EndReason.USER)
+        testScheduler.runCurrent()
+        assertFalse(engine.active.value)
+        assertEquals(1, r.foreground.stops)
+        r.scope.cancel()
+    }
+
+    /** realtime-model.v1 lifecycleCases: continue keeps the session alive; end ends it with system via the reducer systemInterruption. */
+    @Test
+    fun lifecycle_cases_match_fixture() = runTest {
+        val fixture = Json.parseToJsonElement(workspaceFile("shared/voice-contracts/realtime-model.v1.json").readText()).jsonObject
+        val cases = fixture["lifecycleCases"]!!.jsonArray.map { it.jsonObject }
+        assertEquals(6, cases.size)
+        for (case in cases) {
+            val id = case["id"]!!.jsonPrimitive.content
+            val expected = case["expected"]!!.jsonObject
+            val reducerInput = expected["reducerInput"].takeUnless { it == null || it is JsonNull }?.jsonPrimitive?.content
+            val result = RealtimeModel.lifecycle(case["input"]!!.jsonObject["event"]!!.jsonPrimitive.content)
+            assertEquals(id, RealtimeModel.LifecycleResult(expected["action"]!!.jsonPrimitive.content, reducerInput), result)
+            val r = Rig(this, entry, provider)
+            r.selectRealtime(cloud)
+            val engine = r.realtime()
+            r.send(RealtimeSessionEvent.Ready)
+            if (result.reducerInput == RealtimeModel.REDUCER_SYSTEM_INTERRUPTION) engine.systemInterruption()
+            testScheduler.runCurrent()
+            val ends = result.action == RealtimeModel.LIFECYCLE_END
+            assertEquals(id, !ends, engine.active.value)
+            assertEquals(id, if (ends) 1 else 0, r.connection.closes)
+            assertEquals(id, if (ends) 1 else 0, r.foreground.stops)
+            if (ends) assertEquals(id, VoiceConversationEvent.Ended(EndReason.SYSTEM, null), r.events.last())
+            r.scope.cancel()
+        }
+    }
+
+    private fun workspaceFile(relative: String): File {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, relative)
+            if (candidate.exists()) return candidate
+            dir = dir.parentFile
+        }
+        throw IllegalStateException("could not find $relative")
     }
 
     @Test
     fun home_realtime_creates_conversation_on_first_persist() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val home = Any()
         r.home(home)
         r.send(RealtimeSessionEvent.Ready)
@@ -500,7 +1041,7 @@ class RealtimeVoiceSessionWiringTest {
         assertEquals(listOf("new-1", "new-1"), r.addedTo)
         assertEquals(listOf(ChatRole.User, ChatRole.Assistant), r.added.map { it.role })
         assertEquals("gpt-realtime", r.updated.single().modelID)
-        // While navigating the home page is still the owner and the handoff is not complete: the home host leaving does not end the session.
+        // During the jump the home page is still the owner and the handover is incomplete: the home host leaving does not end the session.
         assertTrue(r.sessions.ownedBy(home))
         assertTrue(r.sessions.handingOff)
         r.scope.cancel()
@@ -509,7 +1050,7 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun home_realtime_no_persist_leaves_no_conversation() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val engine = r.home(Any())
         r.send(RealtimeSessionEvent.Ready, RealtimeSessionEvent.UserSpeechStarted(null))
         engine.end(EndReason.USER)
@@ -526,7 +1067,7 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun home_realtime_continues_after_handoff() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val engine = r.home(Any())
         r.send(RealtimeSessionEvent.Ready)
         r.turn("first", "one")
@@ -535,7 +1076,7 @@ class RealtimeVoiceSessionWiringTest {
         assertTrue(r.sessions.attach("new-1", chatPage) { NoChat })
         assertTrue(r.sessions.ownedBy(chatPage))
         assertFalse(r.sessions.handingOff)
-        // The chat page takes over the same realtime engine instance; the connection stays up.
+        // The chat page takes over the same realtime engine instance; the connection does not drop.
         assertTrue(r.builder.running === engine)
         assertTrue(engine.active.value)
         assertEquals(0, r.connection.closes)
@@ -552,7 +1093,7 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun plan_uses_chat_send_context() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val skill = Skill(id = "skill-1", name = "Tutor", systemPrompt = "SKILL-PROMPT-tutor")
         val note = Note(
             id = "11111111-1111-1111-1111-111111111111",
@@ -571,14 +1112,16 @@ class RealtimeVoiceSessionWiringTest {
         val coordinator = ChatSendCoordinator(
             chatStreamingManager = mockk<ChatStreamingManager>(relaxed = true),
             applicationScope = r.scope,
-            skillProvider = { id -> skill.takeIf { it.id == id } },
+            skillDependencies = object : ai.oriveo.community.core.skills.SkillTurnDependencies {
+                override suspend fun skill(id: String) = skill.takeIf { it.id == id }
+            },
             pinnedNotesResolver = { listOf(note) },
             pendingPinnedNoteIds = { emptyList() },
             generationParameterSettingsStore = GenerationParameterSettingsStore(readPayload = { null }, writePayload = {}),
             reminderEnabled = { true },
         )
         r.edit = { it.copy(useMemory = true, skillId = skill.id, pinnedNoteIds = listOf(note.id)) }
-        // Chat page wiring: sendCoordinator::realtimeSessionContext + this page's memory list.
+        // As chat page wiring: sendCoordinator::realtimeSessionContext + this page's memory list.
         r.contextRequest = { c -> coordinator.realtimeSessionContext(c, listOf(memory)) }
         r.realtime()
 
@@ -607,29 +1150,34 @@ class RealtimeVoiceSessionWiringTest {
     }
 
     @Test
-    fun fallback_shows_engine_fallback_toast() = runTest {
+    fun selected_model_missing_from_catalog_fails_model_gone() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud.copy(connectionId = "gone"))
+        val missing = cloud.copy(model = "gpt-realtime-retired")
+        r.selectRealtime(missing)
         r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
-        val choice = r.builder.prepare("c1", r.contextRequest) as RealtimeVoiceSessionChoice.Cascade
-        assertEquals(VoiceFallbackReason.ConnectionMissing, choice.fallback)
-        assertEquals(R.string.voice_realtime_engine_fallback_toast, choice.toast)
-        // The fallback is announced only once: entering again shows no toast.
-        assertNull((r.builder.prepare("c1", r.contextRequest) as RealtimeVoiceSessionChoice.Cascade).toast)
+        val choice = r.builder.prepare("c1", r.contextRequest, selected = missing)
+        assertEquals(
+            RealtimeVoiceSessionChoice.Failed(
+                RealtimeFailure(RealtimeModel.CATEGORY_MODEL_GONE, provider.id, "Work OpenAI", "gpt-realtime-retired"),
+            ),
+            choice,
+        )
+        assertEquals(missing, r.settings.selection(VoiceDirection.Realtime))
+        assertTrue(r.made.isEmpty())
         r.scope.cancel()
     }
 
-    /** Chat page draft (no conversation row yet): the first persist goes through the chat page's own create-conversation callback, and no message is lost. */
+    /** Chat page draft (no conversation row yet): the first persist goes through the chat page's own create-conversation callback; no message is lost. */
     @Test
     fun chat_without_conversation_creates_on_first_persist() = runTest {
-        // The replan runs on the test scheduler: the turn-boundary replan after the first persist is production behavior (realtime-session.v1), and its result is visible in the same turn
+        // Replan runs on the test scheduler: the turn-boundary replan after the first persist is production behavior (realtime-session.v1), and the result is visible in the same turn.
         val r = Rig(this, entry, provider, replanInline = true)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
         val draft = Conversation(id = "", title = "", providerID = provider.id, providerKind = provider.kind, modelID = "gpt-5")
-        val choice = r.builder.prepare(null, r.contextRequest, { draft }) {
+        val choice = r.builder.prepare(null, r.contextRequest, { draft }, {
             "chat-new".also { r.created += it }
-        }
+        }, r.selected)
         val engine = (choice as RealtimeVoiceSessionChoice.Realtime).engine
         engine.start(NoChat)
         testScheduler.runCurrent()
@@ -640,15 +1188,612 @@ class RealtimeVoiceSessionWiringTest {
         assertEquals(listOf("chat-new"), r.created)
         assertEquals(listOf("chat-new", "chat-new"), r.addedTo)
         assertEquals(listOf("hello there", "hi"), r.added.map { it.text })
-        // One plan at open + one at the first-turn boundary replan, both for the same model
+        // Opening once + the first turn-boundary replan once: both plans are for the same model.
         assertEquals(listOf("gpt-5", "gpt-5"), r.planned.map { it.modelID })
         r.scope.cancel()
+    }
+
+    /** Chat page list = persisted messages + temporary bubbles: a bubble appears only when it has text, reveals by what has been played, is replaced by the formal message after persisting, and the same sentence appears only once. */
+    @Test
+    fun chat_list_shows_live_bubbles_then_persisted_once() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        val source = checkNotNull(ai.oriveo.community.feature.chat.realtimeLiveBubbleSource(engine.drafts, engine.attribution, engine.callMessageIds))
+        fun shown() = r.added + ai.oriveo.community.feature.chat.RealtimeLiveHandover(source.callMessageIds.value)
+            .bubbles(engine.drafts.value, r.added, source.attribution)
+        fun list() = shown().map { Triple(it.role, it.text, it.id.startsWith("realtime_live")) }
+        r.send(RealtimeSessionEvent.Ready, RealtimeSessionEvent.UserSpeechStarted(null))
+        assertEquals(emptyList<Triple<ChatRole, String, Boolean>>(), list())
+
+        r.send(RealtimeSessionEvent.UserTranscript(null, "hello", final = false))
+        assertEquals(listOf(Triple(ChatRole.User, "hello", true)), list())
+
+        r.send(RealtimeSessionEvent.UserSpeechStopped(null), RealtimeSessionEvent.UserTranscript(null, "hello there", final = true))
+        assertEquals(listOf(Triple(ChatRole.User, "hello there", false)), list())
+
+        // The ideal player plays as soon as it receives: the next played-progress report (≤ 100 ms) reveals the whole sentence.
+        r.send(assistantAudio(), RealtimeSessionEvent.AssistantTranscript(null, "hi", final = false))
+        testScheduler.advanceTimeBy(ai.oriveo.community.core.voice.realtime.RealtimeVoiceConversationController.PROGRESS_INTERVAL_MS)
+        testScheduler.runCurrent()
+        assertEquals(listOf(Triple(ChatRole.User, "hello there", false), Triple(ChatRole.Assistant, "hi", true)), list())
+        // The header of the temporary AI bubble = the header of the formal message (the realtime-selected catalog model), so it does not jump on replacement.
+        val live = shown().last()
+        assertEquals(entry.model, live.modelName)
+
+        r.send(RealtimeSessionEvent.AssistantTurnDone(null, RealtimeTurnStatus.Completed, "hi"))
+        assertEquals(listOf(Triple(ChatRole.User, "hello there", false), Triple(ChatRole.Assistant, "hi", false)), list())
+        val stored = r.added.last()
+        assertEquals(
+            listOf(stored.providerID, stored.providerKind, stored.providerName, stored.modelID, stored.modelName),
+            listOf(live.providerID, live.providerKind, live.providerName, live.modelID, live.modelName),
+        )
+        r.scope.cancel()
+    }
+
+    /** After the persist effect has cleared the draft but the formal message has not yet entered the list: the temporary bubble keeps the last sentence and is only removed when a same-role message added in the conversation appears, so there is no blank gap. */
+    @Test
+    fun live_bubble_hands_over_without_gap() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        val attribution = checkNotNull(engine.attribution)
+        // Same-role messages already in the list before entering the session do not count as a replacement.
+        val earlier = listOf(
+            ChatMessage(id = "old-u", role = ChatRole.User, text = "hello there", providerKind = provider.kind,
+                providerName = "", modelName = "", state = ChatMessageState.Delivered),
+            ChatMessage(id = "old-a", role = ChatRole.Assistant, text = "hi", providerKind = provider.kind,
+                providerName = "", modelName = "", state = ChatMessageState.Delivered),
+        )
+        fun live(listed: List<ChatMessage>) = ai.oriveo.community.feature.chat.RealtimeLiveHandover(engine.callMessageIds.value)
+            .bubbles(engine.drafts.value, earlier + listed, attribution).map { it.role to it.text }
+        r.send(
+            RealtimeSessionEvent.Ready,
+            RealtimeSessionEvent.UserSpeechStarted(null),
+            RealtimeSessionEvent.UserTranscript(null, "hello", final = false),
+        )
+        assertEquals(listOf(ChatRole.User to "hello"), live(emptyList()))
+        r.send(RealtimeSessionEvent.UserSpeechStopped(null), RealtimeSessionEvent.UserTranscript(null, "hello there", final = true))
+        assertEquals(null, engine.drafts.value.user)
+        // The formal message has not reached the list yet: the same sentence stays.
+        assertEquals(listOf(ChatRole.User to "hello there"), live(emptyList()))
+        val user = r.added.single()
+        assertEquals(emptyList<Pair<ChatRole, String>>(), live(listOf(user)))
+
+        r.send(assistantAudio(), RealtimeSessionEvent.AssistantTranscript(null, "hi", final = false))
+        testScheduler.advanceTimeBy(ai.oriveo.community.core.voice.realtime.RealtimeVoiceConversationController.PROGRESS_INTERVAL_MS)
+        testScheduler.runCurrent()
+        assertEquals(listOf(ChatRole.Assistant to "hi"), live(listOf(user)))
+        r.send(RealtimeSessionEvent.AssistantTurnDone(null, RealtimeTurnStatus.Completed, "hi"))
+        assertEquals(null, engine.drafts.value.assistant)
+        assertEquals(listOf(ChatRole.Assistant to "hi"), live(listOf(user)))
+        assertEquals(emptyList<Pair<ChatRole, String>>(), live(r.added))
+        r.scope.cancel()
+    }
+
+    /** This session's user sentence was already persisted before the list attached to the realtime session (home creates the conversation first, then jumps to the page): counted by the id written in this session, so the same sentence appears only once. */
+    @Test
+    fun live_bubble_no_duplicate_when_persisted_before_handover_set() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        val attribution = checkNotNull(engine.attribution)
+        r.send(
+            RealtimeSessionEvent.Ready,
+            RealtimeSessionEvent.UserSpeechStarted(null),
+            RealtimeSessionEvent.UserSpeechStopped(null),
+            RealtimeSessionEvent.UserTranscript(null, "hello there", final = true),
+        )
+        val user = r.added.single()
+        assertEquals(setOf(user.id), engine.callMessageIds.value)
+        // At this moment the list attaches the temporary bubble: this session's user sentence is already in the list.
+        fun list(): List<Triple<ChatRole, String, Boolean>> {
+            val listed = r.added
+            val live = ai.oriveo.community.feature.chat.RealtimeLiveHandover(engine.callMessageIds.value)
+                .bubbles(engine.drafts.value, listed, attribution)
+            return (listed + live).map { Triple(it.role, it.text, it.id.startsWith("realtime_live")) }
+        }
+        assertEquals(listOf(Triple(ChatRole.User, "hello there", false)), list())
+        r.scope.cancel()
+    }
+
+    /** Entering from home: after the conversation is created and the page jumps, the chat page attaches to the realtime session, and this session's user sentence and reply each appear only once. */
+    @Test
+    fun home_entry_user_line_shows_once_after_persist() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.home(Any())
+        val attribution = checkNotNull(engine.attribution)
+        r.send(
+            RealtimeSessionEvent.Ready,
+            RealtimeSessionEvent.UserSpeechStarted(null),
+            RealtimeSessionEvent.UserSpeechStopped(null),
+            RealtimeSessionEvent.UserTranscript(null, "first", final = true),
+        )
+        assertEquals(listOf("new-1"), r.navigated)
+        // Chat page new-1: list = persisted messages + this session's temporary bubble.
+        fun list() = (r.added + ai.oriveo.community.feature.chat.RealtimeLiveHandover(engine.callMessageIds.value)
+            .bubbles(engine.drafts.value, r.added, attribution))
+            .map { Triple(it.role, it.text, it.id.startsWith("realtime_live")) }
+        assertEquals(listOf(Triple(ChatRole.User, "first", false)), list())
+
+        r.send(assistantAudio(), RealtimeSessionEvent.AssistantTranscript(null, "one", final = false))
+        testScheduler.advanceTimeBy(ai.oriveo.community.core.voice.realtime.RealtimeVoiceConversationController.PROGRESS_INTERVAL_MS)
+        testScheduler.runCurrent()
+        assertEquals(listOf(Triple(ChatRole.User, "first", false), Triple(ChatRole.Assistant, "one", true)), list())
+        r.send(RealtimeSessionEvent.AssistantTurnDone(null, RealtimeTurnStatus.Completed, "one"))
+        assertEquals(listOf(Triple(ChatRole.User, "first", false), Triple(ChatRole.Assistant, "one", false)), list())
+        r.scope.cancel()
+    }
+
+    /** Chat target for the realtime model selected on chat page conversation c1 (used by the typed-state cases). */
+    private fun Rig.typingTarget() = VoiceConversationTarget.Chat(
+        conversationId = "c1",
+        context = contextRequest,
+        createConversation = { "unused" },
+        realtimeSelection = cloud.copy(voice = null),
+    ) { NoChat }
+
+    /** As the host's typed-state wiring: without a conversation, open a playback-only connection per the target, start the mediaPlayback foreground service, and send after the session starts. */
+    private suspend fun Rig.typed(
+        text: String,
+        running: RealtimeVoiceConversationEngine?,
+        onOutcome: (String) -> Unit = {},
+        startService: () -> VoiceConversationServiceStarter.Result = { VoiceConversationServiceStarter.Result.Started },
+    ): RealtimeVoiceSessionChoice? {
+        val choice = sendRealtimeTyped(
+            text = text,
+            running = running,
+            open = { prepareRealtimeVoiceSession(builder, typingTarget(), contextRequest, capture = false) { null } },
+            startService = startService,
+            onOutcome = onOutcome,
+        ) { engine ->
+            scope.launch { engine.events.collect { events += it } }
+            engine.start(NoChat)
+        }
+        test.testScheduler.runCurrent()
+        return choice
+    }
+
+    /** Existing realtime session: the typed state sends on the same connection without creating another; persisted on the final user transcript. */
+    @Test
+    fun typing_send_reuses_session() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        r.send(RealtimeSessionEvent.Ready)
+        val choice = r.typed("what time is it", engine)
+        assertNull(choice)
+        assertEquals(1, r.made.size)
+        assertEquals(1, r.connection.opened)
+        assertEquals(listOf("what time is it"), r.connection.texts)
+        r.send(
+            RealtimeSessionEvent.AssistantTranscript(null, "noon", final = true),
+            RealtimeSessionEvent.AssistantTurnDone(null, RealtimeTurnStatus.Completed, "noon"),
+        )
+        assertEquals(listOf(ChatRole.User to "what time is it", ChatRole.Assistant to "noon"), r.added.map { it.role to it.text })
+        r.scope.cancel()
+    }
+
+    /** No conversation: open a playback-only connection with the selected model (no capture, no foreground service), send once ready; the voice station reuses the same connection to start capture later. */
+    @Test
+    fun typing_send_opens_without_capture() = runTest {
+        val r = Rig(this, entry, provider)
+        r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val engine = (r.typed("hello", null) as RealtimeVoiceSessionChoice.Realtime).engine
+        assertTrue(engine.active.value)
+        assertFalse(engine.capturing.value)
+        assertEquals("gpt-realtime", r.made.single().second.model)
+        assertEquals(listOf(VoiceConversationService.Kind.MediaPlayback), r.foreground.kinds)
+        // Do not send before ready, do not create the conversation or persist (queued, not dispatched to the reducer): a session whose connection is not built yet would lose the message.
+        assertTrue(r.connection.texts.isEmpty())
+        assertTrue(r.added.isEmpty())
+        r.send(RealtimeSessionEvent.Ready)
+        val audio = r.audios.single()
+        assertEquals(1, audio.playbackStarts)
+        assertEquals(0, audio.captureStarts)
+        assertNull(audio.onFrame)
+        assertEquals(listOf("hello"), r.connection.texts)
+        r.send(
+            RealtimeSessionEvent.AssistantTranscript(null, "hi there", final = true),
+            RealtimeSessionEvent.AssistantTurnDone(null, RealtimeTurnStatus.Completed, "hi there"),
+        )
+        assertEquals(listOf("hello", "hi there"), r.added.map { it.text })
+
+        engine.startCapture()
+        testScheduler.runCurrent()
+        assertTrue(engine.capturing.value)
+        assertEquals(
+            listOf(VoiceConversationService.Kind.MediaPlayback, VoiceConversationService.Kind.Microphone),
+            r.foreground.kinds,
+        )
+        assertEquals(1, audio.captureStarts)
+        checkNotNull(audio.onFrame)(ByteArray(960))
+        assertTrue(r.connection.sent > 0)
+        assertEquals(1, r.made.size)
+        engine.end(EndReason.USER)
+        testScheduler.runCurrent()
+        assertEquals(1, r.foreground.stops)
+        r.scope.cancel()
+    }
+
+    /** Typed-open session: one round finished speaking, stopped in the state waiting for the user. */
+    private suspend fun Rig.typedIdle(): RealtimeVoiceConversationEngine {
+        settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val engine = (typed("hello", null) as RealtimeVoiceSessionChoice.Realtime).engine
+        send(RealtimeSessionEvent.Ready)
+        send(
+            RealtimeSessionEvent.AssistantTranscript(null, "hi there", final = true),
+            RealtimeSessionEvent.AssistantTurnDone(null, RealtimeTurnStatus.Completed, "hi there"),
+        )
+        return engine
+    }
+
+    /** The playback-only session starts the same foreground service with mediaPlayback: going to background / screen lock keeps it per fixture lifecycle = continue; 120 s idle still ends it. */
+    @Test
+    fun playback_only_session_survives_background() = runTest {
+        val r = Rig(this, entry, provider)
+        val engine = r.typedIdle()
+        assertFalse(engine.capturing.value)
+        assertEquals(listOf(VoiceConversationService.Kind.MediaPlayback), r.foreground.kinds)
+        for (event in listOf("enterBackground", "screenLock")) {
+            assertEquals(RealtimeModel.LifecycleResult(RealtimeModel.LIFECYCLE_CONTINUE, null), RealtimeModel.lifecycle(event))
+        }
+        testScheduler.advanceTimeBy(60_000)
+        testScheduler.runCurrent()
+        assertTrue(engine.active.value)
+        assertEquals(0, r.connection.closes)
+        assertEquals(0, r.foreground.stops)
+        testScheduler.advanceTimeBy(RealtimeConversationConstants.IDLE_END_MS + 1)
+        testScheduler.runCurrent()
+        assertFalse(engine.active.value)
+        assertEquals(1, r.connection.closes)
+        assertEquals(VoiceConversationEvent.Ended(EndReason.IDLE, null), r.events.last())
+        assertEquals(1, r.foreground.stops)
+        r.scope.cancel()
+    }
+
+    /** Voice station reuses capture: the same foreground service switches to microphone (no stop, no restart); the "end" notification still ends with user. */
+    @Test
+    fun capture_upgrade_switches_service_to_microphone() = runTest {
+        val r = Rig(this, entry, provider)
+        val engine = r.typedIdle()
+        engine.startCapture()
+        testScheduler.runCurrent()
+        assertTrue(engine.capturing.value)
+        assertEquals(
+            listOf(VoiceConversationService.Kind.MediaPlayback, VoiceConversationService.Kind.Microphone),
+            r.foreground.kinds,
+        )
+        assertEquals(0, r.foreground.stops)
+        assertEquals(1, r.audios.single().captureStarts)
+        assertEquals(1, r.made.size)
+        r.foreground.ends.tryEmit(Unit)
+        testScheduler.runCurrent()
+        assertFalse(engine.active.value)
+        assertEquals(VoiceConversationEvent.Ended(EndReason.USER, null), r.events.last())
+        assertEquals(1, r.foreground.stops)
+        r.scope.cancel()
+    }
+
+    /** The realtime entry foreground service fails to start (typed open, ≋ open, reuse capture): an unknown failure card on the station, no toast. */
+    @Test
+    fun foreground_start_failure_shows_unknown_card_no_toast() = runTest {
+        // Typed open: the service is refused → Failed(unknown), the connection does not open, the sink is closed, no events.
+        val typed = Rig(this, entry, provider)
+        typed.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val rejected = typed.typed("hello", null) {
+            VoiceConversationServiceStarter.Result.Rejected(SecurityException("denied"))
+        }
+        assertEquals(RealtimeModel.CATEGORY_UNKNOWN, (rejected as RealtimeVoiceSessionChoice.Failed).failure.category)
+        assertEquals("gpt-realtime", rejected.failure.model)
+        assertEquals(0, typed.connection.opened)
+        assertTrue(typed.connection.texts.isEmpty())
+        assertTrue(typed.sinks.single().closed)
+        assertTrue(typed.events.isEmpty())
+        typed.scope.cancel()
+
+        // ≋ open: the service does not run into the foreground → failure card unknown; StartFailed on a realtime session does not toast (the cascade still toasts as before).
+        val voice = Rig(this, entry, provider)
+        voice.foreground.started = false
+        voice.selectRealtime(cloud)
+        val refused = voice.realtime()
+        assertFalse(refused.active.value)
+        assertEquals(RealtimeModel.CATEGORY_UNKNOWN, refused.failure.value?.category)
+        assertEquals(refused.unknownFailure(), refused.failure.value)
+        val startFailed = VoiceConversationEvent.StartFailed(StartFailure.FOREGROUND)
+        assertEquals(listOf<VoiceConversationEvent>(startFailed), voice.events)
+        assertNull(voiceConversationEventToast(startFailed, realtime = true))
+        assertEquals(R.string.voice_conversation_start_failed_toast to emptyList<Any>(), voiceConversationEventToast(startFailed))
+        voice.scope.cancel()
+
+        // Reuse capture: the service cannot switch to microphone → failure card unknown; the playback-only session is closed and the service stopped; no event toasts.
+        val upgrade = Rig(this, entry, provider)
+        val engine = upgrade.typedIdle()
+        upgrade.foreground.refused += VoiceConversationService.Kind.Microphone
+        engine.startCapture()
+        testScheduler.runCurrent()
+        assertFalse(engine.capturing.value)
+        assertFalse(engine.active.value)
+        assertEquals(RealtimeModel.CATEGORY_UNKNOWN, engine.failure.value?.category)
+        assertEquals(0, upgrade.audios.single().captureStarts)
+        assertEquals(1, upgrade.connection.closes)
+        assertEquals(1, upgrade.foreground.stops)
+        assertTrue(upgrade.events.none { voiceConversationEventToast(it, realtime = true) != null })
+        // The host's start is refused (onStartFailed) goes through the same path: an already-ended session is not collected again.
+        engine.captureStartFailed()
+        testScheduler.runCurrent()
+        assertEquals(1, upgrade.foreground.stops)
+        upgrade.scope.cancel()
+    }
+
+    /** Back to the voice station (typed-open session, AI not speaking): reuse capture on the same connection, without interrupting or opening another connection. */
+    @Test
+    fun back_to_stage_resumes_capture_on_typed_session() = runTest {
+        val r = Rig(this, entry, provider)
+        val engine = r.typedIdle()
+        resumeCaptureBackToStage(engine)
+        testScheduler.runCurrent()
+        assertTrue(engine.capturing.value)
+        assertTrue(engine.active.value)
+        assertEquals(1, r.audios.single().captureStarts)
+        assertTrue(r.connection.log.none { it.startsWith("truncate:") })
+        assertEquals(1, r.made.size)
+        assertEquals(1, r.connection.opened)
+        r.scope.cancel()
+    }
+
+    /** Back to the voice station as backToStage: without a session → only exits the typed state and shows the idle station, sends no request; a typed-open session running → sends a request to reuse capture. */
+    @Test
+    fun back_to_stage_without_session_only_leaves_typing() = runTest {
+        var realtimeTyping = true
+        var requests = 0
+        backToVoiceStage(typedRealtimeSessionRunning(null), leaveTyping = { realtimeTyping = false }) { requests++ }
+        assertFalse(realtimeTyping)
+        assertEquals(0, requests)
+
+        val r = Rig(this, entry, provider)
+        val engine = r.typedIdle()
+        realtimeTyping = true
+        backToVoiceStage(typedRealtimeSessionRunning(engine), leaveTyping = { realtimeTyping = false }) { requests++ }
+        assertFalse(realtimeTyping)
+        assertEquals(1, requests)
+        // Already capturing (the stage is running) does not send again.
+        engine.startCapture()
+        testScheduler.runCurrent()
+        backToVoiceStage(typedRealtimeSessionRunning(engine), leaveTyping = {}) { requests++ }
+        assertEquals(1, requests)
+        r.scope.cancel()
+    }
+
+    /** Back to the voice station while the AI is speaking: first interrupt as the orb tap does (truncating the item being played), then reuse capture on the same connection. */
+    @Test
+    fun back_to_stage_while_speaking_interrupts_first() = runTest {
+        val r = Rig(this, entry, provider)
+        r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val engine = (r.typed("hello", null) as RealtimeVoiceSessionChoice.Realtime).engine
+        r.send(RealtimeSessionEvent.Ready)
+        val pcm = ai.oriveo.community.core.voice.realtime.RealtimePCM.toLittleEndian(ShortArray(2_400) { 1_000 })
+        r.send(
+            RealtimeSessionEvent.AssistantTranscript("a1", "a long answer", final = false),
+            RealtimeSessionEvent.AssistantAudio("a1", 0, java.util.Base64.getEncoder().encodeToString(pcm), 24_000),
+        )
+        r.audios.single().playing = true
+        assertEquals(ConversationStatusKey.SPEAKING, engine.statusKey.value)
+        assertFalse(engine.capturing.value)
+        resumeCaptureBackToStage(engine)
+        testScheduler.runCurrent()
+        assertEquals(listOf("text:hello", "truncate:a1"), r.connection.log)
+        assertTrue(engine.capturing.value)
+        assertEquals(1, r.audios.single().captureStarts)
+        assertEquals(1, r.made.size)
+        assertEquals(1, r.connection.opened)
+        r.scope.cancel()
+    }
+
+    /** AI speaking and a send = barge-in: first truncate the item being played by the played ms, then send the text. */
+    @Test
+    fun typing_send_while_speaking_interrupts_first() = runTest {
+        val r = Rig(this, entry, provider)
+        r.selectRealtime(cloud)
+        val engine = r.realtime()
+        r.send(RealtimeSessionEvent.Ready)
+        val pcm = ai.oriveo.community.core.voice.realtime.RealtimePCM.toLittleEndian(ShortArray(2_400) { 1_000 })
+        r.send(
+            RealtimeSessionEvent.AssistantTranscript("a1", "a long answer", final = false),
+            RealtimeSessionEvent.AssistantAudio("a1", 0, java.util.Base64.getEncoder().encodeToString(pcm), 24_000),
+        )
+        r.audios.single().playing = true
+        assertEquals(ConversationStatusKey.SPEAKING, engine.statusKey.value)
+        r.typed("stop", engine)
+        // Starting to speak triggers barge-in typed_N: the truncation comes before the text is sent.
+        assertEquals(listOf("truncate:a1", "text:stop"), r.connection.log)
+        assertEquals(ConversationStatusKey.THINKING, engine.statusKey.value)
+        assertEquals(1, r.made.size)
+        r.scope.cancel()
+    }
+
+    /** Send coordinator when the chat page has a realtime model selected (launchSend calls are counted; consumed clears the input box). */
+    private fun Rig.typingCoordinator(
+        consumed: MutableList<String>,
+        onLaunch: () -> Unit = {},
+    ): ai.oriveo.community.feature.chat.ChatSendCommandCoordinator {
+        val providers = io.mockk.mockk<ai.oriveo.community.core.data.repository.ProviderRepository>()
+        io.mockk.coEvery { providers.getById(provider.id) } returns provider
+        val prefs = io.mockk.mockk<ai.oriveo.community.core.app.AppPreferencesRepository>(relaxed = true)
+        io.mockk.coEvery { prefs.hasAcceptedProviderDisclosure(any()) } returns true
+        return ai.oriveo.community.feature.chat.ChatSendCommandCoordinator(
+            viewModelScope = scope,
+            appPreferencesRepository = prefs,
+            providerRepository = providers,
+            conversationRepository = io.mockk.mockk(relaxed = true),
+            currentConversation = { null },
+            currentConversationId = { "c1" },
+            onProviderSelectionError = {},
+            onProviderResolutionError = {},
+            onModelSelectionError = { error("realtime model must resolve") },
+            onDisclosureRequired = { _, _ -> error("no text disclosure") },
+            onConversationActivated = {},
+            onComposerConsumed = { consumed += it },
+            requestPin = {},
+            onSendSettled = {},
+            launchSend = { _, _, _, _, _, _, _, _, _, _, _, _, _, _ -> onLaunch() },
+            voiceCatalog = { catalog },
+        )
+    }
+
+    /** Typed send with a realtime model selected on the chat page: handed to the host to send to the realtime connection, never through the text chat API (neither launchSend nor the port send is touched). */
+    @Test
+    fun typing_send_never_hits_chat_api() = runTest {
+        val r = Rig(this, entry, provider)
+        r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        var launches = 0
+        val consumed = mutableListOf<String>()
+        val coordinator = r.typingCoordinator(consumed) { launches++ }
+        val typed = mutableListOf<String>()
+        r.scope.launch { coordinator.realtimeTyped.collect { typed += it } }
+        coordinator.sendMessage(text = "hello", attachments = null, providerId = provider.id, modelId = entry.model)
+        testScheduler.runCurrent()
+        assertEquals(listOf("hello"), typed)
+        assertEquals(0, launches)
+        // Handing it off does not mean persisted; the input box keeps the text for now.
+        assertTrue(consumed.isEmpty())
+        // After the host accepts it, it is sent to the realtime connection (NoChat calls report an error).
+        r.typed(typed.single(), null, onOutcome = { coordinator.realtimeTypedSettled("hello", it, "hello") })
+        r.send(RealtimeSessionEvent.Ready)
+        assertEquals(listOf("hello"), r.connection.texts)
+        assertEquals(0, launches)
+        assertEquals(listOf("c1"), consumed)
+        r.scope.cancel()
+    }
+
+    /** Typed-open session did not open (foreground service refused → failure card on the station): the input box keeps the original text; after this sentence finishes, the send key hands off the next one. */
+    @Test
+    fun typing_send_open_failed_keeps_text() = runTest {
+        val r = Rig(this, entry, provider)
+        r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val consumed = mutableListOf<String>()
+        val coordinator = r.typingCoordinator(consumed)
+        val typed = mutableListOf<String>()
+        r.scope.launch { coordinator.realtimeTyped.collect { typed += it } }
+        coordinator.sendMessage(text = "hello", attachments = null, providerId = provider.id, modelId = entry.model)
+        testScheduler.runCurrent()
+        // One sentence in flight: the send key does not hand off the next one.
+        coordinator.sendMessage(text = "hello", attachments = null, providerId = provider.id, modelId = entry.model)
+        testScheduler.runCurrent()
+        assertEquals(listOf("hello"), typed)
+        val outcomes = mutableListOf<String>()
+        val choice = r.typed(
+            typed.single(),
+            null,
+            onOutcome = {
+                outcomes += it
+                coordinator.realtimeTypedSettled("hello", it, "hello")
+            },
+        ) { VoiceConversationServiceStarter.Result.Rejected(SecurityException("denied")) }
+        assertTrue(choice is RealtimeVoiceSessionChoice.Failed)
+        assertEquals(listOf(RealtimeModel.TYPED_OPEN_FAILED), outcomes)
+        assertTrue(RealtimeModel.typedSendOutcome(RealtimeModel.TYPED_CONTEXT_CHAT, outcomes.single()).inputKeepsText)
+        assertTrue(consumed.isEmpty())
+        assertTrue(r.added.isEmpty())
+        // After it finishes, the same sentence can be sent again.
+        coordinator.sendMessage(text = "hello", attachments = null, providerId = provider.id, modelId = entry.model)
+        testScheduler.runCurrent()
+        assertEquals(listOf("hello", "hello"), typed)
+        r.scope.cancel()
+    }
+
+    /** Need to consent to realtime disclosure, user declines: hands back disclosureDeclined, the input box keeps the original text, no connection is created. */
+    @Test
+    fun typing_send_disclosure_declined_keeps_text() = runTest {
+        val r = Rig(this, entry, provider)
+        val consumed = mutableListOf<String>()
+        val coordinator = r.typingCoordinator(consumed)
+        val typed = mutableListOf<String>()
+        r.scope.launch { coordinator.realtimeTyped.collect { typed += it } }
+        coordinator.sendMessage(text = "hello", attachments = null, providerId = provider.id, modelId = entry.model)
+        testScheduler.runCurrent()
+        val outcomes = mutableListOf<Pair<String, String>>()
+        val pending = PendingTypedSend { text, outcome ->
+            outcomes += text to outcome
+            coordinator.realtimeTypedSettled(text, outcome, "hello")
+        }
+        val choice = r.typed(typed.single(), null, onOutcome = { error("disclosure holds the sentence") })
+        assertTrue(choice is RealtimeVoiceSessionChoice.Disclosure)
+        pending.hold(typed.single())
+        assertTrue(outcomes.isEmpty())
+        pending.decline()
+        assertEquals(listOf("hello" to RealtimeModel.TYPED_DISCLOSURE_DECLINED), outcomes)
+        assertTrue(consumed.isEmpty())
+        assertTrue(r.made.isEmpty())
+        // Already finished: leaving the page does not report again.
+        pending.leave()
+        assertEquals(1, outcomes.size)
+        r.scope.cancel()
+    }
+
+    /** The input box is cleared only after this sentence's user message is persisted; if the session ends before persist, endedBeforePersist is reported; if the input box has been changed when clearing, it is not cleared. */
+    @Test
+    fun typing_send_clears_after_persisted() = runTest {
+        val r = Rig(this, entry, provider)
+        r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val consumed = mutableListOf<String>()
+        val coordinator = r.typingCoordinator(consumed)
+        val outcomes = mutableListOf<String>()
+        var composer = "hello"
+        fun settle(text: String): (String) -> Unit = {
+            outcomes += it
+            coordinator.realtimeTypedSettled(text, it, composer)
+        }
+        val typed = mutableListOf<String>()
+        r.scope.launch { coordinator.realtimeTyped.collect { typed += it } }
+        coordinator.sendMessage(text = "hello", attachments = null, providerId = provider.id, modelId = entry.model)
+        testScheduler.runCurrent()
+        val engine = (r.typed(typed.last(), null, onOutcome = settle("hello")) as RealtimeVoiceSessionChoice.Realtime).engine
+        // Not persisted before ready: no clear.
+        assertTrue(outcomes.isEmpty())
+        assertTrue(consumed.isEmpty())
+        r.send(RealtimeSessionEvent.Ready)
+        assertEquals(listOf(ChatRole.User to "hello"), r.added.map { it.role to it.text })
+        assertEquals(listOf(RealtimeModel.TYPED_PERSISTED), outcomes)
+        assertEquals(listOf("c1"), consumed)
+        r.send(
+            RealtimeSessionEvent.AssistantTranscript(null, "hi there", final = true),
+            RealtimeSessionEvent.AssistantTurnDone(null, RealtimeTurnStatus.Completed, "hi there"),
+        )
+
+        // When the second sentence is persisted the user has already changed something else in the input box: no clear.
+        composer = "again"
+        coordinator.sendMessage(text = "again", attachments = null, providerId = provider.id, modelId = entry.model)
+        testScheduler.runCurrent()
+        composer = "again, edited"
+        r.typed(typed.last(), engine, onOutcome = settle("again"))
+        assertEquals(listOf(RealtimeModel.TYPED_PERSISTED, RealtimeModel.TYPED_PERSISTED), outcomes)
+        assertEquals(listOf("c1"), consumed)
+
+        // Session ends before persist: endedBeforePersist, the original text is kept.
+        val r2 = Rig(this, entry, provider)
+        r2.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val outcomes2 = mutableListOf<String>()
+        val engine2 = (r2.typed("bye", null, onOutcome = { outcomes2 += it }) as RealtimeVoiceSessionChoice.Realtime).engine
+        engine2.end(EndReason.USER)
+        testScheduler.runCurrent()
+        assertEquals(listOf(RealtimeModel.TYPED_ENDED_BEFORE_PERSIST), outcomes2)
+        assertTrue(r2.added.isEmpty())
+        r.scope.cancel()
+        r2.scope.cancel()
+    }
+
+    /** 100 ms of downlink audio (the ideal player finishes as soon as it receives it). */
+    private fun assistantAudio(): RealtimeSessionEvent {
+        val pcm = ai.oriveo.community.core.voice.realtime.RealtimePCM.toLittleEndian(ShortArray(2_400) { 1_000 })
+        return RealtimeSessionEvent.AssistantAudio(null, 0, java.util.Base64.getEncoder().encodeToString(pcm), 24_000)
     }
 
     @Test
     fun sink_closed_after_end() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val engine = r.realtime()
         r.send(RealtimeSessionEvent.Ready)
         r.turn("first", "one")
@@ -656,7 +1801,7 @@ class RealtimeVoiceSessionWiringTest {
         engine.end(EndReason.USER)
         testScheduler.runCurrent()
         assertTrue(r.sinks.single().closed)
-        // Writes already queued are still persisted; after close no new writes are accepted.
+        // Writes already queued are persisted as usual; no new writes are accepted after close.
         assertEquals(listOf("first", "one"), r.added.map { it.text })
         r.scope.cancel()
     }
@@ -664,10 +1809,10 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun sink_closed_when_prepare_fails() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
-        val engine = (r.builder.prepare("c1", r.contextRequest) as RealtimeVoiceSessionChoice.Realtime).engine
-        // Entry failed after prepare (the foreground service / session start was never reached): the engine never started, and discarding it closes the sink.
+        val engine = (r.builder.prepare("c1", r.contextRequest, selected = r.selected) as RealtimeVoiceSessionChoice.Realtime).engine
+        // Failure after prepare (foreground service / session start not reached): the engine was never started, so the sink is closed on discard.
         engine.discard()
         testScheduler.runCurrent()
         assertTrue(r.sinks.single().closed)
@@ -680,21 +1825,88 @@ class RealtimeVoiceSessionWiringTest {
     fun undisclosed_gate_before_resolve_keeps_setting() = runTest {
         val r = Rig(this, entry, provider)
         val stored = cloud.copy(connectionId = "gone")
-        r.settings.setSelection(VoiceDirection.Realtime, stored)
-        val choice = r.builder.prepare("c1", r.contextRequest)
-        // Disclosure not accepted: no resolve, no settings rewrite, no toast; this time uses the cascade.
-        assertEquals(RealtimeVoiceSessionChoice.Cascade(), choice)
-        assertNull((choice as RealtimeVoiceSessionChoice.Cascade).toast)
+        r.selectRealtime(stored)
+        val choice = r.builder.prepare("c1", r.contextRequest, selected = stored)
+        // Voice disclosure not consented: disclose first, do not resolve, do not rewrite settings, do not fall back to the cascade.
+        assertEquals(RealtimeVoiceSessionChoice.Disclosure(ProviderKind.OpenAI), choice)
         assertEquals(stored, r.settings.selection(VoiceDirection.Realtime))
         assertEquals(0, r.catalogCalls)
         assertTrue(r.made.isEmpty())
         r.scope.cancel()
     }
 
+    /** Chat page session has a realtime model selected and the engine setting is system: the orb tap opens realtime per the session's connection and model (catalog default voice). */
+    @Test
+    fun chat_realtime_tap_starts_selected_model() = runTest {
+        val r = Rig(this, entry, provider)
+        r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        val target = VoiceConversationTarget.Chat(
+            conversationId = "c1",
+            context = r.contextRequest,
+            createConversation = { "unused" },
+            realtimeSelection = cloud.copy(voice = null),
+        ) { NoChat }
+        val choice = prepareRealtimeVoiceSession(r.builder, target, r.contextRequest) { null }
+        val engine = (choice as RealtimeVoiceSessionChoice.Realtime).engine
+        engine.start(NoChat)
+        testScheduler.runCurrent()
+        val (kind, endpoint) = r.made.single()
+        assertEquals(RealtimeTransportKind.OpenAiRealtime, kind)
+        assertEquals("gpt-realtime", endpoint.model)
+        assertEquals("sk-live", endpoint.apiKey)
+        assertEquals("marin", endpoint.voice)
+        assertTrue(engine.active.value)
+        assertEquals(VoiceEngineSelection.System, r.settings.selection(VoiceDirection.Realtime))
+        r.scope.cancel()
+    }
+
+    /** Realtime selected: connection missing / model missing from catalog / catalog unavailable / plan refused → all failure cards, never fall back to the cascade. */
+    @Test
+    fun selected_realtime_never_cascades() = runTest {
+        suspend fun choice(rig: Rig, selection: VoiceEngineSelection.Cloud): RealtimeVoiceSessionChoice {
+            rig.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+            return rig.builder.prepare("c1", rig.contextRequest, selected = selection).also { rig.scope.cancel() }
+        }
+        val gone = choice(Rig(this, entry, provider), cloud.copy(connectionId = "gone"))
+        val missing = choice(Rig(this, entry, provider), cloud.copy(model = "nope"))
+        val rejected = Rig(this, entry.copy(contextWindow = 2_000), provider).apply { instructions = "word ".repeat(20_000) }
+        val planRejected = choice(rejected, cloud)
+        val noAuth = choice(Rig(this, entry, provider.copy(kind = ProviderKind.Relay)), cloud)
+        listOf(gone, missing, planRejected, noAuth).forEach { assertFalse("$it", it is RealtimeVoiceSessionChoice.Cascade) }
+        assertEquals(RealtimeModel.CATEGORY_MODEL_GONE, (gone as RealtimeVoiceSessionChoice.Failed).failure.category)
+        assertEquals(RealtimeModel.CATEGORY_MODEL_GONE, (missing as RealtimeVoiceSessionChoice.Failed).failure.category)
+        assertEquals(RealtimeModel.CATEGORY_UNKNOWN, (planRejected as RealtimeVoiceSessionChoice.Failed).failure.category)
+        assertEquals(RealtimeModel.CATEGORY_MODEL_GONE, (noAuth as RealtimeVoiceSessionChoice.Failed).failure.category)
+    }
+
+    @Test
+    fun unconsented_shows_disclosure_first() = runTest {
+        val r = Rig(this, entry, provider)
+        val target = VoiceConversationTarget.Chat(
+            conversationId = "c1",
+            context = r.contextRequest,
+            createConversation = { "unused" },
+            realtimeSelection = cloud,
+        ) { NoChat }
+        val first = prepareRealtimeVoiceSession(r.builder, target, r.contextRequest) { null }
+        assertEquals(RealtimeVoiceSessionChoice.Disclosure(ProviderKind.OpenAI), first)
+        assertEquals(0, r.catalogCalls)
+        assertTrue(r.made.isEmpty())
+        assertFalse(r.settings.disclosure.isAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime))
+
+        r.builder.acceptDisclosure(ProviderKind.OpenAI)
+        assertTrue(r.settings.disclosure.isAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime))
+        val second = prepareRealtimeVoiceSession(r.builder, target, r.contextRequest) { null }
+        assertTrue(second is RealtimeVoiceSessionChoice.Realtime)
+        assertEquals(1, r.made.size)
+        (second as RealtimeVoiceSessionChoice.Realtime).engine.discard()
+        r.scope.cancel()
+    }
+
     @Test
     fun navigation_end_writes_draft() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val engine = r.realtime()
         r.send(
             RealtimeSessionEvent.Ready,
@@ -713,25 +1925,26 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun chat_target_without_create_callback_uses_cascade() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         r.settings.disclosure.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
         val draft = Conversation(id = "", title = "", providerID = provider.id, providerKind = provider.kind, modelID = "gpt-5")
-        // The draft chat page did not wire a create-conversation callback: realtime messages have nowhere to be persisted, so this time uses the cascade instead of opening a realtime session that would lose messages.
+        // The draft chat page has no create-conversation callback attached: realtime messages have nowhere to persist, so this time it cascades instead of opening a realtime session that would lose messages.
         val target = VoiceConversationTarget.Chat(
             conversationId = null,
             context = r.contextRequest,
             newConversation = { draft },
         ) { NoChat }
         val choice = prepareRealtimeVoiceSession(r.builder, target, r.contextRequest) { null }
-        assertEquals(RealtimeVoiceSessionChoice.Cascade(), choice)
+        assertEquals(RealtimeVoiceSessionChoice.Cascade, choice)
         assertTrue(r.made.isEmpty())
         assertFalse(r.builder.realtimeActive)
-        // With the callback wired, realtime works as usual.
+        // With the callback attached it is realtime as usual.
         val withCreate = VoiceConversationTarget.Chat(
             conversationId = null,
             context = r.contextRequest,
             createConversation = { "chat-new" },
             newConversation = { draft },
+            realtimeSelection = r.selected,
         ) { NoChat }
         val realtime = prepareRealtimeVoiceSession(r.builder, withCreate, r.contextRequest) { null }
         assertTrue(realtime is RealtimeVoiceSessionChoice.Realtime)
@@ -742,8 +1955,8 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun home_plan_uses_first_send_conversation() = runTest {
         val r = Rig(this, entry, provider)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
-        // The conversation object a home first send creates: the home pill model + pending instructions, not the realtime connection / model.
+        r.selectRealtime(cloud)
+        // The conversation object for the first send created from home: the home pill model + pending instructions, not the realtime connection / model.
         val firstSend = Conversation(
             id = "",
             title = "",
@@ -755,17 +1968,15 @@ class RealtimeVoiceSessionWiringTest {
         r.chatProviders = listOf(Provider(id = "conn-home", kind = ProviderKind.Anthropic, apiKey = "sk-ant"))
         r.home(Any()) { firstSend }
         assertEquals(listOf(firstSend), r.planned)
-        // Starting a realtime call from home also writes last used: the pill's connection and model.
-        assertEquals(listOf("conn-home" to "claude-home"), r.remembered)
         assertTrue(r.connection.inputs.single().instructions.contains("HOME-PENDING-INSTRUCTIONS"))
-        // Attribution is still the realtime model.
+        // Ownership is still the realtime model.
         r.send(RealtimeSessionEvent.Ready)
         r.turn("hello", "hi")
         assertEquals("gpt-realtime", r.updated.single().modelID)
         r.scope.cancel()
     }
 
-    /** A sent message written into [conversationId] from outside the session (by another client / the chat page). */
+    /** A message already sent into [conversationId] outside the session (sent from the other end / the chat page). */
     private fun Rig.external(conversationId: String, id: String, role: ChatRole, text: String) {
         addedTo += conversationId
         added += ChatMessage(
@@ -782,16 +1993,16 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun own_transcripts_do_not_change_fingerprint() = runTest {
         val r = Rig(this, entry, provider, replanInline = true)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         r.realtime()
         r.send(RealtimeSessionEvent.Ready)
         r.turn("first question", "first answer")
         r.turn("second question", "second answer")
 
-        // One plan at open + one per turn boundary, all for c1 itself.
+        // Opening + a plan at each turn boundary, all planned for c1 itself.
         assertEquals(listOf("c1", "c1", "c1"), r.planned.map { it.id })
         assertEquals(4, r.planned.last().messages.size)
-        // The session's own transcripts do not enter the replan history: the fingerprint is unchanged and there is no reopen.
+        // This session's own transcripts do not enter the replan history: the fingerprint does not change, no reopen.
         assertEquals(1, r.made.size)
         assertEquals(0, r.connection.closes)
         assertTrue(r.connection.inputs.single().history.isEmpty())
@@ -801,13 +2012,13 @@ class RealtimeVoiceSessionWiringTest {
     @Test
     fun external_message_changes_fingerprint_and_reopens() = runTest {
         val r = Rig(this, entry, provider, replanInline = true)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         r.realtime()
         r.send(RealtimeSessionEvent.Ready)
         r.turn("first question", "first answer")
         assertEquals(1, r.made.size)
 
-        // During the call a turn not written by this session appears in the conversation: the next turn boundary's lastHistoryId changes, so it reopens.
+        // A turn within the session that was not written by this session appears during the call → at the next turn boundary the lastHistoryId changes → reopen.
         r.external("c1", "ext-user", ChatRole.User, "typed question")
         r.external("c1", "ext-assistant", ChatRole.Assistant, "typed answer")
         r.turn("second question", "second answer")
@@ -825,67 +2036,9 @@ class RealtimeVoiceSessionWiringTest {
     }
 
     @Test
-    fun skill_with_vector_store_two_turns_no_reopen_no_retrieval() = runTest {
-        val r = Rig(this, entry, provider, replanInline = true)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
-        val skill = Skill(
-            id = "skill-kb",
-            name = "Librarian",
-            systemPrompt = "SKILL-PROMPT-librarian",
-            knowledgeFiles = listOf(
-                SkillKnowledgeFile(id = "kf-1", name = "guide.md", content = "SKILL-FILE-guide", charCount = 16),
-            ),
-            knowledgeBase = SkillKnowledgeBase(
-                provider = "openai",
-                retrievalModel = "gpt-4.1-mini",
-                vectorStoreId = "vs_123",
-                expiresAfterDays = 30,
-                files = listOf(
-                    SkillKnowledgeBaseFile(
-                        id = "kb-1",
-                        name = "manual.pdf",
-                        mimeType = "application/pdf",
-                        sizeBytes = 1024,
-                        ingestionMode = SkillKnowledgeIngestionMode.NATIVE_FILE,
-                        status = SkillKnowledgeFileStatus.READY,
-                    ),
-                ),
-            ),
-        )
-        val coordinator = ChatSendCoordinator(
-            chatStreamingManager = mockk<ChatStreamingManager>(relaxed = true),
-            applicationScope = r.scope,
-            skillProvider = { id -> skill.takeIf { it.id == id } },
-            pinnedNotesResolver = { emptyList() },
-            pendingPinnedNoteIds = { emptyList() },
-            generationParameterSettingsStore = GenerationParameterSettingsStore(readPayload = { null }, writePayload = {}),
-            reminderEnabled = { true },
-        )
-        r.edit = { it.copy(skillId = skill.id) }
-        var planned = 0
-        r.contextRequest = { c ->
-            planned++
-            coordinator.realtimeSessionContext(c, emptyList())
-        }
-        r.realtime()
-        r.send(RealtimeSessionEvent.Ready)
-        r.turn("what does the manual say", "it says hello")
-        r.turn("and chapter two", "it says goodbye")
-
-        // Planned at open and at both turn boundaries, with no knowledge retrieval run at all; knowledge holds only the knowledge files attached by the skill.
-        assertEquals(3, planned)
-        val sent = r.connection.inputs.single().instructions
-        assertTrue(sent.contains("SKILL-PROMPT-librarian"))
-        assertTrue(sent.contains("SKILL-FILE-guide"))
-        assertEquals(1, r.made.size)
-        assertEquals(0, r.connection.closes)
-        r.scope.cancel()
-    }
-
-    @Test
     fun home_entry_first_turn_replan_keeps_fingerprint() = runTest {
         val r = Rig(this, entry, provider, replanInline = true)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         val memory = MemoryItem(
             id = "memory-home",
             kind = MemoryKind.FACT,
@@ -893,7 +2046,7 @@ class RealtimeVoiceSessionWiringTest {
             mutationId = "mutation-home",
             deviceId = "device-1",
         )
-        // Home wiring: the open uses the pending conversation (empty id, defaults), and the replan uses the real conversation created by the first persist.
+        // As home wiring: the opening uses the pending conversation (empty id, default values), and the replan uses the real conversation created by the first persist.
         r.contextRequest = { c ->
             r.planned += c
             newConversationContextRequest(c, listOf(memory))
@@ -912,7 +2065,7 @@ class RealtimeVoiceSessionWiringTest {
 
         assertEquals(listOf("", "new-1", "new-1"), r.planned.map { it.id })
         assertTrue(r.connection.inputs.single().instructions.contains("MEMORY-home-likes-tea"))
-        // The home entry has no pinned notes pending from compose: neither the open nor the replan carries notes.
+        // The home entry has no compose-time pinned note waiting: neither the opening nor the replan carries notes.
         assertTrue(r.planned.all { it.pinnedNoteIds.isEmpty() })
         assertTrue(r.planned.all { newConversationContextRequest(it, listOf(memory)).conversation.pinnedNotes.isEmpty() })
         // After the first persist creates the conversation the fingerprint is unchanged: no reopen.
@@ -923,10 +2076,10 @@ class RealtimeVoiceSessionWiringTest {
     }
 
     /**
-     * Chat page draft entry (Chat target, conversationId = null) using the target produced by ChatViewModel.realtimeVoiceTarget (the same function the host uses):
-     * the real ChatNoteCoordinator's compose-time pending pinned notes join the open through realtimeSessionContext; the first persist goes through the real
-     * createFirstConversation → onConversationActivated → flushPendingPinnedNotes into pinnedNoteIds (pending kept, merged and deduplicated),
-     * the replan is still the same note, and the fingerprint is unchanged so there is no reopen.
+     * Chat page draft entry (Chat target, conversationId = null) uses the target produced by ChatViewModel.realtimeVoiceTarget (the same function the host uses):
+     * the real ChatNoteCoordinator's compose-time pending pinned note is merged into the opening via realtimeSessionContext; the first persist goes through the real
+     * createFirstConversation → onConversationActivated → flushPendingPinnedNotes into pinnedNoteIds (pending is kept, merged and de-duplicated),
+     * the replan is still the same note, the fingerprint is unchanged, no reopen.
      */
     @Test
     fun chat_draft_entry_real_note_coordinator_keeps_fingerprint() = runTest {
@@ -937,10 +2090,10 @@ class RealtimeVoiceSessionWiringTest {
             createdAt = "2026-06-01T00:00:00Z",
             updatedAt = "2026-06-01T00:00:00Z",
         )
-        // The real ChatViewModel's viewModelScope is on Main: it follows the test scheduler and is reset in @After (VM coroutines still need scheduling when runTest wraps up).
+        // The real ChatViewModel's viewModelScope runs on Main: it follows the test dispatcher and is reset in @After (the VM coroutine still needs scheduling when runTest finishes).
         Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
         val r = Rig(this, entry, provider, replanInline = true)
-        r.settings.setSelection(VoiceDirection.Realtime, cloud)
+        r.selectRealtime(cloud)
         r.settings.disclosure.markAccepted(provider.kind, VoiceDirection.Realtime)
         val fixture = DraftChatViewModelFixture(
             provider = DraftChatViewModelFixture.sendable(provider, modelId = "gpt-5"),
@@ -952,10 +2105,10 @@ class RealtimeVoiceSessionWiringTest {
         testScheduler.runCurrent()
         viewModel.noteCoordinator.attachNoteToContext(note)
         assertEquals(listOf(note.id), viewModel.noteCoordinator.pendingPinnedNoteIds)
-        // Fake repository: ids persisted by pinNoteToConversation are read back with the conversation.
+        // Fake repository: the id persisted by pinNoteToConversation is read back with the conversation.
         r.edit = { it.copy(pinnedNoteIds = fixture.pinned.toList()) }
         val vmTarget = viewModel.realtimeVoiceTarget(null)
-        // Only records which conversation was planned around the VM target's context; context / create / pending conversation / port are the VM's original values.
+        // Only records which conversation was planned outside the VM target's context; context / create-conversation / pending conversation / port are all the original values produced by the VM.
         val context: suspend (Conversation) -> ChatContextRequest = { c ->
             r.planned += c
             vmTarget.context(c)
@@ -965,6 +2118,8 @@ class RealtimeVoiceSessionWiringTest {
             context = context,
             createConversation = vmTarget.createConversation,
             newConversation = vmTarget.newConversation,
+            // Realtime model selected on the session (no selection means cascade).
+            realtimeSelection = r.selected,
             port = vmTarget.port,
         )
         val engine = (prepareRealtimeVoiceSession(r.builder, target, context) { null } as RealtimeVoiceSessionChoice.Realtime).engine
@@ -1014,13 +2169,10 @@ class RealtimeVoiceSessionWiringTest {
         expireMutedAndReopen(home = true)
     }
 
-    /** Muted, a 1008 expiry → does not end → unmuting reopens, and the new connection's plan history carries the transcripts already persisted by this call. */
+    /** Contract card B items 4 and 6: while muted, 1008 expires → does not end → unmute and reopen; the new connection's plan history carries the transcripts persisted in this call. */
     private suspend fun TestScope.expireMutedAndReopen(home: Boolean) {
         val r = Rig(this, geminiEntry, geminiProvider)
-        r.settings.setSelection(
-            VoiceDirection.Realtime,
-            VoiceEngineSelection.Cloud(ProviderKind.Gemini, geminiProvider.id, geminiEntry.model, null),
-        )
+        r.selectRealtime(VoiceEngineSelection.Cloud(ProviderKind.Gemini, geminiProvider.id, geminiEntry.model, null))
         val engine = if (home) r.home(Any()) else r.realtime()
         val target = if (home) "new-1" else "c1"
         r.send(RealtimeSessionEvent.Ready)
@@ -1047,7 +2199,7 @@ class RealtimeVoiceSessionWiringTest {
             listOf(ChatRole.User to "first question", ChatRole.Assistant to "first answer"),
             second.inputs.single().history.map { it.role to it.text },
         )
-        // Does not rebuild the sink or resolve the selection again (no toast, no settings change)
+        // Does not rebuild the sink or resolve the selection again (no hint, no settings change).
         assertEquals(1, r.sinks.size)
         assertEquals(1, r.catalogCalls)
 
@@ -1062,6 +2214,55 @@ class RealtimeVoiceSessionWiringTest {
         if (home) assertEquals(listOf("new-1"), r.created)
         assertTrue(r.events.none { it is VoiceConversationEvent.Ended })
         assertFalse(r.sinks.single().closed)
+        r.scope.cancel()
+    }
+
+    /** A running cascade (fake): records end, and active becomes false after end. */
+    private class RunningCascade : VoiceConversationEngine {
+        override val statusKey = kotlinx.coroutines.flow.MutableStateFlow<ConversationStatusKey?>(null)
+        override val level = kotlinx.coroutines.flow.MutableStateFlow(0f)
+        override val active = kotlinx.coroutines.flow.MutableStateFlow(true)
+        override val events = MutableSharedFlow<VoiceConversationEvent>()
+        val ends = mutableListOf<EndReason>()
+        override fun start(chat: VoiceConversationChatPort) = Unit
+        override fun tapOrb() = Unit
+        override fun toggleMute() = Unit
+        override fun screenReaderSpeaking(speaking: Boolean) = Unit
+        override fun end(reason: EndReason) {
+            ends += reason
+            active.value = false
+        }
+    }
+
+    /** While the cascade runs the page switches to a realtime model → the cascade ends once as user, then the same entry path prepares a realtime session. */
+    @Test
+    fun cascade_running_select_realtime_ends_cascade_and_starts_realtime() = runTest {
+        val r = Rig(this, entry, provider)
+        r.settings.disclosure.markAccepted(provider.kind, VoiceDirection.Realtime)
+        val cascade = RunningCascade()
+        val before = r.selected.voiceEngineKey()
+        r.selectRealtime(cloud)
+        // As host wiring: the target after switching carries the new realtime model.
+        val target = VoiceConversationTarget.Chat(
+            conversationId = "c1",
+            context = r.contextRequest,
+            realtimeSelection = r.selected,
+            port = { NoChat },
+        )
+        var reentered = 0
+        val switched = switchVoiceEngine(cascade, before, target.realtimeSelection.voiceEngineKey()) { reentered++ }
+
+        assertTrue(switched)
+        assertEquals(listOf(EndReason.USER), cascade.ends)
+        assertFalse(cascade.active.value)
+        assertEquals(1, reentered)
+        val choice = prepareRealtimeVoiceSession(r.builder, target, r.contextRequest) { null }
+        val engine = (choice as RealtimeVoiceSessionChoice.Realtime).engine
+        engine.start(NoChat)
+        testScheduler.runCurrent()
+        assertTrue(engine.active.value)
+        assertEquals(RealtimeTransportKind.OpenAiRealtime, r.made.single().first)
+        assertEquals("gpt-realtime", r.made.single().second.model)
         r.scope.cancel()
     }
 }

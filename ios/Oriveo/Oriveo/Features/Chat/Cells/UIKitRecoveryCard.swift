@@ -4,6 +4,9 @@ import UIKit
 final class UIKitRecoveryCard: UIView {
     static let fixedButtonHeight: CGFloat = 48
     static let fixedButtonHeightPriority = UILayoutPriority(999)
+    /// Header glyph shared by every tone (cross-end: Phosphor warning-circle).
+    static let headerIcon = PhosphorIcon.warningCircle
+    static let headerIconSize: CGFloat = 18
 
     struct Config {
         let title: String
@@ -22,6 +25,8 @@ final class UIKitRecoveryCard: UIView {
         var showsTechnicalDetail: Bool = false
         var onTechnicalDetailVisibilityChanged: ((Bool) -> Void)? = nil
         var onLayoutChange: (() -> Void)? = nil
+        /// False draws no primary button at all (not a disabled one), e.g. an earlier failed trial reply.
+        var showsPrimaryAction: Bool = true
     }
 
     private let config: Config
@@ -77,11 +82,14 @@ final class UIKitRecoveryCard: UIView {
         headerRow.alignment = .top
         headerRow.spacing = OriveoTheme.Spacing.sm
 
-        let iconName = config.tone == .danger ? "xmark.circle.fill" : "exclamationmark.circle.fill"
-        iconView.image = UIImage(systemName: iconName)?
-            .withConfiguration(UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold))
+        iconView.image = UIImage(named: Self.headerIcon.assetName(.regular))?.withRenderingMode(.alwaysTemplate)
+        iconView.contentMode = .scaleAspectFit
         iconView.tintColor = toneFg
         iconView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            iconView.widthAnchor.constraint(equalToConstant: Self.headerIconSize),
+            iconView.heightAnchor.constraint(equalToConstant: Self.headerIconSize),
+        ])
         iconView.setContentHuggingPriority(.required, for: .horizontal)
         headerRow.addArrangedSubview(iconView)
 
@@ -111,11 +119,13 @@ final class UIKitRecoveryCard: UIView {
         buttonRow.spacing = OriveoTheme.Spacing.sm
         buttonRow.distribution = .fillEqually
 
-        configurePrimaryButton(primaryButton, title: config.primaryTitle)
-        primaryButton.addTarget(self, action: #selector(primaryTapped), for: .touchUpInside)
-        primaryButton.isEnabled = config.actionsEnabled
-        primaryButton.alpha = config.actionsEnabled ? 1 : 0.6
-        buttonRow.addArrangedSubview(primaryButton)
+        if config.showsPrimaryAction {
+            configurePrimaryButton(primaryButton, title: config.primaryTitle)
+            primaryButton.addTarget(self, action: #selector(primaryTapped), for: .touchUpInside)
+            primaryButton.isEnabled = config.actionsEnabled
+            primaryButton.alpha = config.actionsEnabled ? 1 : 0.6
+            buttonRow.addArrangedSubview(primaryButton)
+        }
 
         if let secondaryTitle = config.secondaryTitle, config.secondaryAction != nil {
             configureSecondaryButton(secondaryButton, title: secondaryTitle)
@@ -125,7 +135,9 @@ final class UIKitRecoveryCard: UIView {
             buttonRow.addArrangedSubview(secondaryButton)
         }
 
-        mainStack.addArrangedSubview(buttonRow)
+        if !buttonRow.arrangedSubviews.isEmpty {
+            mainStack.addArrangedSubview(buttonRow)
+        }
 
         if let tertiaryTitle = config.tertiaryTitle, config.tertiaryAction != nil {
             configureTextButton(tertiaryButton, title: tertiaryTitle)
@@ -223,8 +235,8 @@ final class UIKitRecoveryCard: UIView {
         config.title = title
         // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
         config.titleLineBreakMode = .byTruncatingTail
-        config.baseForegroundColor = UIColor(OriveoTheme.Palette.primary)
-        config.baseBackgroundColor = UIColor(OriveoTheme.Palette.surfaceChrome)
+        config.baseForegroundColor = OriveoTheme.Palette.primaryTextOnSurfaceUIColor
+        config.baseBackgroundColor = OriveoTheme.Palette.neutralFillUIColor
         config.cornerStyle = .medium
         config.background.strokeColor = UIColor(OriveoTheme.Palette.borderStrong)
         config.background.strokeWidth = 1
@@ -245,7 +257,7 @@ final class UIKitRecoveryCard: UIView {
         config.title = title
         // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
         config.titleLineBreakMode = .byTruncatingTail
-        config.baseForegroundColor = UIColor(OriveoTheme.Palette.primary)
+        config.baseForegroundColor = OriveoTheme.Palette.primaryTextOnSurfaceUIColor
         config.titleTextAttributesTransformer = UIConfigurationTextAttributesTransformer { incoming in
             var outgoing = incoming
             outgoing.font = UIFont.systemFont(ofSize: 14)

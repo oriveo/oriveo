@@ -142,12 +142,12 @@ describe('ContextCompactionStore', () => {
     });
     legacy.close();
 
-    expect(DB_VERSION).toBe(14);
+    expect(DB_VERSION).toBe(16);
     expect((await getConversationById('legacy'))?.id).toBe('legacy');
 
     resetDBConnection();
     const raw = await openDB('oriveo--guest');
-    expect(raw.version).toBe(14);
+    expect(raw.version).toBe(16);
     expect(raw.objectStoreNames.contains('contextCheckpoints')).toBe(true);
     const tx = raw.transaction('contextCheckpoints');
     expect(tx.store.keyPath).toEqual(['conversationId', 'checkpointId']);

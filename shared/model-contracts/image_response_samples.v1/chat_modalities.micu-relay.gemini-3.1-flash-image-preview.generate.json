@@ -1,0 +1,88 @@
+{
+  "meta": {
+    "route": "chat_modalities",
+    "provider": "micu-relay",
+    "op": "generate",
+    "http": 200,
+    "seconds": 38.7,
+    "captured_at": "2026-10-28T01:19:59.827Z",
+    "endpoint": "https://www.micuapi.ai/v1/chat/completions"
+  },
+  "observed": {
+    "shapes": [
+      "markdown data URL"
+    ],
+    "images": [
+      {
+        "mime": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 735248,
+        "host": null
+      }
+    ]
+  },
+  "response": {
+    "id": "chatcmpl-202610280119213575642708268d9d66YMpTriD",
+    "model": "gemini-3.1-flash-image-preview",
+    "object": "chat.completion",
+    "created": 1793150399,
+    "choices": [
+      {
+        "index": 0,
+        "message": {
+          "role": "assistant",
+          "content": "![image](data:image/jpeg;base64,<base64 bytes=735248 sha256=382d35deb6c46ece>)"
+        },
+        "finish_reason": "stop"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 14,
+      "completion_tokens": 1590,
+      "total_tokens": 1604,
+      "billing_usage": {
+        "source": "gemini_chat",
+        "semantic": "gemini",
+        "gemini_usage_metadata": {
+          "promptTokenCount": 14,
+          "toolUsePromptTokenCount": 0,
+          "candidatesTokenCount": 1590,
+          "totalTokenCount": 1604,
+          "thoughtsTokenCount": 0,
+          "cachedContentTokenCount": 0,
+          "promptTokensDetails": [
+            {
+              "modality": "TEXT",
+              "tokenCount": 14
+            }
+          ],
+          "toolUsePromptTokensDetails": [],
+          "candidatesTokensDetails": [
+            {
+              "modality": "IMAGE",
+              "tokenCount": 1120
+            }
+          ]
+        }
+      },
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "text_tokens": 14,
+        "audio_tokens": 0,
+        "image_tokens": 0
+      },
+      "completion_tokens_details": {
+        "text_tokens": 0,
+        "audio_tokens": 0,
+        "image_tokens": 1120,
+        "reasoning_tokens": 0
+      },
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "input_tokens_details": null,
+      "claude_cache_creation_5_m_tokens": 0,
+      "claude_cache_creation_1_h_tokens": 0
+    }
+  }
+}

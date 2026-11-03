@@ -22,19 +22,31 @@ data class AdoptedSearchCatalog(val document: JsonObject, val snapshot: CatalogS
  * Local sources for the external search catalog: cache → built-in snapshot → network, all three go through [SearchCatalog.acceptSearchCatalog],
  * and a failure on any path keeps the previous one. The cache stores the adopted original text and maxSeenRevision (rollback protection).
  */
-class SearchCatalogRepository internal constructor(
-    private val prefs: SharedPreferences,
+class SearchCatalogRepository private constructor(
+    prefsProvider: () -> SharedPreferences,
     /** `GET /api/metadata?view=search`; the parameter is the ETag from the last adoption. */
     private val transport: suspend (ifNoneMatch: String?) -> SearchCatalogFetch,
     private val builtin: () -> String?,
     private val trustedKeys: Map<String, String>,
 ) {
+    internal constructor(
+        prefs: SharedPreferences,
+        transport: suspend (ifNoneMatch: String?) -> SearchCatalogFetch,
+        builtin: () -> String?,
+        trustedKeys: Map<String, String>,
+    ) : this({ prefs }, transport, builtin, trustedKeys)
+
     constructor(context: Context) : this(
-        prefs = context.applicationContext.getSharedPreferences(PREFS_FILE_NAME, Context.MODE_PRIVATE),
+        prefsProvider = context.applicationContext.let { app ->
+            { app.getSharedPreferences(PREFS_FILE_NAME, Context.MODE_PRIVATE) }
+        },
         transport = HttpSearchCatalogTransport::fetch,
         builtin = assetReader(context.applicationContext),
         trustedKeys = SearchCatalogKeys.production,
     )
+
+    // The Koin singleton is first resolved on the main thread: construction does no disk IO; SharedPreferences is only read on the first read or write.
+    private val prefs: SharedPreferences by lazy(LazyThreadSafetyMode.PUBLICATION, prefsProvider)
 
     private val lock = Any()
 

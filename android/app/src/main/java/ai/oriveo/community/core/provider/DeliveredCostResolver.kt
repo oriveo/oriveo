@@ -312,7 +312,9 @@ object DeliveredCostResolver {
             val source = part.costSource ?: CostSource.LOCAL_ESTIMATE.name
             if (part.isUsd) {
                 usdAmount += part.amount
-                if (usdSource == null) usdSource = source
+                // A managed generation part yields to any other known USD part (retrieval estimate): the whole
+                // message is then a local estimate.
+                if (usdSource == null || usdSource == CostSource.MANAGED.name) usdSource = source
             } else {
                 nonUsdCost = mergeNonUsdCost(nonUsdCost, NonUsdCost(part.currencyCode, part.amount, source))
             }
@@ -344,11 +346,27 @@ object DeliveredCostResolver {
      * Appends one more cost to the same message (continuation, same as Web addMessageCost): USD parts are summed, non-USD parts are merged via [mergeNonUsdCost].
      * The returned costSource is that of this round (one continuation is one new upstream billing request).
      */
-    fun addMessageCost(baseEstimatedCost: Double, baseNonUsdCost: NonUsdCost?, next: MessageCostRecord): MessageCostRecord =
+    fun addMessageCost(
+        baseEstimatedCost: Double,
+        baseCostSource: String?,
+        baseNonUsdCost: NonUsdCost?,
+        next: MessageCostRecord,
+    ): MessageCostRecord =
         next.copy(
             estimatedCost = baseEstimatedCost + next.estimatedCost,
+            costSource = mergeCostSource(baseCostSource, next.costSource),
             nonUsdCost = mergeNonUsdCost(baseNonUsdCost, next.nonUsdCost),
         )
+
+    private fun mergeCostSource(base: String?, next: String?): String? {
+        val managed = CostSource.MANAGED.name
+        fun known(source: String?) = source != null && source != CostSource.UNKNOWN.name
+        return when {
+            next == managed && known(base) -> base
+            base == managed && !known(next) -> managed
+            else -> next
+        }
+    }
 
     /**
      * Region options used for region selection: those delivered by metadata (past the trusted table) first, then ids not listed there from the frozen identity table.

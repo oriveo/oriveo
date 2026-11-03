@@ -12,8 +12,20 @@ nonisolated enum VoiceCatalogState: Sendable, Hashable {
     }
 }
 
+/// Subscription handle for the catalog: carries the state at subscribe time; after `cancel()` no more pushes arrive (including ones in the in-flight round not yet reached).
+nonisolated struct VoiceCatalogSubscription: Sendable {
+    let id: UUID
+    /// State at subscribe time (subscribing and reading the current state are one step, so no push is missed in between).
+    let state: VoiceCatalogState?
+    let client: VoiceCatalogClient
+
+    func cancel() async {
+        await client.unsubscribe(id)
+    }
+}
+
 /// Fetches and caches `GET /api/metadata?view=voice`.
-/// There is a single global cache: `Application Support/Oriveo/Voice/catalog.json`, storing the raw data bytes + ETag; the directory is excluded from backup.
+/// One global cache (not per account): `Application Support/Oriveo/Voice/catalog.json`, storing the raw data bytes + ETag; the directory is excluded from backup.
 actor VoiceCatalogClient {
     static let shared = VoiceCatalogClient()
 
@@ -38,24 +50,39 @@ actor VoiceCatalogClient {
     private let session: URLSession
     private let cacheDirectory: URL
     private let baseURL: @Sendable () -> String
+    /// Reads the cache file bytes; injectable so tests can count reads and the thread they run on.
+    private let readCacheFile: @Sendable (URL) -> Data?
     private var cache: CacheEntry?
+    /// Whether the cold-start cache has been read: the cache is read on first use on the actor, not in init (which may run on the main thread).
+    private var cacheLoaded = false
+    private var storedState: VoiceCatalogState?
     /// nil means this process has no verdict yet (never refreshed and no cold-start cache).
-    private(set) var state: VoiceCatalogState?
-    /// Subscribers (e.g. the read-aloud catalog snapshot): when refresh produces a state different from the previous one, they are awaited in subscription order.
-    private var subscribers: [@Sendable (VoiceCatalogState) async -> Void] = []
+    var state: VoiceCatalogState? {
+        loadCacheIfNeeded()
+        return storedState
+    }
+    /// Subscribers (e.g. the read-aloud catalog snapshot): when refresh yields a state different from the previous one, they are awaited in subscription order.
+    private var subscribers: [(id: UUID, handler: @Sendable (VoiceCatalogState) async -> Void)] = []
 
     init(
         session: URLSession = .shared,
         cacheDirectory: URL = VoiceCatalogClient.defaultCacheDirectory,
-        baseURL: @escaping @Sendable () -> String = { BackendURLResolver.resolve() }
+        baseURL: @escaping @Sendable () -> String = { BackendURLResolver.resolve() },
+        readCacheFile: @escaping @Sendable (URL) -> Data? = { try? Data(contentsOf: $0) }
     ) {
         self.session = session
         self.cacheDirectory = cacheDirectory
         self.baseURL = baseURL
-        // Read the cache on cold start so a usable catalog exists before the first refresh.
-        let cached = Self.readCache(in: cacheDirectory)
-        self.cache = cached
-        self.state = cached.map { .available($0.catalog) }
+        self.readCacheFile = readCacheFile
+    }
+
+    /// Cold start reads the cache first so a usable catalog exists before the first refresh; read only once on the actor (a synchronous disk read on the main thread is a blocker).
+    private func loadCacheIfNeeded() {
+        guard !cacheLoaded else { return }
+        cacheLoaded = true
+        let cached = readCacheFile(cacheFileURL).flatMap(Self.decodeCache)
+        cache = cached
+        storedState = cached.map { .available($0.catalog) }
     }
 
     static var defaultCacheDirectory: URL {
@@ -66,16 +93,23 @@ actor VoiceCatalogClient {
             .appendingPathComponent("Voice", isDirectory: true)
     }
 
-    /// Subscribes to state changes and returns the current state at subscription time (subscribing and reading the current state are one step, so no push is missed in between).
-    func subscribe(_ handler: @escaping @Sendable (VoiceCatalogState) async -> Void) -> VoiceCatalogState? {
-        subscribers.append(handler)
-        return state
+    /// Subscribes to state changes and returns a handle that can unsubscribe (carries the state at subscribe time).
+    func subscribe(_ handler: @escaping @Sendable (VoiceCatalogState) async -> Void) -> VoiceCatalogSubscription {
+        let id = UUID()
+        subscribers.append((id: id, handler: handler))
+        return VoiceCatalogSubscription(id: id, state: state, client: self)
+    }
+
+    /// Unsubscribes; unsubscribing again is a no-op.
+    func unsubscribe(_ id: UUID) {
+        subscribers.removeAll { $0.id == id }
     }
 
     /// Requests the catalog once and updates the state; on a change it pushes to subscribers and returns only after they finish handling it.
     /// 200 decodes and writes the cache; 304 uses the cache; 404 means unavailable (cache cleared); any other failure keeps the previous cache, and without a cache it is a load failure.
     @discardableResult
     func refresh() async -> VoiceCatalogState {
+        loadCacheIfNeeded()
         let next: VoiceCatalogState
         switch await fetch(etag: cache?.etag) {
         case .updated(let catalog, let rawData, let etag):
@@ -91,11 +125,13 @@ actor VoiceCatalogClient {
         case .failed:
             next = cache.map { .available($0.catalog) } ?? .loadFailed
         }
-        let changed = next != state
-        state = next
+        let changed = next != storedState
+        storedState = next
         if changed {
             for subscriber in subscribers {
-                await subscriber(next)
+                // A subscriber may unsubscribe while an earlier subscriber handles a push: an unsubscribed one is no longer called.
+                guard subscribers.contains(where: { $0.id == subscriber.id }) else { continue }
+                await subscriber.handler(next)
             }
         }
         return next
@@ -147,10 +183,8 @@ actor VoiceCatalogClient {
         cacheDirectory.appendingPathComponent("catalog.json", isDirectory: false)
     }
 
-    private static func readCache(in directory: URL) -> CacheEntry? {
-        let url = directory.appendingPathComponent("catalog.json", isDirectory: false)
-        guard let bytes = try? Data(contentsOf: url),
-              let file = try? JSONDecoder().decode(CacheFile.self, from: bytes),
+    private static func decodeCache(_ bytes: Data) -> CacheEntry? {
+        guard let file = try? JSONDecoder().decode(CacheFile.self, from: bytes),
               let catalog = VoiceCatalogDecoder.decode(jsonData: file.data) else {
             return nil
         }

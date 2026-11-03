@@ -33,6 +33,13 @@ data class Conversation(
     val folderID: String? = null,
     /** Skill the conversation was started from, if any. */
     val skillId: String? = null,
+    /**
+     * Selected skills (chips) in selection order, at most 3 (skill_sync_fields.v1). Written together with the
+     * legacy [skillId] = skillIds[0]; empty with a legacy [skillId] reads as [skillId].
+     */
+    val skillIds: List<String> = emptyList(),
+    /** Skills the user turned off for automatic use in this conversation (at most 30). */
+    val disabledAutoSkillIds: List<String> = emptyList(),
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
     /** Up to three notes pinned into this conversation's prompt. */
@@ -65,6 +72,8 @@ data class Conversation(
             hasCustomTitle == other.hasCustomTitle &&
             folderID == other.folderID &&
             skillId == other.skillId &&
+            skillIds == other.skillIds &&
+            disabledAutoSkillIds == other.disabledAutoSkillIds &&
             providerID == other.providerID &&
             providerKind == other.providerKind &&
             modelID == other.modelID &&
@@ -73,6 +82,19 @@ data class Conversation(
             instructions == other.instructions &&
             contextCap == other.contextCap
     }
+}
+
+/**
+ * Skill ids as stored / synced: [Conversation.skillIds] when set, else the legacy [Conversation.skillId]
+ * (old callers that only set skillId), normalised and capped by [SkillSyncFields].
+ */
+val Conversation.effectiveSkillIds: List<String>
+    get() = SkillSyncFields.idList(skillIds.ifEmpty { listOfNotNull(skillId) }, SkillSyncFields.SKILL_IDS_MAX)
+
+/** Sets the selected skills and the dual-written legacy [Conversation.skillId] (= first, null when empty). */
+fun Conversation.withSkillIds(ids: List<String>): Conversation {
+    val normalized = SkillSyncFields.idList(ids, SkillSyncFields.SKILL_IDS_MAX)
+    return copy(skillIds = normalized, skillId = normalized.firstOrNull())
 }
 
 private const val AUTO_CONVERSATION_TITLE_MAX = 50

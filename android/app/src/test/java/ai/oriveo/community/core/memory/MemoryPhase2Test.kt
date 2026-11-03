@@ -125,6 +125,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
     }
@@ -154,6 +156,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -188,6 +192,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -222,6 +228,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -256,6 +264,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -290,6 +300,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -334,6 +346,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -385,6 +399,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -431,6 +447,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -476,6 +494,8 @@ class MemoryPhase2Test {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -605,6 +625,7 @@ class MemoryPhase2Test {
         globalSnackbarManager = globalSnackbarManager,
         applicationScope = applicationScope,
         memoryItemsSource = memoryItems,
+        ioDispatcher = dispatcher,
     )
 
     private fun stubConversation(conversation: Conversation) {

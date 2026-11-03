@@ -20,8 +20,6 @@ export interface CustomFormValues {
   key: string;
   protocol: CustomProtocol;
   sameAsId: string | null;
-  /** The site referenced by "Same as X"; null = the first site of that provider */
-  sameAsRegionId: string | null;
   method: 'GET' | 'POST';
   auth: 'bearer' | 'header' | 'none';
   headerName: string;
@@ -45,7 +43,6 @@ export function emptyCustomForm(): CustomFormValues {
     key: '',
     protocol: 'searxng',
     sameAsId: null,
-    sameAsRegionId: null,
     method: 'GET',
     auth: 'bearer',
     headerName: '',
@@ -67,7 +64,7 @@ const first = (list: readonly string[] | undefined) => list?.[0] ?? '';
 export function customFormFromRecord(record: StoredCustomSearchService): CustomFormValues {
   const base = { ...emptyCustomForm(), name: record.name, address: record.address, protocol: record.protocol };
   const m = record.mapping as (TransportSpec & { snapshotOf?: { serviceId?: string; region?: string | null } }) | null;
-  if (record.protocol === 'same_as') return { ...base, sameAsId: m?.snapshotOf?.serviceId ?? null, sameAsRegionId: m?.snapshotOf?.region ?? null };
+  if (record.protocol === 'same_as') return { ...base, sameAsId: m?.snapshotOf?.serviceId ?? null };
   if (record.protocol !== 'manual' || !m) return base;
   return {
     ...base,
@@ -137,7 +134,8 @@ export interface CustomFormCheckOptions {
 export function checkCustomForm(values: CustomFormValues, catalog: SettingsCatalog | null, { requireKeyCheck = true, keepSnapshot = null }: CustomFormCheckOptions = {}): CustomFormCheck {
   const keep = values.protocol === 'same_as' && keepSnapshot ? keepSnapshot : null;
   const sameAsEntry = !keep && values.protocol === 'same_as' && values.sameAsId ? catalog?.entries.find((e) => e.id === values.sameAsId) ?? null : null;
-  const sameAsRegion = sameAsEntry ? sameAsEntry.regions.find((r) => r.id === values.sameAsRegionId)?.id ?? sameAsEntry.regions[0]?.id ?? null : null;
+  // The snapshot always uses the reference provider's first site in the catalog (no site picker)
+  const sameAsRegion = sameAsEntry?.regions[0]?.id ?? null;
   const mapping = values.protocol === 'manual'
     ? manualMapping(values)
     : keep
@@ -179,7 +177,6 @@ export const FIELD_OF_INPUT: Partial<Record<CustomFormKey, CustomFormField>> = {
   key: 'key',
   protocol: 'protocol',
   sameAsId: 'protocol',
-  sameAsRegionId: 'protocol',
   method: 'method',
   auth: 'auth',
   headerName: 'auth',

@@ -44,7 +44,7 @@ struct McpToolPanelSheet: View {
                     Image(systemName: "chevron.forward").font(.system(size: 12, weight: .semibold))
                 }
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 .frame(maxWidth: .infinity)
                 .frame(height: 44)
             }
@@ -89,7 +89,7 @@ struct McpToolPanelSheet: View {
                 } label: {
                     Text(L10n.tr("Sign in again", table: .mcp))
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
@@ -226,8 +226,18 @@ struct McpToolPanelSheet: View {
         }
     }
 
-    private var unsupportedReason: String {
-        L10n.tr("This model doesn't support tool calling. Switch to another model to use tools.", table: .mcp)
+    private var unsupportedReason: String { Self.unsupportedReason(for: state.availability) }
+
+    /// Reason shown on the explanation card: the realtime model case uses the same `RealtimeCapabilityCopy.reason` as the input-bar capsule.
+    static func unsupportedReason(for availability: McpToolAvailability) -> String {
+        switch availability {
+        case .realtimeModel:
+            let capability = RealtimeModelPolicy.capability(modelKind: .realtime, mode: .typing)
+            if let reason = capability.toolsReasonKey.flatMap(RealtimeCapabilityCopy.reason) { return reason }
+            return L10n.tr("This model doesn't support tool calling. Switch to another model to use tools.", table: .mcp)
+        case .modelUnsupported, .available:
+            return L10n.tr("This model doesn't support tool calling. Switch to another model to use tools.", table: .mcp)
+        }
     }
 
     // MARK: Shared

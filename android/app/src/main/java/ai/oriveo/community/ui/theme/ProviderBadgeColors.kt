@@ -221,29 +221,39 @@ object ProviderBadgeColors {
 
     @Composable
     fun usageBreakdown(kind: ProviderKind): Color {
-        val colors = OriveoTheme.colors
-        val isDark = OriveoTheme.isDark
-        return when (kind) {
-            ProviderKind.OpenAI -> if (isDark) Color(0xFF22C18D) else Color(0xFF10A37F)
-            ProviderKind.Anthropic -> if (isDark) Color(0xFFE0B58E) else Color(0xFFC7956D)
-            ProviderKind.Gemini -> if (isDark) Color(0xFF7AB2FF) else Color(0xFF4285F4)
-            ProviderKind.DeepSeek -> if (isDark) Color(0xFF7EA2FF) else Color(0xFF4F7BFF)
-            ProviderKind.Grok -> if (isDark) Color(0xFFF2F3F5) else Color(0xFF0F0F10)
-            ProviderKind.OpenRouter -> if (isDark) Color(0xFF9B93FF) else Color(0xFF6D63FF)
-            ProviderKind.Groq -> if (isDark) Color(0xFFFF8A74) else Color(0xFFF55036)
-            ProviderKind.Together -> if (isDark) Color(0xFF38BDF8) else Color(0xFF0EA5E9)
-            ProviderKind.Fireworks -> if (isDark) Color(0xFFFF9B6B) else Color(0xFFFF6B35)
-            ProviderKind.MiniMax -> if (isDark) Color(0xFFFF6B8A) else Color(0xFFE8457C)
-            ProviderKind.Zhipu -> if (isDark) Color(0xFFA0A0A8) else Color(0xFF333333)
-            ProviderKind.Qwen -> if (isDark) Color(0xFF8B88F5) else Color(0xFF615CED)
-            ProviderKind.Moonshot -> if (isDark) Color(0xFFE5E7EB) else Color(0xFF111827)
-            // Mistral orange: light mode uses the brand colour #FA500F, dark mode steps one notch
-            // brighter so the swatch still clears contrast against a dark surface.
-            ProviderKind.Mistral -> if (isDark) Color(0xFFFF8205) else Color(0xFFFA500F)
-            ProviderKind.SiliconFlow -> if (isDark) Color(0xFFA78BFA) else Color(0xFF7C3AED)
-            ProviderKind.Relay -> if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
-        }
+        val pair = ProviderUsageBreakdownPalette.argb.getValue(kind)
+        return Color(if (OriveoTheme.isDark) pair.dark else pair.light)
     }
+}
+
+/** Raw light / dark ARGB pair for one provider's usage breakdown accent. */
+data class ProviderUsageArgb(val light: Long, val dark: Long)
+
+/**
+ * Single source of the usage breakdown accent per provider (non-Composable so tests can read it).
+ * [ProviderBadgeColors.usageBreakdown] picks light / dark from this table.
+ */
+object ProviderUsageBreakdownPalette {
+    val argb: Map<ProviderKind, ProviderUsageArgb> = mapOf(
+        ProviderKind.OpenAI to ProviderUsageArgb(light = 0xFF10A37F, dark = 0xFF22C18D),
+        ProviderKind.Anthropic to ProviderUsageArgb(light = 0xFFC7956D, dark = 0xFFE0B58E),
+        ProviderKind.Gemini to ProviderUsageArgb(light = 0xFF4285F4, dark = 0xFF7AB2FF),
+        ProviderKind.DeepSeek to ProviderUsageArgb(light = 0xFF4F7BFF, dark = 0xFF7EA2FF),
+        ProviderKind.Grok to ProviderUsageArgb(light = 0xFF0F0F10, dark = 0xFFF2F3F5),
+        ProviderKind.OpenRouter to ProviderUsageArgb(light = 0xFF6D63FF, dark = 0xFF9B93FF),
+        ProviderKind.Groq to ProviderUsageArgb(light = 0xFFF55036, dark = 0xFFFF8A74),
+        ProviderKind.Together to ProviderUsageArgb(light = 0xFF0EA5E9, dark = 0xFF38BDF8),
+        ProviderKind.Fireworks to ProviderUsageArgb(light = 0xFFFF6B35, dark = 0xFFFF9B6B),
+        ProviderKind.MiniMax to ProviderUsageArgb(light = 0xFFE8457C, dark = 0xFFFF6B8A),
+        ProviderKind.Zhipu to ProviderUsageArgb(light = 0xFF333333, dark = 0xFFA0A0A8),
+        ProviderKind.Qwen to ProviderUsageArgb(light = 0xFF615CED, dark = 0xFF8B88F5),
+        ProviderKind.Moonshot to ProviderUsageArgb(light = 0xFF111827, dark = 0xFFE5E7EB),
+        // Mistral orange: brand #FA500F in light, one step brighter in dark for contrast.
+        ProviderKind.Mistral to ProviderUsageArgb(light = 0xFFFA500F, dark = 0xFFFF8205),
+        ProviderKind.SiliconFlow to ProviderUsageArgb(light = 0xFF7C3AED, dark = 0xFFA78BFA),
+        // Neutral slate; the provider hero for Relay uses theme primary instead.
+        ProviderKind.Relay to ProviderUsageArgb(light = 0xFF64748B, dark = 0xFF94A3B8),
+    )
 }
 
 /**

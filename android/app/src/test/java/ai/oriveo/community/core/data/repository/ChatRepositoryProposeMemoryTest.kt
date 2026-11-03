@@ -457,6 +457,22 @@ class ChatRepositoryProposeMemoryTest {
     }
 
     @Test
+    fun propose_then_empty_tail_is_delivered_and_keeps_suggestion() = runBlocking {
+        val arguments = proposeArguments()
+        replies += HttpStatusCode.OK to proposeStream("call_1", arguments, 10, 4)
+        replies += HttpStatusCode.OK to textStream("", 20, 6)
+        val hook = RecordingHook()
+
+        send(hook)
+
+        assertEquals("first leg + one tail leg", 2, chatBodies().size)
+        assertEquals("the proposal candidate is still handed over", listOf(arguments), hook.calls)
+        val message = delivered.captured
+        assertEquals("a proposal counts as visible content, not empty_response", ChatMessageState.Delivered, message.state)
+        assertTrue("propose calls never surface as unhandled", message.unhandledToolCalls.isEmpty())
+    }
+
+    @Test
     fun `first leg tools rejected resends without tools and degrades`() = runBlocking {
         replies += HttpStatusCode.BadRequest to """{"error":{"message":"tools is not supported for this model","type":"invalid_request_error"}}"""
         replies += HttpStatusCode.OK to textStream("Sure.", 5, 2)

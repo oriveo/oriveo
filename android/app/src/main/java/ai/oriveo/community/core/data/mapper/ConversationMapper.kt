@@ -6,6 +6,8 @@ import ai.oriveo.community.core.data.entity.ConversationEntity
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.SkillSyncFields
+import ai.oriveo.community.core.model.effectiveSkillIds
 import ai.oriveo.community.core.util.normalizeConversationIds
 import ai.oriveo.community.core.util.normalizeUuid
 import kotlinx.serialization.encodeToString
@@ -45,6 +47,12 @@ object ConversationMapper {
             nonUsdCostTotals = nonUsdCostTotals?.let {
                 runCatching { json.decodeFromString<Map<String, Double>>(it) }.getOrNull()
             }.orEmpty(),
+            localThreadComplete = localThreadComplete,
+            skillIds = SkillSyncFields.resolveSkillIds(decodeIdListOrNull(skillIdsJson), skillId),
+            disabledAutoSkillIds = SkillSyncFields.idList(
+                decodeIdListOrNull(disabledAutoSkillIdsJson),
+                SkillSyncFields.DISABLED_AUTO_SKILL_IDS_MAX,
+            ),
         ))
 
     fun Conversation.toEntity(accountId: String = LOCAL_PARTITION_ID): ConversationEntity = ConversationEntity(
@@ -60,7 +68,8 @@ object ConversationMapper {
         isDraft = isDraft,
         draftText = draftText,
         folderID = folderID?.let(::normalizeUuid),
-        skillId = skillId,
+        // Dual write (skill_sync_fields.v1): legacy skillId = skillIds[0]; callers that only set skillId keep it.
+        skillId = effectiveSkillIds.firstOrNull() ?: skillId,
         createdAt = createdAt,
         updatedAt = updatedAt,
         accountId = accountId,
@@ -70,7 +79,19 @@ object ConversationMapper {
         instructions = instructions,
         contextCap = contextCap?.toStorageText(),
         nonUsdCostTotals = encodeNonUsdCostTotals(nonUsdCostTotals),
+        localThreadComplete = localThreadComplete,
+        skillIdsJson = encodeIdList(effectiveSkillIds),
+        disabledAutoSkillIdsJson = encodeIdList(
+            SkillSyncFields.idList(disabledAutoSkillIds, SkillSyncFields.DISABLED_AUTO_SKILL_IDS_MAX),
+        ),
     )
+
+    /** Id list column text: null when empty. Shared by row writes and single-column DAO updates. */
+    fun encodeIdList(ids: List<String>): String? = ids.takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) }
+
+    /** Id list column → raw list; null column or unreadable JSON = absent. */
+    private fun decodeIdListOrNull(raw: String?): List<String>? =
+        raw?.let { runCatching { json.decodeFromString<List<String>>(it) }.getOrNull() }
 
     /** Non-USD totals to the `conversations.nonUsdCostTotals` column text (empty becomes null); shared by the DAO updates that write only the cost columns. */
     fun encodeNonUsdCostTotals(totals: Map<String, Double>): String? =

@@ -4,6 +4,7 @@ import { memo, useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { AIModel, ChatMessage, Attachment, Conversation, Provider } from "@oriveo/shared";
+import { brand, getProviderDisplayName } from "@oriveo/config";
 import { Maximize2 } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { MessageActions } from "./MessageActions";
@@ -290,9 +291,13 @@ export const MessageBubble = memo(function MessageBubble({
     () => modelDisplayLookup.resolve(message.modelID),
     [modelDisplayLookup, message.modelID],
   );
+  // Unresolved provider: a stored raw kind id (e.g. "openAI") or an empty name falls back to the brand name.
+  const storedProviderName = message.providerName?.trim();
   const resolvedProviderName = resolvedProvider
     ? getProviderInstanceDisplayName(resolvedProvider)
-    : message.providerName;
+    : message.providerKind && (!storedProviderName || storedProviderName === message.providerKind)
+      ? getProviderDisplayName(message.providerKind)
+      : message.providerName;
   const resolvedProviderKind = resolvedProvider?.kind ?? message.providerKind;
   const resolvedModelName = resolvedModel?.displayName ?? message.modelName;
   const originModel = useMemo(() => {
@@ -343,6 +348,7 @@ export const MessageBubble = memo(function MessageBubble({
     message.state !== "generating" &&
     (resolvedModelName || resolvedProviderName);
   const showAssistantHeader = message.role === "assistant" && resolvedModelName;
+
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(
     null,
   );
@@ -622,6 +628,7 @@ export const MessageBubble = memo(function MessageBubble({
           <div className={styles.editWrap}>
             <textarea
               className={styles.editTextarea}
+              dir="auto"
               value={editText}
               onChange={(e) => setEditText(e.target.value)}
               onKeyDown={handleEditKeyDown}
@@ -722,7 +729,7 @@ export const MessageBubble = memo(function MessageBubble({
                 />
               ) : foldedPreview !== null ? (
                 <>
-                  <span data-quote-block="prose" className={styles.foldedText}>
+                  <span data-quote-block="prose" className={styles.foldedText} dir="auto">
                     {foldedPreview}
                   </span>
                   <span className={styles.showFullTextRow}>
@@ -737,7 +744,7 @@ export const MessageBubble = memo(function MessageBubble({
                   </span>
                 </>
               ) : (
-                <span data-quote-block="prose">{displayText}</span>
+                <span data-quote-block="prose" className={styles.plainText} dir="auto">{displayText}</span>
               )}
               {!isWaitingForResponse && externalSearchActivity ? (
                 <ExternalSearchActivity presentation={externalSearchActivity} />
@@ -888,6 +895,7 @@ export const MessageBubble = memo(function MessageBubble({
               !isInterrupted &&
               message.role === "user" && (
                 <MessageActions
+                  className={styles.actions}
                   role={message.role}
                   text={message.text}
                   onEdit={handleStartEdit}
@@ -909,6 +917,8 @@ export const MessageBubble = memo(function MessageBubble({
                 modelName={resolvedModelName}
                 estimatedCost={message.estimatedCost}
                 nonUsdCost={message.nonUsdCost}
+                costSource={message.costSource}
+                providerKind={message.providerKind}
                 copied={metaCopied}
                 onCopy={handleMetaCopy}
                 onRetry={deliveredRetryAction}

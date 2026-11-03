@@ -89,11 +89,11 @@ internal fun UserMessageFullTextSheet(
                     ) {
                         Text(
                             text = stringResource(if (copied) R.string.copied else R.string.copy),
-                            color = colors.primary,
+                            color = colors.primaryTextSafe,
                         )
                     }
                     TextButton(onClick = onDismiss) {
-                        Text(text = stringResource(R.string.done), color = colors.primary)
+                        Text(text = stringResource(R.string.done), color = colors.primaryTextSafe)
                     }
                 }
                 LazyColumn(

@@ -13,6 +13,11 @@ struct DatabaseHealthProbeTests {
         DatabaseError(resultCode: ResultCode(rawValue: 13), message: "database or disk is full")
     }
 
+    /// SQLITE_IOERR: storage-family but not unambiguous out-of-space, so free space decides the verdict.
+    private var sqliteIOError: Error {
+        DatabaseError(resultCode: ResultCode(rawValue: 10), message: "disk I/O error")
+    }
+
     @Test("No room left → blocked as storageFull")
     func storageFullBlocks() {
         let probe = DatabaseHealthProbe(availableBytes: { 1024 })
@@ -28,7 +33,7 @@ struct DatabaseHealthProbeTests {
     func genuineFailureBlocksAsUnavailable() {
         let probe = DatabaseHealthProbe(availableBytes: { 8 * 1024 * 1024 * 1024 })
 
-        #expect(probe.recordFailure(sqliteFullError))
+        #expect(probe.recordFailure(sqliteIOError))
 
         #expect(probe.health == .blocked(.unavailable))
     }
@@ -37,7 +42,7 @@ struct DatabaseHealthProbeTests {
     func recoveryMarksHealthy() {
         let probe = DatabaseHealthProbe(availableBytes: { 0 })
 
-        probe.recordFailure(sqliteFullError)
+        probe.recordFailure(sqliteIOError)
         probe.recordSuccess()
 
         #expect(probe.health == .healthy)
@@ -68,37 +73,37 @@ struct DatabaseHealthProbeTests {
 struct DatabaseHealthFromLoadSessionTests {
 
     @Test("A readable database is healthy")
-    func healthyDatabaseMarksHealthy() throws {
+    func healthyDatabaseMarksHealthy() async throws {
         let uid = "db-health-ok-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+        }
 
         #expect(state.databaseHealthProbe.health == .healthy)
     }
 
     /// A broken database on a disk with room is a local fault, not "your device is full".
     @Test("A corrupt database blocks as a local fault")
-    func corruptDatabaseBlocks() throws {
+    func corruptDatabaseBlocks() async throws {
         let uid = "db-health-corrupt-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
-        _ = AppState(sessionUID: uid)
-        DatabaseManager.shared.close()
+        let seeded = AppState(sessionUID: uid)
+        // Wait for the first instance's background reads and writes to drain before atomically replacing the database file; otherwise its read-back races the replaced file (disk I/O error).
+        await TestPartitionCleanup.drain(uid)
+        withExtendedLifetime(seeded) {}
         try Data("not-a-valid-sqlite".utf8).write(
             to: AppSessionStore.databasePath(for: uid),
             options: .atomic
         )
 
         let relaunched = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+        }
 
         #expect(relaunched.databaseHealthProbe.health == .blocked(.unavailable))
     }
@@ -114,6 +119,16 @@ struct StorageWriteHealthTests {
             NSLocalizedDescriptionKey: "No space left on device",
         ])
         return NSError(domain: NSCocoaErrorDomain, code: 640, userInfo: [
+            NSUnderlyingErrorKey: underlying,
+        ])
+    }
+
+    /// Generic Cocoa write failure over EIO: storage-family but not unambiguous out-of-space.
+    private var genericWriteError: Error {
+        let underlying = NSError(domain: NSPOSIXErrorDomain, code: 5, userInfo: [
+            NSLocalizedDescriptionKey: "Input/output error",
+        ])
+        return NSError(domain: NSCocoaErrorDomain, code: 512, userInfo: [
             NSUnderlyingErrorKey: underlying,
         ])
     }
@@ -137,7 +152,7 @@ struct StorageWriteHealthTests {
         StorageWriteHealth.shared.markRecovered()
 
         StorageWriteHealthSignal.recordFailure(
-            outOfSpaceWriteError,
+            genericWriteError,
             availableBytes: 8 * 1024 * 1024 * 1024
         )
         await Task.yield()

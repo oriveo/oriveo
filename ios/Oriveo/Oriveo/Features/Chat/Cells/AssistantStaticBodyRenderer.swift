@@ -299,7 +299,7 @@ final class AssistantStaticBodyRenderer {
         textView.backgroundColor = .clear
         textView.textContainerInset = .zero
         textView.textContainer.lineFragmentPadding = 0
-        textView.linkTextAttributes = [.foregroundColor: UIColor(OriveoTheme.Palette.primary)]
+        textView.linkTextAttributes = [.foregroundColor: OriveoTheme.Palette.primaryTextOnSurfaceUIColor]
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         textView.setContentHuggingPriority(.required, for: .vertical)
         textView.setContentCompressionResistancePriority(.required, for: .vertical)

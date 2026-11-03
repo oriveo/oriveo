@@ -24,12 +24,17 @@ struct MemoryOrganizer {
     let candidates: [Candidate]
     let send: Send
 
-    init(candidates: [Candidate], send: @escaping Send = MemoryOrganizer.liveSend) {
+    init(candidates: [Candidate], send: @escaping Send) {
         self.candidates = candidates
         self.send = send
     }
 
-    init(providers: [Provider], lastUsedModelRef: LastUsedModelRef?, send: @escaping Send = MemoryOrganizer.liveSend) {
+    /// Sends through the app's provider session (`AppState.providerSession`), the same one chat uses.
+    init(candidates: [Candidate], session: URLSession) {
+        self.init(candidates: candidates, send: MemoryOrganizer.liveSend(session: session))
+    }
+
+    init(providers: [Provider], lastUsedModelRef: LastUsedModelRef?, send: @escaping Send) {
         self.init(
             candidates: MemoryView.draftCandidateModels(providers: providers, lastUsedModelRef: lastUsedModelRef),
             send: send
@@ -82,9 +87,23 @@ struct MemoryOrganizer {
     }
 
     /// The same entry point as "AI draft": picks the service by (provider, model).
-    static func liveSend(provider: Provider, model: AIModel, request: MemoryOrganizeRequest) async throws -> String {
+    /// `session` must be the app's provider session: relay traffic on `.shared` is moved to a private ephemeral
+    /// session, which would skip whatever the app installed on its own session.
+    static func liveSend(session: URLSession) -> Send {
+        let send: Send = { provider, model, request in
+            try await sendOnce(provider: provider, model: model, request: request, session: session)
+        }
+        return send
+    }
+
+    private static func sendOnce(
+        provider: Provider,
+        model: AIModel,
+        request: MemoryOrganizeRequest,
+        session: URLSession
+    ) async throws -> String {
         let transport = plannedRequest(request, provider: provider, model: model).transportInput(ChatRequestOptions())
-        guard let result = try await ProviderServiceRouter.Services().sendMessage(
+        guard let result = try await ProviderServiceRouter.Services(session: session).sendMessage(
             provider: provider,
             model: model,
             transport: transport

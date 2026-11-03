@@ -46,7 +46,7 @@
 
 .secondary {
   color: var(--o-text);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   border: 1px solid var(--o-border);
   box-shadow: var(--o-elevation-control);
 }

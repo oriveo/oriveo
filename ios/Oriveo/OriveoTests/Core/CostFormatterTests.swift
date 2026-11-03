@@ -28,6 +28,12 @@ struct CostFormatterTests {
         #expect(CostFormatter.format(.nan) == "")
     }
 
+    @Test("usd returns empty for non-finite values")
+    func usd_non_finite_is_empty() {
+        #expect(CostFormatter.usd(.nan, minFraction: 2, maxFraction: 2, locale: Locale(identifier: "en_US")) == "")
+        #expect(CostFormatter.usd(.infinity, minFraction: 2, maxFraction: 2, locale: Locale(identifier: "en_US")) == "")
+    }
+
     @Test("Infinity Returns Empty")
     func infinityReturnsEmpty() {
         #expect(CostFormatter.format(.infinity) == "")
@@ -118,20 +124,88 @@ struct CostFormatterTests {
     func nonUsdPerMillionMatchesUsdPrecision() {
         let enUS = Locale(identifier: "en_US")
         let cases: [(perToken: Double, usd: String, cny: String)] = [
-            (0.000_004, "$4/M", "CN\u{00A5}4/M"),
-            (0.000_016, "$16/M", "CN\u{00A5}16/M"),
-            (0.000_002_5, "$2.5/M", "CN\u{00A5}2.5/M"),
-            (0.000_000_6, "$0.6/M", "CN\u{00A5}0.6/M"),
-            (0.000_012_345, "$12.3/M", "CN\u{00A5}12.3/M"),
-            (0.000_000_001_23, "$0.00123/M", "CN\u{00A5}0.00123/M"),
-            (0.001_234_5, "$1230/M", "CN\u{00A5}1,230/M"),
+            (0.000_004, "$4/M", "CN¥4/M"),
+            (0.000_016, "$16/M", "CN¥16/M"),
+            (0.000_002_5, "$2.5/M", "CN¥2.5/M"),
+            (0.000_000_6, "$0.6/M", "CN¥0.6/M"),
+            (0.000_012_345, "$12.3/M", "CN¥12.3/M"),
+            (0.000_000_001_23, "$0.00123/M", "CN¥0.00123/M"),
+            (0.001_234_5, "$1,230/M", "CN¥1,230/M"),
         ]
         for item in cases {
             #expect(CostFormatter.formatPerMillion(item.perToken) == item.usd)
             #expect(CostFormatter.formatPerMillion(item.perToken, currencyCode: "CNY", locale: enUS) == item.cny)
         }
-        #expect(CostFormatter.formatPerMillion(0.000_004, currencyCode: "CNY", locale: Locale(identifier: "zh_CN")) == "\u{00A5}4/M")
-        #expect(CostFormatter.formatPerMillion(0.000_002_5, currencyCode: "EUR", locale: Locale(identifier: "de_DE")) == "2,5\u{00A0}\u{20AC}/M")
-        #expect(CostFormatter.formatPerMillion(0.000_002_5, currencyCode: "USD", locale: Locale(identifier: "de_DE")) == "$2.5/M")
+        #expect(CostFormatter.formatPerMillion(0.000_004, currencyCode: "CNY", locale: Locale(identifier: "zh_CN")) == "¥4/M")
+        #expect(CostFormatter.formatPerMillion(0.000_002_5, currencyCode: "EUR", locale: Locale(identifier: "de_DE")) == "2,5\u{00A0}€/M")
+        #expect(CostFormatter.formatPerMillion(0.000_002_5, currencyCode: "USD", locale: Locale(identifier: "de_DE")) == "2,5\u{00A0}$/M")
+    }
+
+    @Test("usd_formatter_cached_per_key: same key reuses one formatter, a new locale gets its own")
+    func usd_formatter_cached_per_key() {
+        let de = Locale(identifier: "de")
+        let en = Locale(identifier: "en_US")
+        let first = CostFormatter.usd(1.5, minFraction: 2, maxFraction: 2, locale: de)
+        let second = CostFormatter.usd(1.5, minFraction: 2, maxFraction: 2, locale: de)
+        #expect(first == second)
+        #expect(
+            CostFormatter.usdFormatterIdentity(locale: de, minFraction: 2, maxFraction: 2)
+                == CostFormatter.usdFormatterIdentity(locale: de, minFraction: 2, maxFraction: 2)
+        )
+        #expect(
+            CostFormatter.usdFormatterIdentity(locale: de, minFraction: 2, maxFraction: 2)
+                != CostFormatter.usdFormatterIdentity(locale: en, minFraction: 2, maxFraction: 2)
+        )
+        let english = CostFormatter.usd(1.5, minFraction: 2, maxFraction: 2, locale: en)
+        #expect(Self.normalized(first) == "1,50 $")
+        #expect(english == "$1.50")
+    }
+
+    // MARK: - Shared USD formatter: locale placement, "$" symbol, Latin digits
+
+    private static func normalized(_ text: String) -> String {
+        CostCurrencyContractTests.normalizedDisplay(text)
+    }
+
+    @Test("usd_de_locale_currency: German places $ after the amount with a decimal comma")
+    func usd_de_locale_currency() {
+        let text = CostFormatter.usd(0.0123, minFraction: 4, maxFraction: 4, locale: Locale(identifier: "de"))
+        #expect(Self.normalized(text) == "0,0123 $")
+    }
+
+    @Test("usd_parts_strips_bidi_marks: Arabic parts carry no LRM / RLM / ALM")
+    func usd_parts_strips_bidi_marks() throws {
+        let ar = Locale(identifier: "ar")
+        let text = CostFormatter.usd(103.98, minFraction: 2, maxFraction: 2, locale: ar)
+        let parts = try #require(CostFormatter.usdParts(text, locale: ar))
+        let marks: Set<Unicode.Scalar> = ["\u{200E}", "\u{200F}", "\u{061C}"]
+        for part in [parts.leadingSymbol, parts.integer, parts.fraction, parts.trailingSymbol] {
+            #expect(!part.unicodeScalars.contains(where: marks.contains), "part \(part.debugDescription) keeps a bidi mark")
+        }
+        #expect(parts.integer == "103")
+        #expect(parts.fraction == ".98")
+        #expect((parts.leadingSymbol + parts.trailingSymbol).contains("$"))
+    }
+
+    @Test("usd_ar_latin_digits: Arabic renders Latin digits")
+    func usd_ar_latin_digits() {
+        let text = CostFormatter.usd(1.2, minFraction: 2, maxFraction: 2, locale: Locale(identifier: "ar"))
+        #expect(Self.normalized(text) == "1.20 $")
+        #expect(CostFormatter.format(1.2, locale: Locale(identifier: "ar")) == text)
+    }
+
+    @Test("usd_pt_br_no_us_prefix: Brazilian Portuguese shows $ without the US prefix")
+    func usd_pt_br_no_us_prefix() {
+        let text = CostFormatter.usd(1.2, minFraction: 2, maxFraction: 2, locale: Locale(identifier: "pt_BR"))
+        #expect(Self.normalized(text) == "$ 1,20")
+        #expect(!text.contains("US"))
+    }
+
+    @Test("managed_balance_de_truncates: German balance truncates instead of rounding")
+    func managed_balance_de_truncates() {
+        let text = CostFormatter.usd(
+            103.989, minFraction: 2, maxFraction: 2, locale: Locale(identifier: "de"), roundingMode: .down
+        )
+        #expect(Self.normalized(text) == "103,98 $")
     }
 }

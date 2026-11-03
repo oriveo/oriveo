@@ -325,6 +325,26 @@ struct CodableCompatibilityTests {
             #expect(abs(msg.estimatedCost - 0.0012) < 0.0001)
         }
 
+        @Test("ChatMessage unknown costSource raw value decodes as unknown")
+        func messageUnknownCostSourceDecodesAsUnknown() throws {
+            let json = """
+            {
+                "id": "770E8400-E29B-41D4-A716-446655440011",
+                "role": "assistant",
+                "text": "test",
+                "providerKind": "openAI",
+                "providerName": "OpenAI",
+                "modelName": "GPT-4o",
+                "costSource": "bogus",
+                "state": "delivered"
+            }
+            """
+            let data = json.data(using: .utf8)!
+            let msg = try decoder.decode(ChatMessage.self, from: data)
+
+            #expect(msg.costSource == .unknown)
+        }
+
         @Test("Message With Attachments Roundtrip")
         func messageWithAttachmentsRoundtrip() throws {
             let imgAtt = TestFactories.makeImageAttachment(

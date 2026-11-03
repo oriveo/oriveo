@@ -12,7 +12,7 @@
   border: 1px solid var(--o-border);
   border-radius: var(--o-radius-full);
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-size: var(--o-text-xs);
   font-weight: 600;
   cursor: pointer;

@@ -86,14 +86,14 @@ enum MarkdownCodeBlockPalette {
     static let border = Color(uiColor: borderUIColor)
     static let foreground = Color(uiColor: foregroundUIColor)
     static let secondary = Color(uiColor: secondaryUIColor)
-    static let markdownLink = Color.brand(defaultLight: 0x7C3AED, light: \.textSafe, dark: \.accent)
-    /// Inline code background in the code block Markdown preview: in dark mode it matches chat inline code (MarkdownAttributedStringRenderer.codeBg, white at 7%); black at 6% in light mode.
+    static let markdownLink = Color.brand(defaultLight: 0x7C3AED, light: \.textSafe, dark: \.accent) // capability-ui-lint: allow syntax highlight / markdown link brand violet, not a capability colour
+    /// Inline code background in the code-block Markdown preview: dark mode matches chat inline code (MarkdownAttributedStringRenderer.codeBg, white at 7%); light mode black at 6%.
     static let markdownInlineBackground = Color.dynamic(light: 0x000000, dark: 0xFFFFFF, lightAlpha: 0.06, darkAlpha: 0.07)
     /// Table border in the code block Markdown preview: dark mode uses the palette border (white at 10%); #D4D4D8 in light mode.
     static let markdownTableBorder = Color.dynamic(light: 0xD4D4D8, dark: 0xFFFFFF, darkAlpha: 0.10)
 
     // MARK: Syntax roles (`text` is the foreground)
-    static let keywordUIColor = dynamicUIColor(light: 0x7C3AED, dark: 0xCBA6F7)
+    static let keywordUIColor = dynamicUIColor(light: 0x7C3AED, dark: 0xCBA6F7) // capability-ui-lint: allow syntax highlight / markdown link brand violet, not a capability colour
     static let stringUIColor = dynamicUIColor(light: 0x13773A, dark: 0xA6E3A1)
     static let numberUIColor = dynamicUIColor(light: 0xB5400C, dark: 0xFAB387)
     static let functionUIColor = dynamicUIColor(light: 0x1D4ED8, dark: 0x89B4FA)

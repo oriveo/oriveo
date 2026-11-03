@@ -90,6 +90,13 @@ enum RecordMappers {
             contextCap: record.contextCap
         )
         summary.nonUsdCostTotals = decodeNonUsdCostTotals(record.nonUsdCostTotals)
+        summary.localThreadComplete = record.localThreadComplete
+        summary.skillIds = SkillSyncFields.localSkillIds(
+            skillIds: decodeStringArray(record.skillIds),
+            legacySkillId: record.skillId
+        )
+        summary.skillId = summary.skillIds.first.flatMap(UUID.init(uuidString:))
+        summary.disabledAutoSkillIds = decodeStringArray(record.disabledAutoSkillIds)
         return summary
     }
 
@@ -151,6 +158,8 @@ enum RecordMappers {
         conversation.useMemory = thread.summary.useMemory
         conversation.skillId = thread.summary.skillId
         conversation.metadataUpdatedAt = thread.summary.metadataUpdatedAt
+        conversation.skillIds = thread.summary.resolvedSkillIds
+        conversation.disabledAutoSkillIds = thread.summary.disabledAutoSkillIds
         conversation.messageCountOverride = max(thread.summary.messageCount, thread.summary.remoteMessageCount)
         conversation.deletedAt = thread.summary.deletedAt
         conversation.isConflictCopy = thread.summary.isConflictCopy
@@ -222,6 +231,10 @@ enum RecordMappers {
             toolSteps: toolSteps,
             stopReason: StopReason.fromStored(record.stopReason),
             memoryItemIds: decodeMemoryItemIds(record.memoryItemIds),
+            attachedSkillIds: role == .user ? decodeStringArray(record.attachedSkillIds) : [],
+            usedSkills: role == .assistant ? decodeUsedSkills(record.usedSkills) : [],
+            remoteConfirmedAt: record.remoteConfirmedAt,
+            skillManifestTokens: record.skillManifestTokens,
             createdAt: record.createdAt.map(Date.init(timeIntervalSince1970:)),
             inputTokens: record.inputTokens,
             outputTokens: record.outputTokens,

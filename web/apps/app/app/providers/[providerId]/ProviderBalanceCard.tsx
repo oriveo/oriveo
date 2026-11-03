@@ -25,7 +25,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
-import { useTranslations } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import {
   AlertTriangle,
   ArrowDownCircle,
@@ -39,6 +39,7 @@ import type { Provider, ProviderKind } from '@oriveo/shared';
 import {
   BalanceUnauthorizedError,
   BalanceUnsupportedError,
+  formatProviderBalanceValue,
   getProviderBalanceCached,
   isBalanceCapable,
   type ProviderBalance,
@@ -57,15 +58,9 @@ interface State {
   isKeyInvalid?: boolean;
 }
 
-function formatAmount(currency: ProviderBalance['currency'], value: number): string {
-  const sign = value < 0 ? '-' : '';
-  const abs = Math.abs(value);
-  // CNY uses 2 decimals; a USD balance can be very small (< $0.01), so allow up to 4 and trim trailing zeros
-  const digits = currency === 'CNY' ? 2 : abs < 0.01 ? 4 : 2;
-  return `${currency === 'USD' ? '$' : '¥'}${sign}${abs.toLocaleString(undefined, {
-    minimumFractionDigits: digits,
-    maximumFractionDigits: digits,
-  })}`;
+function formatAmount(currency: ProviderBalance['currency'], value: number, locale: string): string {
+  // Third-party balances use 2 decimals for every currency (iOS / Android parity).
+  return formatProviderBalanceValue(currency, value, locale, 2);
 }
 
 /** Used share = used / (used + remaining); null when there is no totalUsage or it is not positive */
@@ -188,6 +183,7 @@ function BalanceContent({
   providerKind: ProviderKind;
   t: ReturnType<typeof useTranslations>;
 }) {
+  const locale = useLocale();
   const { granted, topUp, totalUsage, currency } = balance;
   const showGranted = granted != null && granted !== 0;
   const showTopUp = topUp != null && topUp !== 0;
@@ -199,7 +195,7 @@ function BalanceContent({
   return (
     <>
       <div className={styles.amount}>
-        <span className={styles.amountValue}>{formatAmount(currency, balance.total)}</span>
+        <span className={styles.amountValue}>{formatAmount(currency, balance.total, locale)}</span>
         <span className={styles.amountCurrency}>{currency}</span>
       </div>
 
@@ -223,14 +219,14 @@ function BalanceContent({
               <BreakdownChip
                 icon="sparkles"
                 label={t(providerKind === 'moonshot' ? 'voucher' : 'granted')}
-                value={formatAmount(currency, granted)}
+                value={formatAmount(currency, granted, locale)}
               />
             )}
             {showTopUp && topUp != null && (
               <BreakdownChip
                 icon={isMoonshotOwing ? 'warning' : 'down'}
                 label={t(providerKind === 'moonshot' ? 'cash' : 'topUp')}
-                value={formatAmount(currency, topUp)}
+                value={formatAmount(currency, topUp, locale)}
                 isWarning={isMoonshotOwing}
                 warningLabel={isMoonshotOwing ? t('owing') : undefined}
               />
@@ -239,7 +235,7 @@ function BalanceContent({
               <BreakdownChip
                 icon="up"
                 label={t('used')}
-                value={formatAmount(currency, totalUsage)}
+                value={formatAmount(currency, totalUsage, locale)}
               />
             )}
           </div>

@@ -86,7 +86,7 @@ struct ChatComposerDraftLifecycleTests {
         let environment = try ChatDraftEnvironment(conversations: { provider in
             [Self.withProvider(conversation, provider)]
         })
-        defer { environment.tearDown() }
+        defer { await environment.tearDown() }
         let harness = ComposerDraftHarness(conversationID: conversation.id, storeDraft: "draft")
         let host = try environment.host(ComposerDraftHarnessView(environment: environment, harness: harness))
 
@@ -121,7 +121,7 @@ struct ChatComposerDraftLifecycleTests {
         let environment = try ChatDraftEnvironment(conversations: { provider in
             [Self.withProvider(conversation, provider)]
         })
-        defer { environment.tearDown() }
+        defer { await environment.tearDown() }
         let harness = ComposerDraftHarness(conversationID: conversation.id, storeDraft: "")
         let host = try environment.host(ComposerDraftHarnessView(environment: environment, harness: harness))
         let input = try await Self.waitForInput(in: host.view)
@@ -142,7 +142,7 @@ struct ChatComposerDraftLifecycleTests {
         let environment = try ChatDraftEnvironment(conversations: { provider in
             [Self.withProvider(created, provider)]
         })
-        defer { environment.tearDown() }
+        defer { await environment.tearDown() }
         let harness = ComposerDraftHarness(conversationID: nil, storeDraft: nil)
         let host = try environment.host(ComposerDraftHarnessView(environment: environment, harness: harness))
         let input = try await Self.waitForInput(in: host.view)
@@ -187,7 +187,7 @@ struct ChatComposerDraftLifecycleTests {
         let environment = try ChatDraftEnvironment(conversations: { provider in
             [Self.withProvider(conversation, provider)]
         })
-        defer { environment.tearDown() }
+        defer { await environment.tearDown() }
         let harness = ComposerDraftHarness(conversationID: conversation.id, storeDraft: "saved")
         let host = try environment.host(ComposerDraftHarnessView(environment: environment, harness: harness))
         let input = try await Self.waitForInput(in: host.view)
@@ -221,7 +221,7 @@ struct ChatComposerDraftLifecycleTests {
         let environment = try ChatDraftEnvironment(conversations: { provider in
             [Self.withProvider(conversation, provider)]
         })
-        defer { environment.tearDown() }
+        defer { await environment.tearDown() }
         let model = ChatDraftHostModel(conversationID: conversation.id)
         let host = try environment.host(ChatDraftHostRoot(model: model, state: environment.state))
 
@@ -244,7 +244,7 @@ struct ChatComposerDraftLifecycleTests {
         let environment = try ChatDraftEnvironment(conversations: { provider in
             [Self.withProvider(conversation, provider)]
         })
-        defer { environment.tearDown() }
+        defer { await environment.tearDown() }
         let model = ChatDraftHostModel(conversationID: conversation.id)
         let host = try environment.host(ChatDraftHostRoot(model: model, state: environment.state))
         let input = try await Self.waitForInput(in: host.view)
@@ -268,7 +268,7 @@ struct ChatComposerDraftLifecycleTests {
         let environment = try ChatDraftEnvironment(conversations: { provider in
             [Self.withProvider(conversation, provider)]
         })
-        defer { environment.tearDown() }
+        defer { await environment.tearDown() }
         let model = ChatDraftHostModel(conversationID: conversation.id)
         let host = try environment.host(ChatDraftHostRoot(model: model, state: environment.state))
         let input = try await Self.waitForInput(in: host.view)
@@ -292,7 +292,7 @@ struct ChatComposerDraftLifecycleTests {
     @Test("pushing a page from a new chat and coming back keeps the unsent input")
     func returningFromPushedPageKeepsNewChatInput() async throws {
         let environment = try ChatDraftEnvironment(conversations: { _ in [] })
-        defer { environment.tearDown() }
+        defer { await environment.tearDown() }
         let model = ChatDraftHostModel(conversationID: nil)
         let host = try environment.host(ChatDraftHostRoot(model: model, state: environment.state))
         let input = try await Self.waitForInput(in: host.view)
@@ -442,13 +442,13 @@ private final class ChatDraftEnvironment {
         }
     }
 
-    func tearDown() {
+    func tearDown() async {
         window.isHidden = true
         window.rootViewController = nil
         state.flushConversationPersistQueue()
         DatabaseManager.shared.close()
         AppSessionStore.switchToUser(previousUID)
-        try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        await TestPartitionCleanup.remove(uid)
     }
 }
 

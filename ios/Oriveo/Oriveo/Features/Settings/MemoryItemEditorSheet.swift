@@ -190,7 +190,7 @@ struct MemoryItemEditorSheet: View {
                 Text(L10n.tr("Save"))
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(state.canSave
-                                     ? OriveoTheme.Palette.primaryTextSafe
+                                     ? OriveoTheme.Palette.primaryTextOnSurface
                                      : OriveoTheme.Palette.textTertiary)
                     .padding(.horizontal, 12)
                     .frame(minHeight: 44)

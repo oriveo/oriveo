@@ -70,7 +70,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--o-space-sm);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-size: var(--o-text-base);
   font-weight: 500;
 }
@@ -166,7 +166,7 @@
   height: 42px;
   margin-bottom: 14px;
   border-radius: 14px;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   background: color-mix(in srgb, var(--o-primary) 12%, transparent);
 }
 

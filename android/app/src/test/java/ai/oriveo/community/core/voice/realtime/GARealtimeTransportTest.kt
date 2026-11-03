@@ -3,10 +3,12 @@ package ai.oriveo.community.core.voice.realtime
 import ai.oriveo.community.core.context.RealtimeHistoryItem
 import ai.oriveo.community.core.data.repository.RealtimeTransportInput
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.realtime.wire.GARealtimeCodec
 import ai.oriveo.community.core.voice.realtime.wire.GARealtimeTransport
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveSessionControl
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeEndpoint
+import ai.oriveo.community.core.voice.realtime.wire.RealtimeFailureDetail
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeSocket
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeSocketClosedException
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeSocketFactory
@@ -24,6 +26,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -38,6 +41,7 @@ class GARealtimeTransportTest {
     private class FakeSocket : RealtimeSocket {
         val sent = mutableListOf<JsonObject>()
         val closes = mutableListOf<Int>()
+        override var queueSize: Long = 0L
 
         override fun send(text: String): Boolean {
             sent += Json.parseToJsonElement(text).jsonObject
@@ -154,6 +158,212 @@ class GARealtimeTransportTest {
         transport.close()
     }
 
+    private fun userTextItem(text: String): JsonObject = Json.parseToJsonElement(
+        """{"type":"conversation.item.create","item":{"type":"message","role":"user","content":[{"type":"input_text","text":"$text"}]}}""",
+    ).jsonObject
+
+    private val responseCreate: JsonObject = Json.parseToJsonElement("""{"type":"response.create"}""").jsonObject
+
+    @Test
+    fun send_user_text_after_ready_sends_item_then_response() = runTest {
+        val (transport, factory) = transport()
+        collect(transport)
+        factory.open()
+        factory.frame("""{"type":"session.created"}""")
+        val before = factory.socket.sent.size
+        transport.sendUserText("what time is it")
+        // Typed message: user item + response.create without output_modalities; speaks and shows text as usual
+        assertEquals(listOf(userTextItem("what time is it"), responseCreate), factory.socket.sent.drop(before))
+        transport.close()
+    }
+
+    @Test
+    fun send_user_text_before_ready_held_until_ready() = runTest {
+        val (transport, factory) = transport(RealtimeTransportKind.XaiRealtime)
+        collect(transport)
+        factory.open()
+        val opening = factory.socket.sent.toList()
+        transport.sendUserText("one")
+        transport.sendUserText("two")
+        assertEquals(opening, factory.socket.sent)
+        factory.frame("""{"type":"session.created"}""")
+        assertEquals(
+            // Several staged typed messages are merged into one reply: items are sent in order, with only one response.create at the end
+            listOf(userTextItem("one"), userTextItem("two"), responseCreate),
+            factory.socket.sent.drop(opening.size),
+        )
+        transport.close()
+    }
+
+    private val responseCancel: JsonObject = Json.parseToJsonElement("""{"type":"response.cancel"}""").jsonObject
+
+    @Test
+    fun typed_text_during_active_response_cancels_then_creates_after_done() = runTest {
+        val (transport, factory) = transport()
+        collect(transport)
+        factory.open()
+        factory.frame("""{"type":"session.created"}""")
+        factory.frame("""{"type":"response.created","response":{"id":"r1","status":"in_progress"}}""")
+        val before = factory.socket.sent.size
+        transport.sendUserText("stop")
+        // Response in progress: cancel first, then write the user item; response.create is held
+        assertEquals(listOf(responseCancel, userTextItem("stop")), factory.socket.sent.drop(before))
+        // Another message before done: no repeated cancel, only append the item
+        transport.sendUserText("again")
+        assertEquals(
+            listOf(responseCancel, userTextItem("stop"), userTextItem("again")),
+            factory.socket.sent.drop(before),
+        )
+        factory.frame("""{"type":"response.done","response":{"id":"r1","status":"cancelled"}}""")
+        assertEquals(
+            listOf(responseCancel, userTextItem("stop"), userTextItem("again"), responseCreate),
+            factory.socket.sent.drop(before),
+        )
+        // A deferred create also counts as in progress; once its response ends, return to idle: typing afterwards sends item + create directly
+        factory.frame("""{"type":"response.created","response":{"id":"r2"}}""")
+        factory.frame("""{"type":"response.done","response":{"id":"r2","status":"completed"}}""")
+        val afterDone = factory.socket.sent.size
+        transport.sendUserText("next")
+        assertEquals(listOf(userTextItem("next"), responseCreate), factory.socket.sent.drop(afterDone))
+        transport.close()
+    }
+
+    @Test
+    fun typed_text_when_idle_sends_create_immediately() = runTest {
+        val (transport, factory) = transport(RealtimeTransportKind.XaiRealtime)
+        collect(transport)
+        factory.open()
+        factory.frame("""{"type":"session.created"}""")
+        factory.frame("""{"type":"response.created","response":{"id":"r1"}}""")
+        factory.frame("""{"type":"response.done","response":{"id":"r1","status":"completed"}}""")
+        val before = factory.socket.sent.size
+        transport.sendUserText("hello")
+        assertEquals(listOf(userTextItem("hello"), responseCreate), factory.socket.sent.drop(before))
+        transport.close()
+    }
+
+    @Test
+    fun typed_text_after_local_create_before_created_cancels_first() = runTest {
+        val (transport, factory) = transport()
+        collect(transport)
+        factory.open()
+        factory.frame("""{"type":"session.created"}""")
+        val before = factory.socket.sent.size
+        transport.sendUserText("one")
+        // Sending response.create locally already counts as in progress: typing before response.created arrives also cancels first and holds the create
+        transport.sendUserText("two")
+        assertEquals(
+            listOf(userTextItem("one"), responseCreate, responseCancel, userTextItem("two")),
+            factory.socket.sent.drop(before),
+        )
+        factory.frame("""{"type":"response.created","response":{"id":"r1"}}""")
+        assertEquals(before + 4, factory.socket.sent.size)
+        factory.frame("""{"type":"response.done","response":{"id":"r1","status":"cancelled"}}""")
+        assertEquals(responseCreate, factory.socket.sent.last())
+        assertEquals(before + 5, factory.socket.sent.size)
+        transport.close()
+    }
+
+    @Test
+    fun pending_create_dropped_on_close() = runTest {
+        val (transport, factory) = transport()
+        val collected = collect(transport)
+        factory.open()
+        factory.frame("""{"type":"session.created"}""")
+        factory.frame("""{"type":"response.created","response":{"id":"r1"}}""")
+        transport.sendUserText("stop")
+        val sentAtClose = factory.socket.sent.toList()
+        assertEquals(responseCancel, sentAtClose[sentAtClose.size - 2])
+        transport.close()
+        testScheduler.runCurrent()
+        assertTrue(collected.completed)
+        // A done arriving after close does not send the held response.create
+        factory.frame("""{"type":"response.done","response":{"id":"r1","status":"cancelled"}}""")
+        assertEquals(sentAtClose, factory.socket.sent)
+        transport.close()
+    }
+
+    @Test
+    fun route_change_sends_session_update() = runTest {
+        val (transport, factory) = transport()
+        collect(transport)
+        factory.open()
+        factory.frame("""{"type":"session.created"}""")
+        val before = factory.socket.sent.size
+        transport.updateOutputRoute(ConversationRoute.HEADPHONES)
+        val update = factory.socket.sent.drop(before).single()
+        assertEquals("session.update", update["type"]!!.jsonPrimitive.content)
+        val session = update["session"]!!.jsonObject
+        // Only carries audio.input.noise_reduction (touches no other field beyond the session.type that GA requires)
+        assertEquals(setOf("type", "audio"), session.keys)
+        assertEquals("realtime", session["type"]!!.jsonPrimitive.content)
+        val audio = session["audio"]!!.jsonObject
+        assertEquals(setOf("input"), audio.keys)
+        val audioInput = audio["input"]!!.jsonObject
+        assertEquals(setOf("noise_reduction"), audioInput.keys)
+        assertEquals("near_field", audioInput["noise_reduction"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+
+        // Knob value unchanged (earphones and Bluetooth both map to near_field): not resent; switching back to speaker sends far_field
+        transport.updateOutputRoute(ConversationRoute.BLUETOOTH)
+        transport.updateOutputRoute(ConversationRoute.HEADPHONES)
+        assertEquals(before + 1, factory.socket.sent.size)
+        transport.updateOutputRoute(ConversationRoute.SPEAKER)
+        val back = factory.socket.sent.last()["session"]!!.jsonObject["audio"]!!.jsonObject["input"]!!.jsonObject
+        assertEquals("far_field", back["noise_reduction"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        transport.close()
+    }
+
+    @Test
+    fun route_change_before_ready_retunes_at_ready() = runTest {
+        val (transport, factory) = transport()
+        collect(transport)
+        factory.open()
+        val opening = factory.socket.sent.size
+        transport.updateOutputRoute(ConversationRoute.HEADPHONES)
+        assertEquals(opening, factory.socket.sent.size)
+        factory.frame("""{"type":"session.created"}""")
+        val update = factory.socket.sent.drop(opening).single()
+        val audioInput = update["session"]!!.jsonObject["audio"]!!.jsonObject["input"]!!.jsonObject
+        assertEquals("near_field", audioInput["noise_reduction"]!!.jsonObject["type"]!!.jsonPrimitive.content)
+        transport.close()
+    }
+
+    @Test
+    fun route_change_on_xai_sends_nothing() = runTest {
+        val (transport, factory) = transport(RealtimeTransportKind.XaiRealtime)
+        collect(transport)
+        factory.open()
+        factory.frame("""{"type":"session.created"}""")
+        val before = factory.socket.sent.size
+        // xAI does not accept noise_reduction: a route change does not send session.update
+        transport.updateOutputRoute(ConversationRoute.HEADPHONES)
+        assertEquals(before, factory.socket.sent.size)
+        transport.close()
+    }
+
+    @Test
+    fun headphones_route_sends_near_field() = runTest {
+        val factory = FakeFactory()
+        var samples = 0
+        val transport = GARealtimeTransport(
+            RealtimeTransportKind.OpenAiRealtime, endpoint, factory,
+            route = { samples++; ConversationRoute.HEADPHONES },
+        )
+        collect(transport)
+        factory.open()
+        // Route is read once when the session opens; with earphones the opening message is encoded with near_field
+        assertEquals(1, samples)
+        val opening = GARealtimeCodec.openingMessages(
+            RealtimeTransportKind.OpenAiRealtime, input.instructions, input.history, "marin", "gpt-4o-transcribe",
+            route = ConversationRoute.HEADPHONES,
+        )
+        assertEquals(opening, factory.socket.sent)
+        val noiseReduction = factory.socket.sent.first()["session"]!!.jsonObject["audio"]!!.jsonObject["input"]!!
+            .jsonObject["noise_reduction"]!!.jsonObject
+        assertEquals("near_field", noiseReduction["type"]!!.jsonPrimitive.content)
+        transport.close()
+    }
+
     @Test
     fun server_frames_mapped_in_order() = runTest {
         val (transport, factory) = transport()
@@ -218,6 +428,40 @@ class GARealtimeTransportTest {
         testScheduler.runCurrent()
         assertFalse(failed.completed)
         assertEquals("reset", failed.failure?.message)
+    }
+
+    /** After ready, send one 100 ms (4800 bytes) audio frame; after sending, the socket queue holds [frames] frames of the same size. */
+    private fun TestScope.sendWithBacklog(frames: Long): Pair<Collected, FakeFactory> {
+        val (transport, factory) = transport()
+        val collected = collect(transport)
+        factory.open()
+        factory.frame("""{"type":"session.created"}""")
+        testScheduler.runCurrent()
+        val pcm = ByteArray(4_800) { (it % 7).toByte() }
+        val message = GARealtimeCodec.append(RealtimeTransportKind.OpenAiRealtime, Base64.getEncoder().encodeToString(pcm))
+        factory.socket.queueSize = message.toString().length * frames
+        transport.sendAudio(pcm)
+        testScheduler.runCurrent()
+        return collected to factory
+    }
+
+    @Test
+    fun uplink_backlog_over_8s_fails_with_backlog_ms() = runTest {
+        val (collected, factory) = sendWithBacklog(81)
+        assertFalse(collected.completed)
+        val detail = collected.failure as? RealtimeFailureDetail
+        assertNotNull(detail)
+        assertEquals(8_100.0, detail!!.uplinkBacklogMs!!, 0.0)
+        assertEquals(listOf(1000), factory.socket.closes)
+    }
+
+    @Test
+    fun uplink_backlog_at_8s_does_not_fail() = runTest {
+        val (collected, factory) = sendWithBacklog(80)
+        assertNull(collected.failure)
+        assertFalse(collected.completed)
+        assertTrue(factory.socket.closes.isEmpty())
+        collected.job.cancel()
     }
 
     @Test

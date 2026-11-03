@@ -175,7 +175,7 @@
   justify-content: center;
   flex-shrink: 0;
   border-radius: 999px;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   background: color-mix(in srgb, var(--o-primary) 10%, transparent);
   font-size: 15px;
   line-height: 1;
@@ -209,7 +209,7 @@
   min-width: 0;
   overflow: hidden;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--o-surface-raised) 78%, transparent);
+  background: color-mix(in srgb, var(--o-fill-muted) 78%, transparent);
 }
 
 .modelProviderHeader,

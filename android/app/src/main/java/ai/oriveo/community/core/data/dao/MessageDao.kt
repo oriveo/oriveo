@@ -9,6 +9,7 @@ import androidx.room.Update
 import ai.oriveo.community.core.data.entity.AttachmentsJsonPageRow
 import ai.oriveo.community.core.data.entity.CurrencyCostRow
 import ai.oriveo.community.core.data.entity.MessageEntity
+import ai.oriveo.community.core.data.entity.MessageSkillManifestTokensRow
 import ai.oriveo.community.core.data.entity.MonthlyBilledMessageCountRow
 import ai.oriveo.community.core.data.entity.MonthlyCostRow
 import ai.oriveo.community.core.data.entity.OversizedAttachmentsJsonRow
@@ -285,14 +286,52 @@ interface MessageDao {
     @Query("SELECT COUNT(*) FROM messages WHERE accountId = :accountId AND conversationId = :conversationId AND state = 'Delivered'")
     suspend fun countDeliveredByConversation(accountId: String, conversationId: String): Int
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsert(entity: MessageEntity)
+    /**
+     * Writes the whole row; an incoming null [MessageEntity.skillManifestTokens] keeps the local value,
+     * since callers rebuild the entity from the domain model, which does not carry it. See [keepSkillManifestTokens].
+     */
+    @Transaction
+    suspend fun upsert(entity: MessageEntity) {
+        insertOrReplaceRows(keepSkillManifestTokens(entity.accountId, listOf(entity)))
+    }
+
+    @Transaction
+    suspend fun upsertAll(entities: List<MessageEntity>) {
+        entities.groupBy { it.accountId }.forEach { (accountId, rows) ->
+            insertOrReplaceRows(keepSkillManifestTokens(accountId, rows))
+        }
+    }
+
+    @Transaction
+    suspend fun update(entity: MessageEntity) {
+        updateRow(keepSkillManifestTokens(entity.accountId, listOf(entity)).single())
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun upsertAll(entities: List<MessageEntity>)
+    suspend fun insertOrReplaceRows(entities: List<MessageEntity>)
 
     @Update
-    suspend fun update(entity: MessageEntity)
+    suspend fun updateRow(entity: MessageEntity)
+
+    /** Fills an incoming null skillManifestTokens from the stored row (chunked for the SQLite variable limit). */
+    suspend fun keepSkillManifestTokens(accountId: String, entities: List<MessageEntity>): List<MessageEntity> {
+        if (entities.none { it.skillManifestTokens == null }) return entities
+        val existingTokens = HashMap<String, Int?>()
+        entities.map { it.id }.distinct().chunked(SKILL_MANIFEST_TOKENS_CHUNK).forEach { ids ->
+            skillManifestTokenStates(accountId, ids).forEach { existingTokens[it.id.lowercase()] = it.skillManifestTokens }
+        }
+        return entities.map { entity ->
+            val stored = existingTokens[entity.id.lowercase()]
+            if (entity.skillManifestTokens != null || stored == null) entity else entity.copy(skillManifestTokens = stored)
+        }
+    }
+
+    /** Writes the turn's skill list overhead estimate on its assistant row (local only). */
+    @Query("UPDATE messages SET skillManifestTokens = :tokens WHERE accountId = :accountId AND id = :id")
+    suspend fun updateSkillManifestTokens(accountId: String, id: String, tokens: Int?): Int
+
+    @Query("SELECT id, skillManifestTokens FROM messages WHERE accountId = :accountId AND id IN (:ids)")
+    suspend fun skillManifestTokenStates(accountId: String, ids: List<String>): List<MessageSkillManifestTokensRow>
 
     /**
      * Deletes a message together with its MCP step payloads, which are kept on this device only. Why the cascade
@@ -447,6 +486,23 @@ interface MessageDao {
         minimumCostExclusive: Double,
     ): List<CurrencyCostRow>
 
+    /**
+     * Recorded skill list overhead of assistant rows whose local createdAt is in [startMillis, endMillis);
+     * rows without a value and rows of deleted conversations are skipped (skill_manifest_cost.v1 usage page).
+     */
+    @Query(
+        """
+        SELECT m.skillManifestTokens FROM messages m
+        INNER JOIN conversations c ON c.accountId = m.accountId AND c.id = m.conversationId
+        WHERE m.accountId = :accountId
+          AND m.role = 'Assistant'
+          AND m.skillManifestTokens IS NOT NULL
+          AND m.createdAt >= :startMillis AND m.createdAt < :endMillis
+        """,
+    )
+    suspend fun skillManifestTokensBetween(accountId: String, startMillis: Long, endMillis: Long): List<Int>
+
+    /** Fetches the IDs of the latest N conversations that have messages; avoids N+1 queries */
     @Query(
         """
         SELECT DISTINCT m.conversationId
@@ -539,7 +595,7 @@ interface MessageDao {
           AND COALESCE(m.createdAt, c.updatedAt) < :windowEndMillis
           AND COALESCE(m.providerID, c.providerID) IS NOT NULL
           AND (
-            (COALESCE(m.costSource, 'LOCAL_ESTIMATE') IN ('UPSTREAM', 'LOCAL_ESTIMATE') AND m.estimatedCost > :minimumCostExclusive)
+            (COALESCE(m.costSource, 'LOCAL_ESTIMATE') IN ('UPSTREAM', 'LOCAL_ESTIMATE', 'MANAGED') AND m.estimatedCost > :minimumCostExclusive)
             OR (
               TRIM(COALESCE(m.nonUsdCostCurrency, '')) != ''
               AND m.nonUsdCostSource IN ('UPSTREAM', 'LOCAL_ESTIMATE')
@@ -644,3 +700,6 @@ interface MessageDao {
         windowEndMillis: Long,
     ): Flow<List<ProviderUsageByModelRow>>
 }
+
+/** Ids per IN (...) query, below the SQLite bound-variable limit. */
+private const val SKILL_MANIFEST_TOKENS_CHUNK = 500

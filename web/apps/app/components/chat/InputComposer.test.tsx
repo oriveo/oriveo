@@ -172,14 +172,38 @@ vi.mock('../../lib/core/metadata/metadata-client', async (importOriginal) => {
   };
 });
 
+const { mockTrackEvent, mockSendShortcut } = vi.hoisted(() => ({
+  mockSendShortcut: { current: 'enter' as 'enter' | 'cmdEnter' },
+  mockTrackEvent: vi.fn(),
+}));
+vi.mock('../../lib/core/telemetry', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/core/telemetry')>()),
+  trackEvent: mockTrackEvent,
+}));
+
+const mockSearchContext = vi.hoisted(() => ({
+  loadExternalSearchData: vi.fn(),
+  readConversationSearchSource: vi.fn(),
+}));
+vi.mock('../../lib/search/external-search-context', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../lib/search/external-search-context')>();
+  mockSearchContext.loadExternalSearchData.mockImplementation(actual.loadExternalSearchData);
+  mockSearchContext.readConversationSearchSource.mockImplementation(actual.readConversationSearchSource);
+  return {
+    ...actual,
+    loadExternalSearchData: mockSearchContext.loadExternalSearchData,
+    readConversationSearchSource: mockSearchContext.readConversationSearchSource,
+  };
+});
+
 vi.mock('../../providers/StoreProvider', () => ({
   useAppStore: (selector: (state: {
-    preferences: { sendShortcut: 'enter' };
+    preferences: { sendShortcut: 'enter' | 'cmdEnter' };
     conversations: unknown[];
     providers: unknown[];
     activeConversationId: null;
   }) => unknown) => selector({
-    preferences: { sendShortcut: 'enter' },
+    preferences: { sendShortcut: mockSendShortcut.current },
     conversations: [],
     providers: [],
     activeConversationId: null,
@@ -197,6 +221,7 @@ afterEach(() => {
   mockShowToast.mockClear();
   mockCapabilityRuntime.current = undefined;
   activeLocale = 'en';
+  mockTrackEvent.mockClear();
   localStorage.clear();
   cleanup();
 });
@@ -247,6 +272,26 @@ describe('InputComposer send clears draft', () => {
     expect(textarea().value).toBe('');
     fireEvent.change(textarea(), { target: { value: sentText } });
     expect(textarea().value).toBe('');
+  });
+
+  describe('cmdEnter send shortcut preference', () => {
+    afterEach(() => {
+      mockSendShortcut.current = 'enter';
+    });
+
+    it('cmdEnter_plainEnter_doesNotSend', () => {
+      mockSendShortcut.current = 'cmdEnter';
+      render(<SentDraftHarness initial={sentText} />);
+      fireEvent.keyDown(textarea(), { key: 'Enter' });
+      expect(textarea().value).toBe(sentText);
+    });
+
+    it('cmdEnter_metaEnter_sends', () => {
+      mockSendShortcut.current = 'cmdEnter';
+      render(<SentDraftHarness initial={sentText} />);
+      fireEvent.keyDown(textarea(), { key: 'Enter', metaKey: true });
+      expect(textarea().value).toBe('');
+    });
   });
 });
 
@@ -979,6 +1024,19 @@ describe('InputComposer', () => {
     expect(within(screen.getByRole('region', { name: 'Capabilities' }))
       .getByText('The provider rejected this setting for this model. Send again without it, or pick another model.'))
       .toBeTruthy();
+  });
+
+  it('existing_conversation_passes_search_conversation_id', async () => {
+    mockSearchContext.loadExternalSearchData.mockResolvedValueOnce({ uid: 'u1' });
+    // Never settles: this case only checks which conversation the search source is read for.
+    mockSearchContext.readConversationSearchSource.mockImplementationOnce(() => new Promise(() => {}));
+    renderPanel({ searchConversationId: 'conv-existing', searchDraftSessionId: 'draft-panel' });
+
+    await vi.waitFor(() => expect(mockSearchContext.readConversationSearchSource).toHaveBeenCalled());
+    expect(mockSearchContext.readConversationSearchSource.mock.calls.at(-1)?.[0]).toMatchObject({
+      conversationId: 'conv-existing',
+      draftSessionId: 'draft-panel',
+    });
   });
 
   it('closes the panel from both the close bar and Escape', () => {

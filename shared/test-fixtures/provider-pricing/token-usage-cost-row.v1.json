@@ -1,0 +1,18 @@
+{
+  "$comment": "Cost row of the message token usage sheet, same answer on iOS / Android / Web. Input is the persisted assistant message fields; costSource uses the iOS raw values (upstream / localEstimate / unknown / subscription, null = not recorded); Android maps them to its enum names case-insensitively. expect.showsCost: the row renders. expect.estimatedTag: the Estimated tag renders (costSource is not upstream, null included). A USD costSource of unknown on a message with no nonUsdCost shows the No data label. expect.value: amount = formatted cost parts only; noData = only the missing-state label (the sheet's own No data key); amountPlusNoData = amounts joined with ' + ' and then the No data label. Rows never show a zero amount: a USD part at or below epsilon (0.00001) is dropped, and a message with nothing displayable hides the row.",
+  "v": 1,
+  "epsilon": 0.00001,
+  "cases": [
+    { "id": "upstream_positive_no_tag", "message": { "providerKind": "openRouter", "estimatedCost": 0.0123, "costSource": "upstream", "nonUsdCost": null }, "expect": { "showsCost": true, "estimatedTag": false, "value": "amount" } },
+    { "id": "local_estimate_positive_tagged", "message": { "providerKind": "anthropic", "estimatedCost": 0.0123, "costSource": "localEstimate", "nonUsdCost": null }, "expect": { "showsCost": true, "estimatedTag": true, "value": "amount" } },
+    { "id": "legacy_null_source_positive_tagged", "message": { "providerKind": "openAI", "estimatedCost": 0.0123, "costSource": null, "nonUsdCost": null }, "expect": { "showsCost": true, "estimatedTag": true, "value": "amount" } },
+    { "id": "zero_local_estimate_hidden", "message": { "providerKind": "anthropic", "estimatedCost": 0, "costSource": "localEstimate", "nonUsdCost": null }, "expect": { "showsCost": false } },
+    { "id": "below_epsilon_hidden", "message": { "providerKind": "anthropic", "estimatedCost": 0.000001, "costSource": "localEstimate", "nonUsdCost": null }, "expect": { "showsCost": false } },
+    { "id": "usd_price_unknown_shows_no_data", "message": { "providerKind": "relay", "estimatedCost": 0, "costSource": "unknown", "nonUsdCost": null }, "expect": { "showsCost": true, "estimatedTag": true, "value": "noData" } },
+    { "id": "subscription_hidden", "message": { "providerKind": "grok", "estimatedCost": 0, "costSource": "subscription", "nonUsdCost": null }, "expect": { "showsCost": false } },
+    { "id": "stopped_nothing_recorded_hidden", "message": { "providerKind": "anthropic", "estimatedCost": 0, "costSource": null, "nonUsdCost": null }, "expect": { "showsCost": false } },
+    { "id": "non_usd_unknown_shows_no_data", "message": { "providerKind": "qwen", "estimatedCost": 0, "costSource": "unknown", "nonUsdCost": { "currencyCode": "CNY", "amount": 0, "costSource": "unknown" } }, "expect": { "showsCost": true, "estimatedTag": true, "value": "noData" } },
+    { "id": "non_usd_known_amount_tagged", "message": { "providerKind": "qwen", "estimatedCost": 0, "costSource": "unknown", "nonUsdCost": { "currencyCode": "CNY", "amount": 3.5, "costSource": "localEstimate" } }, "expect": { "showsCost": true, "estimatedTag": true, "value": "amount" } },
+    { "id": "usd_plus_non_usd_unknown", "message": { "providerKind": "relay", "estimatedCost": 0.0123, "costSource": "localEstimate", "nonUsdCost": { "currencyCode": "CNY", "amount": 0, "costSource": "unknown" } }, "expect": { "showsCost": true, "estimatedTag": true, "value": "amountPlusNoData" } }
+  ]
+}

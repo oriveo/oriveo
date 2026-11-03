@@ -17,7 +17,7 @@ struct WebSearchShotsManifestTests {
         let names = pages.compactMap { $0["name"]?.stringValue }
         #expect(Set(names) == Set(WebSearchShots.Shot.allCases.map(\.rawValue)))
         #expect(names.count == WebSearchShots.Shot.allCases.count)
-        let opens: Set<String> = ["settingsHome", "main", "addSheet", "connect", "detail", "customForm", "customConsent", "chat", "modelOptions", "sourcePicker"]
+        let opens: Set<String> = ["settingsHome", "main", "addSheet", "connect", "detail", "customForm", "customConsent", "modelOptions", "chat", "sourcePicker"]
         for page in pages {
             #expect(opens.contains(page["preset"]?["open"]?.stringValue ?? ""), "\(page["name"]?.stringValue ?? "?")")
         }

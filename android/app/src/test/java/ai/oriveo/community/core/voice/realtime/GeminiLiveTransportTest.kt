@@ -3,6 +3,7 @@ package ai.oriveo.community.core.voice.realtime
 import ai.oriveo.community.core.context.RealtimeHistoryItem
 import ai.oriveo.community.core.data.repository.RealtimeTransportInput
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveClosedException
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveConfig
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveSessionExpiredException
@@ -25,6 +26,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -138,6 +140,7 @@ class GeminiLiveTransportTest {
             path = entry["path"]!!.jsonPrimitive.content,
             model = entry["model"]!!.jsonPrimitive.content,
             voice = openInput["voice"]!!.jsonPrimitive.content,
+            language = openInput["language"]?.jsonPrimitive?.contentOrNull,
         )
         return fixtureConfig to RealtimeTransportInput(plan["instructions"]!!.jsonPrimitive.content, history)
     }
@@ -279,6 +282,33 @@ class GeminiLiveTransportTest {
         assertEquals(handle, transport.lastResumeHandle)
         assertEquals(RealtimeSessionEvent.GoAway(10_000), run.events.last())
         assertFalse(run.finished)
+        run.job.cancel()
+    }
+
+    @Test
+    fun `headphones_route_omits_sensitivity_on_open_and_switch`() = runTest {
+        val factory = FakeFactory()
+        var samples = 0
+        val transport = GeminiLiveTransport(
+            config,
+            socketFactory = factory,
+            route = { samples++; ConversationRoute.HEADPHONES },
+        )
+        val run = collect(transport)
+        val first = factory.sockets.single()
+        // First open: the route is sampled once when the connection opens; on headphones setup carries no start-of-speech sensitivity
+        assertEquals(1, samples)
+        assertNull(first.sent.first().setup()["realtimeInputConfig"])
+        first.say(setupComplete, this)
+        first.say(resumable("h1"), this)
+        first.say(goAway("10s"), this)
+
+        // Resume: the new connection samples the route again; setup still omits it
+        assertEquals(2, factory.sockets.size)
+        assertEquals(2, samples)
+        val setup = factory.sockets[1].sent.single().setup()
+        assertEquals("h1", setup["sessionResumption"]!!.jsonObject["handle"]!!.jsonPrimitive.content)
+        assertNull(setup["realtimeInputConfig"])
         run.job.cancel()
     }
 
@@ -473,6 +503,85 @@ class GeminiLiveTransportTest {
         assertEquals(1, run.events.count { it == RealtimeSessionEvent.Ready })
         assertEquals(1, second.sent.size)
         assertFalse(run.finished)
+        run.job.cancel()
+    }
+
+    private fun userText(text: String): JsonObject = Json.parseToJsonElement(
+        """{"clientContent":{"turns":[{"role":"user","parts":[{"text":"$text"}]}],"turnComplete":true}}""",
+    ).jsonObject
+
+    @Test
+    fun `send_user_text_after_ready_sends_client_content_turn`() = runTest {
+        val factory = FakeFactory()
+        val transport = GeminiLiveTransport(config, socketFactory = factory)
+        val run = collect(transport)
+        val socket = factory.sockets.single()
+        socket.say(setupComplete, this)
+        val before = socket.sent.size
+        transport.sendUserText("what time is it")
+        runCurrent()
+        assertEquals(listOf(userText("what time is it")), socket.sent.drop(before))
+        run.job.cancel()
+    }
+
+    @Test
+    fun `send_user_text_before_ready_sent_after_history`() = runTest {
+        val factory = FakeFactory()
+        val transport = GeminiLiveTransport(config, socketFactory = factory)
+        // Typed messages that arrive before the stream opens are kept too
+        transport.sendUserText("one")
+        val run = collect(transport)
+        transport.sendUserText("two")
+        runCurrent()
+        val socket = factory.sockets.single()
+        assertEquals(1, socket.sent.size)
+        socket.say(setupComplete, this)
+        // setup, then history clientContent, then typed messages in call order
+        assertEquals(listOf(userText("one"), userText("two")), socket.sent.drop(2))
+        assertTrue(socket.sent[1].containsKey("clientContent"))
+        run.job.cancel()
+    }
+
+    @Test
+    fun `send_user_text_during_switch_goes_to_resumed_connection`() = runTest {
+        val factory = FakeFactory()
+        val transport = GeminiLiveTransport(config, socketFactory = factory)
+        val run = collect(transport)
+        val first = factory.sockets.single()
+        first.say(setupComplete, this)
+        first.say(resumable("h1"), this)
+        first.say(goAway("10s"), this)
+        val firstSent = first.sent.size
+        transport.sendUserText("held")
+        runCurrent()
+        val second = factory.sockets[1]
+        assertEquals(1, second.sent.size)
+        second.say(setupComplete, this)
+        assertEquals(firstSent, first.sent.size)
+        assertEquals(listOf(userText("held")), second.sent.drop(1))
+        run.job.cancel()
+    }
+
+    @Test
+    fun `route_change_does_not_resend_setup`() = runTest {
+        val factory = FakeFactory()
+        val transport = GeminiLiveTransport(config, socketFactory = factory, route = { ConversationRoute.SPEAKER })
+        val run = collect(transport)
+        val first = factory.sockets.single()
+        assertTrue(first.sent.single().setup().containsKey("realtimeInputConfig"))
+        first.say(setupComplete, this)
+        val before = first.sent.size
+        // A route change does not resend setup and does not reconnect for it
+        transport.updateOutputRoute(ConversationRoute.HEADPHONES)
+        runCurrent()
+        assertEquals(before, first.sent.size)
+        assertEquals(1, factory.sockets.size)
+
+        // The next connection (resume) builds setup for the new route: no start-of-speech sensitivity on headphones
+        first.say(resumable("h1"), this)
+        first.say(goAway("10s"), this)
+        val setup = factory.sockets[1].sent.single().setup()
+        assertNull(setup["realtimeInputConfig"])
         run.job.cancel()
     }
 

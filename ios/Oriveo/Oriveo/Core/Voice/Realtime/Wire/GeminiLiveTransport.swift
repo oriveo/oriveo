@@ -8,10 +8,13 @@ nonisolated struct GeminiLiveConfig: Sendable, Equatable, CustomStringConvertibl
     let model: String
     let voice: String
     let apiKey: String
+    /// Host recognition language (BCP-47) for the input transcription hint; nil = no hint (E-670).
+    var language: String? = nil
 
     /// The API key is always redacted so configs never leak it into logs.
     var description: String {
-        "GeminiLiveConfig(host: \(host), path: \(path), model: \(model), voice: \(voice), apiKey: <redacted>)"
+        "GeminiLiveConfig(host: \(host), path: \(path), model: \(model), voice: \(voice), "
+            + "language: \(language ?? "nil"), apiKey: <redacted>)"
     }
 
     var debugDescription: String { description }
@@ -81,9 +84,17 @@ nonisolated enum GeminiLiveTransportError: Error, Equatable, CustomStringConvert
 }
 
 /// Server close carrying a WebSocket close code; thrown by `GeminiLiveSocket.receive()`.
-nonisolated struct GeminiLiveSocketClosed: Error, Equatable {
+/// `httpStatus`: the server rejected the WebSocket handshake with this HTTP status (code is then 0).
+nonisolated struct GeminiLiveSocketClosed: RealtimeHTTPStatusError, Equatable {
     let code: Int
     let reason: String?
+    let httpStatus: Int?
+
+    init(code: Int, reason: String?, httpStatus: Int? = nil) {
+        self.code = code
+        self.reason = reason
+        self.httpStatus = httpStatus
+    }
 }
 
 /// Production socket over URLSessionWebSocketTask; binary frames are decoded as UTF-8 JSON text.
@@ -97,7 +108,12 @@ nonisolated final class URLSessionGeminiLiveSocket: GeminiLiveSocket, @unchecked
     }
 
     func send(_ text: String) async throws {
-        try await task.send(.string(text))
+        do {
+            try await task.send(.string(text))
+        } catch {
+            guard let status = connection.handshakeStatus else { throw error }
+            throw GeminiLiveSocketClosed(code: task.closeCode.rawValue, reason: nil, httpStatus: status)
+        }
     }
 
     func receive() async throws -> String? {
@@ -107,10 +123,12 @@ nonisolated final class URLSessionGeminiLiveSocket: GeminiLiveSocket, @unchecked
         } catch {
             // Surface the server close code so the transport can tell a rejected resume from a plain drop.
             let code = task.closeCode
-            guard code != .invalid else { throw error }
+            let status = connection.handshakeStatus
+            guard code != .invalid || status != nil else { throw error }
             throw GeminiLiveSocketClosed(
                 code: code.rawValue,
-                reason: task.closeReason.map { String(decoding: $0, as: UTF8.self) }
+                reason: task.closeReason.map { String(decoding: $0, as: UTF8.self) },
+                httpStatus: status
             )
         }
         switch message {
@@ -170,10 +188,11 @@ nonisolated final class GeminiLiveTransport: RealtimeTransport {
     init(
         config: GeminiLiveConfig,
         resumeHandle: String? = nil,
+        route: @escaping RealtimeRouteProvider = { .speaker },
         socketFactory: @escaping SocketFactory = { URLSessionGeminiLiveSocket(url: $0) },
         sleep: @escaping Sleep = GeminiLiveTransport.defaultSleep
     ) {
-        core = Core(config: config, resumeHandle: resumeHandle, factory: socketFactory, sleep: sleep)
+        core = Core(config: config, resumeHandle: resumeHandle, route: route, factory: socketFactory, sleep: sleep)
     }
 
     func openRealtimeSession(
@@ -192,6 +211,11 @@ nonisolated final class GeminiLiveTransport: RealtimeTransport {
     /// Sends a 16 kHz PCM16 chunk; buffered until the (re)connection is ready.
     func appendAudio(base64: String) async {
         await core.appendAudio(base64)
+    }
+
+    /// Sends one typed user turn; queued behind buffered audio until the (re)connection is ready.
+    func sendText(_ text: String) async {
+        await core.sendText(text)
     }
 
     /// The uplink backlog says the current connection is stalled: tear it down at once and handle it like an
@@ -214,13 +238,15 @@ nonisolated final class GeminiLiveTransport: RealtimeTransport {
 
 private nonisolated enum GeminiLiveSignal: Sendable {
     case message(generation: Int, text: String)
-    case closed(generation: Int, code: Int?, reason: String?)
+    case closed(generation: Int, code: Int?, reason: String?, httpStatus: Int? = nil)
     case deadline(generation: Int)
 }
 
 private extension GeminiLiveTransport {
     actor Core {
         private let config: GeminiLiveConfig
+        /// Sampled right before each setup (first open and every resume).
+        private let route: RealtimeRouteProvider
         private let factory: SocketFactory
         private let sleep: Sleep
 
@@ -246,6 +272,9 @@ private extension GeminiLiveTransport {
         private var audioReady = false
         private var pendingAudio: [String] = []
         private var pendingChars = 0
+        /// Typed turns not yet sent, in call order: sent after the buffered audio when a connection becomes ready.
+        /// A turn the socket accepted is never re-sent on a later connection.
+        private var pendingText: [String] = []
         /// Whether the Ready connection is sending history or flushing buffered audio (live audio is buffered behind it).
         private var flushing = false
         /// Bytes handed to the Ready connection during the history send / flush and not yet sent: the in-flight frame,
@@ -254,8 +283,15 @@ private extension GeminiLiveTransport {
         /// Connection torn down as stalled: its unread messages never reach the session.
         private var abandonedGeneration: Int?
 
-        init(config: GeminiLiveConfig, resumeHandle: String?, factory: @escaping SocketFactory, sleep: @escaping Sleep) {
+        init(
+            config: GeminiLiveConfig,
+            resumeHandle: String?,
+            route: @escaping RealtimeRouteProvider,
+            factory: @escaping SocketFactory,
+            sleep: @escaping Sleep
+        ) {
             self.config = config
+            self.route = route
             self.factory = factory
             self.sleep = sleep
             lastHandle = (resumeHandle?.isEmpty == false) ? resumeHandle : nil
@@ -276,12 +312,15 @@ private extension GeminiLiveTransport {
                 history: history,
                 model: config.model,
                 voice: config.voice,
-                resumeHandle: lastHandle
+                resumeHandle: lastHandle,
+                route: route(),
+                language: config.language
             )
             do {
                 try await connect(opening.beforeReady)
             } catch {
-                fail(GeminiLiveTransportError.connectFailed)
+                // A rejected handshake keeps its HTTP status for the host's failure classification.
+                fail(Self.handshakeError(error) ?? GeminiLiveTransportError.connectFailed)
                 return
             }
             for await signal in stream {
@@ -290,9 +329,9 @@ private extension GeminiLiveTransport {
                 case let .message(gen, text):
                     guard gen == generation, gen != abandonedGeneration, let message = Self.decode(text) else { continue }
                     await handle(message, afterReady: opening.afterReady)
-                case let .closed(gen, code, reason):
+                case let .closed(gen, code, reason, httpStatus):
                     guard gen == generation else { continue }
-                    await handleClosed(code: code, reason: reason)
+                    await handleClosed(code: code, reason: reason, httpStatus: httpStatus)
                 case let .deadline(gen):
                     guard gen == generation, goAwayReceived, !endingWithoutHandle else { continue }
                     await switchConnection()
@@ -319,6 +358,23 @@ private extension GeminiLiveTransport {
             // Same measure as the live sends (contract E): judged only when a new frame arrives, no timer.
             flushBacklog += Self.audioBytes(chunk)
             if flushBacklog > GeminiLiveTransport.stalledUplinkBytes { dropStalledConnection() }
+        }
+
+        func sendText(_ text: String) async {
+            guard !finished else { return }
+            guard audioReady, pendingText.isEmpty, let socket else {
+                pendingText.append(text)
+                return
+            }
+            let gen = generation
+            do {
+                try await socket.send(Self.encode(GeminiLiveWire.userTextMessage(text)))
+            } catch {
+                // Not sent: keep it for the next connection; a failed send on the current one is an unexpected drop.
+                guard !finished else { return }
+                pendingText.insert(text, at: 0)
+                if gen == generation { dropConnection() }
+            }
         }
 
         /// Only a Ready connection (live sends, history or flush) carries uplink; otherwise audio is already being buffered.
@@ -398,8 +454,11 @@ private extension GeminiLiveTransport {
             }
         }
 
-        private func handleClosed(code: Int?, reason: String?) async {
-            if code == GeminiLiveTransport.sessionRejectedCloseCode, !initialConnection || !awaitingSetup {
+        private func handleClosed(code: Int?, reason: String?, httpStatus: Int? = nil) async {
+            if let httpStatus, initialConnection, awaitingSetup {
+                // The first connection's handshake was rejected: end with its HTTP status (no resume, no handle yet).
+                fail(RealtimeHandshakeError(httpStatus: httpStatus))
+            } else if code == GeminiLiveTransport.sessionRejectedCloseCode, !initialConnection || !awaitingSetup {
                 // The session is gone server-side (closed after Ready or resume rejected): never resume with this handle.
                 // Close out pending user text first so the reducer persists it before the silent reopen / end.
                 for event in mapper.flushPendingUser() { yield(event) }
@@ -480,7 +539,8 @@ private extension GeminiLiveTransport {
             goAwayReceived = false
             mapper = GeminiLiveEventMapper()
             let opening = GeminiLiveWire.openingMessages(
-                instructions: instructions, history: [], model: config.model, voice: config.voice, resumeHandle: handle
+                instructions: instructions, history: [], model: config.model, voice: config.voice, resumeHandle: handle,
+                route: route(), language: config.language
             )
             do {
                 try await connect(opening.beforeReady)
@@ -506,6 +566,7 @@ private extension GeminiLiveTransport {
             reader = Task {
                 var code: Int?
                 var reason: String?
+                var httpStatus: Int?
                 do {
                     while let text = try await opened.receive() {
                         signals?.yield(.message(generation: gen, text: text))
@@ -513,8 +574,9 @@ private extension GeminiLiveTransport {
                 } catch let closed as GeminiLiveSocketClosed {
                     code = closed.code
                     reason = closed.reason
+                    httpStatus = closed.httpStatus
                 } catch {}
-                signals?.yield(.closed(generation: gen, code: code, reason: reason))
+                signals?.yield(.closed(generation: gen, code: code, reason: reason, httpStatus: httpStatus))
             }
         }
 
@@ -534,10 +596,24 @@ private extension GeminiLiveTransport {
             }
         }
 
-        /// Sends buffered audio in order; on a send failure the unsent chunks stay buffered and the connection is dropped.
+        /// Sends buffered audio in order, then the queued typed turns (audio arriving meanwhile goes first);
+        /// on a send failure the unsent items stay queued and the connection is dropped.
         private func flushAudio() async {
             let gen = generation
-            while !pendingAudio.isEmpty, !finished, let socket {
+            while !pendingAudio.isEmpty || !pendingText.isEmpty, !finished, let socket {
+                guard !pendingAudio.isEmpty else {
+                    let text = pendingText.removeFirst()
+                    do {
+                        try await socket.send(Self.encode(GeminiLiveWire.userTextMessage(text)))
+                    } catch {
+                        pendingText.insert(text, at: 0)
+                        if !finished, gen == generation { dropConnection() }
+                        return
+                    }
+                    // Sent on this connection: never re-sent, even if the connection was switched meanwhile.
+                    guard gen == generation, flushing else { return }
+                    continue
+                }
                 // Take the chunk out before awaiting: bufferAudio may trim the head while send is suspended.
                 let chunk = pendingAudio.removeFirst()
                 pendingChars -= chunk.count
@@ -617,9 +693,15 @@ private extension GeminiLiveTransport {
             socket = nil
             pendingAudio = []
             pendingChars = 0
+            pendingText = []
         }
 
         // MARK: - JSON
+
+        /// The handshake rejection carried by a socket failure, if any (status only, no close reason).
+        private static func handshakeError(_ error: Error) -> RealtimeHandshakeError? {
+            (error as? GeminiLiveSocketClosed)?.httpStatus.map(RealtimeHandshakeError.init(httpStatus:))
+        }
 
         private static func decode(_ text: String) -> [String: Any]? {
             (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any]

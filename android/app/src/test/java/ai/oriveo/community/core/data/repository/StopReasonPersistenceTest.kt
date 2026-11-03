@@ -4,6 +4,7 @@ import androidx.room.Room
 import ai.oriveo.community.core.context.ChatContextRequest
 import ai.oriveo.community.core.context.ContextConversation
 import ai.oriveo.community.core.context.ContextMemoryItem
+import ai.oriveo.community.core.context.ContextBudget
 import ai.oriveo.community.core.context.StopReason
 import ai.oriveo.community.core.data.EntityMapper.toEntity
 import ai.oriveo.community.core.data.attachment.AttachmentStore
@@ -38,10 +39,17 @@ import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.model.StreamEvent
+import ai.oriveo.community.core.provider.CostSource
 import ai.oriveo.community.core.provider.ProviderService
 import ai.oriveo.community.core.provider.ProviderTestFixtures
 import ai.oriveo.community.core.provider.RelayService
+import ai.oriveo.community.core.provider.transport.OfficialEndpointSource
 import ai.oriveo.community.core.provider.transport.TransportRegistry
+import ai.oriveo.community.core.model.Skill
+import ai.oriveo.community.core.skills.SkillChannel
+import ai.oriveo.community.core.skills.SkillRuntime
+import ai.oriveo.community.feature.chat.SkillTurn
+import ai.oriveo.community.feature.chat.SkillTurnInputs
 import ai.oriveo.community.core.streaming.ChatStreamingManager
 import ai.oriveo.community.core.streaming.ConversationStreamingOutputs
 import ai.oriveo.community.core.streaming.StreamRequest
@@ -53,6 +61,7 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
@@ -70,6 +79,8 @@ import kotlinx.serialization.json.put
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
@@ -112,9 +123,14 @@ class StopReasonPersistenceTest {
         db.close()
     }
 
-    private fun repository(mcpRunner: McpChatToolRunner? = null) = ChatRepository(
+    private fun repository(
+        mcpRunner: McpChatToolRunner? = null,
+        usageReporter: UsageReporter = mockk(relaxed = true),
+    ) = ChatRepository(
         conversationRepository = conversations,
         providerRepository = providerRepository,
+        usageReporter = usageReporter,
+        budgetAlertChecker = mockk<BudgetAlertChecker>(relaxed = true),
         attachmentStore = mockk<AttachmentStore>(relaxed = true),
         mcpChatToolRunner = mcpRunner,
     )
@@ -222,7 +238,362 @@ class StopReasonPersistenceTest {
         assertStopReason(StopReason.INTERRUPTED, row)
     }
 
-    /** Shutdown goes through [ChatStreamingManager.stopAllStreamsAndJoin]: a system interruption is recorded as a transport error, not as interrupted. */
+    private fun pricedScriptedProvider(stream: kotlinx.coroutines.flow.Flow<StreamEvent>): Provider {
+        // A custom endpoint prices from the model's own prices without a catalog entry.
+        val provider = Provider(
+            id = "openai-1", kind = ProviderKind.OpenAI, status = ProviderConnectionState.Connected, apiKey = "sk-test",
+            endpointSource = OfficialEndpointSource.CUSTOM,
+            models = listOf(AIModel(id = "gpt-test", name = "GPT Test", promptPrice = 0.000002, completionPrice = 0.000008)),
+        )
+        val service = mockk<ProviderService>(relaxed = true)
+        every { service.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) } returns stream
+        every { providerRepository.serviceFor(provider, any()) } returns service
+        return provider
+    }
+
+    private fun manifestTurn(): SkillTurn {
+        val autoId = "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA"
+        val auto = Skill(
+            id = autoId,
+            name = "Auto Writer",
+            systemPrompt = "Write well.",
+            whenToUse = "When the user asks for writing help",
+            autoInvoke = true,
+        )
+        return SkillTurn(
+            channel = SkillChannel.MARKER,
+            manifestIds = listOf(SkillRuntime.canonicalId(autoId)),
+            attachedSkills = emptyList(),
+            skills = listOf(auto),
+            resendInputs = { SkillTurnInputs(skillPrompt = null, knowledgeFiles = emptyList(), retrieval = null) },
+            recordUsed = { _, _ -> },
+            trackAutoUsed = { _, _ -> },
+            autoEnabled = true,
+        )
+    }
+
+    /** Stops [stream] once [ready] completes, through the production cancel path; returns the written row. */
+    private suspend fun stopAfter(
+        stream: kotlinx.coroutines.flow.Flow<StreamEvent>,
+        ready: CompletableDeferred<Unit>,
+        usageReporter: UsageReporter,
+        skillTurn: SkillTurn?,
+        provider: Provider = pricedScriptedProvider(stream),
+        modelId: String = "gpt-test",
+    ): MessageEntity = kotlinx.coroutines.coroutineScope {
+        val conversation = seedConversation(provider, modelId)
+        val job = async(Dispatchers.Default) {
+            repository(usageReporter = usageReporter).sendMessage(
+                conversation = conversation,
+                text = "hi",
+                provider = provider,
+                modelID = modelId,
+                existingMessages = emptyList(),
+                outputs = outputs(),
+                skillTurn = skillTurn,
+            )
+        }
+        withTimeout(10_000) { ready.await() }
+        job.cancel()
+        runCatching { job.await() }
+        assistantRow()
+    }
+
+    @Test
+    fun user_stop_records_estimated_usage() = runBlocking {
+        val delivered = CompletableDeferred<Unit>()
+        val usageReporter = mockk<UsageReporter>(relaxed = true)
+        val turn = manifestTurn()
+        val row = stopAfter(
+            flow {
+                emit(StreamEvent.Delta("Half an answer"))
+                delivered.complete(Unit)
+                awaitCancellation()
+            },
+            delivered,
+            usageReporter,
+            turn,
+        )
+
+        assertEquals(ChatMessageState.Interrupted.name, row.state)
+        assertStopReason(StopReason.INTERRUPTED, row)
+        // No ledger in this repository: rhoHi is the prior.
+        val output = ContextBudget.estimateText("Half an answer", ContextBudget.RHO0)
+        assertEquals(output, row.outputTokens)
+        assertEquals("the request's budget estimatedInput", STOP_INPUT_ESTIMATE, row.inputTokens)
+        assertEquals(CostSource.LOCAL_ESTIMATE.name, row.costSource)
+        assertEquals("priced at the model's own prices", STOP_INPUT_ESTIMATE * PROMPT_PRICE + output * COMPLETION_PRICE, row.estimatedCost, 1e-12)
+        val manifest = turn.manifestTokens(ContextBudget.RHO0)
+        assertNotNull(manifest)
+        assertEquals(manifest, row.skillManifestTokens)
+        coVerify(exactly = 1) {
+            usageReporter.enqueueDeliveredMessage(
+                providerId = any(), providerKind = any(), modelId = any(), conversationId = any(), skillId = any(),
+                source = any(), promptTokens = row.inputTokens!!, completionTokens = row.outputTokens!!,
+                estimatedCost = any(), costStatus = "priced", timestampMillis = any(),
+            )
+        }
+    }
+
+    @Test
+    fun user_stop_before_output_records_nothing() = runBlocking {
+        val started = CompletableDeferred<Unit>()
+        val usageReporter = mockk<UsageReporter>(relaxed = true)
+        val row = stopAfter(
+            flow {
+                started.complete(Unit)
+                awaitCancellation()
+            },
+            started,
+            usageReporter,
+            manifestTurn(),
+        )
+
+        assertEquals(ChatMessageState.Interrupted.name, row.state)
+        assertNull(row.inputTokens)
+        assertNull(row.outputTokens)
+        assertNull(row.skillManifestTokens)
+        assertEquals(0.0, row.estimatedCost, 0.0)
+        coVerify(exactly = 0) {
+            usageReporter.enqueueDeliveredMessage(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    // ---------- Stop after finished legs: their usage and retrieval cost are kept ----------
+
+    /** Sends through [repository] and stops once [ready] completes, through the production cancel path. */
+    private suspend fun stopSend(
+        provider: Provider,
+        ready: CompletableDeferred<Unit>,
+        repository: ChatRepository,
+        libraryResearch: Boolean = false,
+        retrieval: ai.oriveo.community.core.model.SkillKnowledgeRetrievalContext? = null,
+        requestOptions: ChatRequestOptions = ChatRequestOptions(),
+        memoryPropose: ai.oriveo.community.core.memory.MemoryProposeSendHook? = null,
+    ): MessageEntity = kotlinx.coroutines.coroutineScope {
+        val conversation = seedConversation(provider, "gpt-test")
+        val job = async(Dispatchers.Default) {
+            repository.sendMessage(
+                conversation = conversation,
+                text = "hi",
+                provider = provider,
+                modelID = "gpt-test",
+                existingMessages = emptyList(),
+                requestOptions = requestOptions,
+                retrieval = retrieval,
+                outputs = outputs(),
+                libraryResearchEnabled = libraryResearch,
+                memoryPropose = memoryPropose,
+            )
+        }
+        withTimeout(10_000) { ready.await() }
+        job.cancel()
+        runCatching { job.await() }
+        assistantRow()
+    }
+
+    private fun libraryRepository(
+        runner: ai.oriveo.community.core.library.LibraryChatResearchRunner,
+        server: ai.oriveo.community.core.library.LibraryServerResearchCoordinator? = null,
+        usageReporter: UsageReporter = mockk(relaxed = true),
+    ) = ChatRepository(
+        conversationRepository = conversations,
+        providerRepository = providerRepository,
+        usageReporter = usageReporter,
+        budgetAlertChecker = mockk<BudgetAlertChecker>(relaxed = true),
+        attachmentStore = mockk<AttachmentStore>(relaxed = true),
+        libraryChatResearchRunner = runner,
+        libraryServerResearchCoordinator = server,
+    )
+
+    /** A library agent runner whose loop is [answer], fed the production progress callback. */
+    private fun libraryRunner(
+        answer: suspend (suspend (ai.oriveo.community.core.library.LibraryAgentProgressEvent) -> Unit) ->
+            ai.oriveo.community.core.library.LibraryAgentLoopResult,
+    ): ai.oriveo.community.core.library.LibraryChatResearchRunner {
+        val runner = mockk<ai.oriveo.community.core.library.LibraryChatResearchRunner>()
+        coEvery {
+            runner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } coAnswers { answer(arg(8)) }
+        return runner
+    }
+
+    @Test
+    fun user_stop_after_library_first_leg_keeps_its_usage() = runBlocking {
+        val delivered = CompletableDeferred<Unit>()
+        val provider = pricedScriptedProvider(
+            flow {
+                emit(StreamEvent.Delta("Half an answer"))
+                delivered.complete(Unit)
+                awaitCancellation()
+            },
+        )
+        // First leg made no tool call: its text is dropped, server research regenerates the answer.
+        val runner = libraryRunner {
+            ai.oriveo.community.core.library.LibraryAgentLoopResult(
+                text = "Made up",
+                citations = emptyList(),
+                steps = emptyList(),
+                usage = ai.oriveo.community.core.tools.ToolLoopUsage(promptTokens = 100, completionTokens = 20),
+                noToolCallOnFirstLeg = true,
+            )
+        }
+        val server = mockk<ai.oriveo.community.core.library.LibraryServerResearchCoordinator>()
+        every { server.route(any(), any(), any()) } returns ai.oriveo.community.core.library.LibraryResearchRoute.Agent
+        every { server.isServerResearchAvailable(any(), any()) } returns true
+        coEvery { server.prepare(any(), any(), any(), any(), any(), any()) } returns
+            ai.oriveo.community.core.library.LibraryServerResearchResult(
+                context = ai.oriveo.community.core.library.LibraryDirectContextResult(emptyList(), emptyList()),
+                steps = emptyList(),
+                warnings = emptyList(),
+                documentCount = 0,
+            )
+
+        val row = stopSend(provider, delivered, libraryRepository(runner, server), libraryResearch = true)
+
+        assertEquals(ChatMessageState.Interrupted.name, row.state)
+        assertEquals("first leg + stopped leg", 20 + ContextBudget.estimateText("Half an answer", ContextBudget.RHO0), row.outputTokens)
+        assertEquals("first leg input plus the stopped leg estimate", 100 + LIBRARY_STOPPED_LEG_INPUT, row.inputTokens)
+        assertEquals(CostSource.LOCAL_ESTIMATE.name, row.costSource)
+    }
+
+    @Test
+    fun user_stop_after_propose_first_leg_keeps_its_usage() = runBlocking {
+        val delivered = CompletableDeferred<Unit>()
+        val provider = Provider(
+            id = "openai-1", kind = ProviderKind.OpenAI, status = ProviderConnectionState.Connected, apiKey = "sk-test",
+            endpointSource = OfficialEndpointSource.CUSTOM,
+            models = listOf(AIModel(id = "gpt-test", name = "GPT Test", promptPrice = 0.000002, completionPrice = 0.000008)),
+        )
+        // Thinking first leg that only proposed: resent once without tools, the resend is stopped.
+        val firstLeg = flow {
+            emit(StreamEvent.Reasoning("Thinking about it"))
+            emit(
+                StreamEvent.ToolCallDeltas(
+                    listOf(
+                        ai.oriveo.community.core.model.ToolCallDelta(
+                            index = 0, id = "call_1", type = "function",
+                            name = ai.oriveo.community.core.context.MemoryPropose.TOOL_NAME,
+                            arguments = "{\"proposition\":\"Uses Kotlin\",\"kind\":\"fact\",\"scope\":\"global\",\"sourceQuote\":\"hi\"}",
+                        ),
+                    ),
+                ),
+            )
+            emit(
+                StreamEvent.Done(
+                    ProviderChatResult(text = "", promptTokens = 40, completionTokens = 8, usageReported = true),
+                    ai.oriveo.community.core.context.StreamFinish(
+                        ai.oriveo.community.core.context.StopFamily.OPENAI_CHAT,
+                        ai.oriveo.community.core.context.StreamEnding.CLEAN,
+                        "tool_calls",
+                    ),
+                ),
+            )
+        }
+        val resend = flow {
+            emit(StreamEvent.Delta("Half an answer"))
+            delivered.complete(Unit)
+            awaitCancellation()
+        }
+        val service = mockk<ProviderService>(relaxed = true)
+        every { service.sendMessageStream(any(), any(), any(), any(), any(), any(), any(), any()) } returnsMany listOf(firstLeg, resend)
+        every { providerRepository.serviceFor(provider, any()) } returns service
+        val hook = object : ai.oriveo.community.core.memory.MemoryProposeSendHook {
+            override suspend fun onProposeCall(argumentsJson: String) = Unit
+            override suspend fun onToolsRejected() = Unit
+        }
+
+        val row = stopSend(
+            provider,
+            delivered,
+            repository(),
+            requestOptions = ChatRequestOptions(
+                clientTools = listOf(ai.oriveo.community.core.context.MemoryPropose.tool),
+                clientToolChoice = ai.oriveo.community.core.tools.ToolLoopToolChoice.Auto,
+            ),
+            memoryPropose = hook,
+        )
+
+        assertEquals(ChatMessageState.Interrupted.name, row.state)
+        // The first leg's reasoning is in its reported usage; the stopped leg adds only its own text.
+        assertEquals(8 + ContextBudget.estimateText("Half an answer", ContextBudget.RHO0), row.outputTokens)
+        assertEquals("first leg input plus the resend estimate", 40 + PROPOSE_RESEND_INPUT, row.inputTokens)
+        assertEquals(CostSource.LOCAL_ESTIMATE.name, row.costSource)
+    }
+
+    @Test
+    fun user_stop_during_mcp_tool_loop_keeps_finished_leg_usage() = runBlocking {
+        val delivered = CompletableDeferred<Unit>()
+        val provider = pricedScriptedProvider(flow { awaitCancellation() })
+        val runner = mockk<McpChatToolRunner>(relaxed = true)
+        val plan = mockk<ai.oriveo.community.core.mcp.McpToolPlan>(relaxed = true)
+        every { plan.isEmpty } returns false
+        every { plan.tools } returns emptyList()
+        every { plan.truncated } returns false
+        coEvery { runner.plan(any(), any(), any(), any(), any()) } returns plan
+        coEvery {
+            runner.run(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        } coAnswers {
+            val onProgress = arg<suspend (ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent) -> Unit>(9)
+            onProgress(ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.LegStarted(0))
+            onProgress(ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.TextDelta("Let me look"))
+            onProgress(
+                ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.Usage(
+                    ai.oriveo.community.core.tools.ToolLoopUsage(promptTokens = 30, completionTokens = 5),
+                ),
+            )
+            onProgress(ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.ToolCallsAccepted(emptyList()))
+            onProgress(ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.LegStarted(1))
+            onProgress(ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.TextDelta("Half an answer"))
+            delivered.complete(Unit)
+            awaitCancellation()
+        }
+
+        val row = stopSend(provider, delivered, repository(mcpRunner = runner))
+
+        assertEquals(ChatMessageState.Interrupted.name, row.state)
+        assertEquals("finished leg + stopped leg", 5 + ContextBudget.estimateText("Half an answer", ContextBudget.RHO0), row.outputTokens)
+        assertEquals("finished leg input plus the stopped leg estimate", 30 + MCP_STOPPED_LEG_INPUT, row.inputTokens)
+        assertEquals(CostSource.LOCAL_ESTIMATE.name, row.costSource)
+    }
+
+    @Test
+    fun user_stop_after_library_search_includes_retrieval_cost() = runBlocking {
+        val searched = CompletableDeferred<Unit>()
+        val usageReporter = mockk<UsageReporter>(relaxed = true)
+        val provider = pricedScriptedProvider(flow { awaitCancellation() })
+        // Stopped while the library loop's first leg runs: nothing visible, no leg finished, the retrieval did run.
+        val runner = libraryRunner {
+            searched.complete(Unit)
+            awaitCancellation()
+        }
+        val retrieval = ai.oriveo.community.core.model.SkillKnowledgeRetrievalContext(
+            snippets = emptyList(),
+            usage = ai.oriveo.community.core.model.SkillKnowledgeUsage(promptTokens = 12, completionTokens = 0, totalTokens = 12),
+            estimatedCost = 0.002,
+            providerId = "openai-1",
+            modelId = "text-embedding-3-small",
+        )
+
+        val row = stopSend(provider, searched, libraryRepository(runner, usageReporter = usageReporter), libraryResearch = true, retrieval = retrieval)
+
+        assertEquals(ChatMessageState.Interrupted.name, row.state)
+        assertNull("no generation usage", row.inputTokens)
+        assertNull(row.outputTokens)
+        assertEquals("retrieval cost joins the reply", 0.002, row.estimatedCost, 1e-12)
+        coVerify(exactly = 1) {
+            usageReporter.enqueueDeliveredMessage(
+                providerId = "openai-1", providerKind = any(), modelId = "text-embedding-3-small", conversationId = any(),
+                skillId = any(), source = "skill_knowledge_retrieval", promptTokens = 12, completionTokens = 0,
+                estimatedCost = 0.002, costStatus = any(), timestampMillis = any(),
+            )
+        }
+        coVerify(exactly = 1) {
+            usageReporter.enqueueDeliveredMessage(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any())
+        }
+    }
+
+    /** Logout / account switch goes through [ChatStreamingManager.stopAllStreamsAndJoin]: a system interrupt is recorded as a transport error, not as interrupted. */
     private suspend fun systemInterrupt(stream: kotlinx.coroutines.flow.Flow<StreamEvent>, ready: CompletableDeferred<Unit>): MessageEntity {
         val provider = scriptedProvider(stream)
         val conversation = seedConversation(provider, "gpt-test")

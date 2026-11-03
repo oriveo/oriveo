@@ -67,6 +67,8 @@ import ai.oriveo.community.ui.component.OriveoStatusDot
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.brandWatermarkIcon
 import ai.oriveo.community.ui.component.costPartsText
+import ai.oriveo.community.ui.component.rememberCostLocale
+import ai.oriveo.community.ui.component.usdTextOrZero
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
@@ -121,9 +123,9 @@ fun ProviderHeroCard(
     }
 
     val isZeroCost = monthlyCostParts.isEmpty()
-    // A month with only non-USD cost shows the per-currency amount, never "$0".
-    val monthlyCostText = costPartsText(monthlyCostParts).ifEmpty { "$0" }
-    // The derived weekly trend uses the USD part only (the server's 7-day buckets count USD only).
+    // Months with only non-USD costs show per-currency amounts, not $0
+    val monthlyCostText = usdTextOrZero(costPartsText(monthlyCostParts), rememberCostLocale())
+    // The weekly bar-chart trend uses only the USD part (the server's 7-day buckets count USD only)
     val monthlyUsdCost = CostParts.usdAmount(monthlyCostParts)
 
     val isAggregatedMismatch = provider.kind.isAggregatedProvider &&
@@ -535,9 +537,9 @@ private fun HeroWeeklyBarChart(values: List<Double>) {
             }
         }
         val todayCost = values.lastOrNull() ?: 0.0
-        val todayText = remember(todayCost) {
-            val formatted = CostFormatter.format(todayCost)
-            if (formatted.isBlank()) "$0" else formatted
+        val costLocale = rememberCostLocale()
+        val todayText = remember(todayCost, costLocale) {
+            usdTextOrZero(CostFormatter.format(todayCost, costLocale), costLocale)
         }
         Row(
             verticalAlignment = Alignment.CenterVertically,

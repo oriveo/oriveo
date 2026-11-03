@@ -1,0 +1,41 @@
+{
+  "meta": {
+    "route": "minimax_image_generation",
+    "provider": "miniMax",
+    "op": "generate",
+    "http": 200,
+    "seconds": 38.9,
+    "captured_at": "2026-10-28T01:15:05.240Z",
+    "endpoint": "https://api.minimax.io/v1/image_generation"
+  },
+  "observed": {
+    "shapes": [
+      "data.image_base64[]"
+    ],
+    "images": [
+      {
+        "mime": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 170088,
+        "host": null
+      }
+    ]
+  },
+  "response": {
+    "id": "07307f72fa06460497ec4a6e9014b544",
+    "data": {
+      "image_base64": [
+        "<base64 bytes=170088 sha256=d4ca996b01246fde>"
+      ]
+    },
+    "metadata": {
+      "failed_count": "0",
+      "success_count": "1"
+    },
+    "base_resp": {
+      "status_code": 0,
+      "status_msg": "success"
+    }
+  }
+}

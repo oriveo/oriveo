@@ -29,20 +29,22 @@
 
   /* ── Surface ── */
   --o-surface: #FFFFFF;
-  --o-surface-raised: #F4F4F5;
+  --o-surface-raised: #FFFFFF;
+  /* Hover / selected background and secondary fill on white surfaces (light-roles mutedFill). Split from --o-surface-raised, which is a raised surface. */
+  --o-surface-hover: #F4F4F5;
+  --o-fill-muted: #F4F4F5;
   --o-surface-card-from: #F7F6FB;
   --o-surface-overlay: rgba(255, 255, 255, 0.85);
 
-  /* ── Metric card background inside the token usage dialog ──
-   * A dedicated token rather than a dark-theme attribute selector override in a CSS
-   * Module: in a production build lightningcss strips the whole dark block when a CSS
-   * Module rule uses an attribute selector (same failure as the reasoning/citations set).
-   * The two themes need opposite directions, so each picks its own value:
-   * the light dialog background composites to ~#F9F9F9 - 1.084:1 against
-   * --o-bg-inset(#F0F0F2), but only 1.047:1 against --o-surface-raised(#F4F4F5).
-   * the dark dialog background composites to ~rgb(26,30,41) - only 1.026:1 against
-   * --o-bg-inset(#181C24), where the card all but vanishes, and 1.149:1 against
-   * --o-surface-raised(#252937).
+  /* ── Token usage dialog metric card background ──
+   * Kept as a token rather than an attribute-selector dark override inside the CSS Module:
+   * in production builds lightningcss strips the whole dark override block that contains
+   * an attribute selector (same finding as the reasoning/citations set).
+   * The best background direction differs per theme, so each picks its own:
+   *   the light dialog background composites to about #F9F9F9 - 1.084:1 contrast against --o-bg-inset(#F0F0F2),
+   *   against #F4F4F5 (now --o-fill-muted; light --o-surface-raised is white) it is only 1.047:1, a regression.
+   *   the dark dialog background composites to about rgb(26,30,41) - only 1.026:1 against --o-bg-inset(#181C24)
+   *   (the card nearly disappears), and 1.149:1 against --o-surface-raised(#252937).
    */
   --o-token-usage-card-bg: var(--o-bg-inset);
 
@@ -63,28 +65,33 @@
   /* ── Border - neutral, no purple tint ── */
   --o-border: rgba(0, 0, 0, 0.08);
   --o-border-strong: rgba(0, 0, 0, 0.16);
+  /* Card stroke and row divider (light-roles borderSubtle, iOS V2.Colors.borderSubtle); follows no palette. */
+  --o-border-subtle: rgba(0, 0, 0, 0.04);
 
   /* ── Primary (brand purple) ── */
-  --o-primary: #8B5CF6;
+  --o-primary: #8C5FF8;
   --o-primary-hover: #7C3AED;
   --o-primary-active: #6D28D9;
   --o-primary-subtle: color-mix(in srgb, var(--o-primary) 8%, transparent);
+  /* Solid brand-tinted chip background (light-roles soft): numbered dots, keyword highlights, capsules. */
+  --o-primary-soft: #EDE9FE;
   --o-primary-text: #ffffff;
-  /* Strictly distinct from the line above: --o-primary-text is the text colour drawn on
-   * top of a primary fill, paired with background: var(--o-primary), while
-   * --o-primary-text-on-surface is the AA variant for using brand purple as a text colour
-   * on ordinary surfaces. In light mode --o-primary #8B5CF6 as body text is only 4.23:1 on
-   * #FFFFFF and 3.85:1 on #F4F4F5; violet-700 at the same hue gives 7.11:1 / 6.46:1. */
+  /* Same role as --o-primary-text, under the name the dark palettes and iOS / Android use (onPrimary);
+   * it follows each light palette's --o-primary-text, so bright seeds keep their dark text. */
+  --o-on-primary: var(--o-primary-text);
+  /* Deliberately distinct from the line above:
+   *   --o-primary-text            = text color ON a primary fill (white), used with background: var(--o-primary)
+   *   --o-primary-text-on-surface = AA variant for using the brand purple AS text on a plain surface
+   * Light --o-primary #8C5FF8 as body text is only 4.11:1 on #FFFFFF / 3.74:1 on #F4F4F5;
+   * darkened to the same-hue violet-700 it reaches 7.11:1 / 6.46:1. Dark already passes and points back at the original. */
   --o-primary-text-on-surface: #6D28D9;
-  /* A third semantic, different from both above: --o-primary-text-safe is an accent fill
-   * that has text drawn on it, such as the selected segmented pill.
-   * This is the mirror of the rule that gives semantic colours a text variant: there the
-   * text moves, here the fill under the text moves. --o-primary-text is already at the
-   * white / near-black extreme, so the only remaining move is to darken the fill one step.
-   * Measured with --o-primary-text on this colour: 7.10:1 light, 6.93:1 dark; the raw
-   * --o-primary value gives only 4.23:1 in light mode.
-   * --o-primary itself is untouched: fills, icons and strokes that carry no text keep the
-   * saturated original. */
+  /* A third semantic, distinct from both above:
+   *   --o-primary-text-safe = an accent fill that carries text on top (e.g. the selected segmented pill).
+   * This is the mirror of the "text-variant for semantic colors" rule: there the text changes,
+   * here the fill underneath the text changes.
+   * --o-primary-text is already the extreme white/near-black, so the text side has no way out; the fill must go one step darker.
+   * Measured --o-primary-text on this fill: light 7.10:1 / dark 6.93:1 (with --o-primary itself, light is only 4.11:1).
+   * **--o-primary itself is not changed by a single byte**: fills, icons and strokes that carry no text keep the original vivid value. */
   --o-primary-text-safe: #6D28D9;
   /* --o-primary-fill = the brand fill for icon-only controls (send button, + round button, checkbox); the icon on top is --o-primary-text.
    * In default light and in dark it is just --o-primary; in bright-fill palettes (mode=bright) --o-primary is the ink color and
@@ -138,6 +145,9 @@
   /* Switch thumb: white in both themes, matching the iOS/Android system switch */
   --o-switch-thumb: #ffffff;
 
+  /* Neutral fill for secondary capsule buttons (Apple tertiarySystemFill); same name/role on all ends, not palette-tinted. */
+  --o-neutral-fill: rgba(118, 118, 128, 0.12);
+
   /* ── Overlay / Scrim ── */
   --o-overlay: rgba(0, 0, 0, 0.45);
 
@@ -187,12 +197,12 @@
 
   /* ── Gradient ── */
   --o-gradient-brand: linear-gradient(135deg, var(--o-primary), var(--o-primary-hover), var(--o-primary-active));
-  /* User bubble: 7 stops top to bottom form a 180deg vertical gradient, and the bubble uses background-attachment: fixed
-     to anchor it to the viewport (each bubble shows only the slice it sits on). The stops come from
-     dark-palettes.v1.json#userBubbleStops and each palette section overrides only --o-user-bubble-stops;
+  /* User bubble: 7 stops from top to bottom form a 180deg vertical gradient; the bubble uses background-attachment: fixed
+     to anchor it to the viewport (each bubble shows only the slice it sits on). The stop source of truth is
+     dark-palettes.v1.json#userBubbleStops; each palette section overrides only --o-user-bubble-stops;
      shadow = bottom stop @ 16% blur 14 y 4 + a 1px white inner highlight on top.
-     Default light = userBubbleStops.dark.light (gradEnd to gradStart); the bottom stop is light.palettes.dark.gradStart. */
-  --o-user-bubble-stops: #6B3BC7, #6F3DCF, #733FD6, #7741DE, #7B43E5, #7F45ED, #8347F5;
+     Default light = userBubbleStops.dark.light (gradEnd -> gradStart); the bottom stop is light.palettes.dark.gradStart. */
+  --o-user-bubble-stops: #6A3BC7, #6E3DCF, #723FD6, #7641DE, #7B43E5, #7F45ED, #8347F5;
   --o-user-bubble-bg: linear-gradient(180deg, var(--o-user-bubble-stops));
   --o-user-bubble-fg: #fff;
   --o-user-bubble-shadow:
@@ -217,8 +227,8 @@
   --o-screen-bg: linear-gradient(135deg, #FAFBFF, #F6F5FA);
 
   /* ── App Shell / Composer Glass ── */
-  --o-composer-bg: color-mix(in srgb, var(--o-surface) 84%, transparent);
-  --o-composer-home-bg: color-mix(in srgb, var(--o-surface) 80%, transparent);
+  --o-composer-bg: color-mix(in srgb, var(--o-surface) 84%, var(--o-bg));
+  --o-composer-home-bg: color-mix(in srgb, var(--o-surface) 80%, var(--o-bg));
   --o-composer-shadow:
     0 1px 3px rgba(0, 0, 0, 0.05),
     0 8px 24px rgba(0, 0, 0, 0.04),
@@ -384,19 +394,19 @@
 
   /* ── MenuSelect (`--o-ms-*`) ── */
   --o-ms-trigger-bg:
-    linear-gradient(180deg, color-mix(in srgb, var(--o-surface) 94%, var(--o-bg-subtle)) 0%, color-mix(in srgb, var(--o-surface-raised) 72%, var(--o-surface)) 100%);
+    linear-gradient(180deg, color-mix(in srgb, var(--o-surface) 94%, var(--o-bg-subtle)) 0%, color-mix(in srgb, var(--o-fill-muted) 72%, var(--o-surface)) 100%);
   --o-ms-trigger-border: color-mix(in srgb, var(--o-border-strong) 72%, transparent);
   --o-ms-trigger-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
   --o-ms-trigger-focus-border: color-mix(in srgb, var(--o-primary) 26%, var(--o-border));
   --o-ms-trigger-focus-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 10%, transparent);
-  --o-ms-menu-bg: color-mix(in srgb, var(--o-surface-overlay) 92%, var(--o-surface));
+  --o-ms-menu-bg: var(--o-surface);
   --o-ms-menu-border: color-mix(in srgb, var(--o-border-strong) 82%, transparent);
   --o-ms-menu-shadow:
     0 24px 56px rgba(15, 23, 42, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.56);
   --o-ms-option-hover-bg: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface));
   --o-ms-option-selected-bg:
-    linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 14%, var(--o-surface)) 0%, color-mix(in srgb, var(--o-surface) 100%, var(--o-surface-raised)) 100%);
+    linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 14%, var(--o-surface)) 0%, color-mix(in srgb, var(--o-surface) 100%, var(--o-surface-hover)) 100%);
   --o-ms-option-selected-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.52),
     0 8px 18px rgba(15, 23, 42, 0.08);
@@ -426,8 +436,8 @@
     0 0 0 1px color-mix(in srgb, var(--o-primary) 24%, transparent),
     0 1px 2px rgba(15, 23, 42, 0.06);
   --o-pd-modelrow-hover-bg: color-mix(in srgb, var(--o-primary) 5%, var(--o-surface));
-  --o-pd-toggle-off-bg: color-mix(in srgb, var(--o-text-tertiary) 26%, var(--o-surface-raised));
-  --o-pd-toggle-off-hover-bg: color-mix(in srgb, var(--o-text-tertiary) 34%, var(--o-surface-raised));
+  --o-pd-toggle-off-bg: color-mix(in srgb, var(--o-text-tertiary) 26%, var(--o-fill-muted));
+  --o-pd-toggle-off-hover-bg: color-mix(in srgb, var(--o-text-tertiary) 34%, var(--o-fill-muted));
   --o-pd-toggle-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
   --o-pd-toggle-focus-shadow:
     inset 0 1px 2px rgba(15, 23, 42, 0.08),
@@ -654,6 +664,8 @@
   /* ── Surface ── */
   --o-surface: #1C1C1F;
   --o-surface-raised: #27272B;
+  --o-surface-hover: var(--o-surface-raised);
+  --o-fill-muted: var(--o-surface-raised);
   --o-surface-card-from: var(--o-surface-raised);
   --o-surface-overlay: color-mix(in srgb, var(--o-bg) 88%, transparent);
 
@@ -680,6 +692,8 @@
   --o-primary-hover: #C4B5FD;
   --o-primary-active: #9370F7;
   --o-primary-subtle: color-mix(in srgb, var(--o-primary) 15%, transparent);
+  --o-primary-soft: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  --o-border-subtle: rgba(255, 255, 255, 0.06);
   --o-primary-glow: color-mix(in srgb, var(--o-primary) 35%, transparent);
   --o-composer-border: color-mix(in srgb, var(--o-primary) 22%, transparent);
   --o-primary-text: var(--o-bg);
@@ -738,6 +752,9 @@
 
   /* Switch thumb: white in both themes */
   --o-switch-thumb: #ffffff;
+
+  /* Neutral fill (Apple tertiarySystemFill, dark). */
+  --o-neutral-fill: rgba(118, 118, 128, 0.24);
 
   /* ── Shadow - pure black, clean ── */
   --o-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
@@ -807,8 +824,8 @@
   --o-screen-bg: linear-gradient(135deg, var(--o-bg), var(--o-bg-subtle));
 
   /* ── App Shell / Composer Glass (dark) ── */
-  --o-composer-bg: color-mix(in srgb, var(--o-surface) 78%, transparent);
-  --o-composer-home-bg: color-mix(in srgb, var(--o-surface) 72%, transparent);
+  --o-composer-bg: color-mix(in srgb, var(--o-surface) 78%, var(--o-bg));
+  --o-composer-home-bg: color-mix(in srgb, var(--o-surface) 72%, var(--o-bg));
   --o-composer-shadow:
     0 18px 54px rgba(0, 0, 0, 0.36),
     0 0 0 1px color-mix(in srgb, var(--o-primary) 8%, transparent),
@@ -909,7 +926,7 @@
   --o-ms-trigger-shadow: inset 0 1px 0 var(--o-hairline);
   --o-ms-trigger-focus-border: var(--o-primary-subtle);
   --o-ms-trigger-focus-shadow: var(--o-glow-primary);
-  --o-ms-menu-bg: color-mix(in srgb, var(--o-bg) 94%, transparent);
+  --o-ms-menu-bg: var(--o-bg);
   --o-ms-menu-border: var(--o-border-strong);
   --o-ms-menu-shadow:
     var(--o-shadow-lg),
@@ -1132,7 +1149,7 @@
   --o-code-bg: #0E0B17;
   --o-code-header-bg: #1A1528;
   --o-glow-k: 1;
-  --o-user-bubble-stops: #F0ABFC, #E5A5FC, #DA9FFC, #CE9AFC, #C195FC, #B490FB, #A78BFA;
+  --o-user-bubble-stops: #CABEFD, #C4B6FD, #BEADFC, #B8A5FC, #B29CFB, #AD94FB, #A78BFA;
 }
 
 [data-theme='dark'][data-palette='dark-graphite'] {
@@ -1152,7 +1169,7 @@
   --o-code-bg: #131519;
   --o-code-header-bg: #212328;
   --o-glow-k: 1;
-  --o-user-bubble-stops: #7DE3FF, #77DAFE, #6FD0FF, #6EC6FD, #6BBCFD, #69B1FE, #6AA6FF;
+  --o-user-bubble-stops: #B8D4FF, #ADCCFD, #A0C5FD, #93BDFD, #86B6FD, #79AEFD, #6AA6FF;
 }
 
 [data-theme='dark'][data-palette='dark-black'] {
@@ -1172,7 +1189,7 @@
   --o-code-bg: #0A0A0B;
   --o-code-header-bg: #141416;
   --o-glow-k: 1;
-  --o-user-bubble-stops: #7DD3FC, #94C5FD, #A7B7FD, #BDA4FE, #D98EF1, #F07BCD, #FF6B9D;
+  --o-user-bubble-stops: #FEABC2, #FFA1BC, #FD98B6, #FE8EB0, #FE83A9, #FE78A3, #FF6B9D;
 }
 
 [data-theme='dark'][data-palette='dark-ocean'] {
@@ -1192,7 +1209,7 @@
   --o-code-bg: #041013;
   --o-code-header-bg: #0A1B20;
   --o-glow-k: 1;
-  --o-user-bubble-stops: #67B7FF, #51BEFA, #3AC4F2, #1FC9E8, #03CEDC, #0FD1CE, #2DD4BF;
+  --o-user-bubble-stops: #21CBB7, #23CCB8, #25CEBA, #27CFBB, #29D1BC, #2BD2BE, #2DD4BF;
 }
 
 [data-theme='dark'][data-palette='dark-forest'] {
@@ -1212,7 +1229,7 @@
   --o-code-bg: #08100C;
   --o-code-header-bg: #101B15;
   --o-glow-k: 1;
-  --o-user-bubble-stops: #D9F99D, #C4F398, #AEED96, #96E794, #7CE195, #5EDA96, #34D399;
+  --o-user-bubble-stops: #B0FFD9, #9FF8CE, #8EF0C3, #7CE9B9, #68E2AE, #51DAA3, #34D399;
 }
 
 [data-theme='dark'][data-palette='dark-sunset'] {
@@ -1232,7 +1249,7 @@
   --o-code-bg: #100B09;
   --o-code-header-bg: #1C1511;
   --o-glow-k: 1;
-  --o-user-bubble-stops: #FF7E79, #FF8971, #FD956D, #FE9E66, #FFA75D, #FEB057, #FDBA4D;
+  --o-user-bubble-stops: #E19B07, #E6A01C, #EAA529, #EFAA33, #F4B03C, #F8B545, #FDBA4D;
 }
 
 /* ── Light palettes ──
@@ -1266,6 +1283,7 @@
   --o-primary-text-on-surface: #6F27D8;
   --o-primary-text-safe: #6F27D8;
   --o-primary-fill: #8F5DF8;
+  --o-primary-soft: #EDE9FE;
   --o-brand-accent: #D847F1;
   --o-brand-grad-start: #8547F4;
   --o-brand-grad-end: #6C3BC7;
@@ -1282,12 +1300,13 @@
   --o-primary-text-on-surface: #025AC4;
   --o-primary-text-safe: #025AC4;
   --o-primary-fill: #0076FD;
+  --o-primary-soft: #E3EDFD;
   --o-brand-accent: #149BB8;
   --o-brand-grad-start: #0370EF;
   --o-brand-grad-end: #055BC4;
   --o-brand-bg-top: #F3F6FC;
   --o-brand-bg-bottom: #EBF1F9;
-  --o-user-bubble-stops: #055BC4, #055ECB, #0562D2, #0465D9, #0469E0, #036CE8, #0370EF;
+  --o-user-bubble-stops: #045BC4, #045ECB, #0462D2, #0465D9, #0369E0, #036CE8, #0370EF;
 }
 
 [data-theme='light'][data-palette='dark-black'] {
@@ -1298,6 +1317,7 @@
   --o-primary-text-on-surface: #B00358;
   --o-primary-text-safe: #B00358;
   --o-primary-fill: #E42E7A;
+  --o-primary-soft: #FEE5EB;
   --o-brand-accent: #0298C9;
   --o-brand-grad-start: #D8016D;
   --o-brand-grad-end: #B10759;
@@ -1314,12 +1334,13 @@
   --o-primary-text-on-surface: #0C7064;
   --o-primary-text-safe: #0EC9B4;
   --o-primary-fill: #14C9B4;
+  --o-primary-soft: #D9F3ED;
   --o-brand-accent: #0693F0;
   --o-brand-grad-start: #0FDBC4;
   --o-brand-grad-end: #06C5B1;
   --o-brand-bg-top: #F1F8F6;
   --o-brand-bg-bottom: #E7F3F1;
-  --o-user-bubble-stops: #06C5B1, #07C9B4, #09CCB7, #0AD0BA, #0CD4BE, #0ED7C1, #0FDBC4;
+  --o-user-bubble-stops: #0AC5B0, #0BC9B3, #0CCCB7, #0DD0BA, #0DD4BD, #0ED7C1, #0FDBC4;
 }
 
 [data-theme='light'][data-palette='dark-forest'] {
@@ -1330,12 +1351,13 @@
   --o-primary-text-on-surface: #03734F;
   --o-primary-text-safe: #05CD90;
   --o-primary-fill: #0DCD91;
+  --o-primary-soft: #DCF2E7;
   --o-brand-accent: #779A0E;
   --o-brand-grad-start: #13DF9E;
   --o-brand-grad-end: #16C98E;
   --o-brand-bg-top: #F2F8F4;
   --o-brand-bg-bottom: #E9F3EE;
-  --o-user-bubble-stops: #16C98E, #16CD91, #15D093, #15D496, #14D899, #14DB9B, #13DF9E;
+  --o-user-bubble-stops: #14C98E, #14CD91, #14D093, #14D496, #13D899, #13DB9B, #13DF9E;
 }
 
 [data-theme='light'][data-palette='dark-sunset'] {
@@ -1346,10 +1368,11 @@
   --o-primary-text-on-surface: #815705;
   --o-primary-text-safe: #E59E02;
   --o-primary-fill: #E59E08;
+  --o-primary-soft: #F7EAD8;
   --o-brand-accent: #FF474D;
   --o-brand-grad-start: #F9AD0D;
   --o-brand-grad-end: #E09B12;
   --o-brand-bg-top: #F9F5F0;
   --o-brand-bg-bottom: #F5EFE7;
-  --o-user-bubble-stops: #E09B12, #E49E11, #E8A111, #ECA410, #F1A70F, #F5AA0E, #F9AD0D;
+  --o-user-bubble-stops: #DF9B11, #E39E10, #E8A110, #ECA40F, #F0A70F, #F5AA0E, #F9AD0D;
 }

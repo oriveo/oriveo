@@ -7,14 +7,9 @@ struct FolderConversationCountTests {
 
     @Test("counts come from store membership and do not require messages in memory")
     @MainActor
-    func countsComeFromDatabaseAssignments() throws {
+    func countsComeFromDatabaseAssignments() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "folder-count-db-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let folder = TestFactories.makeFolder(name: "Work")
@@ -40,6 +35,10 @@ struct FolderConversationCountTests {
         )
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations(
             [first, second, elsewhere, ungrouped],
             uid: uid
@@ -54,14 +53,9 @@ struct FolderConversationCountTests {
 
     @Test("a conversation just moved in memory is counted immediately, without waiting for background persist")
     @MainActor
-    func inMemoryMoveCountsImmediately() throws {
+    func inMemoryMoveCountsImmediately() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "folder-count-move-in-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let folder = TestFactories.makeFolder(name: "Work")
@@ -71,6 +65,10 @@ struct FolderConversationCountTests {
         )
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations([conversation], uid: uid)
         state.folders = [folder]
         state.conversations = []
@@ -84,14 +82,9 @@ struct FolderConversationCountTests {
 
     @Test("a conversation just moved out of memory disappears from the count immediately")
     @MainActor
-    func inMemoryMoveOutCountsImmediately() throws {
+    func inMemoryMoveOutCountsImmediately() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "folder-count-move-out-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let folder = TestFactories.makeFolder(name: "Work")
@@ -103,6 +96,10 @@ struct FolderConversationCountTests {
         conversation.metadataUpdatedAt = Date(timeIntervalSince1970: 1_000)
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations([conversation], uid: uid)
         state.folders = [folder]
         state.conversations = []
@@ -115,16 +112,45 @@ struct FolderConversationCountTests {
         #expect(state.folderManager.conversationCount(in: folder.id) == 0)
     }
 
+    @Test("with a non-empty memory mirror, membership follows memory and does not merge store assignments back")
+    @MainActor
+    func memoryFolderAssignmentWinsOverStore() async throws {
+        let previousUID = AppSessionStore.activeUID
+        let uid = "folder-count-stale-\(UUID().uuidString)"
+        DatabaseManager.shared.close()
+
+        let folder = TestFactories.makeFolder(name: "Work")
+        var stored = TestFactories.makeConversation(
+            title: "A",
+            messages: [TestFactories.makeMessage(text: "a")],
+            folderID: folder.id
+        )
+        stored.metadataUpdatedAt = Date(timeIntervalSince1970: 2_000)
+
+        let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
+        _ = try state.conversationRuntimeBridge.replaceAllConversations([stored], uid: uid)
+        state.folders = [folder]
+
+        // Every membership write path changes memory first and persists asynchronously, so the memory mirror is the source of truth:
+        // a conversation not in the folder in memory is not counted or listed.
+        // (The old semantics merged store assignments back by metadata time, which would count a conversation that another device just moved out or deleted before the store was written.)
+        var memory = stored
+        memory.folderID = nil
+        memory.metadataUpdatedAt = Date(timeIntervalSince1970: 1_000)
+        state.conversations = [memory]
+        #expect(state.folderManager.conversationCount(in: folder.id) == 0)
+        #expect(state.folderManager.conversations(in: folder.id).isEmpty)
+    }
+
     @Test("the count matches the expanded list length")
     @MainActor
-    func countMatchesExpandedList() throws {
+    func countMatchesExpandedList() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "folder-count-list-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let folder = TestFactories.makeFolder(name: "Work")
@@ -137,6 +163,10 @@ struct FolderConversationCountTests {
         }
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations(conversations, uid: uid)
         state.folders = [folder]
         state.conversations = []
@@ -152,14 +182,9 @@ struct FolderConversationCountTests {
     /// preview and count, so it must not read and decode every stored conversation's messages.
     @Test("an expanded folder list reads the summary projection, so re-reading does not grow with message volume")
     @MainActor
-    func expandedListDoesNotMaterializeMessages() throws {
+    func expandedListDoesNotMaterializeMessages() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "folder-list-cost-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         // A heavy user: 300 conversations with 30 messages each, 40 of them in the folder.
@@ -181,6 +206,10 @@ struct FolderConversationCountTests {
         }
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations(seeded, uid: uid)
         state.folders = [folder]
 

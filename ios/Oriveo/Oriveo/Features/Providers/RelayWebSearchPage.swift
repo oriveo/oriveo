@@ -341,7 +341,7 @@ struct RelayWebSearchPage: View {
                     Button {
                         useTemplate(transport, current: current)
                     } label: {
-                        cardAction(RelayWebSearchDraft.useTemplateKey, color: OriveoTheme.Palette.primary)
+                        cardAction(RelayWebSearchDraft.useTemplateKey, color: OriveoTheme.Palette.primaryTextOnSurface)
                     }
                     .buttonStyle(.plain)
                     Button {
@@ -420,7 +420,7 @@ struct RelayWebSearchPage: View {
                 Button {
                     retest(model.modelID)
                 } label: {
-                    cardAction(Board.retestKey, color: OriveoTheme.Palette.primary)
+                    cardAction(Board.retestKey, color: OriveoTheme.Palette.primaryTextOnSurface)
                 }
                 .buttonStyle(.plain)
                 .disabled(retestingModelID != nil)

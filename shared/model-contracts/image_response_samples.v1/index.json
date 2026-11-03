@@ -1,0 +1,1527 @@
+{
+  "$comment": "Real response samples for the image response parser (方案 §5.4, E-06). Captured 2026-10-28 in P0 (调研 E/F) with the owner's keys; large base64 replaced by \"<base64 bytes=N sha256=…>\", signed URL query strings redacted, structure kept as returned; observed.images holds the decoded pixel size and mime measured at capture time. Parsers accept every shape and never assume a shape per model or provider: data[].b64_json, data[].url, images[].url (only when data[] is absent — SiliconFlow sends both for the same picture), message.images[], markdown data URLs in content, Gemini inlineData, DashScope output.choices[].message.content[].image, MiniMax data.image_base64[]; mime comes from mime_type / media_type / inlineData.mimeType / the data URL prefix when present, otherwise from the decoded bytes. expect.images[].mime is the declared mime (null = must sniff). Actual pixel size is always taken from the decoded image (observed.images). Executable reference: scripts/lib/studio-image-reference.mjs parseImageResponse / classifyResult. New shapes are added here first, then to the parsers.",
+  "contractId": "image_response_samples.v1",
+  "version": 1,
+  "shapes": [
+    "data[].b64_json",
+    "data[].url",
+    "images[].url",
+    "message.images[]",
+    "markdown data URL",
+    "inlineData",
+    "output.choices[].message.content[].image",
+    "data.image_base64[]"
+  ],
+  "samples": [
+    {
+      "file": "chat_modalities.micu-relay.gemini-3.1-flash-image-preview.generate.json",
+      "route": "chat_modalities",
+      "provider": "micu-relay",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "markdown data URL"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "data_url",
+            "mime": "image/jpeg"
+          }
+        ]
+      }
+    },
+    {
+      "file": "chat_modalities.openRouter.gemini-3.1-flash-lite-image.edit.json",
+      "route": "chat_modalities",
+      "provider": "openRouter",
+      "operation": "edit",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "message.images[]"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "data_url",
+            "mime": "image/jpeg"
+          }
+        ]
+      }
+    },
+    {
+      "file": "chat_modalities.openRouter.gemini-3.1-flash-lite-image.generate.json",
+      "route": "chat_modalities",
+      "provider": "openRouter",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "message.images[]"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "data_url",
+            "mime": "image/jpeg"
+          }
+        ]
+      },
+      "note": "No ratio sent → provider default 1408x768: the reason clients always send a ratio."
+    },
+    {
+      "file": "dashscope_multimodal.qwen.qwen-image-2.0.edit.json",
+      "route": "dashscope_multimodal",
+      "provider": "qwen",
+      "operation": "edit",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "output.choices[].message.content[].image"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null
+          }
+        ]
+      },
+      "note": "New shape (调研 F): output.choices[].message.content[].image URL."
+    },
+    {
+      "file": "dashscope_multimodal.qwen.qwen-image-2.0.generate.json",
+      "route": "dashscope_multimodal",
+      "provider": "qwen",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "output.choices[].message.content[].image"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null
+          }
+        ]
+      },
+      "note": "New shape (调研 F): output.choices[].message.content[].image URL, expires in 24h."
+    },
+    {
+      "file": "gemini_generate_content.gemini.gemini-3.1-flash-lite-image.edit.json",
+      "route": "gemini_generate_content",
+      "provider": "gemini",
+      "operation": "edit",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "inlineData"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/jpeg"
+          }
+        ]
+      }
+    },
+    {
+      "file": "gemini_generate_content.gemini.gemini-3.1-flash-lite-image.generate.json",
+      "route": "gemini_generate_content",
+      "provider": "gemini",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "inlineData"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/jpeg"
+          }
+        ]
+      }
+    },
+    {
+      "file": "minimax_image_generation.miniMax.image-01.generate.json",
+      "route": "minimax_image_generation",
+      "provider": "miniMax",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data.image_base64[]"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": null
+          }
+        ]
+      },
+      "note": "New shape (调研 F): data.image_base64[] (data is an object, not an array)."
+    },
+    {
+      "file": "openai_images.openai.gpt-image-2.edit.json",
+      "route": "openai_images",
+      "provider": "openai",
+      "operation": "edit",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": null
+          }
+        ]
+      }
+    },
+    {
+      "file": "openai_images.openai.gpt-image-2.generate.json",
+      "route": "openai_images",
+      "provider": "openai",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": null
+          }
+        ]
+      }
+    },
+    {
+      "file": "openai_images.siliconFlow.Qwen-Image-Edit.edit.json",
+      "route": "openai_images",
+      "provider": "siliconFlow",
+      "operation": "edit",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].url"
+        ],
+        "deduped": [
+          "images[].url"
+        ],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null
+          }
+        ]
+      },
+      "note": "Same duplicate images[] / data[] as the generate sample."
+    },
+    {
+      "file": "openai_images.siliconFlow.Qwen-Image.generate.json",
+      "route": "openai_images",
+      "provider": "siliconFlow",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].url"
+        ],
+        "deduped": [
+          "images[].url"
+        ],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null
+          }
+        ]
+      },
+      "note": "images[] and data[] point to the same picture: take data[] only, n=1 must count as 1 (调研 F)."
+    },
+    {
+      "file": "openai_images.togetherAI.FLUX.1-kontext-pro.edit.json",
+      "route": "openai_images",
+      "provider": "togetherAI",
+      "operation": "edit",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": null
+          }
+        ]
+      }
+    },
+    {
+      "file": "openai_images.togetherAI.FLUX.1-schnell.generate.json",
+      "route": "openai_images",
+      "provider": "togetherAI",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "model_unavailable",
+        "shapes": [],
+        "deduped": [],
+        "images": []
+      },
+      "note": "Real failure: model gone from serverless (400 model_not_available) → model_unavailable."
+    },
+    {
+      "file": "openai_images.zhipu.glm-image.generate.json",
+      "route": "openai_images",
+      "provider": "zhipu",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].url"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null
+          }
+        ]
+      }
+    },
+    {
+      "file": "openrouter_images.openRouter.gpt-image-2.edit.json",
+      "route": "openrouter_images",
+      "provider": "openRouter",
+      "operation": "edit",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/png"
+          }
+        ]
+      },
+      "note": "New field (调研 F): data[].media_type carries the mime."
+    },
+    {
+      "file": "openrouter_images.openRouter.gpt-image-2.generate.json",
+      "route": "openrouter_images",
+      "provider": "openRouter",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/png"
+          }
+        ]
+      },
+      "note": "New field (调研 F): data[].media_type carries the mime."
+    },
+    {
+      "file": "xai_images.grok.grok-imagine-image.edit.json",
+      "route": "xai_images",
+      "provider": "grok",
+      "operation": "edit",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/jpeg"
+          }
+        ]
+      }
+    },
+    {
+      "file": "xai_images.grok.grok-imagine-image.generate.json",
+      "route": "xai_images",
+      "provider": "grok",
+      "operation": "generate",
+      "nRequested": 1,
+      "expect": {
+        "result": "ok",
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/jpeg"
+          }
+        ]
+      },
+      "note": "No ratio sent → provider default 3:2 (1248x832): the reason clients always send a ratio."
+    }
+  ],
+  "$comment_u5a": "Client parser cases added in. parserCases: synthetic bodies; images[] compare kind, mime, value, revisedPrompt in order; value is the raw b64 string, the URL, or the full data URL. Any URL field starting with data: (case-insensitive) is kind data_url, mime from its prefix lowercased. metaExpect: for every real sample, usage = {inputTokens, outputTokens, totalTokens} taken per field from usage.input_tokens / usage.prompt_tokens / usageMetadata.promptTokenCount (output: output_tokens / completion_tokens / candidatesTokenCount; total: total_tokens / totalTokenCount), first positive integer wins, else the first integer present, else null; usage = null when all three are null; declaredSize from top-level size \"WxH\", else usage.width + usage.height; informational only, real size always comes from decodeImageInfo. decodeCases: decodeImageInfo(bytes) reads the pixel size from the image header (raw stored size, EXIF orientation ignored), png / jpeg / webp (VP8, VP8L, VP8X) only, anything else or truncated returns null (= decode_failed). fetchPolicy + fetchCases: URL images are downloaded right away; failure kinds use image_error_samples.v1 names. assembleCases: per-image outcomes → result. Review round: numbers count when the JSON value is integral (14.0 = 14, \"14\" and 1.5 do not); size \"WxH\" is digits only and both > 0; declared mime is read only for b64 items (url items: null); data URL mime only from a data:image/<x>;base64, prefix, otherwise null; inlineData that is not an object falls back to inline_data; png width / height must be 1..2^31-1; jpeg SOF segment length must be >= 7. metaCases: synthetic usage / declaredSize. materializeCases: base64 accepts whitespace and missing padding, rejects any other non-alphabet character (URL-safe included); data URLs need ;base64,; the decoded mime wins over the declared one.",
+  "parserCases": [
+    {
+      "name": "empty_object_body",
+      "body": {},
+      "expect": {
+        "shapes": [],
+        "deduped": [],
+        "images": []
+      }
+    },
+    {
+      "name": "array_body",
+      "body": [
+        1,
+        2
+      ],
+      "expect": {
+        "shapes": [],
+        "deduped": [],
+        "images": []
+      }
+    },
+    {
+      "name": "null_body",
+      "body": null,
+      "expect": {
+        "shapes": [],
+        "deduped": [],
+        "images": []
+      }
+    },
+    {
+      "name": "images_url_without_data",
+      "body": {
+        "images": [
+          {
+            "url": "https://cdn.example/a.png"
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "images[].url"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null,
+            "value": "https://cdn.example/a.png",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "images_url_with_empty_data_array",
+      "body": {
+        "data": [],
+        "images": [
+          {
+            "url": "https://cdn.example/a.png"
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "images[].url"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null,
+            "value": "https://cdn.example/a.png",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "data_item_with_b64_and_url_counts_once",
+      "body": {
+        "data": [
+          {
+            "b64_json": "QUJD",
+            "url": "https://cdn.example/a.png",
+            "mime_type": "image/png"
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/png",
+            "value": "QUJD",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "data_url_field_holding_data_uri",
+      "body": {
+        "data": [
+          {
+            "url": "data:image/PNG;base64,QUJD"
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "data[].url"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "data_url",
+            "mime": "image/png",
+            "value": "data:image/PNG;base64,QUJD",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "data_two_items_keep_order",
+      "body": {
+        "data": [
+          {
+            "url": "https://cdn.example/1.png"
+          },
+          {
+            "b64_json": "QUJD"
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "data[].url",
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null,
+            "value": "https://cdn.example/1.png",
+            "revisedPrompt": null
+          },
+          {
+            "kind": "b64",
+            "mime": null,
+            "value": "QUJD",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "revised_prompt_per_item",
+      "body": {
+        "data": [
+          {
+            "b64_json": "QUJD",
+            "revised_prompt": "A red cat"
+          },
+          {
+            "b64_json": "REVG"
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "data[].b64_json"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": null,
+            "value": "QUJD",
+            "revisedPrompt": "A red cat"
+          },
+          {
+            "kind": "b64",
+            "mime": null,
+            "value": "REVG",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "message_images_http_url",
+      "body": {
+        "choices": [
+          {
+            "message": {
+              "images": [
+                {
+                  "image_url": {
+                    "url": "https://cdn.example/m.webp"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "message.images[]"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null,
+            "value": "https://cdn.example/m.webp",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "gemini_snake_case_inline_data",
+      "body": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "here"
+                },
+                {
+                  "inline_data": {
+                    "mime_type": "image/png",
+                    "data": "QUJD"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "inlineData"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/png",
+            "value": "QUJD",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "markdown_two_images_lowercase_mime",
+      "body": {
+        "choices": [
+          {
+            "message": {
+              "content": "a ![x](data:image/JPEG;base64,QUJD) b ![y](data:image/png;base64,REVG)"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "markdown data URL"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "data_url",
+            "mime": "image/jpeg",
+            "value": "data:image/JPEG;base64,QUJD",
+            "revisedPrompt": null
+          },
+          {
+            "kind": "data_url",
+            "mime": "image/png",
+            "value": "data:image/png;base64,REVG",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "markdown_http_link_ignored",
+      "body": {
+        "choices": [
+          {
+            "message": {
+              "content": "![x](https://cdn.example/a.png)"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [],
+        "deduped": [],
+        "images": []
+      }
+    },
+    {
+      "name": "message_images_then_markdown_both_kept",
+      "body": {
+        "choices": [
+          {
+            "message": {
+              "images": [
+                {
+                  "image_url": {
+                    "url": "data:image/png;base64,QUJD"
+                  }
+                }
+              ],
+              "content": "![x](data:image/png;base64,REVG)"
+            }
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "message.images[]",
+          "markdown data URL"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "data_url",
+            "mime": "image/png",
+            "value": "data:image/png;base64,QUJD",
+            "revisedPrompt": null
+          },
+          {
+            "kind": "data_url",
+            "mime": "image/png",
+            "value": "data:image/png;base64,REVG",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "data_http_url_item_ignores_declared_mime",
+      "body": {
+        "data": [
+          {
+            "url": "https://cdn.example/a.png",
+            "mime_type": "image/png"
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "data[].url"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "url",
+            "mime": null,
+            "value": "https://cdn.example/a.png",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "data_url_non_image_mime_is_null",
+      "body": {
+        "choices": [
+          {
+            "message": {
+              "images": [
+                {
+                  "image_url": {
+                    "url": "data:application/octet-stream;base64,QUJD"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "message.images[]"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "data_url",
+            "mime": null,
+            "value": "data:application/octet-stream;base64,QUJD",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "data_url_without_base64_marker_mime_is_null",
+      "body": {
+        "choices": [
+          {
+            "message": {
+              "images": [
+                {
+                  "image_url": {
+                    "url": "data:image/png,QUJD"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "message.images[]"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "data_url",
+            "mime": null,
+            "value": "data:image/png,QUJD",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    },
+    {
+      "name": "inline_data_null_falls_back_to_snake_case",
+      "body": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "inlineData": null,
+                  "inline_data": {
+                    "mime_type": "image/png",
+                    "data": "QUJD"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      "expect": {
+        "shapes": [
+          "inlineData"
+        ],
+        "deduped": [],
+        "images": [
+          {
+            "kind": "b64",
+            "mime": "image/png",
+            "value": "QUJD",
+            "revisedPrompt": null
+          }
+        ]
+      }
+    }
+  ],
+  "metaExpect": [
+    {
+      "file": "chat_modalities.micu-relay.gemini-3.1-flash-image-preview.generate.json",
+      "usage": {
+        "inputTokens": 14,
+        "outputTokens": 1590,
+        "totalTokens": 1604
+      },
+      "declaredSize": null
+    },
+    {
+      "file": "chat_modalities.openRouter.gemini-3.1-flash-lite-image.edit.json",
+      "usage": {
+        "inputTokens": 1132,
+        "outputTokens": 1120,
+        "totalTokens": 2252
+      },
+      "declaredSize": null
+    },
+    {
+      "file": "chat_modalities.openRouter.gemini-3.1-flash-lite-image.generate.json",
+      "usage": {
+        "inputTokens": 13,
+        "outputTokens": 1120,
+        "totalTokens": 1133
+      },
+      "declaredSize": null
+    },
+    {
+      "file": "dashscope_multimodal.qwen.qwen-image-2.0.edit.json",
+      "usage": null,
+      "declaredSize": {
+        "width": 1024,
+        "height": 1024
+      }
+    },
+    {
+      "file": "dashscope_multimodal.qwen.qwen-image-2.0.generate.json",
+      "usage": null,
+      "declaredSize": {
+        "width": 1024,
+        "height": 1024
+      }
+    },
+    {
+      "file": "gemini_generate_content.gemini.gemini-3.1-flash-lite-image.edit.json",
+      "usage": {
+        "inputTokens": 1133,
+        "outputTokens": 1367,
+        "totalTokens": 2500
+      },
+      "declaredSize": null
+    },
+    {
+      "file": "gemini_generate_content.gemini.gemini-3.1-flash-lite-image.generate.json",
+      "usage": {
+        "inputTokens": 14,
+        "outputTokens": 1508,
+        "totalTokens": 1522
+      },
+      "declaredSize": null
+    },
+    {
+      "file": "minimax_image_generation.miniMax.image-01.generate.json",
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "file": "openai_images.openai.gpt-image-2.edit.json",
+      "usage": {
+        "inputTokens": 1043,
+        "outputTokens": 196,
+        "totalTokens": 1239
+      },
+      "declaredSize": {
+        "width": 1024,
+        "height": 1024
+      }
+    },
+    {
+      "file": "openai_images.openai.gpt-image-2.generate.json",
+      "usage": {
+        "inputTokens": 20,
+        "outputTokens": 196,
+        "totalTokens": 216
+      },
+      "declaredSize": {
+        "width": 1024,
+        "height": 1024
+      }
+    },
+    {
+      "file": "openai_images.siliconFlow.Qwen-Image-Edit.edit.json",
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "file": "openai_images.siliconFlow.Qwen-Image.generate.json",
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "file": "openai_images.togetherAI.FLUX.1-kontext-pro.edit.json",
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "file": "openai_images.togetherAI.FLUX.1-schnell.generate.json",
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "file": "openai_images.zhipu.glm-image.generate.json",
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "file": "openrouter_images.openRouter.gpt-image-2.edit.json",
+      "usage": {
+        "inputTokens": 1043,
+        "outputTokens": 196,
+        "totalTokens": 1239
+      },
+      "declaredSize": null
+    },
+    {
+      "file": "openrouter_images.openRouter.gpt-image-2.generate.json",
+      "usage": {
+        "inputTokens": 20,
+        "outputTokens": 196,
+        "totalTokens": 216
+      },
+      "declaredSize": null
+    },
+    {
+      "file": "xai_images.grok.grok-imagine-image.edit.json",
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "file": "xai_images.grok.grok-imagine-image.generate.json",
+      "usage": null,
+      "declaredSize": null
+    }
+  ],
+  "decodeCases": [
+    {
+      "name": "png_rgba_3x2",
+      "b64": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAFElEQVR4nGP8z8DQwAAFTDAGiAYAJDUBgw8olQgAAAAASUVORK5CYII=",
+      "expect": {
+        "mime": "image/png",
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "jpeg_baseline_5x3",
+      "b64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgMCAgMDAwMEAwMEBQgFBQQEBQoHBwYIDAoMDAsKCwsNDhIQDQ4RDgsLEBYQERMUFRUVDA8XGBYUGBIUFRT/2wBDAQMEBAUEBQkFBQkUDQsNFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBT/wAARCAADAAUDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDz+iiiv7jP46P/2Q==",
+      "expect": {
+        "mime": "image/jpeg",
+        "width": 5,
+        "height": 3
+      }
+    },
+    {
+      "name": "jpeg_progressive_4x7",
+      "b64": "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wgARCAAHAAQDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAL/xAAVAQEBAAAAAAAAAAAAAAAAAAAFBv/aAAwDAQACEAMQAAABkDzf/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABBQJ//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPwF//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPwF//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQAGPwJ//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPyF//9oADAMBAAIAAwAAABAL/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAwEBPxB//8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAgBAgEBPxB//8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxB//9k=",
+      "expect": {
+        "mime": "image/jpeg",
+        "width": 4,
+        "height": 7
+      }
+    },
+    {
+      "name": "jpeg_exif_rotated_8x4_raw_size",
+      "b64": "/9j/4AAQSkZJRgABAQAAAQABAAD/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/wAARCAAEAAgDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDwGiiimI//2Q==",
+      "expect": {
+        "mime": "image/jpeg",
+        "width": 8,
+        "height": 4
+      }
+    },
+    {
+      "name": "webp_lossy_vp8_6x2",
+      "b64": "UklGRiQAAABXRUJQVlA4IBgAAAAwAQCdASoGAAIAAUAmJaQAA3AA/vzKsAA=",
+      "expect": {
+        "mime": "image/webp",
+        "width": 6,
+        "height": 2
+      }
+    },
+    {
+      "name": "webp_lossless_vp8l_2x9",
+      "b64": "UklGRh4AAABXRUJQVlA4TBEAAAAvAQACAAdQrSY0of+BiOh/AAA=",
+      "expect": {
+        "mime": "image/webp",
+        "width": 2,
+        "height": 9
+      }
+    },
+    {
+      "name": "webp_extended_vp8x_7x5",
+      "b64": "UklGRnwAAABXRUJQVlA4WAoAAAAYAAAABgAABAAAQUxQSAoAAAABB1CFiAhERP8DVlA4ICoAAACQAQCdASoHAAUAAUAmJaACdLoAA5gA/vgEP/2LOWwLx//IMdvPbzuwAABFWElGGgAAAE1NACoAAAAIAAEBEgADAAAAAQAGAAAAAAAA",
+      "expect": {
+        "mime": "image/webp",
+        "width": 7,
+        "height": 5
+      }
+    },
+    {
+      "name": "gif_unsupported_2x2",
+      "b64": "R0lGODdhAgACAIEAAAAAAAAAAAAAAAAAACwAAAAAAgACAAAIBgABCAQQEAA7",
+      "expect": null
+    },
+    {
+      "name": "png_truncated_header",
+      "b64": "iVBORw0KGgoAAAANSUhEUgAAAAM=",
+      "expect": null
+    },
+    {
+      "name": "not_an_image_html",
+      "b64": "PGh0bWw+PGJvZHk+NDA0PC9ib2R5PjwvaHRtbD4=",
+      "expect": null
+    },
+    {
+      "name": "empty_bytes",
+      "b64": "",
+      "expect": null
+    },
+    {
+      "name": "png_width_over_int32_max",
+      "b64": "iVBORw0KGgoAAAANSUhEUoAAAAAAAAABCAYAAAAAAAAA",
+      "expect": null
+    },
+    {
+      "name": "png_zero_width",
+      "b64": "iVBORw0KGgoAAAANSUhEUgAAAAAAAAAECAYAAAAAAAAA",
+      "expect": null
+    },
+    {
+      "name": "jpeg_sof_segment_too_short",
+      "b64": "/9j/wAAECAD/wAARCAADAAUDASIAAhEBAxEBAP/Z",
+      "expect": null
+    }
+  ],
+  "fetchPolicy": {
+    "maxBytes": 31457280,
+    "timeoutSeconds": 60,
+    "schemes": [
+      "http",
+      "https"
+    ],
+    "checkContentType": false,
+    "redirects": "platform default"
+  },
+  "fetchCases": [
+    {
+      "name": "fetch_ok_png",
+      "given": "200, body = decodeCases png_rgba_3x2",
+      "expect": {
+        "ok": true,
+        "mime": "image/png",
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "fetch_ok_octet_stream_content_type",
+      "given": "200, Content-Type application/octet-stream, body = png_rgba_3x2",
+      "expect": {
+        "ok": true,
+        "mime": "image/png",
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "fetch_http_404",
+      "given": "404",
+      "expect": {
+        "ok": false,
+        "failure": "network"
+      }
+    },
+    {
+      "name": "fetch_connection_error",
+      "given": "transport throws before a response",
+      "expect": {
+        "ok": false,
+        "failure": "network"
+      }
+    },
+    {
+      "name": "fetch_timeout",
+      "given": "no full body within timeoutSeconds",
+      "expect": {
+        "ok": false,
+        "failure": "timeout"
+      }
+    },
+    {
+      "name": "fetch_content_length_over_limit",
+      "given": "Content-Length = maxBytes + 1",
+      "expect": {
+        "ok": false,
+        "failure": "decode_failed"
+      }
+    },
+    {
+      "name": "fetch_body_over_limit_without_length",
+      "given": "no Content-Length, body streams maxBytes + 1 bytes",
+      "expect": {
+        "ok": false,
+        "failure": "decode_failed"
+      }
+    },
+    {
+      "name": "fetch_body_not_an_image",
+      "given": "200, body = decodeCases not_an_image_html",
+      "expect": {
+        "ok": false,
+        "failure": "decode_failed"
+      }
+    },
+    {
+      "name": "fetch_non_http_scheme",
+      "given": "ftp:// or file:// URL, no request is made",
+      "expect": {
+        "ok": false,
+        "failure": "decode_failed"
+      }
+    }
+  ],
+  "assembleCases": [
+    {
+      "name": "all_delivered",
+      "nRequested": 2,
+      "outcomes": [
+        "ok",
+        "ok"
+      ],
+      "expect": {
+        "result": "ok",
+        "delivered": 2,
+        "failures": []
+      }
+    },
+    {
+      "name": "more_than_requested_is_ok",
+      "nRequested": 1,
+      "outcomes": [
+        "ok",
+        "ok"
+      ],
+      "expect": {
+        "result": "ok",
+        "delivered": 2,
+        "failures": []
+      }
+    },
+    {
+      "name": "enough_delivered_with_extra_failure_is_ok",
+      "nRequested": 1,
+      "outcomes": [
+        "ok",
+        "network"
+      ],
+      "expect": {
+        "result": "ok",
+        "delivered": 1,
+        "failures": [
+          "network"
+        ]
+      }
+    },
+    {
+      "name": "one_download_failed_is_partial",
+      "nRequested": 2,
+      "outcomes": [
+        "ok",
+        "network"
+      ],
+      "expect": {
+        "result": "partial",
+        "delivered": 1,
+        "failures": [
+          "network"
+        ]
+      }
+    },
+    {
+      "name": "fewer_images_than_requested_is_partial",
+      "nRequested": 4,
+      "outcomes": [
+        "ok"
+      ],
+      "expect": {
+        "result": "partial",
+        "delivered": 1,
+        "failures": []
+      }
+    },
+    {
+      "name": "all_failed_takes_first_failure",
+      "nRequested": 2,
+      "outcomes": [
+        "timeout",
+        "decode_failed"
+      ],
+      "expect": {
+        "result": "timeout",
+        "delivered": 0,
+        "failures": [
+          "timeout",
+          "decode_failed"
+        ]
+      }
+    },
+    {
+      "name": "no_images_defers_to_error_classifier",
+      "nRequested": 1,
+      "outcomes": [],
+      "expect": {
+        "result": null,
+        "delivered": 0,
+        "failures": []
+      }
+    }
+  ],
+  "metaCases": [
+    {
+      "name": "usage_integral_float_accepted",
+      "body": {
+        "usage": {
+          "prompt_tokens": 14.0,
+          "completion_tokens": 3,
+          "total_tokens": 17
+        }
+      },
+      "usage": {
+        "inputTokens": 14,
+        "outputTokens": 3,
+        "totalTokens": 17
+      },
+      "declaredSize": null
+    },
+    {
+      "name": "usage_string_number_ignored",
+      "body": {
+        "usage": {
+          "prompt_tokens": "14",
+          "total_tokens": 5
+        }
+      },
+      "usage": {
+        "inputTokens": null,
+        "outputTokens": null,
+        "totalTokens": 5
+      },
+      "declaredSize": null
+    },
+    {
+      "name": "usage_fraction_ignored",
+      "body": {
+        "usage": {
+          "total_tokens": 1.5
+        }
+      },
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "name": "usage_all_zero_keeps_zero",
+      "body": {
+        "usage": {
+          "input_tokens": 0,
+          "prompt_tokens": 0
+        }
+      },
+      "usage": {
+        "inputTokens": 0,
+        "outputTokens": null,
+        "totalTokens": null
+      },
+      "declaredSize": null
+    },
+    {
+      "name": "size_with_plus_sign_rejected",
+      "body": {
+        "size": "+1024x+1024"
+      },
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "name": "size_with_zero_rejected",
+      "body": {
+        "size": "0x1024"
+      },
+      "usage": null,
+      "declaredSize": null
+    },
+    {
+      "name": "declared_size_from_usage_width_height",
+      "body": {
+        "usage": {
+          "width": 512,
+          "height": 768
+        }
+      },
+      "usage": null,
+      "declaredSize": {
+        "width": 512,
+        "height": 768
+      }
+    },
+    {
+      "name": "size_string_wins_over_usage_dims",
+      "body": {
+        "size": "1024x1536",
+        "usage": {
+          "width": 512,
+          "height": 512
+        }
+      },
+      "usage": null,
+      "declaredSize": {
+        "width": 1024,
+        "height": 1536
+      }
+    }
+  ],
+  "materializeCases": [
+    {
+      "name": "b64_png_ok",
+      "image": {
+        "kind": "b64",
+        "value": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAFElEQVR4nGP8z8DQwAAFTDAGiAYAJDUBgw8olQgAAAAASUVORK5CYII="
+      },
+      "expect": {
+        "ok": true,
+        "mime": "image/png",
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "b64_with_whitespace_ok",
+      "image": {
+        "kind": "b64",
+        "value": "iVBORw0KGgoAAAANSUhE\n UgAAAAMAAAACCAYAAACd\n dGYaAAAAFElEQVR4nGP8\n z8DQwAAFTDAGiAYAJDUB\n gw8olQgAAAAASUVORK5C\n YII="
+      },
+      "expect": {
+        "ok": true,
+        "mime": "image/png",
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "b64_unpadded_ok",
+      "image": {
+        "kind": "b64",
+        "value": "iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAFElEQVR4nGP8z8DQwAAFTDAGiAYAJDUBgw8olQgAAAAASUVORK5CYII"
+      },
+      "expect": {
+        "ok": true,
+        "mime": "image/png",
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "b64_invalid_char_rejected",
+      "image": {
+        "kind": "b64",
+        "value": "iVBORw0KGgoAAAANSUhEUgAAAAMAAA_ACCAYAAACddGYaAAAAFElEQVR4nGP8z8DQwAAFTDAGiAYAJDUBgw8olQgAAAAASUVORK5CYII="
+      },
+      "expect": {
+        "ok": false,
+        "failure": "decode_failed"
+      }
+    },
+    {
+      "name": "b64_not_an_image",
+      "image": {
+        "kind": "b64",
+        "value": "PGh0bWw+PGJvZHk+NDA0PC9ib2R5PjwvaHRtbD4="
+      },
+      "expect": {
+        "ok": false,
+        "failure": "decode_failed"
+      }
+    },
+    {
+      "name": "data_url_png_ok",
+      "image": {
+        "kind": "data_url",
+        "value": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAFElEQVR4nGP8z8DQwAAFTDAGiAYAJDUBgw8olQgAAAAASUVORK5CYII="
+      },
+      "expect": {
+        "ok": true,
+        "mime": "image/png",
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "data_url_declared_jpeg_decodes_png",
+      "image": {
+        "kind": "data_url",
+        "value": "data:image/jpeg;base64,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAFElEQVR4nGP8z8DQwAAFTDAGiAYAJDUBgw8olQgAAAAASUVORK5CYII="
+      },
+      "expect": {
+        "ok": true,
+        "mime": "image/png",
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "name": "data_url_without_base64_marker",
+      "image": {
+        "kind": "data_url",
+        "value": "data:image/png,iVBORw0KGgoAAAANSUhEUgAAAAMAAAACCAYAAACddGYaAAAAFElEQVR4nGP8z8DQwAAFTDAGiAYAJDUBgw8olQgAAAAASUVORK5CYII="
+      },
+      "expect": {
+        "ok": false,
+        "failure": "decode_failed"
+      }
+    },
+    {
+      "name": "data_url_empty_payload",
+      "image": {
+        "kind": "data_url",
+        "value": "data:image/png;base64,"
+      },
+      "expect": {
+        "ok": false,
+        "failure": "decode_failed"
+      }
+    }
+  ]
+}

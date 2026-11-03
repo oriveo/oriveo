@@ -361,7 +361,7 @@
   height: 28px;
   border-radius: 8px;
   background: color-mix(in srgb, var(--o-primary) 10%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .freeSummary p {
@@ -813,7 +813,7 @@
 }
 
 .managementRow:hover {
-  background: color-mix(in srgb, var(--o-surface-raised) 60%, transparent);
+  background: color-mix(in srgb, var(--o-surface-hover) 60%, transparent);
 }
 
 .managementRow:disabled {
@@ -1222,7 +1222,7 @@
   grid-column: 1 / -1;
   height: 4px;
   border-radius: 999px;
-  background: var(--o-surface-raised, var(--o-surface));
+  background: var(--o-fill-muted, var(--o-surface));
   overflow: hidden;
 }
 
@@ -1251,7 +1251,7 @@
   align-items: center;
   gap: var(--o-space-md);
   padding: var(--o-space-md) var(--o-space-lg);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   border: 1px solid var(--o-border-strong);
   border-radius: var(--o-radius-lg);
 }
@@ -1494,7 +1494,7 @@
   border-radius: 999px;
   border: none;
   background: var(--o-pd-chatbtn-bg);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   cursor: pointer;
   flex-shrink: 0;
   transition: background var(--o-transition-fast), transform var(--o-transition-fast);

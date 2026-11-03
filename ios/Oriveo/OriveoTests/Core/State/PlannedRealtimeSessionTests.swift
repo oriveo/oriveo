@@ -289,4 +289,41 @@ struct PlannedRealtimeSessionTests {
         #expect(replanPlan.instructions == openPlan.instructions)
         #expect(replanPlan.fingerprint == openPlan.fingerprint)
     }
+
+    /// The home opening snapshot carries the same skill manifest as the first replan, so a user with
+    /// skills sees equal instructions and fingerprint on both.
+    @MainActor
+    @Test func home_opening_matches_replan_with_user_skills() throws {
+        let state = AppState(seedDemoData: false, sessionUID: "planned-realtime-home-skills-\(UUID().uuidString)")
+        let provider = TestFactories.makeProvider(
+            kind: .openAI,
+            models: [TestFactories.makeModel(id: "gpt-4o", isDefault: true)]
+        )
+        state.providers = [provider]
+        state.setActiveModel(providerID: provider.id, modelID: "gpt-4o")
+        state.skillManager.replaceUserSkills([
+            Skill(
+                id: UUID(), name: "Poet", systemPrompt: "Answer in verse.",
+                whenToUse: "The user asks for a poem.", autoInvoke: true, source: .user
+            ),
+        ])
+        // The user-skill cache is keyed by the global active UID, so clear it before other suites read it.
+        defer { state.skillManager.replaceUserSkills([]) }
+
+        let opening = try #require(state.chatManager.realtimeSessionInputForNewConversation(contextWindow: 128_000))
+        let openPlan = ContextAssembler.assembleRealtimeSession(opening)
+
+        let created = try #require(state.createConversationForRealtimeVoice())
+        let user = TestFactories.makeMessage(role: .user, text: "Hello from home")
+        let reply = TestFactories.makeMessage(role: .assistant, text: "Hi there")
+        #expect(state.chatManager.appendCompletedTextMessage(user, in: created))
+        #expect(state.chatManager.appendCompletedTextMessage(reply, in: created))
+        let replan = try #require(state.chatManager.realtimeSessionSource(in: created)).input(
+            contextWindow: 128_000, currentSessionId: "rt-1", sessionMessageIds: [user.id, reply.id]
+        )
+        let replanPlan = ContextAssembler.assembleRealtimeSession(replan)
+        #expect(replanPlan.instructions?.contains("Poet") == true)
+        #expect(openPlan.instructions == replanPlan.instructions)
+        #expect(openPlan.fingerprint == replanPlan.fingerprint)
+    }
 }

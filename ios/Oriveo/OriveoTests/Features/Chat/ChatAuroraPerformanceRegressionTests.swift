@@ -23,7 +23,9 @@ struct ChatAuroraPerformanceRegressionTests {
         #expect(auroraSource.components(separatedBy: "RadialGradient(").count - 1 == 4)
         #expect(auroraSource.contains(".animation(reduceMotion ? nil : .easeInOut(duration: 0.55), value: prominent)"))
         #expect(auroraSource.contains(".animation(reduceMotion ? nil : .easeInOut(duration: 0.7), value: appeared)"))
-        #expect(chatViewSource.contains(".background(ChatEmptyStateAurora(prominent: projection.messages.isEmpty))"))
+        // Aurora stays a persistent background; while the voice stage is shown only its opacity changes (no per-frame driver).
+        #expect(chatViewSource.contains(".background {"))
+        #expect(chatViewSource.contains("ChatEmptyStateAurora(prominent: projection.messages.isEmpty)\n                .opacity(glow)"))
     }
 
     @Test("Focused Composer Has No Continuous Animation Driver")

@@ -1761,7 +1761,7 @@ class ChatRepository(
                 val costRecord = DeliveredCostResolver.record(generationParts)
                 // Continue: this round's cost is merged part by part with the placeholder's existing cost, so earlier rounds' cost is not overwritten.
                 val messageCost = if (continueTarget != null) {
-                    DeliveredCostResolver.addMessageCost(assistantPlaceholder.estimatedCost, assistantPlaceholder.nonUsdCost, costRecord)
+                    DeliveredCostResolver.addMessageCost(assistantPlaceholder.estimatedCost, assistantPlaceholder.costSource, assistantPlaceholder.nonUsdCost, costRecord)
                 } else {
                     costRecord
                 }

@@ -459,13 +459,29 @@ struct ProviderDetailBrandHeroCard: View {
     }
 }
 
+/// Label colour of the near-white hero pill (hero card): the existing HSB formula, resolved to RGB
+/// under the given appearance, then passed through the light provider text tint so it reads on #F5F5F5.
+enum HeroPillLabel {
+    static func hex(brandColor: Color, isDark: Bool) -> UInt {
+        let label = brandColor.hsbAdjusted(saturation: 0.85, brightness: 0.55)
+        let trait = UITraitCollection(userInterfaceStyle: isDark ? .dark : .light)
+        let resolved = UIColor(label).resolvedColor(with: trait)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
+        func channel(_ v: CGFloat) -> UInt { UInt((max(0, min(1, v)) * 255).rounded()) }
+        let rgb = (channel(r) << 16) | (channel(g) << 8) | channel(b)
+        return ProviderTints.textTintHex(rgb, isDark: false)
+    }
+}
+
 private struct HeroPrimaryButtonStyle: ButtonStyle {
     let brandColor: Color
+    @Environment(\.colorScheme) private var colorScheme
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 15, weight: .semibold))
-            .foregroundStyle(brandColor.hsbAdjusted(saturation: 0.85, brightness: 0.55))
+            .foregroundStyle(Color(hex: HeroPillLabel.hex(brandColor: brandColor, isDark: colorScheme == .dark)))
             .padding(.vertical, 13)
             .background(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)

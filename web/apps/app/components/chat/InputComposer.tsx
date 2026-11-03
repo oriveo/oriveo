@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRef, useCallback, useEffect, useLayoutEffect, useState, useId, useSyncExternalStore } from 'react';
 import { useLocale, useTranslations } from 'next-intl';
+import { isRTL } from '../../lib/i18n/locale-utils';
 import type { Attachment, AIModel, Provider, ReasoningMode, SendShortcut, QuoteContext } from '@oriveo/shared';
 import { AttachmentPreview } from './AttachmentPreview';
 import { MODEL_OPTIONS_POPOVER_ID, ModelOptionsPopover } from './ModelOptionsPopover';
@@ -83,6 +84,8 @@ interface InputComposerProps {
   webRuntimeRejected?: boolean;
   /** Draft conversation id of this page (the model options keep a new conversation's search source in memory under it). */
   searchDraftSessionId?: string;
+  /** Real conversation id for the external search source (absent on a new conversation). */
+  searchConversationId?: string;
   /* Library research — caller owns login/connection/model gates. */
   libraryResearchEnabled?: boolean;
   onLibraryResearchToggle?: (next: boolean) => void;
@@ -358,6 +361,7 @@ export function InputComposer({
   webChipLit = null,
   webRuntimeRejected = false,
   searchDraftSessionId,
+  searchConversationId,
   libraryResearchEnabled,
   onLibraryResearchToggle,
   currentModel,
@@ -410,7 +414,7 @@ export function InputComposer({
   const tLibrary = useTranslations('library');
   const tInput = useTranslations('capability.input');
   const locale = useLocale();
-  // Hover preview card for reference chips: only one is open at a time so cards never overlap.
+  // Hover preview card for quote chips: one global instance so chip cards never overlap
   const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const handleNoteClose = useCallback(
     (id: string) => setOpenNoteId((cur) => (cur === id ? null : cur)),
@@ -916,6 +920,8 @@ export function InputComposer({
         <textarea
           ref={textareaRef}
           className={styles.textarea}
+          // Empty: the placeholder follows the interface direction; typed text picks its own.
+          dir={value ? 'auto' : (isRTL(locale) ? 'rtl' : 'ltr')}
           rows={1}
           placeholder={isStreaming ? t('aiAnswering') : (placeholderOverride ?? t('placeholder'))}
           value={value}
@@ -959,6 +965,7 @@ export function InputComposer({
             onOverrideChange={setHasModelBehaviorOverride}
             onOpenSearchServiceSheet={(request) => setSearchServiceSheet({ ...request, nonce: Date.now() })}
             {...(searchDraftSessionId ? { searchDraftSessionId } : {})}
+            {...(searchConversationId ? { searchConversationId } : {})}
             onClose={closeModelControls}
           />
         )}
@@ -984,6 +991,7 @@ export function InputComposer({
                       <AttachmentIcon />
                     )}
                     label={t('attachFile')}
+                    compactOnNarrow
                     ariaLabel={t('attachFile')}
                     ariaDescription={attachmentDisabledReason}
                     title={attachmentDisabledReason}
@@ -1007,6 +1015,7 @@ export function InputComposer({
               buttonRef={modelControlsTriggerRef}
               icon={<SlidersHorizontal size={16} />}
               label={tCommon('modelControls')}
+              compactOnNarrow
               active={modelControlsOpen}
               emphasized={modelControlGlyphActive}
               capabilityIcons={modelControlCapabilityIcons}

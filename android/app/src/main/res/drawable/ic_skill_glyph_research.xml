@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/research.svg (glyphs.v1.json glyph:research, hue #7C3AED); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M3 10.5a7.5 7.5 0 1 0 15 0a7.5 7.5 0 1 0-15 0ZM13.6 16.4l5.6 5.6a1.4 1.4 0 0 0 2-2l-5.6-5.6Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="3"
+                android:startY="3"
+                android:endX="21.61"
+                android:endY="22.41">
+                <!-- dark-palette-guard: keep (c) fixed skill glyph art from glyphs.v1.json, does not follow the theme palette -->
+                <item android:offset="0" android:color="#C4B5FD" />
+                <!-- dark-palette-guard: keep (c) fixed skill glyph art from glyphs.v1.json, does not follow the theme palette -->
+                <item android:offset="1" android:color="#7C3AED" /> <!-- capability-ui-lint: allow skill glyph content hue, fixed across themes by skills plan 3.11, not a capability colour -->
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M7 10.4a3.6 3.6 0 0 1 3.4-3.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.92"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

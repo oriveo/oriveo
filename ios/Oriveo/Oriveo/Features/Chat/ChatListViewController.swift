@@ -1,5 +1,6 @@
 import ChatLayout
 import Combine
+import Observation
 import os
 import UIKit
 
@@ -99,6 +100,7 @@ final class ChatListViewController: UIViewController {
         hasMoreAbove: { [weak self] in self?.hasMoreAbove ?? false },
         onRequestExtendUpward: { [weak self] in self?.onRequestExtendUpward() },
         onDidScroll: { [weak self] in
+            self?.reportFollowingChangeIfNeeded()
             self?.reportVisibleTopUserMessageIfNeeded()
             self?.updateUserBubbleGradientAnchors()
         },
@@ -110,6 +112,18 @@ final class ChatListViewController: UIViewController {
     private var pendingViewModel: ChatCollectionViewModel?
     private var pendingProviderMetadataVersion: UInt = 0
     private var onRetry: (ChatMessage) -> Void = { _ in }
+        /// A realtime model is selected or the voice catalog is pending: the render context omits the regenerate / retry / continue / edit callbacks.
+    private var realtimeSelected = false
+        /// Selection state at the last rebuild; on-screen cells reconfigure once on each flip (only on flip, not per frame).
+    private var lastRealtimeSelected = false
+    /// Last rendered live realtime bubble input; a change triggers a rebuild. Per-keystroke draft changes
+    /// only reconfigure the trailing two fixed-id rows.
+    private var lastRealtimeLive: ChatCollectionProjectionBuilder.RealtimeLiveInput?
+    /// Live bubble input for the realtime session on this page (header name not resolved). Properties read here must be
+    /// Observation-trackable; the list controller subscribes itself so high-frequency draft updates bypass the SwiftUI shell.
+    var realtimeLiveSource: @MainActor (UUID?) -> ChatCollectionProjectionBuilder.RealtimeLiveInput? = {
+        VoiceConversationSession.shared.realtimeLiveInput(in: $0)
+    }
     private var onContinue: (ChatMessage) -> Void = { _ in }
     private var onSaveNote: (ChatMessage) -> Void = { _ in }
     private var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
@@ -139,6 +153,10 @@ final class ChatListViewController: UIViewController {
     private var lastHandledAnchorID: UUID?
     private var onIsAtBottomChanged: (Bool) -> Void = { _ in }
     private var onAutoScrollEnabledChanged: (Bool) -> Void = { _ in }
+        /// Whether the list can still scroll down (content bottom > visible bottom + 1), written back; the "back to bottom" button shows only when scrollable and not following (same as Android).
+    private var onCanScrollForwardChanged: (Bool) -> Void = { _ in }
+        /// Last written-back canScrollForward value (deduplicates onCanScrollForwardChanged).
+    private var lastReportedCanScrollForward: Bool?
     private var lastScrollToBottomRequest: UInt = 0
     private var hasMoreAbove = false
     private var hasMoreBelow = false
@@ -177,10 +195,28 @@ final class ChatListViewController: UIViewController {
     #endif
     private var dismissedErrorIDs: Set<UUID> = []
     private var expandedRecoveryDetailIDs: Set<UUID> = []
+    /// Cumulative count of full-table rebuild recoveries. Reports are throttled by `shouldReportGeometryRecovery`
+    /// (powers of two); the count itself is uncapped. Regression tests assert the happy path never recovers.
     private var prependGeometryRecoveryCount = 0
     private var lastLargeJump: (at: CFTimeInterval, distance: CGFloat, source: String)?
     private static let largeJumpViewportMultiple: CGFloat = 2
+    /// Releasing the controller must also release its reconcile tick (streaming or settle): the running
+    /// CADisplayLink keeps the clock alive, so a leftover subscriber would tick every frame forever.
+    deinit {
+        guard let token = reconcileTickToken else { return }
+        let clock = displayClock
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { clock.removeSubscriber(token) }
+        } else {
+            Task { @MainActor in clock.removeSubscriber(token) }
+        }
+    }
+
     #if DEBUG
+    /// Test seam: the controller-owned display clock, read-only.
+    var _testDisplayClock: StreamingDisplayClock { displayClock }
+    /// Test seam: forces the post-batch geometry check to report an inconsistency (including the retry after escalation),
+    /// to drive the full-table rebuild recovery branch. The real trigger is UIKit internal state, which tests cannot construct.
     var _testForceInconsistentPostBatchGeometry = false
     #endif
 
@@ -334,6 +370,7 @@ final class ChatListViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        observeRealtimeLive()
         ChatRenderDiagnostics.resetSession()
         view.backgroundColor = .clear
         view.addSubview(collectionView)
@@ -350,6 +387,7 @@ final class ChatListViewController: UIViewController {
         contentSizeObservation = collectionView.observe(\.contentSize) { [weak self] _, _ in
             MainActor.assumeIsolated {
                 self?.scheduleQuiescentInsetReconcile()
+                self?.reportFollowingChangeIfNeeded()
                 // A row height change moves the bubbles below it within the visible area, and does not necessarily come with a scroll callback
                 self?.updateUserBubbleGradientAnchors()
             }
@@ -420,6 +458,7 @@ final class ChatListViewController: UIViewController {
         streamingActivityPublisher: AnyPublisher<StreamActivityState, Never> =
             Empty<StreamActivityState, Never>().eraseToAnyPublisher(),
         streamingActivityProvider: @escaping () -> StreamActivityState? = { nil },
+        realtimeSelected: Bool = false,
         onRetry: @escaping (ChatMessage) -> Void,
         onContinue: @escaping (ChatMessage) -> Void,
         onSaveNote: @escaping (ChatMessage) -> Void = { _ in },
@@ -449,6 +488,7 @@ final class ChatListViewController: UIViewController {
         scrollToBottomRequest: UInt = 0,
         onIsAtBottomChanged: @escaping (Bool) -> Void = { _ in },
         onAutoScrollEnabledChanged: @escaping (Bool) -> Void = { _ in },
+        onCanScrollForwardChanged: @escaping (Bool) -> Void = { _ in },
         hasMoreAbove: Bool = false,
         hasMoreBelow: Bool = false,
         onRequestExtendUpward: @escaping () -> Void = {},
@@ -462,6 +502,7 @@ final class ChatListViewController: UIViewController {
             || hasMoreBelow != self.hasMoreBelow
         pendingViewModel = viewModel
         pendingProviderMetadataVersion = providerMetadataVersion
+        self.realtimeSelected = realtimeSelected
         self.onRetry = onRetry
         self.onContinue = onContinue
         self.onSaveNote = onSaveNote
@@ -490,6 +531,7 @@ final class ChatListViewController: UIViewController {
         self.onAnchorUserMessageConsumed = onAnchorUserMessageConsumed
         self.onIsAtBottomChanged = onIsAtBottomChanged
         self.onAutoScrollEnabledChanged = onAutoScrollEnabledChanged
+        self.onCanScrollForwardChanged = onCanScrollForwardChanged
         self.hasMoreAbove = hasMoreAbove
         self.hasMoreBelow = hasMoreBelow
         self.onRequestExtendUpward = onRequestExtendUpward
@@ -526,7 +568,9 @@ final class ChatListViewController: UIViewController {
             || viewModel.compactionSeparator != lastCompactionSeparator
             || viewModel.directiveSuggestionMessageID != lastDirectiveSuggestionMessageID
             || viewModel.memorySuggestion != lastMemorySuggestion
-            || viewModel.currentVisionInput != lastCurrentVisionInput {
+            || viewModel.currentVisionInput != lastCurrentVisionInput
+            || realtimeSelected != lastRealtimeSelected
+            || realtimeLive(for: viewModel) != lastRealtimeLive {
             contentDirty = true
             prewarmMarkdown(rows: viewModel.rows)
         }
@@ -771,8 +815,9 @@ final class ChatListViewController: UIViewController {
         if reconcileTickToken != nil, reconcileTickKind == .streaming { return }
         stopStreamingReconcileTick()
         reconcileTickKind = .streaming
-        reconcileTickToken = displayClock.addSubscriber { [weak self] _ in
-            guard let self else { return }
+        reconcileTickToken = addReconcileTickSubscriber { [unowned self] _ in
+            // Skip this frame while the user is dragging or decelerating: writing contentInset.bottom every frame makes
+            // UIScrollView recompute its rubber-band bounds and fight the finger. The first frame after settle restores the correct inset.
             guard Self.shouldRunReconcileTick(
                 isDragging: self.collectionView.isDragging,
                 isDecelerating: self.collectionView.isDecelerating
@@ -804,6 +849,26 @@ final class ChatListViewController: UIViewController {
         }
     }
 
+    /// Subscribes a reconcile tick that never outlives this controller: the closure holds self weakly and,
+    /// once self is gone, removes its own token so the clock pauses instead of ticking every frame forever.
+    /// `body` only runs while self is alive, so it may capture self unowned.
+    private func addReconcileTickSubscriber(
+        _ body: @escaping (CFTimeInterval) -> Void
+    ) -> StreamingDisplayClock.SubscriberToken {
+        let clock = displayClock
+        var ownToken: StreamingDisplayClock.SubscriberToken?
+        let token = clock.addSubscriber { [weak self, weak clock] ts in
+            guard self != nil else {
+                if let ownToken { clock?.removeSubscriber(ownToken) }
+                return
+            }
+            body(ts)
+        }
+        ownToken = token
+        return token
+    }
+
+    /// Unsubscribes the per-frame reconcile when streaming ends (the clock pauses automatically once the last subscriber is removed).
     private func stopStreamingReconcileTick() {
         guard let token = reconcileTickToken else { return }
         displayClock.removeSubscriber(token)
@@ -816,8 +881,7 @@ final class ChatListViewController: UIViewController {
         reconcileTickKind = .settle
         var startTS: CFTimeInterval = -1
         var didReconcile = false
-        reconcileTickToken = displayClock.addSubscriber { [weak self] ts in
-            guard let self else { return }
+        reconcileTickToken = addReconcileTickSubscriber { [unowned self] ts in
             if startTS < 0 { startTS = ts }
             if Self.shouldRunReconcileTick(
                 isDragging: self.collectionView.isDragging,
@@ -853,6 +917,31 @@ final class ChatListViewController: UIViewController {
     }
 
 
+        /// Live bubble input for this page's realtime session; the header name is resolved the same way as for persisted rows.
+    private func realtimeLive(for viewModel: ChatCollectionViewModel) -> ChatCollectionProjectionBuilder.RealtimeLiveInput? {
+        realtimeLiveSource(viewModel.conversationID).map {
+            .init(drafts: $0.drafts, attribution: $0.attribution, callMessageIDs: $0.callMessageIDs,
+                  metadata: viewModel.providerMetadata)
+        }
+    }
+
+        /// Subscribes to the live bubble input (self-looping Observation).
+        /// On change, rebuilds only within this controller; the diff reconfigures / inserts / deletes the trailing two fixed-id rows. Stops at the next callback after the controller is released.
+    private func observeRealtimeLive() {
+        withObservationTracking {
+            _ = realtimeLiveSource(pendingViewModel?.conversationID)
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in self?.realtimeLiveDidChange() }
+        }
+    }
+
+    private func realtimeLiveDidChange() {
+        observeRealtimeLive()
+        guard let viewModel = pendingViewModel, realtimeLive(for: viewModel) != lastRealtimeLive else { return }
+        contentDirty = true
+        rebuildIfReady()
+    }
+
     private func rebuildIfReady() {
         guard let viewModel = pendingViewModel else { return }
         let width = collectionView.bounds.width
@@ -885,19 +974,23 @@ final class ChatListViewController: UIViewController {
             return
         }
 
+        let realtimeLive = realtimeLive(for: viewModel)
         let plan = ChatCollectionProjectionBuilder.makeSnapshotPlan(
             from: viewModel.rows,
             streamingMessageID: viewModel.streamingMessageID,
             streamingText: viewModel.streamingText,
-            providerMetadataVersion: pendingProviderMetadataVersion
+            providerMetadataVersion: pendingProviderMetadataVersion,
+            realtimeLive: realtimeLive
         )
+                // The data source renders message rows plus the trailing live bubble row; the directory and anchors look only at message rows.
+        let listedRows = viewModel.rows + plan.liveRows
         let context = ChatListDataSource.RenderContext(
             parentViewController: self,
             // The bubble limit also loses the avatar and both side margins: on a 393 pt wide phone the bubble is at
             // most 301, and measuring at 320 counts too few lines and clips the last one.
             maxBubbleWidth: min(Self.userBubbleMaxWidth, max(120, width - UserMessageCell.horizontalChrome)),
-            onRetry: onRetry,
-            onContinue: onContinue,
+            onRetry: ChatListDataSource.RenderContext.realtimeGated(onRetry, realtimeSelected: realtimeSelected),
+            onContinue: ChatListDataSource.RenderContext.realtimeGated(onContinue, realtimeSelected: realtimeSelected),
             onSaveNote: onSaveNote,
             onOpenNoteReferences: onOpenNoteReferences,
             onCrosscheck: onCrosscheck,
@@ -916,7 +1009,9 @@ final class ChatListViewController: UIViewController {
             onEditMemorySuggestion: onEditMemorySuggestion,
             onIgnoreMemorySuggestion: onIgnoreMemorySuggestion,
             onRegenerate: onRegenerate,
-            onEditMessage: onEditMessage,
+            onEditMessage: ChatListDataSource.RenderContext.realtimeGated(
+                onEditMessage, realtimeSelected: realtimeSelected
+            ),
             onSwitchModel: onSwitchModel,
             offersSwitchKey: offersSwitchKey,
             onSwitchKey: onSwitchKey,
@@ -960,10 +1055,13 @@ final class ChatListViewController: UIViewController {
         let widthAnchor = isWidthOnlyChange ? widthChangeReadingAnchor : nil
         widthChangeReadingAnchor = nil
 
-        let diff = dataSource.computeDiff(newRows: viewModel.rows, newRenderModels: plan.renderModelsByID)
+        // computeDiff does not modify dataSource. UIKit `performBatchUpdates` requires the dataSource commit to happen
+        // inside the batch closure: before the closure, numberOfItems must return the old count; setting the new value and calling
+        // delete/insert inside the closure lets UIKit verify oldCount - deletes + inserts == newCount.
+        let diff = dataSource.computeDiff(newRows: listedRows, newRenderModels: plan.renderModelsByID)
         let commit: () -> Void = { [weak self] in
             guard let self else { return }
-            self.dataSource.commit(rows: viewModel.rows, renderModels: plan.renderModelsByID, context: context)
+            self.dataSource.commit(rows: listedRows, renderModels: plan.renderModelsByID, context: context)
             self.outlineFirstUserMessageID = viewModel.rows.first(where: { $0.message.role == .user })?.id
             self.outlineLastUserMessageID = viewModel.rows.last(where: { $0.message.role == .user })?.id
         }
@@ -1024,8 +1122,25 @@ final class ChatListViewController: UIViewController {
         } else if !diff.isEmpty {
             let isPrepend = diff.inserts.contains(0)
             applyIncrementalUpdate(diff, commit: commit, isPrepend: isPrepend)
+                        // While realtime voice is present, follow each completed turn to the latest (the last message row is newly inserted, including interruption turns);
+                        // same criterion as reconcileViewportChangeEnsuringFullLayout: do not steal scroll when the user has scrolled up (!isFollowing), and do not follow during streaming;
+                        // only active while realtime is present (same as Android's realtimeActive gate); the behavior for streamed text tail inserts is unchanged.
+            if !isPrepend, realtimeLive != nil, diff.inserts.contains(viewModel.rows.count - 1),
+               stickController.isFollowing && !stickController.isStreamingMode {
+                scrollToBottomEnsuringFullLayout()
+                stickController.invalidateOffsetBaseline()
+            }
         } else {
             commit()
+        }
+                // Realtime selection flip: the on-screen cells' regenerate / retry / edit actions must appear or disappear immediately (off-screen cells read the new context when next dequeued).
+        if !isInitialOrReset, !diff.requiresFullReload, realtimeSelected != lastRealtimeSelected {
+            let visible = collectionView.indexPathsForVisibleItems
+            if !visible.isEmpty {
+                UIView.performWithoutAnimation {
+                    collectionView.reconfigureItems(at: visible)
+                }
+            }
         }
         handlePendingAnchorIfNeeded()
 
@@ -1036,6 +1151,8 @@ final class ChatListViewController: UIViewController {
         lastDirectiveSuggestionMessageID = viewModel.directiveSuggestionMessageID
         lastMemorySuggestion = viewModel.memorySuggestion
         lastCurrentVisionInput = viewModel.currentVisionInput
+        lastRealtimeSelected = realtimeSelected
+        lastRealtimeLive = realtimeLive
         contentDirty = false
     }
 
@@ -1325,6 +1442,13 @@ final class ChatListViewController: UIViewController {
         }
         stickController.invalidateOffsetBaseline()
         prependGeometryRecoveryCount &+= 1
+                // Self-healed with no user impact: the frequency trend matters, not each individual issue.
+                // Count every occurrence; field readings go only to the log context, for diagnosing later real crashes / hangs.
+        Observability.sink.count(
+            "chat.prepend_geometry_recovered",
+            value: 1,
+            tags: ["reason": verdict.reason?.rawValue ?? "none"]
+        )
         guard Self.shouldReportGeometryRecovery(count: prependGeometryRecoveryCount) else { return }
         AppLog.warning(
             "chat_prepend_inconsistent_geometry_recovered",
@@ -1361,6 +1485,11 @@ final class ChatListViewController: UIViewController {
         )
     }
 
+    /// Throttle for the geometry-recovery report (nonisolated pure function, unit-testable): reports on the 1st, 2nd, 4th, 8th... occurrence.
+    ///
+    /// Reporting only the first occurrence per process hid the real frequency, while reporting every occurrence floods the log
+    /// in pathological sessions. Exponential throttling keeps the magnitude readable (`recovery_count` is carried in the log
+    /// context) while the report count grows only logarithmically with session length.
     nonisolated static func shouldReportGeometryRecovery(count: Int) -> Bool {
         count > 0 && (count & (count - 1)) == 0
     }
@@ -1522,18 +1651,53 @@ final class ChatListViewController: UIViewController {
         onAnchorUserMessageConsumed(id)
     }
 
-    /// "Modifying state during view update, this will cause undefined behavior"runtime
+    /// Writes isFollowing back to the SwiftUI binding (deduplicated).
+    ///
+    /// **The binding write must be deferred out of the SwiftUI synchronous stack.** This runs synchronously from `update()`
+    /// (streaming transitions, `handleScrollToBottomRequest`, `handlePendingAnchorIfNeeded`, all reached via `rebuildIfReady`),
+    /// and `update()` is called synchronously from `ChatListViewControllerRepresentable.updateUIViewController`, so this stack runs
+    /// **during SwiftUI view body evaluation**. Writing a `@Binding` here violates the `UIViewControllerRepresentable` contract,
+    /// triggers the "Modifying state during view update" runtime warning, and can flip the binding, recompute `ChatMessageList.body`,
+    /// rebuild the view model, and flip isFollowing again: a SwiftUI re-render storm that shows up as the app freezing while streaming.
+    ///
+    /// **Why `RunLoop.main.perform` rather than `DispatchQueue.main.async`**: both leave the current synchronous stack and run
+    /// on the main thread in a later cycle, but a RunLoop perform block is drained directly by `RunLoop.current.run(until:)`
+    /// spins, while a `DispatchQueue.main.async` block is not always consumed under Swift Testing with main-actor synchronous waits.
+    /// `RunLoop.perform` drains on both device and tests.
+    ///
+    /// The same exit also writes back canScrollForward (content bottom > visible bottom + 1). Scrolling and content-size
+    /// changes go through here too; each value is deduplicated separately.
     func reportFollowingChangeIfNeeded() {
         let current = stickController.isFollowing
-        guard current != lastReportedIsFollowing else { return }
+        let canScroll = Self.canScrollForward(
+            contentBottom: contentHeight + collectionView.contentInset.bottom,
+            visibleBottom: collectionView.contentOffset.y + collectionView.bounds.height
+        )
+        let followingChanged = current != lastReportedIsFollowing
+        let canScrollChanged = canScroll != lastReportedCanScrollForward
+        guard followingChanged || canScrollChanged else { return }
         lastReportedIsFollowing = current
+        lastReportedCanScrollForward = canScroll
         RunLoop.main.perform { [weak self] in
             guard let self else { return }
-            self.onIsAtBottomChanged(current)
-            self.onAutoScrollEnabledChanged(current)
+            if followingChanged {
+                self.onIsAtBottomChanged(current)
+                self.onAutoScrollEnabledChanged(current)
+            }
+            if canScrollChanged {
+                self.onCanScrollForwardChanged(canScroll)
+            }
         }
     }
 
+    /// Whether the list can still scroll down: the content bottom (including the bottom inset) exceeds the visible bottom by
+    /// more than 1pt. The visible area already excludes keyboard / voice-stage occlusion, which the inset carries.
+    nonisolated static func canScrollForward(contentBottom: CGFloat, visibleBottom: CGFloat) -> Bool {
+        contentBottom > visibleBottom + 1
+    }
+
+    /// After scrolling stops, re-run the self-size invalidate that streaming cells skipped during the drag.
+    /// Only cells with a pending flag actually re-measure (guarded inside `flushStreamingHeightIfPending`); the rest are no-ops.
     private func flushStreamingCellHeightIfNeeded() {
         for case let cell as AssistantMessageCell in collectionView.visibleCells {
             cell.flushStreamingHeightIfPending()
@@ -1562,6 +1726,17 @@ final class ChatListViewController: UIViewController {
     func _testContentOffsetY() -> CGFloat { collectionView.contentOffset.y }
     func _testCollectionViewAlpha() -> CGFloat { collectionView.alpha }
     func _testIsStreamingMode() -> Bool { stickController.isStreamingMode }
+    /// Test seam: whether stickController is currently following the bottom.
+    func _testIsFollowing() -> Bool { stickController.isFollowing }
+    /// Test seam: simulates a user drag to offsetY followed by release, through the real gesture callbacks (touch userDidGrab, then settle).
+    func _testUserDragScroll(toOffsetY y: CGFloat) {
+        gestureObserver.scrollViewWillBeginDragging(collectionView)
+        collectionView.contentOffset = CGPoint(x: 0, y: y)
+        gestureObserver.scrollViewDidEndDragging(collectionView, willDecelerate: false)
+    }
+    /// Test seam: simulates a competing bottom-settle from a keyboard / frame change (bumps the settle generation, taking over an in-flight reveal loop).
+    /// Reproduces "the first message of a new session occasionally appears blank": after the reveal loop is invalidated by generation,
+    /// the reveal obligation must still be fulfilled by isAwaitingReveal.
     func _testTriggerCompetingScrollSettle() { scrollToBottomEnsuringFullLayout() }
     func _testContentHeight() -> CGFloat { collectionView.collectionViewLayout.collectionViewContentSize.height }
     func _testSetContentOffset(_ y: CGFloat) { collectionView.contentOffset = CGPoint(x: 0, y: y) }

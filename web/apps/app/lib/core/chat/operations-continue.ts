@@ -23,6 +23,7 @@ import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetr
 import { relaySendTelemetryProperties } from '../telemetry/relay-properties';
 import { reportSendStartedTelemetry } from './send-start';
 import { reportChatFailed } from './send-failure';
+import { hasVisibleReplyContent, isInStreamOverflowFailure, newReplyText, noVisibleReplyError } from './visible-reply';
 import * as Sentry from '@sentry/nextjs';
 import { mergeCitationsWithExisting, deriveCostFields, generatedImageUnits, mergeMessageUsageFields, roundCostOf } from './cost-fields';
 import {
@@ -31,7 +32,7 @@ import {
   shouldReportProviderError,
   createProviderSentryError,
 } from './error-reporting';
-import { recalculateConversationCostTotals, shouldTrackProviderUsage } from './usage-tracking';
+import { recalculateConversationCostTotals } from './usage-tracking';
 import { addMessageCost } from '../cost/cost-currency';
 import { stopReasonFromError, stopReasonFromFinish } from './stop-reason-outcome';
 import { isContextOverflowFailure } from './context-pipeline/chat-context';
@@ -41,7 +42,7 @@ import type { LibraryConfirmationRequest } from '../library/types';
 import { LibraryResearchCancelledError } from './library-agent-loop';
 import { libraryFailurePatch, type LibraryFailurePresentation } from './library-failure';
 import { libraryDocumentRefsFromCitations } from './library-direct-context';
-import { continueOutboundMessages, prepareLibraryDirectContext, runChatOutbound } from './operations-send';
+import { continueOutboundMessages, prepareLibraryDirectContext, recordInterruptedTurnUsage, runChatOutbound } from './operations-send';
 import {
   continuationFingerprintForExplicitContinue,
   continuationForExplicitContinue,
@@ -233,6 +234,15 @@ export function continueAnswering(
         if (outbound.memoryIds.length > 0) {
           patchAssistantMessage(store, conversation.id, messageId, { memoryItemIds: outbound.memoryIds });
         }
+        // A stopped continuation bills what it added, summed onto the message.
+        // Continue runs no marker, memory tail or web tool loop, so only the stopped leg is estimated.
+        recordInterruptedTurnUsage({
+          store, provider, model, conversationId: conversation.id, messageId,
+          before: { text: interruptedMsg.text, reasoningText: interruptedMsg.reasoningText },
+          estimatedInput: outbound.estimatedInput,
+          rhoHi: outbound.rhoHi,
+          promptContext,
+        });
         reportSent();
         await Promise.resolve(continuationSendInterrupted(conversation.id, messageId)).catch(() => undefined);
         return;
@@ -241,6 +251,16 @@ export function continueAnswering(
       const { fullText, reasoningText, reasoningDurationMs: newReasoningDurationMs, citations, usage, imageAttachments, servedModelID } = pipeline;
 
       const { finalText, processedAttachments } = await processImageAttachments(fullText, imageAttachments);
+      // Only what this round added decides an empty reply; the earlier text stays on the failed message
+      //.
+      if (!abortRequested && !hasVisibleReplyContent({
+        text: newReplyText(finalText, existingText),
+        attachments: processedAttachments,
+      })) {
+        // An upstream context-window overflow wins over the empty-reply fallback (same as operations-send).
+        throw noVisibleReplyError(pipeline.finish);
+      }
+      // Per-piece pricing counts the images generated in this round.
       const costInfo = deriveCostFields(usage, model, provider, () => new Date(), generatedImageUnits(processedAttachments));
       const roundCost = roundCostOf(costInfo, promptContext.retrievalCost);
       const cost = roundCost.estimatedCost;
@@ -261,12 +281,15 @@ export function continueAnswering(
           ? (interruptedMsg.reasoningDurationMs ?? 0) + (newReasoningDurationMs ?? 0)
           : undefined;
 
+      // Each continuation is a new billed request: its source wins, except managed yields to a held
+      // known USD source (addMessageCost)
+      const mergedCost = addMessageCost(interruptedMsg, roundCost);
       const completedMsg: ChatMessage = withMemoryItemIds({
         ...interruptedMsg, text: finalText, state: 'delivered' as const,
         stopReason: stopReasonFromFinish(pipeline.finish, finalText.trim() !== ''),
         reasoningText: [interruptedMsg.reasoningText, reasoningText.trim()].filter(Boolean).join('\n\n') || undefined,
         ...(mergedReasoningDurationMs !== undefined ? { reasoningDurationMs: mergedReasoningDurationMs } : {}),
-        ...addMessageCost(interruptedMsg, roundCost),
+        ...mergedCost,
         servedModelID,
         attachments: processedAttachments.length > 0
           ? [...(interruptedMsg.attachments ?? []), ...processedAttachments]
@@ -311,10 +334,6 @@ export function continueAnswering(
       } else {
         getSyncAdapter()?.didCompleteAssistantMessage(completedMsg, conversation.id, costTotals, syncConv);
       }
-      if (shouldTrackProviderUsage(provider)) {
-        /* local cost only */
-      }
-
       const contUploadableAtts = processedAttachments
         .filter((a) => a.localImageID)
         .map((a) => ({ att: a, msgID: messageId }));
@@ -428,7 +447,7 @@ export function continueAnswering(
       // A user cancel that ends by throwing records interrupted; a context overflow records context_window_exceeded (same as operations-send).
       const failureStopReason = abortRequested
         ? 'interrupted' as const
-        : isContextOverflowFailure(err, provider.kind, requestRelayTransport)
+        : isInStreamOverflowFailure(err) || isContextOverflowFailure(err, provider.kind, requestRelayTransport)
         ? 'context_window_exceeded' as const
         : stopReasonFromError(err, provider.kind, partialText.trim() !== '');
       const failedMessages = failedBase.map((m) =>

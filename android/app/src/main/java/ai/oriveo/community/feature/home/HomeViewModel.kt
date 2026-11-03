@@ -30,13 +30,18 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderIssueInfo
 import ai.oriveo.community.core.model.resolveActiveModel
-import ai.oriveo.community.core.model.resolveSkillModel
-import ai.oriveo.community.core.model.selectHomeSkills
 import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.modelDisplayLookups
 import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
+import ai.oriveo.community.core.voice.VoiceCatalog
+import ai.oriveo.community.core.voice.VoiceEngineSelection
+import ai.oriveo.community.core.voice.VoiceCatalogState
+import ai.oriveo.community.core.voice.realtime.HomeRealtimeSelectionStore
+import ai.oriveo.community.core.voice.realtime.RealtimePendingSelection
+import ai.oriveo.community.core.voice.realtime.RealtimeSelection
+import ai.oriveo.community.core.voice.realtime.realtimeCatalogChanges
 import ai.oriveo.community.core.provider.showNewChatHintIfNeeded
 import ai.oriveo.community.core.streaming.ChatStreamingManager
 import ai.oriveo.community.core.util.TextShareLauncher
@@ -95,6 +100,13 @@ class HomeViewModel(
     private val modelRetiredHintStore: ai.oriveo.community.core.provider.ModelRetiredHintStore? = null,
     /** Provider first-use disclosure for the home waveform key; null means no disclosure gate (tests). */
     voiceDisclosure: ai.oriveo.community.feature.chat.voice.VoiceEntryDisclosure? = null,
+    /** Snapshot of the voice catalog cache (read synchronously; production reads VoiceCatalogClient.state); null = do not recognize realtime models. */
+    private val voiceCatalog: () -> VoiceCatalog? = { null },
+    /** Voice catalog state flow (production reads VoiceCatalogClient.state); null (e.g. in unit tests) = no catalog source, nothing is staged. On arrival or change, re-judge the staged selection and recompute the pill. */
+    private val voiceCatalogStates: Flow<VoiceCatalogState?>? = null,
+    /** Process-wide shared source of truth for the home realtime selection; defaults to the singleton, and unit tests pass a new instance so cases do not share values. */
+    private val realtimeSelectionStore: HomeRealtimeSelectionStore = HomeRealtimeSelectionStore.shared,
+    skillsAutoInvokeEnabled: Flow<Boolean> = flowOf(true),
 ) : ViewModel() {
 
     val streamingConversationIds: StateFlow<Set<String>> = chatStreamingManager.streamingConversationIds
@@ -136,8 +148,8 @@ class HomeViewModel(
         .onEach { foldersLoaded.value = true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val homeSkills: StateFlow<List<Skill>> = skillRepository.observeAllSkills()
-        .map { selectHomeSkills(it) }
+    /** Every cached skill, so conversation rows can resolve the skill they were started from. */
+    val allSkills: StateFlow<List<Skill>> = skillRepository.observeAllSkills()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
@@ -370,20 +382,127 @@ class HomeViewModel(
     data class ActiveModelState(
         val activeModel: ActiveModel?,
         val providerIssue: ProviderIssueInfo?,
+        /** The store has a realtime selection but the voice catalog has not arrived yet: show the voice desk (preparing) directly at home, instead of the typing card first. */
+        val realtimePreparing: RealtimePreparing? = null,
     )
+
+    /** Realtime preparing state: the connection id and model id selected in the store; [catalogFailed] = catalog load failed, and the desk shows a failure card offering only Retry. */
+    data class RealtimePreparing(val connectionId: String, val model: String, val catalogFailed: Boolean = false)
+
+    /**
+     * Reactive activeModel: observes both providers and lastUsedModelRef,
+     * and re-resolves whenever either changes, matching iOS's computed property behavior.
+     *
+     * The providerIssue field is kept for compatibility, but home no longer shows an extra orange warning box for provider issues.
+     */
+    /**
+     * The realtime model (providerId, modelId) selected in the home pill: reads the process-wide shared store (the same source of truth for home, settings and provider details),
+     * kept in memory only and not written as last-used; on cold start or after picking a text model again, it returns to the last-used text model.
+     */
+    val realtimeSelection: StateFlow<Pair<String, String>?> = realtimeSelectionStore.selection
+
+    /** Staged selection while the catalog is not ready: re-judged once both the catalog and connections arrive (realtime -> this VM's realtime selection; text -> written as last-used). */
+    private val pendingSelection = RealtimePendingSelection()
+
+    /** Most recently arrived catalog (only used to recompute activeModelState when the catalog changes; the judgment still reads [voiceCatalog]). */
+    private val observedCatalog = MutableStateFlow<VoiceCatalog?>(null)
+
+    /** The latest catalog conclusion was a load failure: when the store has a realtime selection, the voice desk shows a failure card offering only Retry. */
+    private val catalogLoadFailed = MutableStateFlow(false)
 
     val activeModelState: StateFlow<ActiveModelState> = combine(
         providers,
         lastUsedModelRef,
         CapabilityEvidenceObservationBridge.revision,
-    ) { provs, ref, _ ->
+        combine(realtimeSelection, observedCatalog, catalogLoadFailed) { realtime, _, _ -> realtime },
+    ) { provs, ref, _, realtime ->
+        realtimeActiveModel(provs, realtime)?.let { return@combine ActiveModelState(activeModel = it, providerIssue = null) }
+        realtimePreparingState(provs, realtime)?.let { return@combine it }
         val resolved = resolveActiveModel(provs, ref)
-        // The dedup ledger is read and written on an IO thread (consumeOffMain); launch a separate coroutine so it does not hold up the activeModel emission.
+        // Dedup ledger reads and writes run on the IO thread (consumeOffMain); launch a separate coroutine so it does not hold up emissions from activeModel.
         modelRetiredHintStore?.let { store -> viewModelScope.launch { store.showNewChatHintIfNeeded(resolved, globalSnackbarManager) } }
         val active = resolved?.let { ActiveModel(it.provider, it.model) }
         ActiveModelState(activeModel = active, providerIssue = null)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ActiveModelState(null, null))
 
+    /**
+     * The realtime model selected in the home pill (connection + model): tapping the voice orb opens this; for a text model it is null (everything cascades to text).
+     * The voice uses the catalog default.
+     */
+    fun realtimeVoiceSelection(active: ActiveModel?): VoiceEngineSelection.Cloud? {
+        val modelId = active?.model?.id ?: return null
+        if (!RealtimeSelection.isRealtime(active.provider, modelId, voiceCatalog())) return null
+        return VoiceEngineSelection.Cloud(providerKind = active.provider.kind, connectionId = active.provider.id, model = modelId)
+    }
+
+    private fun realtimeActiveModel(providers: List<Provider>, selection: Pair<String, String>?): ActiveModel? {
+        val (providerId, modelId) = selection ?: return null
+        val provider = providers.firstOrNull { it.id == providerId } ?: return null
+        val entry = RealtimeSelection.realtimeEntry(provider, modelId, voiceCatalog()) ?: return null
+        return ActiveModel(provider, RealtimeSelection.realtimeAIModel(entry))
+    }
+
+    /**
+     * The store has a realtime selection but the catalog has not arrived yet: show the voice desk (preparing) first, with the pill name being the store's model id,
+     * matching the name from [RealtimeSelection.realtimeAIModel] once the catalog arrives; if the catalog arrives without this model, fall back to the text model.
+     * Still preparing if the connection list has not arrived (card A2b): when the catalog arrives first, do not fall back to text; wait for the list. Only stop waiting once the list has arrived and does not contain this connection.
+     */
+    private fun realtimePreparingState(providers: List<Provider>, selection: Pair<String, String>?): ActiveModelState? {
+        val (providerId, modelId) = selection ?: return null
+        val provider = providers.firstOrNull { it.id == providerId }
+        if (voiceCatalog() != null && (provider != null || providersLoaded.value)) return null
+        val active = provider?.let { ActiveModel(it, AIModel(id = modelId, name = modelId)) }
+        return ActiveModelState(
+            activeModel = active,
+            providerIssue = null,
+            realtimePreparing = RealtimePreparing(
+                connectionId = providerId,
+                model = modelId,
+                catalogFailed = catalogLoadFailed.value,
+            ),
+        )
+    }
+
+    init {
+        // Whether the catalog load failed: emitted only when the conclusion changes; a retry that fetches the catalog resets it.
+        viewModelScope.launch {
+            val states = voiceCatalogStates ?: return@launch
+            states.map { it is VoiceCatalogState.LoadFailed }.distinctUntilChanged().collect { catalogLoadFailed.value = it }
+        }
+        // The VM subscribes to the catalog itself: emit only on content change; while a staged selection exists, re-judge once its connection is also in the list, regardless of which arrives first, the catalog or the list.
+        viewModelScope.launch {
+            val states = voiceCatalogStates ?: return@launch
+            states.realtimeCatalogChanges().collectLatest { catalog ->
+                observedCatalog.value = catalog
+                val pending = pendingSelection.current ?: return@collectLatest
+                if (catalog == null) return@collectLatest
+                val provs = providerRepository.observeAll().first { list -> list.any { it.id == pending.providerId } }
+                when (val resolution = pendingSelection.resolve(catalog, provs)) {
+                    is RealtimePendingSelection.Resolution.Realtime ->
+                        realtimeSelectionStore.set(resolution.pending.providerId, resolution.pending.modelId)
+                    is RealtimePendingSelection.Resolution.Text -> {
+                        val (providerId, modelId) = resolution.pending
+                        realtimeSelectionStore.clear()
+                        appPreferencesRepository.primeLastUsedModel(providerId, modelId)
+                        persistLastUsed(providerId, modelId, provs.firstOrNull { it.id == providerId })
+                    }
+                    // Neither side recognizes it: do not write last-used, the realtime selection is unchanged, and show that it is no longer available.
+                    is RealtimePendingSelection.Resolution.Gone -> globalSnackbarManager.show(
+                        GlobalSnackbarMessage(
+                            message = UiText.Resource(
+                                R.string.voice_realtime_failure_model_gone,
+                                listOf(resolution.pending.modelId),
+                            ),
+                            style = GlobalToastStyle.Warning,
+                        ),
+                    )
+                    null -> Unit
+                }
+            }
+        }
+    }
+
+    /** Compatibility: used by internal methods such as refreshActiveProviderIfNeeded */
     fun resolveActiveModel(providers: List<Provider>): ActiveModel? {
         val resolved = resolveActiveModel(providers, lastUsedModelRef.value) ?: return null
         return ActiveModel(
@@ -586,13 +705,6 @@ class HomeViewModel(
         }
     }
 
-    var showSkillProviderPrompt by mutableStateOf(false)
-        private set
-
-    fun dismissSkillProviderPrompt() {
-        showSkillProviderPrompt = false
-    }
-
     fun createFolder(name: String, onCreated: ((Folder) -> Unit)? = null) {
         viewModelScope.launch {
             val folder = folderRepository.create(name) ?: return@launch
@@ -721,19 +833,45 @@ class HomeViewModel(
     }
 
     fun setActiveModel(providerId: String, modelId: String) {
-
-        appPreferencesRepository.primeLastUsedModel(providerId, modelId)
+        // Realtime model: only overrides activeModelState in memory; no warm-up and no last-used write.
+        val catalog = voiceCatalog()
+        // The catalog is not ready, so realtime cannot be judged yet: stage it, no warm-up and no last-used write; once the catalog arrives, the init subscription re-judges.
+        if (catalog == null && voiceCatalogStates != null) {
+            pendingSelection.stash(providerId, modelId)
+            return
+        }
+        pendingSelection.clear()
+        val knownProvider = providers.value.firstOrNull { it.id == providerId }
+        if (RealtimeSelection.isRealtime(knownProvider, modelId, catalog)) {
+            realtimeSelectionStore.set(providerId, modelId)
+            return
+        }
+        realtimeSelectionStore.clear()
+        // The connection has not arrived yet and the catalog lists this model: wait to get the connection before judging and warming up, so the realtime id is not warmed into last-used.
+        val deferPrime = knownProvider == null && RealtimeSelection.catalogListsRealtime(modelId, catalog)
+        // Synchronously warm the override: the home picker's selected state and sendFromHero reflect the new choice immediately instead of waiting for the async Room write
+        // (fixes "selecting a model once has no effect; it takes two selections").
+        if (!deferPrime) appPreferencesRepository.primeLastUsedModel(providerId, modelId)
         viewModelScope.launch {
             val provider = providerRepository.getById(providerId)
-            val selection = ProviderSelectionSnapshot.persistedSelection(provider, modelId)
-            if (selection?.model != null) {
-                appPreferencesRepository.setLastUsedModel(providerId, selection.model, provider?.kind)
-            } else {
-                appPreferencesRepository.setLastUsedModel(
-                    providerId = providerId,
-                    modelId = selection?.storedModelId ?: ModelSelectionUtils.resolvedId(modelId),
-                )
+            if (RealtimeSelection.isRealtime(provider, modelId, catalog)) {
+                realtimeSelectionStore.set(providerId, modelId)
+                return@launch
             }
+            if (deferPrime) appPreferencesRepository.primeLastUsedModel(providerId, modelId)
+            persistLastUsed(providerId, modelId, provider)
+        }
+    }
+
+    private suspend fun persistLastUsed(providerId: String, modelId: String, provider: Provider?) {
+        val selection = ProviderSelectionSnapshot.persistedSelection(provider, modelId)
+        if (selection?.model != null) {
+            appPreferencesRepository.setLastUsedModel(providerId, selection.model, provider?.kind)
+        } else {
+            appPreferencesRepository.setLastUsedModel(
+                providerId = providerId,
+                modelId = selection?.storedModelId ?: ModelSelectionUtils.resolvedId(modelId),
+            )
         }
     }
 
@@ -755,7 +893,10 @@ class HomeViewModel(
         openPickerWhenEmpty: Boolean = true,
         onMissingProvider: () -> Unit,
     ): ActiveModel? {
-
+        // 0. The realtime model selected in the pill lives only in this VM's memory (no last-used write): recognize it first, otherwise the message would be sent as the text model from last-used.
+        realtimeActiveModel(providers.value, realtimeSelection.value)?.let { return it }
+        // 0'. Prefer resolving from the synchronous override snapshot: activeModelState is a StateFlow combine-derived value,
+        //    so until it takes effect asynchronously, the send path would read the old value ("selection has no effect").
         appPreferencesRepository.lastUsedModelRefSnapshot?.let { ref ->
             resolveActiveModel(providers.value, ref)?.let { return ActiveModel(it.provider, it.model) }
         }
@@ -780,9 +921,37 @@ class HomeViewModel(
     /** Waveform key on the hero card; the voice conversation controller subscribes and uses the pill's model. */
     val voiceConversationRequests: kotlinx.coroutines.flow.SharedFlow<Unit> = voiceConversationRequestsFlow
 
-    /** Waveform entry: only emits. No conversation is created here; the first transcript creates it. */
+    private val realtimeTypedSends = kotlinx.coroutines.flow.MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    /**
+     * The sentence sent from the home typing state when the pill is a realtime model: the home voice host sends it to the realtime connection; the first persisted message creates the session as the home realtime session and
+     * hands it to the chat page; no text request is made.
+     */
+    val realtimeTyped: kotlinx.coroutines.flow.SharedFlow<String> = realtimeTypedSends
+
+    // The sentence handed to the home host that has not yet concluded: while in flight, the send key does not take the next sentence.
+    private var realtimeTypedInFlight: String? = null
+
+    /**
+     * The home host reports the outcome for the typed sentence: heroText is cleared only when it is persisted and still the original sentence (if the user changed it in flight, leave it alone);
+     * the session is created only when that sentence is persisted, as the home realtime session (sink side). Any outcome releases the send key.
+     */
+    fun realtimeTypedSettled(text: String, outcome: String) {
+        if (realtimeTypedInFlight == text) realtimeTypedInFlight = null
+        val result = ai.oriveo.community.core.voice.realtime.RealtimeModel.typedSendOutcome(
+            ai.oriveo.community.core.voice.realtime.RealtimeModel.TYPED_CONTEXT_HOME,
+            outcome,
+        )
+        if (!result.inputKeepsText && heroText.trim() == text.trim()) heroText = ""
+    }
+
+    /** ≋ entry: only emits. No conversation is created here; the first transcript creates it (D-24). */
     fun requestVoiceConversation() {
-        voiceConversationRequestsFlow.tryEmit(Unit)
+        val subscribers = voiceConversationRequestsFlow.subscriptionCount.value
+        val emitted = voiceConversationRequestsFlow.tryEmit(Unit)
+        ai.oriveo.community.core.voice.realtime.RealtimeVoiceLog.d(
+            "home entry request subscribers=$subscribers emitted=$emitted",
+        )
     }
 
     /**
@@ -790,6 +959,8 @@ class HomeViewModel(
      */
     suspend fun voiceEntryAllowed(onMissingProvider: () -> Unit): Boolean {
         val active = ensureActiveModelWithFreeFallback(onMissingProvider = onMissingProvider) ?: return false
+        // A realtime pill selection only asks the realtime disclosure on the voice stage.
+        if (realtimeVoiceSelection(active) != null) return true
         return voiceDisclosureGate?.allows(active.provider.kind) ?: true
     }
 
@@ -846,12 +1017,6 @@ class HomeViewModel(
         )
     }
 
-    /**
-     * Hero composer send-on-input, matching iOS HomeView.sendFromHero.
-     *
-     * - Empty text: open an empty conversation (the original NewChatBar path)
-     * - Non-empty text: ensureActiveModel, create the conversation, write the text into the draft, navigate and auto-send
-     */
     fun sendFromHero(
         onConversationCreated: (String) -> Unit,
         onConversationCreatedAutoSend: (String) -> Unit,
@@ -881,6 +1046,15 @@ class HomeViewModel(
             isSendingFromHero = true
             try {
                 val active = ensureActiveModelWithFreeFallback(onMissingProvider = onMissingProvider) ?: return@launch
+                // Pill is a realtime model: hand it to the home realtime host (no text conversation row); if no host is listening, do not send and leave the text in the input.
+                if (realtimeVoiceSelection(active) != null) {
+                    // The previous sentence is still in flight: do not hand over the next one; after handing it over, heroText stays until that sentence is persisted.
+                    if (realtimeTypedInFlight != null) return@launch
+                    if (realtimeTypedSends.subscriptionCount.value > 0 && realtimeTypedSends.tryEmit(trimmed)) {
+                        realtimeTypedInFlight = trimmed
+                    }
+                    return@launch
+                }
 
                 val conversation = conversationRepository.create(
                     providerID = active.provider.id,
@@ -902,43 +1076,7 @@ class HomeViewModel(
         }
     }
 
-    // -- Skill conversation creation --
-
-    private fun resolveModelForSkill(skill: Skill): ActiveModel? =
-        resolveSkillModel(skill, providers.value, lastUsedModelRef.value)
-            ?.let { ActiveModel(it.provider, it.model) }
-
-    fun startConversationWithSkill(
-        skill: Skill,
-        onCreated: (String) -> Unit,
-        onMissingProvider: (() -> Unit)? = null,
-    ) {
-        val active = resolveModelForSkill(skill)
-        if (active == null) {
-            globalSnackbarManager.show(
-                GlobalSnackbarMessage(
-                    message = UiText.Resource(R.string.skills_needProviderMessage),
-                ),
-            )
-            showSkillProviderPrompt = true
-            return
-        }
-
-        viewModelScope.launch {
-            // Starting a chat from a skill does not rewrite last used: it changes only when the user actually sends with a model or picks one by hand.
-            val conversation = conversationRepository.createDraft(
-                providerID = active.provider.id,
-                providerKind = active.provider.kind,
-                modelID = ModelSelectionUtils.preferredStoredModelIdentifier(active.model, active.provider.kind),
-                title = skill.name,
-                skillId = skill.id,
-                useMemory = skill.useMemory,
-            )
-
-            onCreated(conversation.id)
-            skillRepository.recordUse(skill.id)
-        }
-    }
+    // ── Dialog state ──
 
     var showModelPicker by mutableStateOf(false)
     var conversationToRename: Conversation? by mutableStateOf(null)

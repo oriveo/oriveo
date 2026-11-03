@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "Effacer",
     "generationParameterDormantRestored": "{count} paramètres restaurés",
     "generationPresetName": "Nom du préréglage",
-    "capabilityControlFixedByConnection": "Défini par cette connexion",
     "capabilityControlReasonPending": "La configuration automatique n'est pas encore prête",
     "capabilityControlReasonUnsupported": "Cette demande n'est pas prise en charge par ce modèle",
     "capabilityControlReasonExternalConnector": "Fourni par un service externe distinct, en dehors de cette requête de conversation",
@@ -166,7 +165,7 @@
     "currentConversation": "Conversation actuelle",
     "restoreModelBehavior": "Rétablir les valeurs",
     "restoreModelBehaviorConfirm": "Cela efface toutes les valeurs définies pour ce modèle. Action irréversible.",
-    "modelBehaviorScopeHint": "S’applique uniquement à ce modèle dans cette conversation. Les valeurs ne sont pas copiées lors d’un changement de modèle et sont restaurées au retour.",
+    "modelBehaviorScopeHint": "Ne s'applique que tant que ce modèle est utilisé dans cette conversation. Changer de modèle ne copie pas les valeurs ; en revenant, elles sont restaurées.",
     "controlledByReasoningShortcut": "Contrôlé par le raccourci Réflexion",
     "customRequestFieldsCustom": "Champs de requête personnalisés",
     "customRequestFieldsReasonSyntax": "Vérifiez que le fragment est un objet JSON valide sans clé en double.",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "Les problèmes les plus durs, quel qu’en soit le temps.",
     "capabilityControlReasoningFixedLevel": "Ce modèle utilise un niveau de réflexion fixe, non réglable.",
     "capabilityControlCannotAdjustYet": "Pas encore réglable",
+    "capabilityControlGoToParameters": "Aller aux paramètres",
     "customRequestFieldsNotAllowed": "Ce champ n’est pas autorisé. Champs acceptés par ce modèle : {fields}",
     "customRequestFieldsFooter": "Les champs sont ajoutés à la requête tels quels. Seuls les champs officiellement déclarés par le fournisseur sont pris en charge ; une erreur peut faire échouer la requête. Les brouillons restent sur cet appareil.",
     "customRequestFieldsScopeConnectionModel": "Portée : ce modèle sur cette connexion, par défaut pour ses conversations.",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "Ajouter",
     "advancedStopSequenceRemove": "Supprimer {sequence}",
     "advancedMore": "Plus",
-    "add": "Ajouter",
-    "capabilityControlGoToParameters": "Aller aux paramètres"
+    "add": "Ajouter"
   },
   "pages": {
     "welcome": {
       "title": "Bienvenue sur Oriveo",
       "tagline": "Tous vos modèles, une seule app.",
-      "slogan": "Vos clés, vos coûts, vos données.",
       "description": "Configurez votre premier fournisseur d'IA pour commencer des conversations multi-modèles.",
       "addProvider": "Ajouter un fournisseur",
       "enterHome": "Aller à l'app"
@@ -502,7 +500,6 @@
       "stop": "Arrêter la génération",
       "generating": "Génération en cours",
       "activityWebSearch": "Recherche web en cours",
-      "activityMcpTool": "Utilisation de {server} · {tool}",
       "aiAnswering": "L'IA répond…",
       "export": "Exporter",
       "continueAnswering": "Continuer la réponse",
@@ -586,7 +583,9 @@
         "cacheRead": "Lecture du cache",
         "cacheWrite": "Écriture du cache",
         "total": "Total",
-        "unavailable": "Aucune donnée"
+        "unavailable": "Aucune donnée",
+        "cost": "Coût",
+        "estimated": "Estimé"
       },
       "attachedNotesTitle": "Notes ajoutées à cette conversation",
       "removeNoteContext": "Retirer le contexte : {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Via Ollama Cloud",
       "modelRemovedBanner": "Le modèle de cette conversation n’est plus disponible dans {connection}.",
       "modelRemovedChoose": "Choisir un modèle",
+      "connectionRemovedBanner": "La connexion utilisée par cette conversation a été supprimée.",
+      "modelRetiredBanner": "{model} a été retiré.",
+      "modelRetiredSwitchTo": "Passer à {model}",
+      "lastUsedModelRetiredHint": "Le dernier modèle que vous avez utilisé a été retiré. {model} est utilisé à la place.",
       "copyFailed": "Échec de la copie",
+      "activityMcpTool": "Utilisation de {server} · {tool}",
       "contextCompaction": {
         "summaryLine1": "{count, plural, one {{count} message antérieur condensé · {before} → {after} tokens} many {{count} de messages antérieurs condensés · {before} → {after} tokens} other {{count} messages antérieurs condensés · {before} → {after} tokens}}",
         "summaryLine2": "Par {model} · Voir le résumé",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "Cette requête dépasse aussi le seuil tarifaire fixé à {line} pour {model} : elle est donc entièrement facturée au tarif de contexte long.",
         "confirmDontAsk": "Ne plus demander dans cette conversation",
         "confirmSend": "Envoyer quand même"
-      },
-      "connectionRemovedBanner": "La connexion utilisée par cette conversation a été supprimée.",
-      "modelRetiredBanner": "{model} a été retiré.",
-      "modelRetiredSwitchTo": "Passer à {model}",
-      "lastUsedModelRetiredHint": "Le dernier modèle que vous avez utilisé a été retiré. {model} est utilisé à la place."
+      }
     },
     "providerSetup": {
       "title": "Ajouter un fournisseur",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "Passer à une clé API",
         "disabledFallback": "La connexion par abonnement ChatGPT est actuellement indisponible. Vous pouvez passer à une clé API ou supprimer cette connexion."
       },
-      "subscription": "Abonnement",
-      "tokenPrices": {
-        "input": "Entrée {count}",
-        "cacheRead": "Lecture cache {count}",
-        "cacheWrite": "Écriture cache {count}",
-        "output": "Sortie {count}",
-        "unit": "tokens"
-      }
+      "subscription": "Abonnement"
     },
     "providers": {
       "title": "Fournisseurs",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "Cmd + Entrée",
       "shortcutEnter": "Entrée",
       "privacyPolicy": "Politique de confidentialité",
-      "sourceCode": "Code source",
       "aiSection": "IA",
       "skills": "Compétences",
       "backupImportExport": "Sauvegarde et import/export",
-      "reportIssue": "Signaler un problème",
-      "documentation": "Documentation",
       "aboutTagline": "Tous vos modèles. Une seule app.",
       "context": {
         "title": "Contexte",
@@ -1781,7 +1771,7 @@
       "editorCategory": "Catégorie",
       "editorTooLong": "2 000 caractères maximum",
       "deleteConfirmTitle": "Supprimer ce souvenir ?",
-      "deleteConfirmBody": "Il sera définitivement supprimé de cet appareil.",
+      "deleteConfirmBody": "Il sera supprimé de tous vos appareils.",
       "actionOrganize": "Diviser en entrées",
       "rawView": "Texte brut",
       "rawViewHint": "Séparez les entrées par une ligne ne contenant que ---.",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "Erreur du fournisseur",
       "message": "Le fournisseur a renvoyé une erreur pour cette requête. Veuillez réessayer ou changer de modèle."
+    },
+    "emptyReply": {
+      "title": "Réponse vide du fournisseur",
+      "message": "Le fournisseur n'a renvoyé aucun contenu d'assistant pour ce message."
     },
     "moderationBlocked": {
       "title": "Contenu bloqué",
@@ -2060,24 +2054,21 @@
     "title": "Compétences",
     "mySkills": "Mes compétences",
     "builtinSkills": "Compétences intégrées",
-    "pinned": "Épinglée",
     "newSkill": "Nouvelle compétence",
     "editSkill": "Modifier la compétence",
     "deleteSkill": "Supprimer la compétence",
     "forkSkill": "Copier comme ma compétence",
-    "useSkill": "Utiliser",
-    "pinToHome": "Épingler à l'accueil",
-    "unpinFromHome": "Désépingler",
-    "instructions": "Consigne",
+    "useSkill": "Utiliser cette compétence",
+    "instructions": "Prompt",
     "instructionsPlaceholder": "Ex. : Vous êtes un réviseur de code senior. Examinez le code pour la sécurité, les performances et la lisibilité. Répondez dans la langue de l'utilisateur.",
     "starterMessages": "Phrases de démarrage",
     "useMemory": "Mémoriser les préférences",
     "useMemoryHint": "Inclure vos préférences personnelles dans les conversations",
     "referenceFiles": "Documents de référence",
-    "tipInstructions": "Définit le comportement de l'IA — sa personnalité, son expertise et son style de réponse. Seule l'IA voit ceci, pas les utilisateurs.",
+    "tipInstructions": "Définit le comportement de l’IA — sa personnalité, son expertise et son style de réponse. Seule l’IA voit ceci, pas les utilisateurs.",
     "knowledgeSectionTitle": "Connaissances",
-    "tipReferenceFiles": "L'IA lit ces fichiers en intégralité à chaque réponse — comme des notes toujours ouvertes sur son bureau. Idéal pour les documents courts et essentiels (guides de style, glossaires, règles clés). Plus le fichier est volumineux, plus le coût par réponse augmente.",
-    "noReferenceFiles": "Aucun document de référence pour le moment",
+    "tipReferenceFiles": "L'IA lit ces fichiers en entier à chaque réponse — comme des notes toujours ouvertes sur son bureau. Idéal pour les documents courts et essentiels (guides de style, glossaires, règles clés). Les fichiers plus volumineux augmenteront le coût de réponse.",
+    "noReferenceFiles": "Pas encore de documents de référence",
     "addFile": "Ajouter un fichier",
     "filesQuota": "{count} / {max}",
     "icon": "Icône",
@@ -2092,7 +2083,7 @@
     "allSkills": "Toutes les compétences",
     "greeting": "Comment puis-je vous aider ?",
     "greetingSub": "Demandez n'importe quoi ou commencez simplement à taper.",
-    "noCustomSkills": "Aucune compétence personnalisée pour le moment",
+    "noCustomSkills": "Pas encore de compétences personnalisées",
     "createFirst": "En créer une",
     "deleteConfirmTitle": "Supprimer « {name} » ?",
     "deleteConfirmMessage": "Les conversations existantes ne seront pas affectées.",
@@ -2117,7 +2108,7 @@
     "knowledgeCtaSecondaryLater": "Pas maintenant",
     "knowledgeCtaSecondaryContinue": "Continuer à modifier la compétence",
     "knowledgeEmptyHint": "Aucun fichier de la base de connaissances pour l'instant",
-    "knowledgeRetryUnavailable": "La nouvelle tentative n'est disponible que pour les fichiers ajoutés dans cette session d'édition.",
+    "knowledgeRetryUnavailable": "La nouvelle tentative n’est pas disponible pour ce fichier sur cet appareil.",
     "replaceKnowledgeFile": "Remplacer",
     "retryKnowledgeFile": "Réessayer",
     "deleteKnowledgeFile": "Supprimer",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "La base de connaissances nécessite une clé API OpenAI officielle.",
     "openai_endpoint_not_official": "La base de connaissances ne fonctionne qu'avec le point de terminaison officiel OpenAI.",
     "retrieval_model_not_enabled": "Ajoutez et activez d'abord {model} dans votre fournisseur OpenAI.",
-    "knowledge_service_unavailable": "La base de connaissances est temporairement indisponible. Vous pouvez toujours modifier et enregistrer cette compétence.",
+    "knowledge_service_unavailable": "La base de connaissances est indisponible pour le moment.",
     "unsupported_file_type": "Ce type de fichier n'est pas pris en charge pour la base de connaissances.",
     "reference_file_too_large": "Les fichiers de référence doivent faire 3 Mo ou moins.",
     "knowledge_file_too_large": "Les fichiers de la base de connaissances doivent faire 20 Mo ou moins.",
@@ -2147,12 +2138,196 @@
     "providerRequiredTitle": "Ajoutez un fournisseur pour utiliser cette compétence",
     "providerRequiredMessage": "Cette compétence nécessite un fournisseur IA disponible avant de lancer une conversation.",
     "providerRequiredAction": "Ajouter un fournisseur",
-    "promptCancel": "Pas maintenant"
+    "promptCancel": "Pas maintenant",
+    "home": {
+      "autoCount": "Automatiques · {count}",
+      "slashHint": "Tapez / pour les utiliser",
+      "empty": "Enregistrez votre façon de faire",
+      "notesRecent": "Dernière modification"
+    },
+    "list": {
+      "subtitle": "Enregistrez votre façon de faire : l'IA s'en sert quand c'est utile."
+    },
+    "create": {
+      "describePlaceholder": "Décrivez une méthode, l'IA rédige la compétence",
+      "fromChat": "Depuis une conversation",
+      "manual": "Créer manuellement"
+    },
+    "segment": {
+      "mine": "Mes compétences",
+      "templates": "Modèles"
+    },
+    "group": {
+      "auto": "Automatiques",
+      "manual": "Manuelles seulement"
+    },
+    "card": {
+      "usageCount": "Utilisations : {count}"
+    },
+    "row": {
+      "slashHint": "Utilisée quand vous tapez {slash}"
+    },
+    "auto": {
+      "needWhenTitle": "Indiquez d'abord quand l'utiliser",
+      "suggest": "Suggérer",
+      "limitReached": "L'utilisation automatique a atteint sa limite ({count}). Désactivez-en une d'abord."
+    },
+    "search": {
+      "placeholder": "Rechercher des compétences"
+    },
+    "empty": {
+      "title": "Aucune compétence pour l'instant",
+      "body": "Enregistrez votre façon de faire pour ne plus avoir à l'expliquer à chaque fois.",
+      "browseTemplates": "Parcourir les modèles"
+    },
+    "migrate": {
+      "banner": "Compétences sans « Quand l'utiliser » : {count}. Ajoutez une phrase pour qu'elles s'appliquent automatiquement.",
+      "review": "Compléter une à une"
+    },
+    "templates": {
+      "note": "Les modèles ne sont utilisés automatiquement qu'une fois ajoutés à « Mes compétences ».",
+      "featured": "À la une",
+      "addToMine": "Ajouter à mes compétences",
+      "add": "Ajouter",
+      "added": "Ajouté",
+      "tryOnce": "Essayer une fois"
+    },
+    "detail": {
+      "useInNewChat": "Utiliser dans une nouvelle conversation",
+      "orSlash": "Ou tapez {slash} dans le champ de message",
+      "usage": "Utilisations : {count} · Dernière utilisation {time}",
+      "neverUsed": "Pas encore utilisée",
+      "autoInvoke": "Utiliser automatiquement",
+      "whenToUse": "Quand l'utiliser",
+      "whenToUseNote": "L'IA s'en sert pour décider",
+      "instructions": "Consignes",
+      "showAll": "Tout afficher",
+      "references": "Documents de référence",
+      "starters": "Amorces de conversation",
+      "recentChats": "Conversations récentes",
+      "try": "Essayer"
+    },
+    "edit": {
+      "changeIcon": "Changer d'icône",
+      "name": "Nom",
+      "whenBadge": "Pilote l'utilisation automatique",
+      "whenPlaceholder": "ex. : Quand je demande de transformer des notes en rapport hebdomadaire. Pas pour les points quotidiens.",
+      "keywordsCaption": "Déclenchée par ces mots · décrire la situation suffit",
+      "whenTip": "Indiquez ce qu'elle fait, quand l'utiliser et comment vous le demandez d'habitude. Ajoutez « Pas pour … » pour éviter les déclenchements à tort. Les mots entre guillemets sont mis en évidence.",
+      "polish": "Améliorer avec l'IA",
+      "addStarter": "Ajouter une amorce",
+      "modelAndFeatures": "Modèle et fonctionnalités",
+      "followChat": "Comme dans la conversation",
+      "needWhenForAuto": "Remplissez « Quand l'utiliser » ou désactivez l'utilisation automatique."
+    },
+    "draft": {
+      "askScenarios": "Donnez une ou deux situations où vous l'utiliseriez",
+      "askQuality": "À quoi ressemble un bon résultat ?",
+      "skip": "Passer",
+      "generating": "Rédaction du brouillon…",
+      "title": "Brouillon",
+      "editFirst": "Modifier d'abord",
+      "suggestedIcon": "Icône suggérée",
+      "failed": "Le brouillon n'a pas pu être terminé. Ce qui était prêt a déjà été renseigné."
+    },
+    "fromChat": {
+      "menuConversation": "Enregistrer comme compétence",
+      "menuMessage": "Enregistrer cette méthode comme compétence",
+      "messages": "Messages : {count}",
+      "extracting": "Synthèse en cours…"
+    },
+    "limit": {
+      "upgrade": "Débloquer plus",
+      "draftKept": "Votre brouillon est conservé sur cet appareil."
+    },
+    "composer": {
+      "placeholder": "Tapez / pour utiliser une compétence"
+    },
+    "picker": {
+      "title": "Mes compétences",
+      "multi": "Choix multiple",
+      "auto": "Auto",
+      "manual": "Manuelle",
+      "manage": "Gérer les compétences",
+      "maxReached": "{count} au maximum à la fois"
+    },
+    "chip": {
+      "deleted": "Supprimée"
+    },
+    "message": {
+      "attached": "Avec {names}"
+    },
+    "used": {
+      "chip": "Utilisation : {names}",
+      "loading": "Utilisation de {names}…",
+      "byChoice": "Utilisée parce que vous l'avez choisie",
+      "why": "Pourquoi elle a été utilisée",
+      "disableHere": "Ne pas utiliser automatiquement dans cette conversation",
+      "view": "Voir la compétence"
+    },
+    "settings": {
+      "autoToggle": "Utiliser les compétences automatiquement",
+      "autoToggleFooter": "Si cette option est désactivée, le modèle ne choisit pas de compétence de lui-même. Vous pouvez toujours taper / pour en utiliser une."
+    },
+    "try": {
+      "banner": "Essai en cours · Non enregistré dans l'historique",
+      "saveToSkill": "Enregistrer dans la compétence",
+      "adjust": "Modifier les consignes",
+      "saved": "Enregistré dans « {name} »",
+      "savedToDraft": "Copié dans l’éditeur. Enregistrez depuis l’éditeur pour conserver les modifications."
+    },
+    "improve": {
+      "prompt": "Ajouter ceci à « {name} » ?",
+      "review": "Voir la modification",
+      "accept": "Ajouter à la compétence",
+      "dismiss": "Pas maintenant",
+      "addedLine": "Ajouté",
+      "removedLine": "Supprimé",
+      "saved": "Ajouté à « {name} »"
+    },
+    "usage": {
+      "manifestRow": "Surcoût de la liste des compétences"
+    },
+    "glyph": {
+      "writing": "Écriture",
+      "report": "Rapport",
+      "code": "Code",
+      "study": "Études",
+      "travel": "Voyage",
+      "health": "Santé",
+      "meeting": "Réunion",
+      "idea": "Idée",
+      "translate": "Traduction",
+      "email": "E-mail",
+      "data": "Données",
+      "design": "Design",
+      "legal": "Juridique",
+      "finance": "Finances",
+      "marketing": "Marketing",
+      "support": "Assistance",
+      "teaching": "Enseignement",
+      "research": "Recherche",
+      "life": "Quotidien",
+      "food": "Cuisine",
+      "music": "Musique",
+      "photo": "Photographie",
+      "product": "Produit",
+      "general": "Général"
+    },
+    "capability": {
+      "title": "Préférence de modèle",
+      "any": "Tous",
+      "reasoning": "Raisonnement",
+      "vision": "Vision",
+      "fast": "Rapide",
+      "largeContext": "Grand contexte"
+    },
+    "saveFailed": "Impossible d'enregistrer les modifications. Veuillez réessayer."
   },
   "builtinSkills": {
     "code_assistant": {
       "name": "Assistant de code",
-      "description": "Questions, génération de code, débogage",
+      "description": "Questions de programmation, génération de code, débogage",
       "starters": {
         "0": "Aide-moi à déboguer ce code",
         "1": "Écris une fonction qui…",
@@ -2162,7 +2337,7 @@
     },
     "code_review": {
       "name": "Revue de code",
-      "description": "Qualité, sécurité et performance du code",
+      "description": "Revue de qualité, sécurité et performance du code",
       "starters": {
         "0": "Vérifie ce code pour les failles de sécurité",
         "1": "Examine cette PR pour les problèmes de performance",
@@ -2192,7 +2367,7 @@
     },
     "writing_coach": {
       "name": "Coach d'écriture",
-      "description": "Améliore le style, la structure et la clarté",
+      "description": "Améliorer le style, la structure et la clarté de l'écriture",
       "starters": {
         "0": "Améliore ce paragraphe",
         "1": "Rends ça plus concis",
@@ -2202,7 +2377,7 @@
     },
     "email_assistant": {
       "name": "Assistant e-mail",
-      "description": "Rédige des emails professionnels et personnels",
+      "description": "Rédiger des e-mails professionnels et personnels",
       "starters": {
         "0": "Rédige un e-mail de suivi",
         "1": "Écris un refus poli",
@@ -2222,7 +2397,7 @@
     },
     "blog_writer": {
       "name": "Rédacteur de blog",
-      "description": "Contenu long et articles de blog engageants",
+      "description": "Contenu long-format engageant et articles de blog",
       "starters": {
         "0": "Écris un article de blog sur…",
         "1": "Crée un plan pour un article sur…",
@@ -2242,7 +2417,7 @@
     },
     "proofreader": {
       "name": "Correcteur",
-      "description": "Corrige la grammaire, l'orthographe et améliore la clarté",
+      "description": "Corriger la grammaire, l'orthographe et améliorer la clarté",
       "starters": {
         "0": "Relis ce texte",
         "1": "Corrige la grammaire de ce paragraphe",
@@ -2272,7 +2447,7 @@
     },
     "language_teacher": {
       "name": "Professeur de langues",
-      "description": "Pratique et apprentissage des langues étrangères",
+      "description": "Pratiquer et apprendre des langues étrangères",
       "starters": {
         "0": "Pratiquons la conversation en…",
         "1": "Explique cette règle de grammaire",
@@ -2302,7 +2477,7 @@
     },
     "document_summarizer": {
       "name": "Résumeur de documents",
-      "description": "Résume les documents et extrait les points clés",
+      "description": "Résumer des documents et extraire les points clés",
       "starters": {
         "0": "Résume ce document",
         "1": "Extrais les décisions clés de ce texte",
@@ -2312,7 +2487,7 @@
     },
     "brainstorm": {
       "name": "Brainstorming",
-      "description": "Génère des idées et explore les possibilités",
+      "description": "Générer des idées et explorer les possibilités",
       "starters": {
         "0": "Aide-moi à brainstormer des idées pour…",
         "1": "Donne-moi 10 approches créatives pour…",
@@ -2332,7 +2507,7 @@
     },
     "meeting_notes": {
       "name": "Notes de réunion",
-      "description": "Transforme les comptes rendus en résumés structurés",
+      "description": "Transformer les transcriptions de réunion en résumés structurés",
       "starters": {
         "0": "Transforme ces notes en compte rendu de réunion",
         "1": "Extrais les actions à mener de cette transcription",
@@ -2342,7 +2517,7 @@
     },
     "interview_coach": {
       "name": "Coach d'entretien",
-      "description": "Préparation et simulation d'entretiens",
+      "description": "Préparation aux entretiens et simulations",
       "starters": {
         "0": "Simule un entretien pour un poste d'ingénieur logiciel",
         "1": "Aide-moi à répondre à « Parlez-moi de vous »",
@@ -2352,7 +2527,7 @@
     },
     "presentation_outliner": {
       "name": "Plan de présentation",
-      "description": "Plans de présentation, points clés et contenu des slides",
+      "description": "Plans de présentation, points clés et contenu de diapositives",
       "starters": {
         "0": "Crée un plan de présentation pour…",
         "1": "Aide-moi à structurer un exposé de 10 minutes",
@@ -2362,7 +2537,7 @@
     },
     "recipe_assistant": {
       "name": "Assistant de recettes",
-      "description": "Recettes, techniques de cuisine et planification des repas",
+      "description": "Recettes, techniques culinaires et planification de repas",
       "starters": {
         "0": "Qu'est-ce que je peux préparer avec ces ingrédients ?",
         "1": "Donne-moi une recette rapide pour un soir de semaine",
@@ -2372,7 +2547,7 @@
     },
     "travel_planner": {
       "name": "Planificateur de voyages",
-      "description": "Itinéraires de voyage et recommandations",
+      "description": "Itinéraires de voyage et recommandations de destinations",
       "starters": {
         "0": "Planifie un voyage de 5 jours à…",
         "1": "Que faut-il voir à… ?",
@@ -2382,7 +2557,7 @@
     },
     "fitness_coach": {
       "name": "Coach fitness",
-      "description": "Plans d'entraînement, exercices et conseils nutrition",
+      "description": "Plans d'entraînement, exercices et conseils nutritionnels",
       "starters": {
         "0": "Crée un programme d'entraînement pour…",
         "1": "Propose des exercices pour…",
@@ -2392,7 +2567,7 @@
     },
     "image_analyst": {
       "name": "Analyste d'images",
-      "description": "Décrit, analyse et extrait des infos des images",
+      "description": "Décrire, analyser et extraire des informations d'images",
       "starters": {
         "0": "Décris cette image en détail",
         "1": "Extrais le texte de cette image",
@@ -2636,8 +2811,7 @@
       "stepLimit": "Trop de documents, ou des documents trop longs, pour une seule recherche. Désélectionnez-en quelques-uns et réessayez.",
       "notConnected": "Connectez une source de la Bibliothèque avant de commencer.",
       "sourceForbidden": "La source a refusé l'accès en raison d'une restriction de permission ou de politique. Se reconnecter ne résoudra pas le problème : vérifiez les paramètres de partage ou de conformité de la source elle-même.",
-      "unavailable": "La Bibliothèque est temporairement indisponible. Réessayez plus tard.",
-      "retry": "Réessayer"
+      "unavailable": "La Bibliothèque est temporairement indisponible. Réessayez plus tard."
     }
   },
   "notes": {

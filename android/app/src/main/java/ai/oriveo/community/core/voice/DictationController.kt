@@ -37,70 +37,211 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
 
-/** Where the primary button goes after a dictation failure: retry, check the connection, or no transcript produced. */
+/**
+ * Card shown after a failed dictation: retry, check the connection, or no text was transcribed; system recognizer failures are further classified by the shared code table into network, recognizer busy, language not supported, or no recognition service
+ * (anything else in and out of the table stays [Retry]).
+ */
 enum class DictationFailedAction {
     Retry,
     CheckConnection,
     NoTranscript,
+    Network,
+    Busy,
+    LanguageUnsupported,
+    NoService,
 }
 
-/** Dictation state. */
+/** Dictation state; same name as on iOS. */
 sealed interface DictationState {
     data object Idle : DictationState
 
     /** Microphone permission was denied. */
     data object Denied : DictationState
 
-    /** [startedAt] comes from the injected clock; the UI uses it to show the elapsed recording time. */
+    /** [startedAt] is taken from the injected clock; the UI shows the elapsed recording time from it. */
     data class Recording(val slotKey: String, val startedAt: Long) : DictationState
 
     data class Transcribing(val slotKey: String, val submit: DictationSubmit) : DictationState
 
     data class Interrupted(val slotKey: String) : DictationState
 
-    data class Failed(val slotKey: String, val action: DictationFailedAction) : DictationState
+    /**
+     * [language] is the language tag used for this recognition (set on transcription failure, for the card copy; for cloud auto it is the UI language tag at the moment of failure); null for other failures.
+     * [hasRecording] false means the slot holds no recording (self-recorded recognizer failure): it cannot be retried and the card's primary action is to dictate again.
+     */
+    data class Failed(
+        val slotKey: String,
+        val action: DictationFailedAction,
+        val language: String? = null,
+        val hasRecording: Boolean = true,
+    ) : DictationState
 
-    /** The slot with the same key still holds an untranscribed recording, so a new recording cannot start. */
+    /** The same slot still holds an unfinished recording from last time, so a new recording cannot start. */
     data class SlotOccupied(val slotKey: String) : DictationState
 }
 
-/** How a recording ends: "Transcribe" inserts into the input box, "↑" transcribes and sends directly. */
+/** How the recording ends: "to text" inserts into the input box, "up arrow" transcribes and sends directly. */
 enum class DictationSubmit {
     Insert,
     Send,
 }
 
-/** One-shot events consumed by the UI (insert text, send, show a notice). */
+/** One-off events, consumed by the UI (insert text, send, show a prompt). */
 sealed interface DictationEvent {
     data class Insert(val slotKey: String, val text: String) : DictationEvent
 
     data class Send(val slotKey: String, val text: String) : DictationEvent
 
-    /** The pre-check heard no sound (too short or no voice): the recording was deleted and nothing was uploaded. */
+    /** Pre-check heard no speech (too short or no voice): the recording is deleted and nothing was uploaded. */
     data class NoSpeech(val slotKey: String) : DictationEvent
 
-    /** Microphone capture could not start (in use, or unsupported by the device): no slot was left behind. */
+    /** Microphone capture could not start (in use, device unsupported): no slot was kept. */
     data class RecordingUnavailable(val slotKey: String) : DictationEvent
 
     /**
-     * A recording longer than 5 seconds was discarded with ✕: it moved to the recycle area and the UI shows an undo window.
-     * The controller commits automatically after [DictationController.UNDO_WINDOW_MILLIS]; a new discard commits the previous one immediately, so only one window is open at a time.
+     * ✕ discarded a recording longer than 5 seconds: it went to the recycle area and the UI shows an undo window.
+     * [DictationController.UNDO_WINDOW_MILLIS] commits it when it expires; a new discard commits the previous one immediately, and only one is open at a time.
      */
     data class DiscardUndoable(val slotKey: String) : DictationEvent
 
-    /** The stored cloud choice is no longer valid (connection deleted / key cleared / entry withdrawn): this time the system engine is used and the setting was reset to system; emitted once. */
+    /** The saved cloud choice is no longer valid (connection deleted / key cleared / entry withdrawn): the system engine is used this time and the setting is changed back to system; reported once. */
     data class EngineFallback(val slotKey: String, val reason: VoiceFallbackReason) : DictationEvent
 
-    /** No usable system speech recognition on the device: recording was not started and no slot was left. */
+    /** No system speech recognition is available on the device: recording did not start and no slot was kept. */
     data class SystemUnavailable(val slotKey: String) : DictationEvent
 
-    /** The self-recording recognizer failed: already-recognized text was emitted first as [Insert]; there is no recording to retry, so the state returns to Idle. */
-    data class SystemRecognizerFailed(val slotKey: String) : DictationEvent
+    /**
+     * Retracts the live text on screen: when ✕ is tapped while recording or transcribing, or the result is no recognized speech / failed; it is sent before the result event or the failure card,
+     * and the host uses it to remove the live span (restoring the original text). Not sent if live text never appeared.
+     */
+    data class LiveRetract(val slotKey: String) : DictationEvent
+
+    /**
+     * The on-device language pack for this recognition language is downloadable and the system default recognition is used this time: shown once per language tag, does not block this dictation;
+     * when the user accepts, the host calls [DictationCommands.downloadLanguagePack].
+     */
+    data class LanguagePackOffer(val language: String) : DictationEvent
 }
 
 /**
- * Engine information shown by the recording UI: for the cloud, the [Provider.displayName] and [Provider.id] of the selected connection;
- * for the system engine, both are null.
+ * One live session route for dictation while recording (production wraps [SystemSTTPipeSession]): attached as a [PcmSink] to capture;
+ * after recording stops, [stop] is called and then [await] fetches the result (the implementation has its own wait limit after stopping); [live] emits text as the user speaks.
+ */
+interface DictationLiveSession : PcmSink {
+    val live: StateFlow<LiveTranscript>
+
+    fun stop()
+
+    suspend fun await(): STTResult
+
+    /** Result no longer wanted (✕ / interrupted / switched away / recording start voided): close the recognizer immediately; no-op if a result already exists. */
+    fun cancel()
+
+    /**
+     * Feeds PCM cached before readiness: may block until the session makes room (no chunks dropped), not called on the recording thread; returns false if the session is stopped / ended and no longer accepts.
+     * Defaults to [onPcm].
+     */
+    fun onBacklogPcm(samples: ShortArray, count: Int): Boolean {
+        onPcm(samples, count)
+        return true
+    }
+}
+
+/** Production live session: system recognition pipe session. */
+private class PipeDictationLiveSession(private val session: SystemSTTPipeSession) :
+    DictationLiveSession,
+    PcmSink by session {
+    override val live: StateFlow<LiveTranscript> get() = session.live
+
+    override fun stop() = session.stop()
+
+    override suspend fun await(): STTResult = session.await()
+
+    override fun cancel() = session.end(STTResult.Success(""))
+
+    override fun onBacklogPcm(samples: ShortArray, count: Int): Boolean {
+        val bytes = ByteArray(count * 2)
+        for (index in 0 until count) {
+            val sample = samples[index].toInt()
+            bytes[index * 2] = sample.toByte()
+            bytes[index * 2 + 1] = (sample shr 8).toByte()
+        }
+        return session.offerFilePcm(bytes)
+    }
+}
+
+/**
+ * Pre-roll before the live session is ready: PCM on the recording thread is buffered first (capped at [maxSamples], the oldest dropped when exceeded);
+ * when [attach] becomes ready the buffer is fed to the session in one go, then later frames are forwarded directly; after [close] the buffer is dropped and nothing is accepted or forwarded.
+ */
+internal class DictationLivePreroll(private val maxSamples: Int = PREROLL_SAMPLES) : PcmSink {
+    private val lock = Any()
+
+    // The state below is guarded by lock.
+    private val chunks = ArrayDeque<ShortArray>()
+    private var buffered = 0
+    private var target: DictationLiveSession? = null
+    private var closed = false
+
+    /** Called on the recording thread: buffers while not ready, forwards to the session once ready. */
+    override fun onPcm(samples: ShortArray, count: Int) {
+        if (count <= 0) return
+        val forward = synchronized(lock) {
+            if (closed) return
+            target ?: run {
+                chunks.addLast(samples.copyOf(count))
+                buffered += count
+                while (buffered > maxSamples && chunks.size > 1) buffered -= chunks.removeFirst().size
+                return
+            }
+        }
+        forward.onPcm(samples, count)
+    }
+
+    /**
+     * Feeds the buffer in order first (frames arriving during the feed keep going into the buffer); when the buffer is empty it switches to direct forwarding, so the bytes stay continuous without loss.
+     * May block; not called on the main or recording thread; returns false if already [close]d or the session no longer accepts.
+     */
+    fun attach(live: DictationLiveSession): Boolean {
+        while (true) {
+            val chunk = synchronized(lock) {
+                if (closed) return false
+                val next = chunks.removeFirstOrNull()
+                if (next == null) {
+                    target = live
+                    return true
+                }
+                buffered -= next.size
+                next
+            }
+            if (!live.onBacklogPcm(chunk, chunk.size)) {
+                close()
+                return false
+            }
+        }
+    }
+
+    fun close() {
+        synchronized(lock) {
+            closed = true
+            target = null
+            chunks.clear()
+            buffered = 0
+        }
+    }
+
+    companion object {
+        /** 10 s of 16 kHz mono samples. */
+        const val PREROLL_SAMPLES = AudioRecordCapture.SAMPLE_RATE * 10
+    }
+}
+
+/** Default for [DictationCommands.livePartial]: no live text. */
+private val NO_LIVE_PARTIAL: StateFlow<LiveTranscript?> = MutableStateFlow<LiveTranscript?>(null).asStateFlow()
+
+/**
+ * Engine info shown in the recording UI: for cloud, the selected connection's [Provider.displayName] and [Provider.id];
+ * both are null for the system engine.
  */
 data class DictationEngineInfo(val displayName: String?, val providerId: String?, val isCloud: Boolean) {
     companion object {
@@ -112,17 +253,28 @@ data class DictationEngineInfo(val displayName: String?, val providerId: String?
 interface DictationEngineFactory {
     fun system(): STTEngine
 
-    /** Picks the system recognition route; no recording starts on [SystemSTTRoute.Unavailable]. */
+    /** System recognition route selection; no recording starts when [SystemSTTRoute.Unavailable]. */
     suspend fun systemRoute(language: String?): SystemSTTRoute
 
-    /** Starts a self-recording recognition session (the recognizer opens the microphone itself and produces no recording file); throws if listening cannot start. */
+    /** System route decidable without suspending (unavailable, self-record, cache hit); returns null when undecidable, in which case [systemRoute] runs after recording starts. Defaults to null. */
+    fun cachedSystemRoute(language: String?): SystemSTTRoute? = null
+
+    /** Opens one self-recording recognition session (the recognizer opens the mic itself and produces no recording file); throws if listening fails to start. */
     suspend fun startSelfRecord(route: SystemSTTRoute.SelfRecord): SystemSTTSelfRecordSession
 
-    /** One self-recorded turn of a voice conversation: the recognizer ends it when it decides speech is over (turns do not accumulate). Defaults to [startSelfRecord]. */
+    /** One turn of a self-recording in a voice conversation: the recognizer decides when the user has finished speaking (turns are not accumulated). Defaults to [startSelfRecord]. */
     suspend fun startSelfRecordTurn(route: SystemSTTRoute.SelfRecord): SystemSTTSelfRecordSession =
         startSelfRecord(route)
 
-    /** [baseUrl] is the connection address (only the origin is used, followed by the path of [entry]). */
+    /**
+     * Opens a live session on the pipe route (recognize while recording); throws if listening fails to start. Defaults to null = no live recognition, only recording-then-transcription.
+     */
+    suspend fun startPipeSession(route: SystemSTTRoute.Pipe): DictationLiveSession? = null
+
+    /** The user accepts the language-pack guidance: triggers the on-device recognizer to download [language]; returns true if downloadable. Defaults to no download. */
+    suspend fun downloadLanguagePack(language: String): Boolean = false
+
+    /** [baseUrl] is the connection address (only the origin is used, then [entry]'s path is appended). */
     fun cloud(entry: VoiceSttEntry, baseUrl: String, apiKey: String): STTEngine
 }
 
@@ -136,17 +288,24 @@ class DefaultDictationEngineFactory(
 
     override suspend fun systemRoute(language: String?): SystemSTTRoute = router.route(language)
 
+    override fun cachedSystemRoute(language: String?): SystemSTTRoute? = router.cachedRoute(language)
+
     override suspend fun startSelfRecord(route: SystemSTTRoute.SelfRecord): SystemSTTSelfRecordSession =
         systemEngine.startSelfRecordSession(route)
 
     override suspend fun startSelfRecordTurn(route: SystemSTTRoute.SelfRecord): SystemSTTSelfRecordSession =
         systemEngine.startSelfRecordSession(route, singleRound = true)
 
+    override suspend fun startPipeSession(route: SystemSTTRoute.Pipe): DictationLiveSession =
+        PipeDictationLiveSession(systemEngine.startPipeSession(route))
+
+    override suspend fun downloadLanguagePack(language: String): Boolean = router.downloadLanguagePack(language)
+
     override fun cloud(entry: VoiceSttEntry, baseUrl: String, apiKey: String): STTEngine =
         CloudSTTEngine(httpClient, entry, baseUrl, apiKey, cloudCacheDir)
 }
 
-/** Voice catalog source: production uses [VoiceCatalogClient.asDictationCatalogSource]. */
+/** Source of the voice catalog: production uses [VoiceCatalogClient.asDictationCatalogSource]. */
 interface DictationCatalogSource {
     suspend fun loadCached(): VoiceCatalog?
 
@@ -159,22 +318,25 @@ fun VoiceCatalogClient.asDictationCatalogSource(): DictationCatalogSource = obje
     override suspend fun refresh(): VoiceCatalogState = this@asDictationCatalogSource.refresh()
 }
 
-/** Microphone permission: returns true immediately if already granted, otherwise shows the system prompt and suspends until the user chooses. */
+/** Microphone permission: returns true at once if granted, otherwise shows the system prompt and suspends until the user chooses. */
 fun interface MicrophonePermission {
     suspend fun request(): Boolean
 }
 
 /** Platform side effects of a dictation session. */
 interface DictationEnvironment {
-    /** Stops any read-aloud in progress before dictation starts. */
+    /** Stops any ongoing read-aloud before dictation starts. */
     fun stopReadAloud()
 
-    /** Recognition language (e.g. zh-Hans); null means no language hint. */
+    /** Recognition language saved in settings (e.g. zh-Hans); null = auto: cloud requests send no language (contract dictation.v1 rules.request). */
     fun recognitionLanguage(): String?
 
+    /** App UI language tag: the system engine and system routing use it when auto. */
+    fun uiLanguageTag(): String
+
     /**
-     * Observes interruptions while recording; closing the returned value unregisters. Called on the main thread, and [onInterrupted] is also invoked on the main thread.
-     * Production only hooks into going to the background (ProcessLifecycleOwner ON_STOP); other interruption sources such as phone calls are called back separately by the implementation.
+     * Listens for interruptions while recording; closing the returned value unregisters it. Called on the main thread; [onInterrupted] is also invoked on the main thread.
+     * Production only wires going to background (ProcessLifecycleOwner ON_STOP); other interruption sources such as phone calls are signaled by the implementation separately.
      */
     fun observeInterruptions(onInterrupted: () -> Unit): AutoCloseable {
         val observer = LifecycleEventObserver { _, event ->
@@ -186,11 +348,11 @@ interface DictationEnvironment {
     }
 }
 
-/** Fixed host identity used by [DictationCommands.bind] / [DictationCommands.detach] when the host passes none. */
+/** Fixed host identity used by [DictationCommands.bind] / [DictationCommands.detach] when the host does not pass one. */
 data object DefaultDictationOwner
 
 /**
- * The dictation control surface used by the host (input box): the state flows and commands. Implemented by [DictationController]; the host coordinator depends only on this interface, which keeps pure-JVM tests simple.
+ * Dictation control surface used by the host (input box): state flow and commands. Implemented by [DictationController]; the host coordinator depends only on this interface, to allow pure-JVM tests.
  */
 interface DictationCommands {
     val state: StateFlow<DictationState>
@@ -198,8 +360,11 @@ interface DictationCommands {
     val pendingDurationSec: StateFlow<Double?>
     val levelMeter: StateFlow<List<Float>>
 
-    /** The current host identity: set by [bind], cleared (null) when [detach] takes effect. */
+    /** Current host identity: set by [bind], cleared (null) when [detach] takes effect. */
     val boundOwner: StateFlow<Any?>
+
+    /** Live text the system engine emits while speaking: non-null while recording (and while waiting for the live result after stopping), null after wrap-up; always null for cloud. */
+    val livePartial: StateFlow<LiveTranscript?> get() = NO_LIVE_PARTIAL
 
     fun start(slotKey: String)
 
@@ -218,21 +383,24 @@ interface DictationCommands {
     fun bind(slotKey: String, owner: Any = DefaultDictationOwner)
 
     fun detach(slotKey: String, owner: Any = DefaultDictationOwner)
+
+    /** The user accepts the language-pack guidance ([DictationEvent.LanguagePackOffer]): downloads the on-device language pack for that language. Defaults to doing nothing. */
+    fun downloadLanguagePack(language: String) = Unit
 }
 
 /**
- * Main dictation flow: permission -> pick engine -> record (written into a [RecordingStore] slot) -> pre-check -> transcribe -> result event.
- * Only one session exists at a time; public methods are called on the main thread, and disk and capture operations run serially in submission order on [io] via [onStore].
- * The engine is chosen before recording starts from settings + catalog + connections ([providers], in the connection order from settings); this recording's transcription and retries all use it;
- * it is cleared after [bind] switches slots, and transcribing a saved recording re-resolves it from the current settings.
+ * Main dictation flow: permission -> choose engine -> record (into a [RecordingStore] slot) -> pre-check -> transcribe -> result event.
+ * Only one session at a time; public methods are called on the main thread, and disk and capture operations run serially on [io] in submission order via [onStore].
+ * The engine is chosen before recording starts from settings + catalog + connection ([providers] in the connection order from settings); transcription and retries of this recording use it;
+ * [bind] clears it after switching slots, and kept recordings re-resolve against the current settings when transcribed.
  *
- * When the UI switches conversation / cold-starts it calls [bind] to bind the slot key: a recording in progress is first wrapped up into Interrupted on the old slot before switching,
- * and if the new slot holds a previous recording (interrupted / failed / transcription killed) it shows Interrupted.
- * A controller has one host: the most recently bound slot receives events; when the host leaves it calls [detach], and a recording / transcription in progress is wrapped up as an interruption.
- * If transcription succeeds after the host has left that slot, nothing is inserted / sent and the recording is not deleted; it stays Interrupted until the host returns.
+ * When the UI switches session / on cold start it calls [bind] with the slot key: if recording, the original slot is wrapped up as Interrupted before switching;
+ * a new slot still holding a previous recording (interrupted / failed / transcription killed) shows Interrupted.
+ * A controller has one host: the last bound slot receives events (same as iOS); when the host leaves it calls [detach], and an ongoing recording / transcription is wrapped up as interrupted.
+ * When transcription succeeds the host is no longer on that slot: nothing is inserted or sent and the recording is not deleted; it stays Interrupted until the host returns.
  *
- * When the system route is self-recording ([SystemSTTRoute.SelfRecord]) the file-less branch runs: the recognizer opens the microphone itself, no slot is created, no [capture] is opened,
- * and nothing counts as lost; there is no recording to retry, so it never enters Interrupted / Failed, and both interruptions and errors wrap up with the recognized text and return to Idle.
+ * When the system route is self-record ([SystemSTTRoute.SelfRecord]) the no-file branch is used: the recognizer opens the mic itself, no slot is created and [capture] is not opened,
+ * no loss is counted (an exception); there is no recording to retry, so nothing goes to Interrupted / Failed; interruption or error wraps up with the recognized text and returns to Idle.
  */
 class DictationController(
     private val engines: DictationEngineFactory,
@@ -249,15 +417,15 @@ class DictationController(
     private val clock: () -> Long = SystemClock::elapsedRealtime,
     private val disclosure: VoiceDisclosureStore = settings.disclosure,
     private val catalogRefreshTimeoutMillis: Long = CATALOG_REFRESH_TIMEOUT_MILLIS,
-    /** Suspends until in-flight capture teardowns of voice / realtime sessions are done (one process-wide gate); returns false on timeout, so we never coexist with an AudioRecord that is still being released. */
+    /** Waits for an ongoing voice / live session capture stop to finish (a process-wide gate); returns false on timeout: never coexists with an AudioRecord still being released. */
     private val awaitCaptureTeardowns: suspend () -> Boolean = { CaptureTeardownGate.Shared.awaitTeardowns() },
     /**
-     * Registers a dictation capture teardown on the same gate (registration only, does not block) and returns an idempotent "finished" callback:
-     * voice / realtime sessions wait on it before opening capture, so they never coexist with an AudioRecord that dictation is still stopping.
+     * Registers a dictation capture stop on the same gate (registers only, does not block) and returns an idempotent "stop done": before a session or live capture starts, they wait for it,
+     * so it never coexists with a dictation AudioRecord still stopping.
      */
     private val beginCaptureTeardown: () -> () -> Unit = { CaptureTeardownGate.Shared.beginTeardown() },
 ) : DictationCommands {
-    /** Serial lock for slot-store reads and writes: undo restores, bind reads, discards, etc. queue in order and never interleave across two io threads. */
+    /** Serial lock for slot store reads/writes: undo-restore, binding reads, discards and so on queue in order and never interleave on two io threads. */
     private val storeLock = Mutex()
 
     private val _state = MutableStateFlow<DictationState>(DictationState.Idle)
@@ -265,21 +433,21 @@ class DictationController(
 
     private val _engineInfo = MutableStateFlow<DictationEngineInfo?>(null)
 
-    /** The engine selected for this recording (decided when recording starts or a saved recording is transcribed); cleared on return to Idle. */
+    /** Engine chosen for this recording (decided when recording starts or when a kept recording is transcribed); cleared on return to Idle. */
     override val engineInfo: StateFlow<DictationEngineInfo?> = _engineInfo.asStateFlow()
 
     private val _pendingDurationSec = MutableStateFlow<Double?>(null)
 
-    /** The slot key that [_pendingDurationSec] belongs to, and the sidecar read in flight. */
+    /** Slot key for [_pendingDurationSec] and the in-flight sidecar read. */
     private var pendingDurationKey: String? = null
     private var pendingDurationJob: Job? = null
 
-    /** The recording duration from the slot sidecar while Interrupted / SlotOccupied / Failed (null if unreadable); null in other states. */
+    /** Recording duration from the slot sidecar in Interrupted / SlotOccupied / Failed (null if unreadable); null in other states. */
     override val pendingDurationSec: StateFlow<Double?> = _pendingDurationSec.asStateFlow()
 
     private val meter = DictationLevelMeter(clock)
 
-    /** Recent audio levels while recording (up to 24, oldest first, 0..1) for the waveform; cleared on leaving Recording, and stays an empty list when the recognizer self-records without PCM. */
+    /** Recent volume while recording (at most 24, oldest first, 0..1) for the waveform; cleared on leaving Recording, and kept empty when the self-recognizer has no PCM. */
     override val levelMeter: StateFlow<List<Float>> = meter.levels
 
     private val _events = Channel<DictationEvent>(Channel.BUFFERED)
@@ -289,51 +457,69 @@ class DictationController(
     private var job: Job? = null
     private var interruptions: AutoCloseable? = null
 
-    /** The engine selected for this recording; chosen before recording starts and reused for transcription and retries. */
+    /** Engine chosen for this recording; chosen before recording starts and reused for transcription and retries. */
     private var engine: STTEngine? = null
 
-    /** Whether [engine] is a cloud engine; decided together with [engine]. */
+    /** Whether [engine] is cloud; decided together with [engine]. */
     private var engineCloud = false
 
-    /** Start time of the file-less branch recording. */
+    /** Self-record branch start time (the recording duration reported is from start to wrap-up). */
     private var selfRecordStartedAt = 0L
 
-    /** The self-recording session in progress on the file-less branch; cleared on wrap-up (including discard and interruption), so late results are ignored. */
+    /** The in-flight self-recording session on the no-file branch; cleared on wrap-up (including discard and interruption), and late results are ignored by it. */
     private var selfRecord: SystemSTTSelfRecordSession? = null
 
-    /** The coroutine waiting for the self-recording session result: it wraps up both the result after the user stops and a recognizer error during recording. */
+    /** Coroutine waiting for the self-recording session result: wrap-up after the user stops or on a recognizer error during recording. */
     private var selfRecordWatch: Job? = null
 
-    /** The slot key the UI currently shows (host); set by [bind] or [start], cleared by [detach]. */
+    /** The live session for this recording on the pipe route: non-null while recording and while waiting for the live result after stopping; closed and cleared on wrap-up (including discard, interruption and switching away). */
+    private var liveSession: DictationLiveSession? = null
+
+    private val _livePartial = MutableStateFlow<LiveTranscript?>(null)
+    override val livePartial: StateFlow<LiveTranscript?> = _livePartial.asStateFlow()
+
+    /** Coroutine that picks the route in the background and opens the live session after recording starts; cleared when ready (or abandoned). */
+    private var liveStart: Job? = null
+
+    /** Pre-roll of the opening PCM cached before [liveStart] is ready; cleared when ready or abandoned. */
+    private var pendingPreroll: DictationLivePreroll? = null
+
+    /** Coroutine forwarding live text from the live session (pipe or self-record) to [_livePartial]. */
+    private var liveCollector: Job? = null
+
+    /** This recording's live text was ever non-empty: on wrap-up as no speech / failed, or on ✕, [DictationEvent.LiveRetract] is sent based on this. */
+    private var liveShown = false
+
+    /** Slot key currently shown by the host UI; set by [bind] or [start], cleared by [detach]. */
     private var boundKey: String? = null
 
     private val _boundOwner = MutableStateFlow<Any?>(null)
 
-    /** The identity of the host bound to [boundKey]: when another host binds the same key the owner changes, and the old owner's [detach] no longer takes effect. */
+    /** Host identity bound to [boundKey]: when the same key is bound by another host the owner changes, and the old owner's [detach] no longer takes effect. */
     override val boundOwner: StateFlow<Any?> = _boundOwner.asStateFlow()
 
-    /** The coroutine of the start flow (permission -> pick engine -> open slot); cancelled when switching conversations. */
+    /** Coroutine of the start flow (permission -> engine -> open slot); cancelled when switching sessions. */
     private var startJob: Job? = null
 
-    /** The sweep + slot-read coroutine launched by [bind]; while it runs, [start] waits for it to finish and then acts on the state at that time, instead of treating it as a session in progress. */
+    /** The sweep + slot read coroutine started by [bind]; while it runs, [start] waits for it to finish before handling by the state then, and does not treat it as a session in progress. */
     private var bindJob: Job? = null
 
-    /** The discard / undo wrap-up coroutine of the current slot; while it runs, [start] likewise waits for it to finish and then acts on the state at that time. */
+    /** The discard / undo wrap-up coroutine of the current slot; while it runs, [start] likewise waits for it to finish before handling by the state then (same as iOS). */
     private var storeJob: Job? = null
 
-    /** The open undo window: the slot key waiting in the recycle area to be committed, and the timer that commits it; only one is open at a time. */
+    /** The open undo window: slot key waiting to be committed in the recycle area and the timer for committing on expiry; only one is open at a time. */
     private var undoKey: String? = null
     private var undoTimer: Job? = null
 
+
     /**
-     * Binds the slot key the UI currently shows (after switching conversation or cold start into a conversation); [owner] becomes the current host.
-     * The same key only changes the host (the home page and a new chat without a conversation share one key: when the new page binds first and the old page detaches later, the binding is not cleared).
-     * A recording in progress on the old slot is first wrapped up as an interruption (the file-less branch inserts the recognized text); while transcribing, the transcription in flight is cancelled and the sidecar is set to interrupted;
-     * a start flow that has not opened a slot yet is cancelled.
-     * The undo window is unaffected and commits on time as usual.
-     * If the new slot holds a saved recording (interrupted / failed / killed while transcribing) it shows Interrupted, otherwise Idle.
-     * Switching slots clears the selected engine: when the saved recording is transcribed it is re-resolved from the settings at that time.
-     * Before the first bind in this process, the slot store is swept once (expiry, lost count, crash recovery); see [sweepOnceBeforeFirstBind].
+     * Binds the slot key the UI currently shows (switching sessions, entering a session after cold start); [owner] is recorded as the current host.
+     * The same key only swaps the owner (the home page and a new chat without a session share one key: when the new page binds first and the old page detaches later, the binding is not cleared).
+     * A recording on the original slot is first wrapped up as interrupted (the no-file branch inserts the recognized text); a transcription in flight is cancelled and the sidecar is set to interrupted;
+     * if the start flow has not yet opened a slot, it is cancelled. The undo window is unaffected and commits on expiry as usual.
+     * A new slot holding a kept recording (interrupted / failed / transcription killed mid-way) shows Interrupted, otherwise Idle.
+     * Switching slots clears the selected engine: a kept recording re-resolves against the settings at that time when transcribed (same as iOS bind).
+     * The slot store is swept once before the first bind in this process (expired, lost count, crash recovery); see [sweepOnceBeforeFirstBind].
      */
     override fun bind(slotKey: String, owner: Any) {
         if (boundKey == slotKey) {
@@ -358,8 +544,8 @@ class DictationController(
     }
 
     /**
-     * Preview sample (DEBUG only): shows [state] directly without starting an engine, requesting recording, or opening a slot; a state with a slot key also makes it the current host key,
-     * so a host that binds the same key afterwards only changes owner and does not clear the state set here. While Recording the levels are fixed to [levels]; when not Idle the engine info is [engineInfo].
+     * Sample (DEBUG only): displays [state] directly, without starting the engine, requesting recording or opening a slot; states with a slot key also set it as the current host key,
+     * so a host that binds the same key afterwards only swaps the owner and does not clear the state here. Level is fixed at [levels] while recording; engine info is [engineInfo] when not Idle.
      */
     fun showForShots(state: DictationState, levels: List<Float> = emptyList(), engineInfo: DictationEngineInfo? = null) {
         if (!BuildConfig.DEBUG) return
@@ -377,7 +563,7 @@ class DictationController(
         if (state is DictationState.Recording) meter.showForShots(levels)
     }
 
-    /** The only entry point for changing state: returning to Idle clears the engine info; leaving Recording clears the levels; entering a saved-recording state reads the sidecar duration. */
+    /** The only entry point for changing state: clears the engine info when returning to Idle; clears the level on leaving Recording; reads the sidecar duration for kept-recording states. */
     private fun setState(next: DictationState) {
         _state.value = next
         if (next !is DictationState.Recording) meter.reset()
@@ -388,7 +574,7 @@ class DictationController(
             is DictationState.Failed -> next.slotKey
             else -> null
         }
-        // The sidecar is read on io and published back on the main thread; the same key keeps the old value until the read finishes, while a new key or leaving clears it first. A new state cancels the previous read.
+        // The sidecar is read on io and published back on the main thread; for the same key the old value is kept until the read finishes, and cleared when the key changes or on leaving the state. A new state cancels the previous read.
         pendingDurationJob?.cancel()
         pendingDurationJob = null
         if (pendingKey != pendingDurationKey) _pendingDurationSec.value = null
@@ -401,8 +587,12 @@ class DictationController(
     }
 
     /**
-     * Stops capture (on io: joins the capture thread and releases the AudioRecord), and once stopped releases the [stopped] registered on the gate (also released if stopping errors).
-     * The caller invokes [stopped] once more when its coroutine ends as a safety net: if this was never reached (cancelled), the gate is not held forever.
+     * Runs a slot store / capture operation on [io], serialized with other such operations (first come, first served); with [nonCancellable], both queuing and execution are non-cancellable.
+     * Does not use io.limitedParallelism(1): the Unconfined dispatcher injected by tests does not support deriving a restricted view.
+     */
+    /**
+     * Stops capture (on io: joins the capture thread and releases the AudioRecord); once stopped, releases the [stopped] registered on the gate (also released if stopping errors).
+     * The caller calls [stopped] once more when its coroutine wraps up as a safety net: if this was never reached (cancelled), the gate is not held forever.
      */
     private fun stopCapture(stopped: (() -> Unit)?) {
         try {
@@ -412,10 +602,6 @@ class DictationController(
         }
     }
 
-    /**
-     * Runs a slot-store / capture operation on [io], serialized with other such operations (first come, first served); with [nonCancellable], both queueing and execution are non-cancellable.
-     * io.limitedParallelism(1) is not used: the Unconfined dispatcher injected by tests does not support deriving a limited view.
-     */
     private suspend fun <T> onStore(nonCancellable: Boolean = false, block: suspend CoroutineScope.() -> T): T =
         if (nonCancellable) {
             withContext(NonCancellable) { storeLock.withLock { withContext(io, block) } }
@@ -423,12 +609,48 @@ class DictationController(
             storeLock.withLock { withContext(io, block) }
         }
 
-    /** Dismisses the permission-denied card: returns to Idle only from Denied, ignored in other states. */
+    /** Starts forwarding [live] to [livePartial] (clears the text first; non-null while recording). */
+    private fun followLive(live: StateFlow<LiveTranscript>) {
+        liveCollector?.cancel()
+        liveShown = false
+        _livePartial.value = LiveTranscript()
+        liveCollector = scope.launch {
+            live.collect { transcript ->
+                if (LiveDictationRules.livePartial(transcript.finals, transcript.partial).text.isNotEmpty()) liveShown = true
+                _livePartial.value = transcript
+            }
+        }
+    }
+
+    /** Stops forwarding live text; [livePartial] set to null. */
+    private fun stopFollowingLive() {
+        liveCollector?.cancel()
+        liveCollector = null
+        _livePartial.value = null
+    }
+
+    /** Early wrap-up (interrupt / discard / switch away): closes the pipe live session and stops forwarding; does not retract (call [retractLive] first if retracting). */
+    private fun abandonLive() {
+        cancelPendingLive()
+        liveSession?.cancel()
+        liveSession = null
+        liveShown = false
+        stopFollowingLive()
+    }
+
+    /** If live text ever appeared on screen, sends [DictationEvent.LiveRetract] once (not again afterwards). */
+    private fun retractLive(slotKey: String) {
+        if (!liveShown) return
+        liveShown = false
+        _events.trySend(DictationEvent.LiveRetract(slotKey))
+    }
+
+    /** Dismisses the microphone-denied prompt card: returns to Idle only in Denied; other states are ignored. */
     override fun dismissDenied() {
         if (_state.value == DictationState.Denied) setState(DictationState.Idle)
     }
 
-    /** The same slot-store directory is swept only once per process: only after the original slot has been wrapped up as interrupted, so this process's own recording is never mistaken for crash recovery. */
+    /** The same slot store directory is swept only once per process: sweeping happens only after the original slot has been wrapped up as interrupted, so this process's own recording is never mistaken for crash recovery. */
     private fun sweepOnceBeforeFirstBind() {
         val key = store.root.absoluteFile.normalize().path
         if (!synchronized(sweptRoots) { sweptRoots.add(key) }) return
@@ -444,21 +666,24 @@ class DictationController(
         }
         if (state is DictationState.Transcribing) return abandonTranscription(state.slotKey)
         val inFlight = job?.takeIf { it.isActive } ?: return null
-        // A start flow is cancelled directly; wrap-up tasks such as discard and slot reads are awaited.
+        // The start flow is cancelled directly; discard, slot reads and other wrap-up tasks are waited on.
         if (inFlight === startJob) inFlight.cancel()
         return inFlight
     }
 
     /**
-     * Wraps up while transcribing (switching away / host leaving): the file-less branch inserts the recognized text; the file branch cancels the transcription in flight and, once it ends, sets the sidecar to interrupted.
-     * Returns the task to wait for (null for the file-less branch); the caller sets the state.
+     * Wraps up while transcribing (switching away / host leaving): the no-file branch inserts the recognized text; the file branch cancels the in-flight transcription and sets the sidecar to interrupted once it ends.
+     * Returns the task to wait for (null for the no-file branch); the caller sets the state.
      */
     private fun abandonTranscription(slotKey: String): Job? {
         selfRecord?.let { session ->
-            // Leaving while waiting for the file-less result: there is no recording to keep, and the recognized text is inserted as for an interruption.
+            // Leaving the no-file branch while waiting for a result: there is no recording to keep, so the recognized text is inserted as an interruption.
             insertInterruptedSelfRecord(slotKey, abandonSelfRecord(session))
             return null
         }
+        // The recording is kept and the whole thing will be inserted on later transcription: retract the live text on screen first to avoid duplication.
+        retractLive(slotKey)
+        abandonLive()
         val inFlight = job?.takeIf { it.isActive }
         inFlight?.cancel()
         return scope.launch {
@@ -468,9 +693,9 @@ class DictationController(
     }
 
     /**
-     * Host leaves (UI destroyed / leaves the conversation): takes effect only if the current slot key is [slotKey] and the host identity is [owner], and clears the host.
-     * While recording it wraps up via [interrupt]; while transcribing it cancels the transcription in flight and leaves the recording as Interrupted (the file-less branch inserts the recognized text and returns to Idle, with the event left in the channel).
-     * Interrupted / Failed / SlotOccupied / Idle are unchanged; a start flow whose permission returns after the host has left is voided.
+     * Host leaves (UI destroyed / leaving the session): takes effect only if the current slot key is [slotKey] and the host identity is [owner]; clears the host.
+     * Wraps up a recording in progress with [interrupt]; cancels an in-flight transcription and leaves the recording as Interrupted (the no-file branch inserts the recognized text and returns to Idle, with the event kept in the channel).
+     * Interrupted / Failed / SlotOccupied / Idle are unchanged; the start flow voids itself when it sees the host has left at permission return.
      */
     override fun detach(slotKey: String, owner: Any) {
         if (boundKey != slotKey || _boundOwner.value != owner) return
@@ -493,16 +718,16 @@ class DictationController(
     }
 
     /**
-     * Microphone tap: stops read-aloud first, then checks the slot; if the same key still holds a recording it enters SlotOccupied for the user to choose, without requesting permission or resolving an engine;
-     * only if the slot is empty does it request permission, pick an engine, open a slot, and start capture. Ignored while a session is in progress.
-     * If binding for the same key (first cold-start sweep, slot read) or a discard / undo wrap-up is still running, the tap is not dropped: read-aloud stops first, and once it finishes the flow above runs against the state at that time.
+     * Tapping the microphone (same as iOS micTapped): stops read-aloud first, then checks the slot; if the same key still holds a recording, goes to SlotOccupied for the user to choose, with no permission and no engine resolution;
+     * only when the slot is empty does it request permission, choose the engine, open the slot and start capture. Ignored while a session is in progress.
+     * If the same key's binding (first sweep on cold start, slot read) or a discard / undo wrap-up is still running, it does not discard: it stops read-aloud first and waits for those to finish before following the flow above by the state then.
      */
     override fun start(slotKey: String) {
         val active = job?.takeIf { it.isActive }
         if (active != null && (active === bindJob || active === storeJob) && boundKey == slotKey) {
             environment.stopReadAloud()
             job = scope.launch {
-                // Even if cancelled by a conversation switch, still wait for the bind to finish: a later bind waits on this task, so the sweep must not still be running.
+                // When the session is cancelled, also wait for the binding to finish: a later bind waits for this task, and the sweep must not still be running.
                 withContext(NonCancellable) { active.join() }
                 if (!isActive || boundKey != slotKey) return@launch
                 when (_state.value) {
@@ -518,30 +743,32 @@ class DictationController(
             DictationState.Idle, DictationState.Denied, is DictationState.Interrupted, is DictationState.Failed -> Unit
             else -> return
         }
-        // If the key is already current, the host is not changed; when the key changes, the current host is kept (or the default identity if it has left).
+        // When the key is already the current key the host is not changed; when the key changes, the current host is kept (or the default identity if it has left).
         if (boundKey != slotKey) bind(slotKey, _boundOwner.value ?: DefaultDictationOwner)
         val binding = job?.takeIf { it.isActive }
         environment.stopReadAloud()
         job = scope.launch {
             if (askIfOccupied(slotKey)) return@launch
-            // The first-bind sweep must finish first, so a slot just opened is not mistaken for crash recovery.
+            // The first binding's sweep must finish first, so the slot just opened is not treated as crash recovery.
             binding?.join()
             begin(slotKey)
         }.also { startJob = it }
     }
 
-    /** If the same key still holds a recording, enters SlotOccupied for the user to choose and returns true; returns false if the slot is empty. */
+    /** If the same key still holds a recording, goes to SlotOccupied for the user to choose and returns true; returns false if the slot is empty. */
     private suspend fun askIfOccupied(slotKey: String): Boolean {
         if (!onStore { store.isOccupied(slotKey) }) return false
-        // Does not go through bind to switch to the occupied key: the engine chosen for the previous recording is not reused, and "Transcribe first" re-resolves from the current settings.
+        // Switching to an occupied key without bind: the engine chosen for the previous recording is not reused; "transcribe first" re-resolves against the current settings.
         engine = null
         _engineInfo.value = null
         setState(DictationState.SlotOccupied(slotKey))
         return true
     }
 
-    /** Permission -> pick engine -> open slot and start capture; if the host has left the slot when permission returns, or after the engine is chosen and before the slot is opened, the start is voided (no slot is created). */
+    /** Permission -> engine -> open slot and start capture; if the host has left the slot when permission returns or before the engine is opened, the start is voided (no slot is created). */
     private suspend fun begin(slotKey: String) {
+        // A new dictation: the previous live text has already been wrapped up.
+        liveShown = false
         val granted = permission.request()
         if (abandonedByHost(slotKey)) return
         if (!granted) {
@@ -560,9 +787,12 @@ class DictationController(
         }
         engine = selected.engine
         engineCloud = selected.info.isCloud
+        // Before the live session is ready, PCM is kept in the pre-roll and fed in one go when it becomes ready.
+        val preroll = if (selected.live) DictationLivePreroll() else null
         val relay = CaptureRelay()
-        // Opening the slot and starting capture are non-cancellable: when a conversation switch cancels the start, a slot already opened must be torn down here and not left half-way.
-        val opened = onStore(nonCancellable = true) { openAndCapture(slotKey, selected, relay) }
+        // Slot creation and capture start are not cancellable: when a session switch cancels the start, a slot already opened must be torn down here and not left half-done.
+        val opened = onStore(nonCancellable = true) { openAndCapture(slotKey, selected, relay, preroll) }
+        if (opened !is OpenResult.Opened || !currentCoroutineContext().isActive) preroll?.close()
         if (!currentCoroutineContext().isActive) {
             if (opened is OpenResult.Opened) {
                 val stopped = beginCaptureTeardown()
@@ -588,25 +818,82 @@ class DictationController(
                 relay.target = opened.slot
                 slot = opened.slot
                 setState(DictationState.Recording(slotKey, clock()))
-                // Levels are collected only after entering Recording: a capture torn down mid-start leaves no value behind.
+                // Volume is only collected after entering Recording: a capture torn down midway through starting leaves no value.
                 meter.start()
                 interruptions = environment.observeInterruptions(::interrupt)
-                // If capture already errored / was muted before the slot was attached, that report found no slot, so wrap up here.
+                preroll?.let { prepareLive(it) }
+                // Capture already errored / was muted before the slot was installed: that report found no slot, so wrap-up is completed here.
                 if (relay.reported) interrupt()
             }
         }
     }
 
-    /** The host is no longer on [slotKey] while starting: if it left (no host) return to Idle; if it moved to another slot, leave that slot's state alone. */
+    /**
+     * After recording starts, picks the route in the background and opens the live session; when ready it first feeds the opening in [preroll] and then attaches the live frames.
+     * If the route is not the pipe (on a cold cache it becomes known to be self-record / unavailable) or listening fails to start, only recording-then-transcription is used this time; the recording itself is unaffected.
+     * Finishing / ✕ / interruption before readiness is cancelled by [cancelPendingLive].
+     */
+    private fun prepareLive(preroll: DictationLivePreroll) {
+        pendingPreroll = preroll
+        liveStart = scope.launch {
+            val route = engines.systemRoute(systemLanguage()) as? SystemSTTRoute.Pipe
+            if (route == null) {
+                preroll.close()
+                return@launch
+            }
+            offerLanguagePack(route.languagePackOffer, route.languageTag)
+            val live = startLive(route)
+            if (live == null) {
+                preroll.close()
+                return@launch
+            }
+            val attached = try {
+                // Feeding may block until the session makes room; not done on the main thread.
+                withContext(io) { preroll.attach(live) }
+            } catch (error: CancellationException) {
+                live.cancel()
+                throw error
+            }
+            if (!attached || !isActive) {
+                live.cancel()
+                return@launch
+            }
+            pendingPreroll = null
+            liveStart = null
+            liveSession = live
+            followLive(live.live)
+        }
+    }
+
+    /** The live session is not ready when wrap-up happens: no longer waited for, and the pre-roll is dropped. */
+    private fun cancelPendingLive() {
+        liveStart?.cancel()
+        liveStart = null
+        pendingPreroll?.close()
+        pendingPreroll = null
+    }
+
+    /** Opens the live session on the pipe route; a failure to start listening does not affect recording, and this time only recording-then-transcription is used. */
+    private suspend fun startLive(route: SystemSTTRoute.Pipe): DictationLiveSession? =
+        try {
+            engines.startPipeSession(route)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            null
+        }
+
+    /** The host is no longer on [slotKey] during recording start: if it left (host empty) returns to Idle; if it switched to another slot, its state is not touched. */
     private fun abandonedByHost(slotKey: String): Boolean {
         if (boundKey == slotKey) return false
         if (boundKey == null) setState(DictationState.Idle)
         return true
     }
 
-    /** Starts recording on the file-less branch: the recognizer opens the microphone itself; a failure to start listening is treated as capture being unable to start. */
+    /** No-file-branch recording start: the recognizer opens the mic itself; failure to start listening is handled as capture failing to start. */
     private suspend fun beginSelfRecord(slotKey: String, route: SystemSTTRoute.SelfRecord) {
         engine = null
+        offerLanguagePack(route.languagePackOffer, route.languageTag)
         val session = try {
             engines.startSelfRecord(route)
         } catch (error: CancellationException) {
@@ -617,72 +904,111 @@ class DictationController(
             return
         }
         if (!currentCoroutineContext().isActive) {
-            // Switched away while starting to listen: shut the recognizer down and do not enter recording.
+            // Switched away while listening was starting: the recognizer is shut down and recording is not entered.
             session.interrupt()
             return
         }
         selfRecord = session
         selfRecordStartedAt = clock()
         setState(DictationState.Recording(slotKey, selfRecordStartedAt))
-        // There is no app capture: the recording bar's level comes from the recognizer's onRmsChanged.
+        // No app capture: the recording bar's volume comes from the recognizer's onRmsChanged.
         meter.start()
         session.onLevel = meter::onRecognizerRmsDb
+        followLive(session.live)
         interruptions = environment.observeInterruptions(::interrupt)
         selfRecordWatch = scope.launch { concludeSelfRecord(slotKey, session, session.await()) }
     }
 
-    /** The self-recording session produced a result: on success insert / send according to how it ended (empty text means NoSpeech); on failure first insert the already-recognized text, then report the recognizer failure. */
+    /**
+     * Result of a self-recording session: a recognizer permission report first enters the existing microphone-permission card (on-screen text is still inserted, no failure event); otherwise, wrap-up follows
+     * [LiveDictationRules.dictationOutcome] (hasRecording=false): the on-screen text (finalized + last unfinalized) is inserted / sent;
+     * no recognized speech means NoSpeech, and a failure enters the failure card by failure kind (a timeout counts as busy; with no recording to retry, canRetry=false).
+     */
     private fun concludeSelfRecord(slotKey: String, session: SystemSTTSelfRecordSession, result: STTResult) {
         if (selfRecord !== session) return
         selfRecord = null
         selfRecordWatch = null
         releaseInterruptions()
+        stopFollowingLive()
         val submit = (_state.value as? DictationState.Transcribing)?.submit ?: DictationSubmit.Insert
         setState(DictationState.Idle)
-        when (result) {
-            is STTResult.Success -> {
-                val empty = DictationRules.trim(result.text).isEmpty()
-                _events.trySend(
-                    when {
-                        empty -> DictationEvent.NoSpeech(slotKey)
-                        submit == DictationSubmit.Send -> DictationEvent.Send(slotKey, result.text)
-                        else -> DictationEvent.Insert(slotKey, result.text)
-                    },
-                )
+        val transcript = session.live.value
+        if (isPermissionFailure(result)) {
+            val shown = LiveDictationRules.livePartial(transcript.finals, transcript.partial).text
+            if (shown.isNotEmpty()) {
+                deliverSelfRecord(slotKey, DictationSubmit.Insert, shown)
+            } else {
+                retractLive(slotKey)
             }
-            is STTResult.Failed -> {
-                // A failed result carries no text; the already-recognized part comes from the text the session accumulated.
-                val recognized = session.transcript
-                if (DictationRules.trim(recognized).isNotEmpty()) {
-                    // Already-recognized text is still inserted.
-                    _events.trySend(DictationEvent.Insert(slotKey, recognized))
-                }
-                _events.trySend(DictationEvent.SystemRecognizerFailed(slotKey))
+            setState(DictationState.Denied)
+            return
+        }
+        val outcome = LiveDictationRules.dictationOutcome(liveSessionResult(result, transcript, hasRecording = false), null)
+        when (outcome.result) {
+            DictationOutcomeResult.Text ->
+                // Failed wrap-up but there is text on screen: inserted as is, no failure event; only a successful wrap-up is sent according to the submit mode.
+                deliverSelfRecord(
+                    slotKey,
+                    if (result is STTResult.Success) submit else DictationSubmit.Insert,
+                    checkNotNull(outcome.text),
+                )
+            DictationOutcomeResult.NoTranscript -> {
+                retractLive(slotKey)
+                _events.trySend(DictationEvent.NoSpeech(slotKey))
+            }
+            DictationOutcomeResult.Failed -> {
+                retractLive(slotKey)
+                // No recording: the failure card does not take a slot, and the primary action is to dictate again.
+                setState(
+                    DictationState.Failed(
+                        slotKey,
+                        failedAction(checkNotNull(outcome.failureKind)),
+                        systemLanguage(),
+                        hasRecording = false,
+                    ),
+                )
             }
         }
     }
 
-    /** The file-less branch was interrupted / the host left: insert the recognized text if there is any. */
+    /** Result of a self-recording lands: records ended, sends insert / send by [submit]. */
+    private fun deliverSelfRecord(slotKey: String, submit: DictationSubmit, text: String) {
+        _events.trySend(
+            when (submit) {
+                DictationSubmit.Insert -> DictationEvent.Insert(slotKey, text)
+                DictationSubmit.Send -> DictationEvent.Send(slotKey, text)
+            },
+        )
+    }
+
+    /** Recognizer reported permission (code table permission). */
+    private fun isPermissionFailure(result: STTResult): Boolean {
+        val code = ((result as? STTResult.Failed)?.failure as? DictationFailure.Recognizer)?.code ?: return false
+        return SystemFailure.kindOf(SystemFailureInput.Code(code)) == SystemFailureKind.Permission
+    }
+
+    /** No-file branch interrupted / host left: if there is recognized text, it is inserted as an interruption; no text means nothing is inserted. */
     private fun insertInterruptedSelfRecord(slotKey: String, recognized: String) {
         if (DictationRules.trim(recognized).isEmpty()) return
         _events.trySend(DictationEvent.Insert(slotKey, recognized))
     }
 
-    /** Early wrap-up of the file-less branch (interruption / discard): abandons the current round, stops waiting for the session result, and returns the recognized text. */
+    /** No-file branch early wrap-up (interrupt / discard): abandons the current turn without waiting for the session result, and returns the recognized text. */
     private fun abandonSelfRecord(session: SystemSTTSelfRecordSession): String {
         selfRecord = null
         selfRecordWatch?.cancel()
         selfRecordWatch = null
         releaseInterruptions()
+        stopFollowingLive()
         session.interrupt()
         return session.transcript
     }
 
-    /** Ends the recording and transcribes: [submit] decides whether success inserts or sends. Ignored when not recording. */
+    /** Ends recording and transcribes: [submit] decides whether success inserts or sends. Ignored when not recording. */
     override fun finish(submit: DictationSubmit) {
         val recording = _state.value as? DictationState.Recording ?: return
         selfRecord?.let { session ->
-            // File-less branch: ask the recognizer to end this round; the result is wrapped up by selfRecordWatch.
+            // No-file branch: lets the recognizer end this turn; the result is wrapped up by selfRecordWatch.
             setState(DictationState.Transcribing(recording.slotKey, submit))
             session.stop()
             return
@@ -691,56 +1017,120 @@ class DictationController(
         slot = null
         releaseInterruptions()
         val slotKey = recording.slotKey
+        // The live session is not ready yet: go straight to recording-then-transcription.
+        cancelPendingLive()
+        val live = liveSession
         setState(DictationState.Transcribing(slotKey, submit))
-        // The capture stop is registered at the moment stop is tapped; voice / realtime sessions that open capture afterwards wait for it to finish.
+        // Capture stop is registered at the moment stop is tapped; live and session capture opened afterwards wait for it to finish stopping.
         val stopped = beginCaptureTeardown()
         job = scope.launch {
-            // ✕ while transcribing cancels this coroutine: closing the file and finalizing the sidecar are non-cancellable, so a discard can judge undoability by the real duration.
+            // ✕ during transcription cancels this coroutine: the file is closed and the sidecar finalization is not cancellable, so a discard can judge whether it is undoable by the real duration.
             var closed = true
             val meta = onStore(nonCancellable = true) {
                 stopCapture(stopped)
+                // Stop the live session after capture stops: the last PCM segment is also sent to the recognizer.
+                live?.stop()
                 closed = closeSlot(current, RecordingSlotStatus.Ready)
                 store.read(slotKey)
             }
+            val awaited = live?.let { awaitLive(it) }
+            if (awaited != null && isPermissionFailure(awaited.first)) {
+                // The live session reported permission: before merging results, enter the existing microphone-permission card with no failure event; on-screen text is retracted, and the recording stays in the slot for a retry.
+                retractLive(slotKey)
+                if (closed && meta != null) onStore { runCatching { store.updateStatus(slotKey, RecordingSlotStatus.Failed) } }
+                setState(DictationState.Denied)
+                return@launch
+            }
+            val liveResult = awaited?.second
+            if (liveResult != null && liveResult.ended == LiveEnded.Ok && !liveResult.droppedAudio &&
+                DictationRules.join(liveResult.finals).isNotEmpty()
+            ) {
+                // Live ended normally, the finalized text is non-empty and no audio chunk was dropped: use it directly without recognizing the recording.
+                val outcome = LiveDictationRules.dictationOutcome(liveResult, null)
+                deliver(slotKey, submit, checkNotNull(outcome.text), meta?.durationSec ?: 0.0)
+                return@launch
+            }
+            // If the recording side cannot produce a result, the live text on screen (finalized + last unfinalized) is kept.
+            val shown = liveResult?.let { LiveDictationRules.livePartial(it.finals, it.partial).text }.orEmpty()
             if (!closed) {
-                // Closing the file failed: the part already written stays in the slot and the state goes to Failed so the user can retry or discard; it is not treated as a missing sidecar and cleared.
+                if (shown.isNotEmpty()) {
+                    deliver(slotKey, submit, shown, meta?.durationSec ?: 0.0)
+                    return@launch
+                }
+                retractLive(slotKey)
+                // File close failed: the partly written data stays in the slot and it enters Failed so the user can retry or discard; it is not cleaned up as a missing sidecar.
                 fail(slotKey, DictationFailedAction.Retry)
                 return@launch
             }
             if (meta == null) {
-                // The sidecar is gone after finalizing (disk full / deleted): the recording can no longer be transcribed, so clear the orphan audio and return to Idle.
+                if (shown.isNotEmpty()) {
+                    deliver(slotKey, submit, shown, 0.0)
+                    return@launch
+                }
+                retractLive(slotKey)
+                // Sidecar missing after finalization (disk full / deleted): the recording can no longer be transcribed, so the orphan audio is cleared and it returns to Idle.
                 dropUnreadableSlot(slotKey)
                 return@launch
             }
             if (DictationRules.precheck(meta.durationSec, meta.envelope) != DictationPrecheck.Ok) {
+                if (shown.isNotEmpty()) {
+                    deliver(slotKey, submit, shown, meta.durationSec)
+                    return@launch
+                }
+                retractLive(slotKey)
                 onStore { store.complete(slotKey) }
                 setState(DictationState.Idle)
                 _events.trySend(DictationEvent.NoSpeech(slotKey))
                 return@launch
             }
-            transcribe(slotKey, submit, meta)
-        }.also { it.invokeOnCompletion { stopped() } }
+            transcribe(slotKey, submit, meta, live = liveResult)
+        }.also {
+            it.invokeOnCompletion {
+                stopped()
+                // Cancelled by ✕ / switching away: the live session is also closed.
+                live?.cancel()
+            }
+        }
     }
 
-    /** Tapping "Retry" on Failed: transcribes the recording kept in the slot once more; on success it only inserts and never sends directly (even if "↑" was tapped originally). */
+    /**
+     * Waits for the live session result after stopping (the session has its own limit, plus a further cap of [SystemSTTEngine.STOP_RESULT_TIMEOUT_MS] here);
+     * stops forwarding live text, and returns the original result and a [LiveSessionResult] folded with hasRecording=true.
+     */
+    private suspend fun awaitLive(live: DictationLiveSession): Pair<STTResult, LiveSessionResult> {
+        val result = withTimeoutOrNull(SystemSTTEngine.STOP_RESULT_TIMEOUT_MS) { live.await() }
+            ?: SystemSTTEngine.TIMEOUT_RESULT
+        val transcript = live.live.value
+        if (liveSession === live) {
+            liveSession = null
+            stopFollowingLive()
+        }
+        live.cancel()
+        return result to liveSessionResult(result, transcript, hasRecording = true)
+    }
+
+    /** Retry on Failed: transcribes the recording kept in the slot once more; after success it only inserts and does not send directly (even if the original action was "up arrow"). */
     fun retry() {
         if (_state.value !is DictationState.Failed) return
         transcribeSaved(DictationSubmit.Insert)
     }
 
     /**
-     * Transcribes the recording kept in the slot: "Transcribe" / "↑" on Interrupted, "Transcribe first" on SlotOccupied, or retry on Failed.
-     * No pre-check is done (a crash-recovered sidecar has no envelope); the segment's envelope and primingFrames come from the sidecar, and if the sidecar is gone it returns to Idle.
-     * On success it inserts or sends per [submit] and deletes the slot; on failure it enters Failed and the recording stays. Ignored in other states.
+     * Transcribes the recording kept in the slot: "Transcribe" / "up arrow" on Interrupted, "transcribe first" on SlotOccupied, or retry on Failed.
+     * No pre-check is done (a crash-recovered sidecar has no envelope); envelope and primingFrames come from the sidecar, and if the sidecar is gone it returns to Idle.
+     * On success it inserts or sends per [submit] and deletes the slot; on failure it enters Failed and the recording stays. Other states are ignored.
      */
     override fun transcribeSaved(submit: DictationSubmit) {
         val slotKey = when (val state = _state.value) {
             is DictationState.Interrupted -> state.slotKey
             is DictationState.SlotOccupied -> state.slotKey
-            is DictationState.Failed -> state.slotKey
+            // A failure with no recording (self-recording) has nothing to transcribe.
+            is DictationState.Failed -> if (state.hasRecording) state.slotKey else return
             else -> return
         }
         if (job?.isActive == true) return
+        // A kept recording has no live text to retract.
+        liveShown = false
         setState(DictationState.Transcribing(slotKey, submit))
         job = scope.launch {
             val meta = onStore { store.read(slotKey) }
@@ -748,7 +1138,7 @@ class DictationController(
                 dropUnreadableSlot(slotKey)
                 return@launch
             }
-            // Found expired or lost while running (sidecar present, audio missing): clear the slot as the launch sweep does and return to Idle.
+            // Expired or lost while running (sidecar present, audio missing): cleared like the startup sweep, the slot is removed and each is counted once, returning to Idle.
             val gone = onStore { store.isExpired(meta) || !store.audioFile(slotKey).exists() }
             if (gone) {
                 dropUnreadableSlot(slotKey)
@@ -758,9 +1148,19 @@ class DictationController(
         }
     }
 
-    /** "Discard and re-record" on SlotOccupied: deletes the old recording directly (the new recording takes the same slot, so no undo is offered), then starts a new recording. Ignored in other states. */
+    /**
+     * "Discard and re-record" on SlotOccupied: deletes the old recording directly (the new recording takes the same slot, so no undo is offered), then starts a new recording.
+     * On a Failed with no recording (self-recording failure): closes the card and starts a new dictation at once. Other states are ignored.
+     */
     override fun discardAndRestart() {
-        val occupied = _state.value as? DictationState.SlotOccupied ?: return
+        val current = _state.value
+        if (current is DictationState.Failed && !current.hasRecording) {
+            if (job?.isActive == true) return
+            setState(DictationState.Idle)
+            start(current.slotKey)
+            return
+        }
+        val occupied = current as? DictationState.SlotOccupied ?: return
         if (job?.isActive == true) return
         val slotKey = occupied.slotKey
         setState(DictationState.Idle)
@@ -771,11 +1171,11 @@ class DictationController(
         }.also { startJob = it }
     }
 
-    /** The recording was interrupted (backgrounded, phone call, etc.): switches to Interrupted synchronously; stopping capture, closing the file, and marking the sidecar interrupted run on io, and the recording stays in the slot. Ignored in other states. */
+    /** Recording interrupted (going to background, phone call, etc.): switches to Interrupted synchronously, stops capture, closes the file, and marks the sidecar interrupted on io; the recording stays in the slot. Other states are ignored. */
     fun interrupt() {
         val recording = _state.value as? DictationState.Recording ?: return
         selfRecord?.let { session ->
-            // The file-less branch has no recording to keep: the recognized text is inserted directly and the state returns to Idle.
+            // The no-file branch has no recording to keep: the recognized text is inserted directly and returns to Idle.
             val recognized = abandonSelfRecord(session)
             setState(DictationState.Idle)
             insertInterruptedSelfRecord(recording.slotKey, recognized)
@@ -784,16 +1184,19 @@ class DictationController(
         val current = slot ?: return
         slot = null
         releaseInterruptions()
-        // Stopping capture joins the capture thread, so it must not run on the main thread. ADTS flushes after every frame and has no file trailer, so killing the process before closing loses nothing already written:
-        // on the next launch sweepOnLaunch recomputes sidecars still marked recording from the file and sets them to interrupted.
-        // UNDISPATCHED: it is already queued on storeLock before returning, so later slot-store operations of a slot switch / new recording queue behind it.
-        // Queue the wrap-up before switching state: the sidecar duration read started by setState also goes through storeLock and must queue after the file is closed and the duration finalized.
+        // The recording stays in the slot and the whole thing will be inserted on later transcription: retract the live text on screen first to avoid duplication.
+        retractLive(recording.slotKey)
+        abandonLive()
+        // Stopping capture joins the capture thread, so not on the main thread. ADTS is flushed after each frame and has no file trailer, so if the process is killed before close, the written part is not lost:
+        // on the next launch sweepOnLaunch recomputes the sidecar still marked recording from the file and sets it to interrupted.
+        // UNDISPATCHED: it is already queued on storeLock before returning, so later slot-store operations such as switching slots or starting a recording queue behind it.
+        // Queue the wrap-up before switching state: the sidecar duration read triggered by setState also goes through storeLock, and must come after closing the file writes the duration.
         val stopped = beginCaptureTeardown()
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             onStore(nonCancellable = true) {
                 stopCapture(stopped)
                 if (!closeSlot(current, RecordingSlotStatus.Interrupted)) {
-                    // Closing the file failed: the part already written stays in the slot anyway, and we mark the sidecar interrupted on a best-effort basis.
+                    // File close failed: the partly written data stays in the slot and the sidecar is marked interrupted as far as possible.
                     runCatching { store.markInterrupted(recording.slotKey) }
                 }
             }
@@ -802,14 +1205,19 @@ class DictationController(
     }
 
     /**
-     * ✕ discards a recording that is recording / transcribing / interrupted / failed / occupying a slot: one longer than 5 seconds goes to the recycle area and emits [DictationEvent.DiscardUndoable]; otherwise it is deleted directly.
-     * While transcribing, the transcription in flight is cancelled first and the discard happens after it wraps up.
+     * ✕ discards a recording in progress / transcribing / interrupted / failed / occupied slot: longer than 5 seconds goes to the recycle area and sends [DictationEvent.DiscardUndoable]; otherwise it is deleted directly.
+     * While transcribing, the in-flight transcription is cancelled first and the discard happens after it wraps up.
      */
     override fun discard() {
         selfRecord?.let { session ->
-            // File-less branch: there is no recording to undo, so return to Idle immediately.
+            // No-file branch: no recording to undo, returns to Idle immediately.
             commitUndoWindow()
             abandonSelfRecord(session)
+            when (val state = _state.value) {
+                is DictationState.Recording -> retractLive(state.slotKey)
+                is DictationState.Transcribing -> retractLive(state.slotKey)
+                else -> Unit
+            }
             setState(DictationState.Idle)
             return
         }
@@ -824,6 +1232,11 @@ class DictationController(
         }
         val inFlight = job?.takeIf { it.isActive }
         if (inFlight != null && !transcribing) return
+        // While recording or transcribing, ✕ also retracts the live text on screen.
+        if (_state.value is DictationState.Recording || transcribing) {
+            retractLive(slotKey)
+            abandonLive()
+        }
         // A new discard makes the previous undo window take effect immediately: the window closes first, and the recycle area and this discard are handled in order within the same io section.
         val previousUndoKey = undoKey?.also { closeUndoWindow() }
         inFlight?.cancel()
@@ -838,13 +1251,13 @@ class DictationController(
             val result = onStore {
                 previousUndoKey?.let { key -> store.commitDiscard(key) }
                 if (current != null) {
-                    // Close the file first so the duration is written into the sidecar; only then can the discard judge by duration whether it is undoable.
+                    // Close the file first so the duration is written to the sidecar, letting the discard decide from the duration whether it can be undone.
                     stopCapture(stopped)
                     closeSlot(current, RecordingSlotStatus.Interrupted)
                 }
                 store.discard(slotKey)
             }
-            // If the transcription in flight already deleted the slot successfully (result is null), there is nothing left to wrap up.
+            // If the in-flight transcription already deleted the slot first (result is null), it has no further action here.
             if (result == null) return@launch
             if (result.undoable) {
                 openUndoWindow(slotKey)
@@ -853,7 +1266,7 @@ class DictationController(
         }.also { storeJob = it }.also { it.invokeOnCompletion { stopped?.invoke() } }
     }
 
-    /** Opens the undo window: commits automatically after [UNDO_WINDOW_MILLIS]; switching conversations does not affect it. */
+    /** Opens the undo window: commits automatically when [UNDO_WINDOW_MILLIS] expires; switching sessions does not affect it. */
     private fun openUndoWindow(slotKey: String) {
         commitUndoWindow()
         undoKey = slotKey
@@ -866,14 +1279,14 @@ class DictationController(
         }
     }
 
-    /** Commits the open undo window (ignored if there is none). */
+    /** Commits the open undo window (ignored if none). */
     private fun commitUndoWindow() {
         val slotKey = undoKey ?: return
         closeUndoWindow()
         scope.launch { commitInIo(slotKey) }
     }
 
-    /** Clears [slotKey] in the recycle area on io. */
+    /** Clears [slotKey] from the recycle area on io. */
     private suspend fun commitInIo(slotKey: String) {
         onStore { store.commitDiscard(slotKey) }
     }
@@ -886,8 +1299,8 @@ class DictationController(
     }
 
     /**
-     * Tapping "Undo" in the undo window: the recording is moved back into the slot on [io], then returns to Interrupted. Returns false if another session flow is already underway or the undo window has already committed.
-     * If the undone slot is not the currently bound one (we switched away after discarding): the recording is only moved back, the current session's state is left alone, and [bind] shows Interrupted when we switch back.
+     * "Undo" in the undo window: the recording is moved back into the slot on io and returns to Interrupted. Returns false if another session flow is in progress or the undo window has already been committed.
+     * If the discarded slot is no longer the bound one (already switched away): only the recording is moved back and the current session state is not touched; when switching back, [bind] shows Interrupted.
      */
     override fun undoDiscard(slotKey: String): Boolean {
         val current = slotKey == boundKey
@@ -898,9 +1311,9 @@ class DictationController(
             }
             if (job?.isActive == true) return false
         }
-        // The recycle area keeps this slot only while the undo window is open: once the window has committed it can no longer be undone.
+        // The recycle area keeps this slot only while the undo window is open: once the window is committed it cannot be undone.
         if (undoKey != slotKey) return false
-        // Close the window first (the timed commit no longer races the restore for the same slot); the restore runs on io, and if it cannot be restored it is wrapped up as a commit.
+        // Close the window first (commit on expiry must not race the restore for the same slot); the restore runs on io, and if it fails the discard is committed.
         closeUndoWindow()
         val undo = scope.launch {
             val restored = onStore {
@@ -908,7 +1321,9 @@ class DictationController(
                     if (restored) store.markInterrupted(slotKey) else store.commitDiscard(slotKey)
                 }
             }
-            if (!restored) return@launch
+            if (!restored) {
+                return@launch
+            }
             if (current && boundKey == slotKey && _state.value == DictationState.Idle) {
                 setState(DictationState.Interrupted(slotKey))
             }
@@ -920,24 +1335,28 @@ class DictationController(
         return true
     }
 
-    /** The undo window ended: clears this slot in the recycle area on io. */
+    /** Undo window ends: clears this slot from the recycle area on io. */
     fun commitDiscard(slotKey: String) {
         if (undoKey == slotKey) closeUndoWindow()
         scope.launch { commitInIo(slotKey) }
     }
 
-    /** Transcribes the audio of [slotKey] with the selected engine and wraps up per [submit]; a saved recording may be transcribed here too. */
+    /**
+     * [live] non-null means this recording had a live session (the live session gave no finalized text): merges the recording result with the live text on screen per [LiveDictationRules.dictationOutcome];
+     * if the merged result is still not text, the live text is retracted before entering failure.
+     */
     private suspend fun transcribe(
         slotKey: String,
         submit: DictationSubmit,
         meta: RecordingSlotMeta,
+        live: LiveSessionResult? = null,
     ) {
         val segment = STTSegment(
             aac = store.audioFile(slotKey),
             primingFrames = meta.primingFrames,
             envelope = meta.envelope,
         )
-        // No selected engine after a slot switch / cold start: use the same cloud resolution as starting a recording (fall back with a one-time notice and reset to system; if the catalog cannot be fetched, use the system this time without changing or notifying).
+        // No engine selected after switching slot / cold start: same cloud resolution as starting a recording (falls back once with a notice and switches to system; if the catalog cannot be fetched, the system is used this time without changing or notifying).
         val selected = engine ?: run {
             val resolved = resolveCloud(slotKey)
             _engineInfo.value = resolved?.info ?: DictationEngineInfo.System
@@ -945,60 +1364,149 @@ class DictationController(
             (resolved?.engine ?: engines.system()).also { engine = it }
         }
         val cloud = engineCloud
-        when (val result = selected.transcribe(segment, environment.recognitionLanguage())) {
+        // Cloud takes the original value (auto = null, no language); the system engine fills in the UI language. Failed.language records the value actually sent to recognition.
+        val language = if (cloud) environment.recognitionLanguage() else systemLanguage()
+        // The language name on the card: auto (cloud null) records the full UI language tag at the moment of failure, and does not change after the UI language is later changed.
+        fun failLanguage() = language ?: environment.uiLanguageTag()
+        var attempt = 1
+        var result = selected.transcribe(segment, language)
+        // Recognizer busy on the system: this time (a manual retry also counts from 1), the first failure rebuilds the recognizer (a new session per file recognition) and retries automatically, without leaving the card or reporting.
+        while (!cloud && systemDecision(result, attempt)?.autoRetry == true) {
+            currentCoroutineContext().ensureActive()
+            attempt++
+            result = selected.transcribe(segment, language)
+        }
+        if (live != null) {
+            val file = when (result) {
+                is STTResult.Success -> LiveFileResult.Text(result.text)
+                is STTResult.Failed -> LiveFileResult.Failed(reportableKind(result.failure))
+            }
+            val outcome = LiveDictationRules.dictationOutcome(live, file)
+            if (outcome.result == DictationOutcomeResult.Text) {
+                currentCoroutineContext().ensureActive()
+                deliver(slotKey, submit, checkNotNull(outcome.text), meta.durationSec)
+                return
+            }
+            retractLive(slotKey)
+        }
+        when (result) {
             is STTResult.Success -> {
-                // ✕ discarded / switched away while transcribing: the engine may swallow the cancellation and return a result as usual, and a late result is never applied (no insert, no recording deleted, no Failed written).
+                // Discarded / switched away by ✕ during transcription: the engine may swallow the cancellation and return the result as usual; late results are never applied (no insert, no recording deleted, no Failed written).
                 currentCoroutineContext().ensureActive()
                 // The pre-check already judged there was voice, so empty text does not delete the recording and leaves it for a retry.
                 if (DictationRules.trim(result.text).isEmpty()) {
-                    fail(slotKey, DictationFailedAction.NoTranscript)
+                    fail(slotKey, DictationFailedAction.NoTranscript, failLanguage())
                     return
                 }
-                // Deleting the recording and emitting the event are non-cancellable: if a switch / host leave cancelled after the delete, the text would be lost.
-                withContext(NonCancellable) {
-                    if (boundKey != slotKey) {
-                        // The host left this slot: there is no receiver, so nothing is inserted / sent and the recording is not deleted; it is left for when the host returns.
-                        // If the host moved to another slot, the state belongs to the new slot and is not overwritten.
-                        onStore { runCatching { store.markInterrupted(slotKey) } }
-                        if (boundKey == null) setState(DictationState.Interrupted(slotKey))
-                        return@withContext
-                    }
-                    onStore { store.complete(slotKey) }
-                    // The host left while the recording was being deleted: the recording is already gone, the text is still sent (the event stays in the channel), and the state returns to Idle.
-                    setState(DictationState.Idle)
-                    _events.trySend(
-                        when (submit) {
-                            DictationSubmit.Insert -> DictationEvent.Insert(slotKey, result.text)
-                            DictationSubmit.Send -> DictationEvent.Send(slotKey, result.text)
-                        },
-                    )
-                }
+                deliver(slotKey, submit, result.text, meta.durationSec)
             }
             is STTResult.Failed -> {
-                fail(slotKey, failedAction(result.primaryAction))
-                // The system route cannot transcribe a file (when a failed cloud engine fell back to the system): the recording is still kept for a retry, and a separate notice says the system engine is unavailable.
-                if (!cloud && result.failure == DictationFailure.Recognizer(SystemSTTEngine.FILE_UNSUPPORTED_ERROR)) {
-                    _events.trySend(DictationEvent.SystemUnavailable(slotKey))
+                val decision = if (cloud) null else systemDecision(result, attempt)
+                if (decision?.kind == SystemFailureKind.Permission || decision?.kind == SystemFailureKind.Cancelled) {
+                    // Recognizer reported permission: enter the existing microphone-permission card; cancelled: silently return to Idle. Neither shows the failure card nor reports a failure; the recording stays in the slot for a retry.
+                    onStore { runCatching { store.updateStatus(slotKey, RecordingSlotStatus.Failed) } }
+                    setState(if (decision.kind == SystemFailureKind.Permission) DictationState.Denied else DictationState.Idle)
+                    return
                 }
+                // Failure mapping follows the engine's primary action, as in the community baseline (no telemetry branch).
+                fail(slotKey, failedAction(result.primaryAction), failLanguage())
             }
         }
     }
 
-    /** The sidecar is unreadable (disk full / deleted): without duration and envelope it cannot be transcribed, so it is cleared as orphan audio (not counted as lost) and the state returns to Idle, not Failed. */
+    /**
+     * After text comes out: if the host is still on the slot, deletes the recording, returns to Idle and sends insert / send by [submit]; if the host has left, nothing is sent and the recording stays as Interrupted.
+     * Deleting the recording and sending the event are not cancellable: if switching away / leaving cancels after the delete, the text would be lost.
+     */
+    private suspend fun deliver(
+        slotKey: String,
+        submit: DictationSubmit,
+        text: String,
+        durationSec: Double,
+    ) = withContext(NonCancellable) {
+        if (boundKey != slotKey) {
+            // The host has left the slot: no receiver, so nothing is inserted or sent and the recording is not deleted; it is left for the host to transcribe when it returns.
+            // If the host has moved to another slot, the state belongs to the new slot and is not overwritten.
+            onStore { runCatching { store.markInterrupted(slotKey) } }
+            if (boundKey == null) setState(DictationState.Interrupted(slotKey))
+            return@withContext
+        }
+        onStore { store.complete(slotKey) }
+        // The host left while the recording was being deleted: the recording is gone, the text is still sent (the event stays in the channel), and the state returns to Idle.
+        setState(DictationState.Idle)
+        _events.trySend(
+            when (submit) {
+                DictationSubmit.Insert -> DictationEvent.Insert(slotKey, text)
+                DictationSubmit.Send -> DictationEvent.Send(slotKey, text)
+            },
+        )
+    }
+
+    /** Folds a live session's [STTResult] into [LiveSessionResult]: a timeout maps to timeout, a failure maps to one of five kinds (anything outside the five maps to other). */
+    private fun liveSessionResult(result: STTResult, transcript: LiveTranscript, hasRecording: Boolean) = when {
+        result is STTResult.Success ->
+            LiveSessionResult(
+                transcript.finals,
+                transcript.partial,
+                LiveEnded.Ok,
+                hasRecording = hasRecording,
+                droppedAudio = result.droppedAudio,
+            )
+        (result as STTResult.Failed).failure == DictationFailure.Timeout ->
+            LiveSessionResult(transcript.finals, transcript.partial, LiveEnded.Timeout, hasRecording = hasRecording)
+        else -> LiveSessionResult(
+            transcript.finals,
+            transcript.partial,
+            LiveEnded.Failed,
+            reportableKind(result.failure),
+            hasRecording,
+        )
+    }
+
+    /** Maps a failure cause to one of the five kinds dictationOutcome recognizes: recognizer error codes via the table, network maps to network, timeout maps to busy, and everything else maps to other. */
+    private fun reportableKind(failure: DictationFailure): SystemFailureKind {
+        val kind = when (failure) {
+            is DictationFailure.Recognizer -> SystemFailure.kindOf(SystemFailureInput.Code(failure.code))
+            DictationFailure.Network -> SystemFailureKind.Network
+            DictationFailure.Timeout -> SystemFailureKind.Busy
+            else -> SystemFailureKind.Other
+        }
+        return if (kind.isReportable) kind else SystemFailureKind.Other
+    }
+
+    /** Sidecar unreadable (disk full / deleted): without duration and envelope it cannot be transcribed, so the orphan audio is cleared (not counted as lost) and it returns to Idle without entering Failed. */
     private suspend fun dropUnreadableSlot(slotKey: String) {
         onStore { store.complete(slotKey) }
         setState(DictationState.Idle)
     }
 
     /**
-     * Failure does not delete the recording: the sidecar is marked failed (the state enters Failed even if the write fails), and the state carries where the primary button goes.
+     * A failure does not delete the recording: the sidecar is marked failed (it still enters Failed even if the write fails), and the state carries the primary-button destination.
+     * Each entry into Failed occurs once (automatic retries have already been exhausted inside the engine).
      */
     private suspend fun fail(
         slotKey: String,
         action: DictationFailedAction,
+        language: String? = null,
     ) {
         onStore { runCatching { store.updateStatus(slotKey, RecordingSlotStatus.Failed) } }
-        setState(DictationState.Failed(slotKey, action))
+        setState(DictationState.Failed(slotKey, action, language))
+    }
+
+    /**
+     * System engine file recognition failures are classified by the shared code table (attempt counts from 1; file recognition can be safely retried): recognizer error codes are looked up in the table;
+     * a route that cannot transcribe a file ([SystemSTTEngine.FILE_UNSUPPORTED_ERROR]) maps to no recognition service; a timeout maps to the condition timeout (busy).
+     * Returns null if it is neither a recognizer failure nor a timeout.
+     */
+    private fun systemDecision(result: STTResult, attempt: Int): SystemFailureDecision? {
+        val failure = (result as? STTResult.Failed)?.failure ?: return null
+        val input = when {
+            failure == DictationFailure.Timeout -> SystemFailureInput.Condition(SystemFailureCondition.Timeout)
+            failure !is DictationFailure.Recognizer -> return null
+            failure.code == SystemSTTEngine.FILE_UNSUPPORTED_ERROR -> SystemFailureInput.Condition(SystemFailureCondition.NoService)
+            else -> SystemFailureInput.Code(failure.code)
+        }
+        return SystemFailure.classify(input, attempt)
     }
 
     private fun releaseInterruptions() {
@@ -1006,7 +1514,7 @@ class DictationController(
         interruptions = null
     }
 
-    /** The choice made before recording: the file branch carries the engine and the engine id written into the sidecar; the file-less branch carries the self-recording route. */
+    /** Choice made before recording starts: the file branch carries the engine and the engine id written to the sidecar; the no-file branch carries the self-record route. */
     private sealed interface EngineSelection {
         val info: DictationEngineInfo
 
@@ -1015,6 +1523,10 @@ class DictationController(
             val engine: STTEngine,
             val engineId: String,
             override val info: DictationEngineInfo = DictationEngineInfo.System,
+            /** provider_kind for analytics: the providerKind rawValue for cloud, `system` for the system engine. */
+            val providerKind: String = SystemSTTEngine.ENGINE_NAME,
+            /** System engine: after recording starts, picks the route and opens the live session in the background (when the pipe route is chosen, it recognizes while recording); false for cloud. */
+            val live: Boolean = false,
         ) : EngineSelection
 
         data class SelfRecord(val route: SystemSTTRoute.SelfRecord) : EngineSelection {
@@ -1029,40 +1541,55 @@ class DictationController(
     }
 
     /**
-     * Picks the engine before recording: if the stored choice is system, the system is used directly; a cloud choice first cold-reads the catalog cache and only fetches if there is none,
-     * and if the fetch fails (failure / 404) the system is used this time without changing the setting or notifying; when resolution falls back, the setting is reset to system and one [DictationEvent.EngineFallback] is emitted;
-     * a fallback first noticed on the settings page is emitted once here; if resolution reaches the cloud but disclosure was not accepted, the system is used this time without rewriting or notifying.
-     * If it lands on the system engine but the system route is unavailable, [DictationEvent.SystemUnavailable] is emitted, the state returns to Idle, and null is returned; when the route is self-recording, the file-less branch runs.
+     * Chooses the engine before recording: a saved system choice is used directly; a saved cloud choice first reads the catalog cache cold, and fetches only if nothing is cached;
+     * if the fetch fails (failure / 404) the system is used this time without changing settings or notifying; on resolving a fallback it switches back to system and sends [DictationEvent.EngineFallback] once;
+     * a fallback the settings page already discovered is announced once here; resolving to cloud without consent to disclosure uses the system this time without rewriting or notifying.
+     * If it falls back to the system engine and system routing is unavailable, sends [DictationEvent.SystemUnavailable], returns to Idle and returns null; a self-record route goes to the no-file branch.
      */
+    /** Language for the system engine / routing: the settings value, or the UI language when auto. */
+    private fun systemLanguage(): String = environment.recognitionLanguage() ?: environment.uiLanguageTag()
+
     private suspend fun selectEngine(slotKey: String): EngineSelection? {
         val cloud = resolveCloud(slotKey)
         if (cloud != null) return cloud
-        return when (val route = engines.systemRoute(environment.recognitionLanguage())) {
+        // Unavailable / self-record must be decided before capture opens: only non-suspending routing is used (cache hit); if it cannot be decided, recording starts first and routing and the live session are set up in the background.
+        return when (val route = engines.cachedSystemRoute(systemLanguage())) {
             SystemSTTRoute.Unavailable -> {
                 setState(DictationState.Idle)
                 _events.trySend(DictationEvent.SystemUnavailable(slotKey))
                 null
             }
             is SystemSTTRoute.SelfRecord -> EngineSelection.SelfRecord(route)
-            is SystemSTTRoute.Pipe -> EngineSelection.WithFile(engines.system(), SystemSTTEngine.ENGINE_NAME)
+            is SystemSTTRoute.Pipe, null -> EngineSelection.WithFile(engines.system(), SystemSTTEngine.ENGINE_NAME, live = true)
         }
     }
 
+    /** On the pipe / self-record route, language-pack guidance ([offer]) for a language not yet prompted: sends [DictationEvent.LanguagePackOffer] once and records it, without blocking this dictation. */
+    private fun offerLanguagePack(offer: Boolean, languageTag: String) {
+        if (!offer || settings.languagePackOffered(languageTag)) return
+        settings.markLanguagePackOffered(languageTag)
+        _events.trySend(DictationEvent.LanguagePackOffer(languageTag))
+    }
+
+    override fun downloadLanguagePack(language: String) {
+        scope.launch { engines.downloadLanguagePack(language) }
+    }
+
+    /** Returns the cloud engine when cloud is available; otherwise (including fallbacks) returns null. */
     private fun noticeFallback(slotKey: String, resolution: VoiceEngineResolution?) {
         val reason = settings.applyResolution(VoiceDirection.Stt, resolution, VoiceNoticeSite.Use) ?: return
         _events.trySend(DictationEvent.EngineFallback(slotKey, reason))
     }
 
-    /** Returns the cloud engine when the cloud is usable, and null otherwise (including fallback). */
     private suspend fun resolveCloud(slotKey: String): EngineSelection.WithFile? {
         val selection = settings.selection(VoiceDirection.Stt) as? VoiceEngineSelection.Cloud
         if (selection == null) {
-            // The stored choice is system: a fallback first noticed on the settings page is notified once here.
+            // Saved value is the system: a fallback the settings page discovered earlier is announced once here.
             noticeFallback(slotKey, VoiceEngineResolution(VoiceEngine.System))
             return null
         }
-        // Cache read + cold fetch share one overall time limit (the cache read and the refresh share the catalog lock, so a read also waits when a refresh elsewhere is stuck):
-        // a timeout is handled as a fetch failure, so the start flow never hangs and later microphone taps are not silently dropped.
+        // Cache read + cold fetch share one total time limit (the cache read and the refresh share the catalog lock, so a stuck refresh elsewhere makes the cache read wait too):
+        // on timeout it is treated as a fetch failure, so the start flow does not hang and a later tap on the microphone is not silently dropped.
         val voiceCatalog = withTimeoutOrNull(catalogRefreshTimeoutMillis) {
             catalog.loadCached() ?: (catalog.refresh() as? VoiceCatalogState.Available)?.catalog
         }
@@ -1079,7 +1606,7 @@ class DictationController(
         )
         noticeFallback(slotKey, resolution)
         val resolved = resolution.engine as? VoiceEngine.Cloud ?: return null
-        // Resolved to the cloud but disclosure for this (providerKind, stt) was not accepted: use the system this time, without rewriting or notifying.
+        // Resolved to cloud but this (providerKind, stt) has not consented to disclosure: the system is used this time, without rewriting or prompting.
         if (!disclosure.isAccepted(resolved.providerKind, VoiceDirection.Stt)) return null
         val provider = connections.first { it.id == resolved.connectionId }
         val entry = voiceCatalog.entry(resolved.providerKind, VoiceDirection.Stt, resolved.model) as VoiceSttEntry
@@ -1092,6 +1619,7 @@ class DictationController(
             engine = cloud,
             engineId = "${resolved.providerKind.rawValue}/${resolved.model}",
             info = DictationEngineInfo(displayName = provider.displayName, providerId = provider.id, isCloud = true),
+            providerKind = resolved.providerKind.rawValue,
         )
     }
 
@@ -1099,21 +1627,23 @@ class DictationController(
         slotKey: String,
         selected: EngineSelection.WithFile,
         events: AudioCaptureEvents,
+        preroll: DictationLivePreroll?,
     ): OpenResult {
         val opened = try {
             store.open(slotKey, selected.engineId, encoderFactory())
         } catch (_: RecordingSlotOccupiedException) {
             return OpenResult.Occupied
         } catch (_: Exception) {
-            // The encoder could not be created / writing the sidecar failed: store.open already removed the half-open file, so treat it as capture being unable to start.
+            // Encoder could not be built / writing the sidecar failed: store.open has already torn down the half-open file, handled as capture failing to start.
             return OpenResult.Unavailable
         }
         try {
-            // Right after a session closes, its AudioRecord is still being released on io: wait until it lets go of the microphone before opening (suspends, does not occupy the main thread); a timeout is treated as capture being unable to start.
+            // The AudioRecord of the just-closed session is still releasing on io: wait for it to release the mic before opening (suspends, does not occupy the main thread); on timeout it is handled as capture failing to start.
             if (!awaitCaptureTeardowns()) throw CaptureTeardownTimeoutException()
-            capture.start(listOf(opened, meter), events)
+            // Recording writes to the slot while also feeding the live session and the volume meter.
+            capture.start(listOfNotNull(opened, preroll, meter), events)
         } catch (_: Exception) {
-            // Capture did not start, so no slot is left behind: close the file, then delete the sidecar together with the audio.
+            // Capture did not start: no slot is kept; after closing the file, both the sidecar and the audio are deleted.
             closeSlot(opened, RecordingSlotStatus.Failed)
             runCatching { store.complete(slotKey) }
             return OpenResult.Unavailable
@@ -1121,7 +1651,7 @@ class DictationController(
         return OpenResult.Opened(opened)
     }
 
-    /** Closes the file and finalizes the sidecar; does not throw on error and returns false (the part already written stays in the slot). */
+    /** Closes the file and finalizes the sidecar; errors do not throw, returns false (the partly written data stays in the slot). */
     private fun closeSlot(current: RecordingSlot, status: RecordingSlotStatus): Boolean =
         try {
             current.finish(status)
@@ -1131,11 +1661,11 @@ class DictationController(
         }
 
     /**
-     * Report of a capture error mid-way / the capture being muted by the system: dispatched back to the main thread and wrapped up via [interrupt], with the part already written left in the slot.
-     * It only honors the recording it belongs to ([target]); reports arriving after wrap-up are ignored.
+     * Reports a mid-capture error / capture being muted by the system: dispatched back to the main thread and wrapped up with [interrupt]; the partly written data stays in the slot.
+     * Only the recording segment it belongs to ([target]) is recognized; reports that arrive after wrap-up are ignored.
      */
     private inner class CaptureRelay : AudioCaptureEvents {
-        /** The slot it belongs to: installed on the main thread once opening completes; a report earlier than that only records [reported], and [begin] does the wrap-up afterwards. */
+        /** The slot it belongs to: installed on the main thread once recording start completes; a report before that only records [reported], and [begin] completes the wrap-up later. */
         var target: RecordingSlot? = null
 
         @Volatile
@@ -1148,7 +1678,7 @@ class DictationController(
         private fun report() {
             reported = true
             scope.launch {
-                // Main.immediate runs in place on the main thread: yield once and wrap up after the callback returns (calling stop synchronously inside the callback would deadlock).
+                // Main.immediate runs it in place on the main thread: yield once first and wrap up after the callback returns (calling stop synchronously inside the callback would deadlock).
                 yield()
                 val owned = target ?: return@launch
                 if (slot === owned) interrupt()
@@ -1161,14 +1691,24 @@ class DictationController(
         DictationPrimaryAction.CheckConnection -> DictationFailedAction.CheckConnection
     }
 
+    /** System recognizer failure kind -> failure card; other remains the retry card. */
+    private fun failedAction(kind: SystemFailureKind): DictationFailedAction = when (kind) {
+        SystemFailureKind.Network -> DictationFailedAction.Network
+        SystemFailureKind.Busy -> DictationFailedAction.Busy
+        SystemFailureKind.LanguageUnsupported -> DictationFailedAction.LanguageUnsupported
+        SystemFailureKind.NoService -> DictationFailedAction.NoService
+        SystemFailureKind.NoTranscript -> DictationFailedAction.NoTranscript
+        SystemFailureKind.Other, SystemFailureKind.Permission, SystemFailureKind.Cancelled -> DictationFailedAction.Retry
+    }
+
     companion object {
-        /** Undo window of 4 s, opened only for discards longer than 5 s. */
+        /** Undo window duration 4 s ; only opened for discards longer than 5 s. */
         const val UNDO_WINDOW_MILLIS = 4_000L
 
-        /** Overall time limit of 10 s for the cold catalog fetch before recording; a timeout is handled as a fetch failure. */
+        /** Total limit of 10 s for the cold fetch of the catalog before starting (same as iOS); on timeout it is handled as a fetch failure. */
         const val CATALOG_REFRESH_TIMEOUT_MILLIS = 10_000L
 
-        /** Slot-store directories already swept in this process. */
+        /** Slot-store directory already swept in this process (same as iOS sweptRoots). */
         private val sweptRoots = mutableSetOf<String>()
     }
 }

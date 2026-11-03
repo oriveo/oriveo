@@ -7,17 +7,16 @@ struct ImmediateSessionPersistTests {
 
     @Test("when the sync API returns, both the snapshot and the recovery projection are already on disk")
     @MainActor
-    func synchronousVariantIsDurableOnReturn() throws {
+    func synchronousVariantIsDurableOnReturn() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "persist-sync-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         let conversation = TestFactories.makeConversation(
             title: "Sync Persist",
             messages: [TestFactories.makeMessage(text: "hi")]
@@ -36,11 +35,6 @@ struct ImmediateSessionPersistTests {
     func asyncVariantPersistsSameContent() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "persist-async-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let conversation = TestFactories.makeConversation(
@@ -48,6 +42,10 @@ struct ImmediateSessionPersistTests {
             messages: [TestFactories.makeMessage(text: "hi")]
         )
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations([conversation], uid: uid)
         state.conversations = [conversation]
 
@@ -64,15 +62,13 @@ struct ImmediateSessionPersistTests {
         let previousUID = AppSessionStore.activeUID
         let boundUID = "persist-bound-\(UUID().uuidString)"
         let targetUID = "persist-target-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: boundUID))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: targetUID))
-        }
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: boundUID)
+        defer {
+            await TestPartitionCleanup.remove(boundUID, targetUID)
+            AppSessionStore.switchToUser(previousUID)
+        }
         state.conversations = [TestFactories.makeConversation(title: "Explicit Partition")]
         try? FileManager.default.removeItem(at: AppSessionStore.snapshotPath(for: targetUID))
 

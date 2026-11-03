@@ -51,7 +51,7 @@ struct RelaySetupStatusRow: View {
             if let actionTitle, let action {
                 Button(actionTitle, action: action)
                     .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .frame(minWidth: 44, minHeight: 44)
                     .contentShape(Rectangle())
                     .buttonStyle(.plain)

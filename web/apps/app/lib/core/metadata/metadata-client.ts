@@ -45,6 +45,7 @@ import {
   type SetupFieldSpec,
 } from "@oriveo/core/providers/transport/endpoint-resolver";
 import { PUBLIC_METADATA_BASE_URL } from "@oriveo/shared";
+import { imageMetadataSliceFromMetadata, type ImageMetadataSlice } from "../studio/image-profile";
 import { APP_VERSION } from "../../version";
 import { readBlob, writeBlob, pruneBlobs, deleteBlob } from "../../infra/storage/blob-cache";
 import { safeLocalStorage } from "../../infra/storage/web-storage";
@@ -366,6 +367,19 @@ interface ModelMetadata {
   pricingV2?: unknown;
   /** Raw regional pricing key (contract section 5.7): only enters ResolvedModelMetadata after per-entry allowlist decoding by decodeRegionPricing. */
   regionPricing?: unknown;
+  /** ImageProfile v2: key into profiles.image; missing = no image profile. */
+  imageProfile?: string | null;
+  /** Shallow override merged over the profiles.image entry; a non-object value means no override. */
+  imageProfileOverride?: Record<string, unknown> | null;
+}
+
+/** providers.<kind>.imageModels entry: an image-only model that is not in the chat models map. */
+export interface ImageModelMetadata {
+  displayName?: string;
+  /** Key into profiles.image. */
+  imageProfile?: string | null;
+  /** Shallow override merged over the profiles.image entry; a non-object value means no override. */
+  imageProfileOverride?: Record<string, unknown> | null;
 }
 
 /** metadata schema 2 `$defs/lifecycle`. */
@@ -395,7 +409,9 @@ interface ProviderData {
   validation?: ProviderValidation;
   resolveMap?: Record<string, string>;
   models: Record<string, ModelMetadata>;
-  /** Provider capability spec v2 section 5.1.7: base URL plus endpoints. */
+  /** Image-only models (wire model id -> entry); models wins on the same id. Missing = none. */
+  imageModels?: Record<string, ImageModelMetadata>;
+  /** Provider capability spec: base URL + endpoints. */
   transport?: ProviderTransportDefinition;
 }
 
@@ -539,7 +555,7 @@ export interface ClientRuntimeConfig {
   updatedAt?: string;
 }
 
-interface MetadataResponse {
+export interface MetadataResponse {
   version: number;
   /** Optional projection marker. Missing means the backwards-compatible full view. */
   view?: "lean";
@@ -550,6 +566,8 @@ interface MetadataResponse {
     reasoning: Record<string, ReasoningProfileDefinition>;
     webSearch: Record<string, WebSearchProfileDefinition>;
     imageGen: Record<string, ImageGenProfileDefinition>;
+    /** ImageProfile v2 table (profile key -> unvalidated profile JSON); missing = none. */
+    image?: Record<string, unknown>;
     generation?: {
       parameters?: Record<string, {
         group?: string;
@@ -2583,8 +2601,16 @@ export function isRuntimeFeatureEnabled(key: string): boolean {
 }
 
 /**
- * Synchronously returns the in-memory metadata snapshot for catalog-resolver.
- * Its shape is compatible with CatalogMetadataInput by duck typing.
+ * ImageProfile slice of the current in-memory metadata snapshot (profiles.image plus
+ * each provider's models / imageModels); null before metadata loads.
+ */
+export function getImageMetadataSlice(): ImageMetadataSlice | null {
+  return cached ? imageMetadataSliceFromMetadata(cached) : null;
+}
+
+/**
+ * Synchronously returns the in-memory metadata snapshot, for use by catalog-resolver.
+ * Shape is compatible with CatalogMetadataInput (duck typing).
  */
 export function getMetadataSnapshot(): ReturnType<typeof projectMetadataSnapshot> | null {
   const source = cached;

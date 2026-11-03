@@ -148,7 +148,7 @@ struct WebSearchDetailView: View {
         Button(action: action) {
             Text(WebSearchCopy.tr(titleID))
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 7)
                 .background(Capsule().fill(OriveoTheme.Palette.primarySoft))
@@ -259,7 +259,7 @@ struct WebSearchDetailView: View {
                                 }
                             }
                             .font(.system(size: 15, weight: .semibold))
-                            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             .frame(minWidth: 56)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 10)
@@ -347,7 +347,7 @@ struct WebSearchDetailView: View {
                             Spacer(minLength: 0)
                         }
                         .font(.system(size: 15, weight: .medium))
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .padding(.horizontal, 16)
                         .padding(.vertical, 13)
                     }

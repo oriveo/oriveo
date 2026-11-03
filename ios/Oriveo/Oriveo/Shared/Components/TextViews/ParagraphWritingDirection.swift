@@ -12,6 +12,30 @@ nonisolated enum ParagraphWritingDirection {
         return nil
     }
 
+    /// Horizontal alignment for text that follows its content direction: LTR content hugs the left edge and
+    /// RTL content the right edge, whatever the UI direction (same effect as Android `TextDirection.Content`
+    /// and web `dir="auto"`). Content without a strong character keeps the UI's leading edge.
+    static func alignment(
+        forContentDirection direction: NSWritingDirection?,
+        layoutDirection: UIUserInterfaceLayoutDirection
+    ) -> NSTextAlignment {
+        switch direction {
+        case .leftToRight: return .left
+        case .rightToLeft: return .right
+        default: return layoutDirection == .rightToLeft ? .right : .left
+        }
+    }
+
+    /// Content-following alignment for `text`, judged by its first strong character.
+    static func alignment(
+        for text: some StringProtocol,
+        layoutDirection: UIUserInterfaceLayoutDirection
+    ) -> NSTextAlignment {
+        alignment(forContentDirection: firstStrongDirection(in: text), layoutDirection: layoutDirection)
+    }
+
+    /// Splits the whole string by paragraph (`\n` separated) and sets an explicit baseWritingDirection on each.
+    /// Existing paragraph style attributes are copied per paragraph and rewritten; other layout parameters are kept as-is.
     static func applyParagraphDirections(to string: NSMutableAttributedString) {
         let full = string.string as NSString
         guard full.length > 0 else { return }

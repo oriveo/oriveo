@@ -295,9 +295,7 @@ struct MemoryItemRepositoryTests {
         let uid = "memory-cache-reopen-\(UUID().uuidString)"
         let other = "memory-cache-other-\(UUID().uuidString)"
         defer {
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: other))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: other + "-2"))
+            await TestPartitionCleanup.remove(uid, other, other + "-2")
         }
         let cache = MemoryItemsCache()
         cache.bind(uid: uid)

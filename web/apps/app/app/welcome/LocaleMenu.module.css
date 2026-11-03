@@ -25,7 +25,7 @@
   min-height: 36px;
   border: 1px solid var(--o-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--o-surface-raised) 70%, transparent);
+  background: color-mix(in srgb, var(--o-fill-muted) 70%, transparent);
   color: var(--o-text-secondary);
   font-size: var(--o-text-sm);
   font-weight: 500;
@@ -37,7 +37,7 @@
 
 .trigger:hover {
   border-color: color-mix(in srgb, var(--o-primary) 35%, var(--o-border));
-  background: color-mix(in srgb, var(--o-surface-raised) 90%, white 4%);
+  background: color-mix(in srgb, var(--o-surface-hover) 90%, white 4%);
   color: var(--o-text);
 }
 

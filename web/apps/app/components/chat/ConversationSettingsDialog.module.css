@@ -75,7 +75,7 @@
 
 .carryOver:hover {
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .row {

@@ -1,9 +1,9 @@
 'use client';
 
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo, useSyncExternalStore, type CSSProperties } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronRight, KeyRound, MessageSquarePlus, Pencil, RefreshCw, UserRoundCheck } from 'lucide-react';
-import type { Provider } from '@oriveo/shared';
+import { providerTextTint, type Provider } from '@oriveo/shared';
 import { ProviderIcon } from '../../../../components/ProviderIcon';
 import { relayIconSource } from '../../../../components/relay-avatar';
 import { PROVIDER_BRAND_COLORS } from '../../../../lib/constants/provider-brand-colors';
@@ -26,8 +26,8 @@ interface ProviderDetailBrandHeroProps {
   isSyncing?: boolean;
 }
 
-// Compress a vivid brand color into a muted, understated tone.
-function hsbAdjusted(hex: string, sat: number, val: number): string {
+// Aligned with iOS Color.hsbAdjusted(saturation:brightness:): tones a vivid brand color down into a "premium, understated" color
+export function hsbAdjusted(hex: string, sat: number, val: number): string {
   const cleaned = hex.replace('#', '');
   const r = parseInt(cleaned.substring(0, 2), 16) / 255;
   const g = parseInt(cleaned.substring(2, 4), 16) / 255;
@@ -58,6 +58,65 @@ function hsbAdjusted(hex: string, sat: number, val: number): string {
   else { nr = c; ng = 0; nb = x; }
   const toHex = (n: number) => Math.round((n + m) * 255).toString(16).padStart(2, '0');
   return `#${toHex(nr)}${toHex(ng)}${toHex(nb)}`;
+}
+
+/**
+ * Near-white hero pill label derived from the subdued brand colour: the original
+ * `color-mix(brand 65%, black 35%)` (sRGB, so each channel x 0.65) and then the shared text tint
+ * against light backgrounds, which keeps it >= 4.5 on the #F5F5F5 worst-case pill.
+ */
+export function heroPillLabelColor(subduedHex: string): string {
+  const cleaned = subduedHex.replace('#', '');
+  const mixed = [0, 2, 4]
+    .map((i) => Math.round(parseInt(cleaned.substring(i, i + 2), 16) * 0.65).toString(16).padStart(2, '0'))
+    .join('');
+  return providerTextTint(`#${mixed}`, false);
+}
+
+/**
+ * Dark Relay subdued brand: `color-mix(in srgb, primary 70%, gray)` resolved per sRGB channel
+ * (gray = #808080). Returns null for anything that is not a #RGB / #RRGGBB hex.
+ */
+export function darkRelaySubduedHex(primary: string): string | null {
+  const value = primary.trim();
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(value);
+  if (!match) return null;
+  const digits = match[1].length === 3 ? match[1].replace(/./g, (c) => c + c) : match[1];
+  return `#${[0, 2, 4]
+    .map((i) => Math.round(parseInt(digits.substring(i, i + 2), 16) * 0.7 + 128 * 0.3).toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+function readRootPrimary(): string {
+  if (typeof document === 'undefined') return '';
+  return getComputedStyle(document.documentElement).getPropertyValue('--o-primary').trim();
+}
+
+function subscribeRootPalette(listener: () => void): () => void {
+  if (typeof document === 'undefined') return () => {};
+  const observer = new MutationObserver(listener);
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme', 'data-palette', 'style'],
+  });
+  return () => observer.disconnect();
+}
+
+/** Runtime `--o-primary` of the document root, re-read when the theme / palette attributes change. */
+function useRootPrimary(enabled: boolean): string {
+  return useSyncExternalStore(
+    enabled ? subscribeRootPalette : subscribeNoop,
+    enabled ? readRootPrimary : emptySnapshot,
+    emptySnapshot,
+  );
+}
+
+function subscribeNoop(): () => void {
+  return () => {};
+}
+
+function emptySnapshot(): string {
+  return '';
 }
 
 function formatRelativeTimeShort(iso: string | undefined, neverLabel: string, t: ReturnType<typeof useTranslations>): string {
@@ -116,6 +175,12 @@ export function ProviderDetailBrandHero({
   const subduedBrand = isRelay && isDark
     ? 'color-mix(in srgb, var(--o-primary) 70%, gray)'
     : hsbAdjusted(rawBrand, 0.62, 0.88);
+  // Dark Relay reads the runtime --o-primary and resolves the same mix in JS so the label gets the text tint.
+  const rootPrimary = useRootPrimary(isRelay && isDark);
+  const darkRelaySubdued = isRelay && isDark ? darkRelaySubduedHex(rootPrimary) : null;
+  const heroLabelColor = isRelay && isDark
+    ? (darkRelaySubdued ? heroPillLabelColor(darkRelaySubdued) : undefined)
+    : heroPillLabelColor(subduedBrand);
 
   const enabledCount = provider.models.length;
 
@@ -156,7 +221,10 @@ export function ProviderDetailBrandHero({
   return (
     <section
       className={styles.card}
-      style={{ ['--brand-color' as never]: subduedBrand } as CSSProperties}
+      style={{
+        ['--brand-color' as never]: subduedBrand,
+        ...(heroLabelColor ? { ['--hero-label-color' as never]: heroLabelColor } : {}),
+      } as CSSProperties}
       data-status={effectiveKind}
     >
       {watermark?.type === 'mask' && (

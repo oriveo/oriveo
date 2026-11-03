@@ -219,7 +219,11 @@ export function SearchServiceDetail({ initialTest, uid, view, catalog, connectio
         protocol: form.protocol,
         mapping: form.protocol === 'manual' ? manualMapping(form) : null,
         presetId: form.sameAsId,
-        regionId: form.sameAsId ? form.sameAsRegionId ?? catalog?.entries.find((e) => e.id === form.sameAsId)?.regions[0]?.id ?? null : null,
+        // The reference site is the first site in that provider's directory. If the directory cannot be fetched and the reference is unchanged, keep the stored site.
+        regionId: form.sameAsId
+          ? catalog?.entries.find((e) => e.id === form.sameAsId)?.regions[0]?.id
+            ?? (form.sameAsId === snapshotRef(record.mapping)?.serviceId ? snapshotRef(record.mapping)?.region ?? null : null)
+          : null,
       },
     })
     : null;

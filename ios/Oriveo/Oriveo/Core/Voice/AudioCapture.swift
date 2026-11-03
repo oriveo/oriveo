@@ -14,6 +14,11 @@ nonisolated protocol AudioCapture: AnyObject {
     func stop()
 }
 
+/// Starting capture while it is already running or starting.
+nonisolated enum AudioCaptureError: Error, Equatable {
+    case alreadyStarted
+}
+
 /// Activation and deactivation of the recording session; tests inject a fake that records calls.
 nonisolated protocol AudioSessionActivating: AnyObject {
     /// Sets the category and activates the session (for recording).
@@ -21,21 +26,26 @@ nonisolated protocol AudioSessionActivating: AnyObject {
     func deactivate()
 }
 
-/// AVAudioSession implementation.
+/// AVAudioSession implementation: every state change goes through AudioSessionCoordinator's serial queue.
+/// The caller EngineAudioCapture already runs on a background thread; activation waits for the queue, deactivation is queued without waiting.
 nonisolated final class SystemAudioSessionActivator: AudioSessionActivating {
-    private let session: AVAudioSession
+    private let coordinator: AudioSessionCoordinator
 
-    init(session: AVAudioSession = .sharedInstance()) {
-        self.session = session
+    init(coordinator: AudioSessionCoordinator = .shared) {
+        self.coordinator = coordinator
     }
 
     func activateForRecording() throws {
-        try session.setCategory(.record, mode: .measurement, options: .duckOthers)
-        try session.setActive(true)
+        // Keep haptics and system sounds playing while recording (start / stop feedback); the coordinator ignores it when the system does not support it.
+        try coordinator.performBlocking([
+            .configure(.init(category: .record, mode: .measurement, options: .duckOthers,
+                             allowHapticsDuringRecording: true)),
+            .activate,
+        ])
     }
 
     func deactivate() {
-        try? session.setActive(false, options: .notifyOthersOnDeactivation)
+        coordinator.deactivate(notifyOthers: true)
     }
 }
 
@@ -83,7 +93,11 @@ nonisolated final class EngineAudioCapture: AudioCapture {
     private let activator: AudioSessionActivating
     private let owner: VoiceAudioSessionOwner
     private let bufferSize: AVAudioFrameCount
+    /// start runs on a background thread and stop on the main thread: lease and starting reads/writes are both under the lock.
+    private let lock = NSLock()
     private var lease: VoiceAudioSessionOwner.Lease?
+    /// A start is already activating or installing the tap.
+    private var starting = false
 
     init(
         activator: AudioSessionActivating,
@@ -97,36 +111,50 @@ nonisolated final class EngineAudioCapture: AudioCapture {
         self.bufferSize = bufferSize
     }
 
-    convenience init(session: AVAudioSession = .sharedInstance(), bufferSize: AVAudioFrameCount = 4096) {
-        self.init(activator: SystemAudioSessionActivator(session: session), bufferSize: bufferSize)
+    convenience init(coordinator: AudioSessionCoordinator = .shared, bufferSize: AVAudioFrameCount = 4096) {
+        self.init(activator: SystemAudioSessionActivator(coordinator: coordinator), bufferSize: bufferSize)
     }
 
     var inputFormat: AVAudioFormat { input.format }
 
     @discardableResult
     func start(handlers: [AudioBufferHandler]) throws -> AVAudioFormat {
-        guard lease == nil else { return input.format }
+        // Already running or another start is in progress: throw, without taking a second lease or installing a second tap.
+        let claimed = lock.withLock { () -> Bool in
+            guard lease == nil, !starting else { return false }
+            starting = true
+            return true
+        }
+        guard claimed else { throw AudioCaptureError.alreadyStarted }
         let lease = owner.claim(.dictation)
         // Set the category and activate first: the input format (sample rate, channels) only takes its recording value after activation.
         do {
             try activator.activateForRecording()
         } catch {
             owner.release(lease)
+            lock.withLock { starting = false }
             throw error
         }
         do {
             let format = try input.start(bufferSize: bufferSize, handlers: handlers)
-            self.lease = lease
+            lock.withLock {
+                self.lease = lease
+                starting = false
+            }
             return format
         } catch {
             if owner.release(lease) { activator.deactivate() }
+            lock.withLock { starting = false }
             throw error
         }
     }
 
     func stop() {
+        let lease = lock.withLock { () -> VoiceAudioSessionOwner.Lease? in
+            defer { self.lease = nil }
+            return self.lease
+        }
         guard let lease else { return }
-        self.lease = nil
         input.stop()
         if owner.release(lease) { activator.deactivate() }
     }

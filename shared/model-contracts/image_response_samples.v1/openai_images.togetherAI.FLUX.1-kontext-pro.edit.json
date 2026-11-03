@@ -1,0 +1,39 @@
+{
+  "meta": {
+    "route": "openai_images",
+    "provider": "togetherAI",
+    "op": "edit",
+    "http": 200,
+    "seconds": 6.2,
+    "captured_at": "2026-10-28T01:17:23.501Z",
+    "endpoint": "https://api.together.xyz/v1/images/generations"
+  },
+  "observed": {
+    "shapes": [
+      "data[].b64_json"
+    ],
+    "images": [
+      {
+        "mime": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 93278,
+        "host": null
+      }
+    ]
+  },
+  "response": {
+    "id": "p6yYgGQ-2kFHot-a5161998de6ffd73-PDX",
+    "model": "black-forest-labs/FLUX.1-kontext-pro",
+    "object": "list",
+    "data": [
+      {
+        "index": 0,
+        "b64_json": "<base64 bytes=93278 sha256=cb738c7b6078d9c9>",
+        "timings": {
+          "inference": 4566
+        }
+      }
+    ]
+  }
+}

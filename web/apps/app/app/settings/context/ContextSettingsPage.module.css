@@ -82,7 +82,7 @@
 
 .heroLabelIcon {
   flex-shrink: 0;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .heroChip {
@@ -93,7 +93,7 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.6px;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .heroValueRow {
@@ -194,7 +194,7 @@
   padding: 4px;
   border: 1px solid var(--o-hairline);
   border-radius: 16px;
-  background: var(--o-surface);
+  background: var(--o-bg-subtle);
 }
 
 .segment {
@@ -226,7 +226,7 @@
 
 .segmentSelected {
   background: var(--o-surface-raised);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-weight: 600;
   box-shadow: 0 1px 2px color-mix(in srgb, var(--o-text) 12%, transparent);
 }
@@ -256,7 +256,7 @@
   padding: var(--o-space-sm) var(--o-space-md);
   border: 1px solid var(--o-border);
   border-radius: 14px;
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
 }
 
 .customCapField:focus-within {
@@ -322,7 +322,7 @@
   height: 36px;
   border-radius: 11px;
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .reminderCopy {

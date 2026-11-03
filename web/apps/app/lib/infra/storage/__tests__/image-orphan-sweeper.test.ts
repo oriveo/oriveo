@@ -1,4 +1,6 @@
 import 'fake-indexeddb/auto';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Attachment, ChatMessage, Conversation } from '@oriveo/shared';
 import * as idb from '../idb';
@@ -452,5 +454,184 @@ describe('image-orphan-sweeper', () => {
     expect(vi.mocked(idb.scanConversationsInChunks).mock.calls.length).toBeLessThanOrEqual(2);
     expect(results).toEqual(ids.map((id) => ({ referencesRead: true, deleted: [id] })));
     for (const id of ids) expect(await imageExists(id, UID)).toBe(false);
+  });
+});
+
+const ROOT = resolve(__dirname, '../../../../../../../..');
+
+interface StudioOrphanSweepCase {
+  chatAssets: string[];
+  studioVersions: string[];
+  studioRefs: string[];
+  onDisk: string[];
+  expectOrphans: string[];
+}
+
+const studioModel = JSON.parse(readFileSync(
+  resolve(ROOT, '\u5171\u4eab/studio-contracts/studio_data_model.v1.json'), 'utf8',
+)) as { orphanSweep: { case: StudioOrphanSweepCase } };
+const STUDIO_CASE = studioModel.orphanSweep.case;
+
+function chatConversationFor(assetIds: string[]): Conversation {
+  return conversationWith('c-chat', assetIds.map((id) => imageAttachment(`att-${id}`, id)));
+}
+
+/** Writes studio rows straight into the partition DB (no studio write API exists yet). */
+async function seedStudioRows(testCase: StudioOrphanSweepCase, uid: string = UID) {
+  // Create the partition DB at the current schema through the normal entry point first.
+  await idb.putConversation(chatConversationFor(testCase.chatAssets));
+  const { openDB } = await import('idb');
+  const { getDBName } = await import('../partition');
+  const db = await openDB(getDBName(uid));
+  expect(db.objectStoreNames.contains('studio_versions'), 'studio_versions store exists').toBe(true);
+  expect(db.objectStoreNames.contains('studio_round_refs'), 'studio_round_refs store exists').toBe(true);
+  // Only the first version is kept; the rest are candidates, which still count as references.
+  for (const [index, assetId] of testCase.studioVersions.entries()) {
+    await db.put('studio_versions', {
+      id: `version-${index}`,
+      roundId: 'round-1',
+      workId: 'work-1',
+      parentVersionId: null,
+      assetId,
+      width: 1024,
+      height: 1024,
+      mime: 'image/png',
+      kept: index === 0,
+      createdAt: new Date().toISOString(),
+    });
+  }
+  for (const [order, assetId] of testCase.studioRefs.entries()) {
+    await db.put('studio_round_refs', { roundId: 'round-1', order, assetId, role: 'subject' });
+  }
+  db.close();
+}
+
+describe('studio_data_model.v1 orphanSweep', () => {
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    idb.resetDBConnection();
+    resetImageDBConnection();
+    await clearAllDatabases();
+    UID = `user-sweep-${++uidSeq}`;
+    await setActiveUID(UID);
+  });
+
+  it('launch_sweep_keeps_studio_versions_and_round_refs', async () => {
+    await seedStudioRows(STUDIO_CASE);
+    await seedPreviousRunImages(STUDIO_CASE.onDisk);
+
+    const result = await sweepOrphanImagesOnLaunch(UID);
+
+    expect(result).toEqual({ referencesRead: true, deleted: STUDIO_CASE.expectOrphans });
+    for (const id of STUDIO_CASE.onDisk) {
+      expect(await imageExists(id, UID), id).toBe(!STUDIO_CASE.expectOrphans.includes(id));
+    }
+  });
+
+  it('purge_keeps_studio_versions_and_round_refs', async () => {
+    await seedStudioRows(STUDIO_CASE);
+    await seedPreviousRunImages(STUDIO_CASE.onDisk);
+
+    const result = await purgeUnreferencedImages(STUDIO_CASE.onDisk, UID);
+
+    expect(result).toEqual({ referencesRead: true, deleted: STUDIO_CASE.expectOrphans });
+    for (const id of STUDIO_CASE.onDisk) {
+      expect(await imageExists(id, UID), id).toBe(!STUDIO_CASE.expectOrphans.includes(id));
+    }
+  });
+
+  it('missing_studio_stores_contribute_no_references_and_sweep_runs', async () => {
+    // A partition DB at the current version without the studio stores.
+    const { openDB } = await import('idb');
+    const { getDBName } = await import('../partition');
+    const db = await openDB(getDBName(UID), idb.DB_VERSION, {
+      upgrade(database) {
+        const conversations = database.createObjectStore('conversations', { keyPath: 'id' });
+        conversations.createIndex('by-updated', 'updatedAt');
+      },
+    });
+    await db.put('conversations', chatConversationFor(STUDIO_CASE.chatAssets));
+    db.close();
+    await seedPreviousRunImages(STUDIO_CASE.onDisk);
+
+    const result = await sweepOrphanImagesOnLaunch(UID);
+
+    const expected = STUDIO_CASE.onDisk.filter((id) => !STUDIO_CASE.chatAssets.includes(id));
+    expect(result).toEqual({ referencesRead: true, deleted: expected });
+    for (const id of STUDIO_CASE.chatAssets) expect(await imageExists(id, UID), id).toBe(true);
+  });
+
+  it('studio_corruptRow_aborts', async () => {
+    await seedStudioRows(STUDIO_CASE);
+    await seedPreviousRunImages(STUDIO_CASE.onDisk);
+    const versionBase = { id: 'version-corrupt', roundId: 'round-1', workId: 'work-1', kept: false };
+    const refBase = { roundId: 'round-1', order: 99, role: 'subject' };
+    const corruptRows: Array<{ store: 'studio_versions' | 'studio_round_refs'; row: Record<string, unknown> }> = [
+      { store: 'studio_versions', row: { ...versionBase } },
+      { store: 'studio_versions', row: { ...versionBase, assetId: 42 } },
+      { store: 'studio_versions', row: { ...versionBase, assetId: '' } },
+      { store: 'studio_round_refs', row: { ...refBase } },
+      { store: 'studio_round_refs', row: { ...refBase, assetId: null } },
+    ];
+    const { openDB } = await import('idb');
+    const { getDBName } = await import('../partition');
+
+    for (const { store, row } of corruptRows) {
+      const label = `${store} ${JSON.stringify(row)}`;
+      const seedDB = await openDB(getDBName(UID));
+      await seedDB.put(store, row);
+      seedDB.close();
+      idb.resetDBConnection();
+
+      const result = await purgeUnreferencedImages(STUDIO_CASE.onDisk, UID);
+
+      expect(result, label).toEqual({ referencesRead: false, deleted: [] });
+      for (const id of STUDIO_CASE.onDisk) expect(await imageExists(id, UID), `${label} ${id}`).toBe(true);
+      idb.resetDBConnection();
+      const cleanupDB = await openDB(getDBName(UID));
+      await cleanupDB.delete(store, store === 'studio_versions' ? 'version-corrupt' : ['round-1', 99]);
+      cleanupDB.close();
+      idb.resetDBConnection();
+    }
+  });
+
+  it('studio_readError_aborts', async () => {
+    await seedStudioRows(STUDIO_CASE);
+    await seedPreviousRunImages(STUDIO_CASE.onDisk);
+    const originalGetAll = IDBObjectStore.prototype.getAll;
+    const getAll = vi.spyOn(IDBObjectStore.prototype, 'getAll').mockImplementation(
+      function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore['getAll']>) {
+        if (this.name === 'studio_versions') throw new Error('studio read failed');
+        return originalGetAll.apply(this, args);
+      },
+    );
+
+    try {
+      const result = await purgeUnreferencedImages(STUDIO_CASE.onDisk, UID);
+
+      expect(result).toEqual({ referencesRead: false, deleted: [] });
+      expect(getAll.mock.contexts.some((store) => (store as IDBObjectStore).name === 'studio_versions')).toBe(true);
+    } finally {
+      getAll.mockRestore();
+    }
+    for (const id of STUDIO_CASE.onDisk) expect(await imageExists(id, UID), id).toBe(true);
+  });
+
+  it('studio_partitionSwitchDuringStudioRead_aborts', async () => {
+    await seedStudioRows(STUDIO_CASE);
+    await seedPreviousRunImages(STUDIO_CASE.onDisk);
+    const otherUID = `${UID}-switched`;
+    const actual = await vi.importActual<typeof import('../idb')>('../idb');
+    // Studio rows are already read when the conversation scan starts; switch the partition right there.
+    vi.mocked(idb.scanConversationsInChunks).mockImplementationOnce(async (uid, visit, chunkSize) => {
+      await setActiveUID(otherUID);
+      await actual.scanConversationsInChunks(uid, visit, chunkSize);
+    });
+
+    const result = await purgeUnreferencedImages(STUDIO_CASE.onDisk, UID);
+
+    expect(result).toEqual({ referencesRead: false, deleted: [] });
+    await setActiveUID(UID);
+    for (const id of STUDIO_CASE.onDisk) expect(await imageExists(id, UID), id).toBe(true);
   });
 });

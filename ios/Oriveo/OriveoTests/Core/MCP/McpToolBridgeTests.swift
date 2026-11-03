@@ -689,22 +689,23 @@ private func sendWithMcp(
     memoryItems: [MemoryItem] = [],
     _ body: (ProposeRun) async throws -> Void
 ) async throws {
-    let database = try McpTestDatabase.make(); defer { database.cleanUp() }
+    let database = try McpTestDatabase.make()
+    let mcpDirectory = McpServerDirectory(
+        credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
+        openStore: { _ in database.store }
+    )
+    defer { database.cleanUp(after: mcpDirectory) }
     try seedServer(database, snapshots: [snapshot("get_weather")])
     McpScriptedURLProtocol.reset()
     await MetadataClient.shared.resetForTesting()
     ScriptedModelURLProtocol.reset(legs)
     let uid = "mcp-propose-\(UUID().uuidString)"
-    let store = database.store
     let state = AppState(
         seedDemoData: false,
         sessionUID: uid,
         providerSession: ScriptedModelURLProtocol.session(),
-        toolCallMemory: try makeToolLoopMemoryStore(),
-        mcpServerDirectory: McpServerDirectory(
-            credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
-            openStore: { _ in store }
-        )
+        toolCallMemory: try makeR4MemoryStore(),
+        mcpServerDirectory: mcpDirectory
     )
     let (provider, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
     state.providers = [provider]
@@ -716,9 +717,7 @@ private func sendWithMcp(
     state.chatManager.debugUseMcpClientFactoryForTesting { McpClient(endpoint: $0, session: McpScriptedURLProtocol.session()) }
     if !memoryItems.isEmpty { try await ContextPipelineTests.seedMemory(state, memoryItems) }
     defer {
-        state.flushConversationPersistQueue()
-        DatabaseManager.shared.close()
-        try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        await TestPartitionCleanup.remove(uid)
     }
     _ = await state.sendMessage(proposeUserText, in: conversationA)
     var assistant: ChatMessage?

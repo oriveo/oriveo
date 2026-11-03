@@ -17,6 +17,11 @@ struct SkillEditDraft: Sendable, Equatable {
     var temperature: Double?
     var reasoningLevel: String?
     var webSearchEnabled: Bool?
+    /// skill_schema.v2 fields. Edits pass the cached values so PUT never clears them.
+    var whenToUse: String = ""
+    var iconKey: String = ""
+    /// nil for a new skill: the body then writes `autoInvoke = trim(whenToUse) is non-empty`.
+    var autoInvoke: Bool? = nil
 }
 
 nonisolated enum SkillKnowledgeEditingSupport {
@@ -176,6 +181,9 @@ nonisolated enum SkillKnowledgeEditingSupport {
             let temperature: Double?
             let reasoningLevel: String?
             let webSearchEnabled: Bool?
+            let whenToUse: String
+            let autoInvoke: Bool
+            let iconKey: String
         }
 
         let payload = Payload(
@@ -195,7 +203,10 @@ nonisolated enum SkillKnowledgeEditingSupport {
             useMemory: draft.useMemory,
             temperature: draft.temperature,
             reasoningLevel: draft.reasoningLevel,
-            webSearchEnabled: draft.webSearchEnabled
+            webSearchEnabled: draft.webSearchEnabled,
+            whenToUse: draft.whenToUse,
+            autoInvoke: draft.autoInvoke ?? !SkillValidation.trim(draft.whenToUse).isEmpty,
+            iconKey: draft.iconKey
         )
 
         let encoder = JSONEncoder()

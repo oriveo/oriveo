@@ -11,6 +11,7 @@
     <!-- Voice conversation: only the microphone foreground-service type is declared; the service keeps running if notifications are denied. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
@@ -128,7 +129,19 @@
         <service
             android:name=".core.voice.conversation.VoiceConversationService"
             android:exported="false"
-            android:foregroundServiceType="microphone" />
+            android:foregroundServiceType="microphone|mediaPlayback" />
+
+        <!-- Studio image generation: short foreground service, capped at ~3 minutes by the platform. -->
+        <service
+            android:name=".core.studio.StudioGenerationService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
+
+        <!-- Studio image generation: short foreground service, capped at ~3 minutes by the platform. -->
+        <service
+            android:name=".core.studio.StudioGenerationService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

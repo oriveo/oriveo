@@ -5,6 +5,7 @@ import androidx.activity.compose.setContent
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.hasSetTextAction
@@ -24,6 +25,7 @@ import ai.oriveo.community.feature.chat.composer.DictationHostActions
 import ai.oriveo.community.feature.chat.composer.DictationHostCoordinator
 import ai.oriveo.community.feature.chat.composer.DictationToastSpec
 import ai.oriveo.community.feature.home.HomeViewModel
+import ai.oriveo.community.feature.home.HomeSkillsEntryDepth
 import ai.oriveo.community.feature.home.AuroraDarkColors
 import ai.oriveo.community.feature.home.AuroraGreeting
 import ai.oriveo.community.feature.home.AuroraHeroCardAppearance
@@ -31,6 +33,7 @@ import ai.oriveo.community.feature.home.AuroraTheme
 import ai.oriveo.community.feature.home.auroraCssShadowRadius
 import ai.oriveo.community.feature.home.auroraHeroRimBrush
 import ai.oriveo.community.feature.home.homeHeroPillModelName
+import ai.oriveo.community.feature.notes.HomeNotesPushpin
 import ai.oriveo.community.feature.notes.homeNotesAccessibilityText
 import ai.oriveo.community.feature.notes.homeNotesPreviewLine
 import ai.oriveo.community.ui.theme.DarkForestOriveoColors
@@ -177,10 +180,10 @@ class HomeHeroVisualContractTest {
 
         // The hero has the near-white hot core + the outer halo; Notes is the same light one step weaker, without core or halo
         assertTrue(themeSource.contains("drawAuroraCrown(dark, hairlinePath, hairlineWidth, scale = 1f, hotCore = true, alpha = 1f - p)"))
-        assertTrue(
-            themeSource.contains("drawAuroraCrown(dark, borderPath, hairlineWidth, scale = AURORA_CROWN_NOTES_SCALE, hotCore = false, alpha = 1f)"),
-        )
-        // On focus the crown and the outer halo fade out together in favor of the ring: both glows at once look smeared
+        // The notes entry card no longer uses the aurora surface, so the weaker notes crown is gone
+        assertFalse(themeSource.contains("AURORA_CROWN_NOTES_SCALE"))
+        assertFalse(themeSource.contains("auroraNotesSurface"))
+        // When focused, the aurora crown fades out together with the halo outside the card, replaced by the aurora ring: two glows stacked together would blur
         assertTrue(themeSource.contains("if (p < 1f) halo.forEach { with(it) { draw(size, alpha = 1f - p) } }"))
     }
 
@@ -277,6 +280,156 @@ class HomeHeroVisualContractTest {
     }
 
     @Test
+    fun `keycap has no hard lip band`() {
+        val keycap = File("src/main/java/ai/oriveo/community/feature/home/HomeSkillsEntryCard.kt").readText()
+            .substringAfter("private fun SkillsKeycap(").substringBefore("\n}\n")
+        assertTrue("keycap function found", keycap.contains("RoundedCornerShape(10.dp)"))
+        assertFalse("keycap draws no bottom lip band", keycap.contains("drawRect"))
+        listOf(false, true).forEach { isDark ->
+            val colors = HomeSkillsEntryDepth.keycapFaceColors(isDark)
+            assertEquals("three face colours (dark=$isDark)", 3, colors.size)
+            assertTrue(
+                "face luminance strictly decreases top to bottom (dark=$isDark)",
+                colors.zipWithNext().all { (upper, lower) -> upper.luminance() > lower.luminance() },
+            )
+        }
+        assertEquals(listOf(0f, 0.6f, 1f), HomeSkillsEntryDepth.KeycapFaceStops)
+    }
+
+    @Test
+    fun `keycap and chips share soft shadow`() {
+        val ambientLight = HomeSkillsEntryDepth.ambientShadow(isDark = false)
+        val ambientDark = HomeSkillsEntryDepth.ambientShadow(isDark = true)
+        assertEquals(Color(0xFFEA580C), ambientLight.color)
+        assertTrue("light ambient opacity in (0, 0.4]", ambientLight.opacity > 0f && ambientLight.opacity <= 0.4f)
+        assertTrue("ambient radius at least 5", ambientLight.radius >= 5.dp)
+        assertTrue("ambient falls downwards", ambientLight.y > 0.dp)
+        assertEquals(Color(0xFF000000), ambientDark.color)
+        assertTrue("dark ambient is denser than light", ambientDark.opacity > ambientLight.opacity)
+
+        val contactLight = HomeSkillsEntryDepth.contactShadow(isDark = false)
+        val contactDark = HomeSkillsEntryDepth.contactShadow(isDark = true)
+        listOf(contactLight, contactDark).forEach { contact ->
+            assertTrue("contact radius in (0, 1.5]", contact.radius > 0.dp && contact.radius <= 1.5.dp)
+        }
+        assertTrue("dark contact is denser than light", contactDark.opacity > contactLight.opacity)
+
+        val source = File("src/main/java/ai/oriveo/community/feature/home/HomeSkillsEntryCard.kt").readText()
+        listOf("SkillsKeycap", "SkillsTag").forEach { name ->
+            val body = source.substringAfter("private fun $name(").substringBefore("\n}\n")
+            assertTrue("$name draws the shared ambient shadow", body.contains("HomeSkillsEntryDepth.ambientShadow"))
+        }
+    }
+
+    @Test
+    fun `home entry row puts the notes and skills cards side by side at equal width`() {
+        val screenSource = File("src/main/java/ai/oriveo/community/feature/home/HomeScreen.kt").readText()
+        val entryItem = screenSource.substringAfter("item(key = \"notes_entry\")").substringBefore("item(key = \"list_top_gap\")")
+        assertTrue(entryItem.contains("horizontalArrangement = Arrangement.spacedBy(12.dp)"))
+        assertTrue(entryItem.contains("HomeNotesEntryCard("))
+        assertTrue(entryItem.contains("HomeSkillsEntryCard("))
+        assertEquals("both cards take an equal share of the row", 2, Regex("""\.weight\(1f\)""").findAll(entryItem).count())
+        assertFalse("the pinned skill chip row is gone", screenSource.contains("SkillChip"))
+
+        val notesSource = File("src/main/java/ai/oriveo/community/feature/notes/HomeNotesEntryCard.kt").readText()
+        val skillsSource = File("src/main/java/ai/oriveo/community/feature/home/HomeSkillsEntryCard.kt").readText()
+        val shell = skillsSource.substringAfter("internal fun Modifier.homeEntryCardSurface(").substringBefore("\n}\n")
+        assertTrue(skillsSource.contains("HomeEntryCardShape = RoundedCornerShape(22.dp)"))
+        assertTrue(shell.contains(".height(150.dp)"))
+        listOf(notesSource, skillsSource).forEach { source ->
+            assertTrue("both cards share the same shell", source.contains(".homeEntryCardSurface("))
+            // Neither card follows the theme palette
+            assertFalse(source.contains("OriveoTheme.colors"))
+            assertFalse(source.contains("auroraNotesSurface"))
+        }
+        assertTrue("breathing dot holds still when animations are off", skillsSource.contains("isReduceMotionEnabled("))
+        assertTrue(skillsSource.contains("durationMillis = 2400"))
+        assertTrue("tag dots use the glyph hue", skillsSource.contains("SkillGlyphs.hue("))
+    }
+
+    @Test
+    fun `pushpin has round head and visible needle`() {
+        val diameter = HomeNotesPushpin.HeadDiameter
+        assertTrue("head diameter $diameter reads as a round pin head", diameter in 9f..13f)
+        assertTrue(
+            "needle shows below the head",
+            HomeNotesPushpin.NeedleLength - diameter / 2f >= 3f,
+        )
+        assertTrue("pin leans up-left", HomeNotesPushpin.TiltDegrees in 15f..35f)
+        val pierce = Offset(HomeNotesPushpin.PierceX, HomeNotesPushpin.PierceY)
+        assertEquals(Offset(61f, 10f), pierce)
+        val tilt = Math.toRadians(24.0)
+        val expectedX = (61.0 - 9.0 * kotlin.math.sin(tilt)).toFloat()
+        val expectedY = (10.0 - 9.0 * kotlin.math.cos(tilt)).toFloat()
+        val center = HomeNotesPushpin.headCenter(pierce)
+        assertEquals("head centre x", expectedX, center.x, 0.01f)
+        assertEquals("head centre y", expectedY, center.y, 0.01f)
+        assertTrue("head crosses the sheet top edge", center.y - diameter / 2f < 0f)
+        assertTrue("needle has width", HomeNotesPushpin.NeedleWidth > 0f)
+        assertEquals("three head colours", 3, HomeNotesPushpin.HeadColors.size)
+        assertEquals("one stop per head colour", 3, HomeNotesPushpin.HeadStops.size)
+        assertTrue(
+            "head gradient runs from light to dark",
+            HomeNotesPushpin.HeadColors.first().luminance() > HomeNotesPushpin.HeadColors.last().luminance(),
+        )
+    }
+
+    @Test
+    fun `pushpin casts shadow in both appearances`() {
+        listOf(false, true).forEach { isDark ->
+            assertTrue("shadow visible (dark=$isDark)", HomeNotesPushpin.shadowAlpha(isDark) > 0f)
+            assertTrue("highlight visible (dark=$isDark)", HomeNotesPushpin.highlightAlpha(isDark) >= 0.6f)
+            assertTrue("pierce hole visible (dark=$isDark)", HomeNotesPushpin.holeAlpha(isDark) > 0f)
+        }
+        assertTrue(
+            "dark shadow is stronger than light",
+            HomeNotesPushpin.shadowAlpha(isDark = true) > HomeNotesPushpin.shadowAlpha(isDark = false),
+        )
+        assertTrue("shadow falls right", HomeNotesPushpin.ShadowOffsetX > 0f)
+        assertTrue("shadow falls down", HomeNotesPushpin.ShadowOffsetY > 0f)
+        assertTrue("shadow is blurred", HomeNotesPushpin.ShadowBlur > 0f)
+    }
+
+    @Test
+    fun `notes card has no washi tape`() {
+        val notesSource = File("src/main/java/ai/oriveo/community/feature/notes/HomeNotesEntryCard.kt").readText()
+        assertFalse("washi tape is gone from the notes card", notesSource.contains("WashiTape"))
+    }
+
+    @Test
+    fun `home entry cards have no outer stroke`() {
+        val notesSource = File("src/main/java/ai/oriveo/community/feature/notes/HomeNotesEntryCard.kt").readText()
+        val skillsSource = File("src/main/java/ai/oriveo/community/feature/home/HomeSkillsEntryCard.kt").readText()
+        assertTrue(skillsSource.contains("internal fun Modifier.homeEntryCardSurface("))
+        assertTrue(notesSource.contains("private fun PaperSheet("))
+        val shell = skillsSource.substringAfter("internal fun Modifier.homeEntryCardSurface(").substringBefore("\n}\n")
+        val sheet = notesSource.substringAfter("private fun PaperSheet(").substringBefore("\n}\n")
+        assertFalse("the shared card shell draws no outer stroke", shell.contains(".border("))
+        assertFalse("paper sheets draw no pink ring", sheet.contains(".border("))
+        assertTrue("dark card base is lifted above the page", shell.contains("0xFF1F1D24"))
+    }
+
+    @Test
+    fun `notes card and section header share the centered title count`() {
+        // The Notes card once used baseline alignment: its count sat about 1.5pt below the optical center; the group title was also raised another 1dp
+        val notesSource = File("src/main/java/ai/oriveo/community/feature/notes/HomeNotesEntryCard.kt").readText()
+        val headerSource = File("src/main/java/ai/oriveo/community/feature/home/homescreen/HomeEditingToolbar.kt").readText()
+        val themeSource = File("src/main/java/ai/oriveo/community/feature/home/AuroraTheme.kt").readText()
+        val skillsSource = File("src/main/java/ai/oriveo/community/feature/home/HomeSkillsEntryCard.kt").readText()
+        // The entry cards keep the centered title count but not the themed accent count
+        assertTrue(notesSource.contains("HomeEntryTitleCount("))
+        assertTrue(skillsSource.contains("HomeEntryTitleCount("))
+        assertTrue(skillsSource.contains("verticalAlignment = Alignment.CenterVertically"))
+        assertTrue(headerSource.contains("AuroraTitleCount("))
+        assertFalse(notesSource.contains("alignByBaseline"))
+        assertFalse(skillsSource.contains("alignByBaseline"))
+        assertFalse(headerSource.contains("offset(y ="))
+        val titleCount = themeSource.substringAfter("internal fun AuroraTitleCount(").substringBefore("// ── Section Rule")
+        assertTrue(titleCount.contains("verticalAlignment = Alignment.CenterVertically"))
+        assertFalse(titleCount.contains("offset("))
+    }
+
+    @Test
     fun `production pools rotate through every line so both platforms pick the same index`() {
         // Walk the production functions day by day: a pool one line short picks a different index than iOS
         for (hour in listOf(9, 15, 20, 2)) {
@@ -302,6 +455,110 @@ class HomeHeroVisualContractTest {
         }
         assertEquals(ai.oriveo.community.R.string.greeting_afternoon_5, AuroraGreeting.greetingResId(anchor))
         assertEquals(ai.oriveo.community.R.string.tagline_afternoon_8, AuroraGreeting.taglineResId(anchor))
+    }
+
+    @Test
+    fun `pushpin has round head and visible needle`() {
+        val diameter = HomeNotesPushpin.HeadDiameter
+        assertTrue("head diameter $diameter reads as a round pin head", diameter in 9f..13f)
+        assertTrue(
+            "needle shows below the head",
+            HomeNotesPushpin.NeedleLength - diameter / 2f >= 3f,
+        )
+        assertTrue("pin leans up-left", HomeNotesPushpin.TiltDegrees in 15f..35f)
+        val pierce = Offset(HomeNotesPushpin.PierceX, HomeNotesPushpin.PierceY)
+        assertEquals(Offset(61f, 10f), pierce)
+        val tilt = Math.toRadians(24.0)
+        val expectedX = (61.0 - 9.0 * kotlin.math.sin(tilt)).toFloat()
+        val expectedY = (10.0 - 9.0 * kotlin.math.cos(tilt)).toFloat()
+        val center = HomeNotesPushpin.headCenter(pierce)
+        assertEquals("head centre x", expectedX, center.x, 0.01f)
+        assertEquals("head centre y", expectedY, center.y, 0.01f)
+        assertTrue("head crosses the sheet top edge", center.y - diameter / 2f < 0f)
+        assertTrue("needle has width", HomeNotesPushpin.NeedleWidth > 0f)
+        assertEquals("three head colours", 3, HomeNotesPushpin.HeadColors.size)
+        assertEquals("one stop per head colour", 3, HomeNotesPushpin.HeadStops.size)
+        assertTrue(
+            "head gradient runs from light to dark",
+            HomeNotesPushpin.HeadColors.first().luminance() > HomeNotesPushpin.HeadColors.last().luminance(),
+        )
+    }
+
+    @Test
+    fun `pushpin casts shadow in both appearances`() {
+        listOf(false, true).forEach { isDark ->
+            assertTrue("shadow visible (dark=$isDark)", HomeNotesPushpin.shadowAlpha(isDark) > 0f)
+            assertTrue("highlight visible (dark=$isDark)", HomeNotesPushpin.highlightAlpha(isDark) >= 0.6f)
+            assertTrue("pierce hole visible (dark=$isDark)", HomeNotesPushpin.holeAlpha(isDark) > 0f)
+        }
+        assertTrue(
+            "dark shadow is stronger than light",
+            HomeNotesPushpin.shadowAlpha(isDark = true) > HomeNotesPushpin.shadowAlpha(isDark = false),
+        )
+        assertTrue("shadow falls right", HomeNotesPushpin.ShadowOffsetX > 0f)
+        assertTrue("shadow falls down", HomeNotesPushpin.ShadowOffsetY > 0f)
+        assertTrue("shadow is blurred", HomeNotesPushpin.ShadowBlur > 0f)
+    }
+
+    @Test
+    fun `notes card has no washi tape`() {
+        val notesSource = File("src/main/java/ai/oriveo/community/feature/notes/HomeNotesEntryCard.kt").readText()
+        assertFalse("washi tape is gone from the notes card", notesSource.contains("WashiTape"))
+    }
+
+    @Test
+    fun `home entry cards have no outer stroke`() {
+        val notesSource = File("src/main/java/ai/oriveo/community/feature/notes/HomeNotesEntryCard.kt").readText()
+        val skillsSource = File("src/main/java/ai/oriveo/community/feature/home/HomeSkillsEntryCard.kt").readText()
+        assertTrue(skillsSource.contains("internal fun Modifier.homeEntryCardSurface("))
+        assertTrue(notesSource.contains("private fun PaperSheet("))
+        val shell = skillsSource.substringAfter("internal fun Modifier.homeEntryCardSurface(").substringBefore("\n}\n")
+        val sheet = notesSource.substringAfter("private fun PaperSheet(").substringBefore("\n}\n")
+        assertFalse("the shared card shell draws no outer stroke", shell.contains(".border("))
+        assertFalse("paper sheets draw no pink ring", sheet.contains(".border("))
+        assertTrue("dark card base is lifted above the page", shell.contains("0xFF1F1D24"))
+    }
+
+    @Test
+    fun `keycap has no hard lip band`() {
+        val keycap = File("src/main/java/ai/oriveo/community/feature/home/HomeSkillsEntryCard.kt").readText()
+            .substringAfter("private fun SkillsKeycap(").substringBefore("\n}\n")
+        assertTrue("keycap function found", keycap.contains("RoundedCornerShape(10.dp)"))
+        assertFalse("keycap draws no bottom lip band", keycap.contains("drawRect"))
+        listOf(false, true).forEach { isDark ->
+            val colors = HomeSkillsEntryDepth.keycapFaceColors(isDark)
+            assertEquals("three face colours (dark=$isDark)", 3, colors.size)
+            assertTrue(
+                "face luminance strictly decreases top to bottom (dark=$isDark)",
+                colors.zipWithNext().all { (upper, lower) -> upper.luminance() > lower.luminance() },
+            )
+        }
+        assertEquals(listOf(0f, 0.6f, 1f), HomeSkillsEntryDepth.KeycapFaceStops)
+    }
+
+    @Test
+    fun `keycap and chips share soft shadow`() {
+        val ambientLight = HomeSkillsEntryDepth.ambientShadow(isDark = false)
+        val ambientDark = HomeSkillsEntryDepth.ambientShadow(isDark = true)
+        assertEquals(Color(0xFFEA580C), ambientLight.color)
+        assertTrue("light ambient opacity in (0, 0.4]", ambientLight.opacity > 0f && ambientLight.opacity <= 0.4f)
+        assertTrue("ambient radius at least 5", ambientLight.radius >= 5.dp)
+        assertTrue("ambient falls downwards", ambientLight.y > 0.dp)
+        assertEquals(Color(0xFF000000), ambientDark.color)
+        assertTrue("dark ambient is denser than light", ambientDark.opacity > ambientLight.opacity)
+
+        val contactLight = HomeSkillsEntryDepth.contactShadow(isDark = false)
+        val contactDark = HomeSkillsEntryDepth.contactShadow(isDark = true)
+        listOf(contactLight, contactDark).forEach { contact ->
+            assertTrue("contact radius in (0, 1.5]", contact.radius > 0.dp && contact.radius <= 1.5.dp)
+        }
+        assertTrue("dark contact is denser than light", contactDark.opacity > contactLight.opacity)
+
+        val source = File("src/main/java/ai/oriveo/community/feature/home/HomeSkillsEntryCard.kt").readText()
+        listOf("SkillsKeycap", "SkillsTag").forEach { name ->
+            val body = source.substringAfter("private fun $name(").substringBefore("\n}\n")
+            assertTrue("$name draws the shared ambient shadow", body.contains("HomeSkillsEntryDepth.ambientShadow"))
+        }
     }
 
     @Test

@@ -43,9 +43,9 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.provider.ModelDisplayLookup
-import ai.oriveo.community.core.util.normalizeUuid
 import ai.oriveo.community.feature.home.resolveConversationModelName
 import ai.oriveo.community.ui.component.ConversationRow
+import ai.oriveo.community.ui.component.conversationSkillGlyphKey
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -125,7 +125,7 @@ internal fun ConversationItem(
                 providerName = providerName,
                 modelName = modelName,
                 folderName = folderName,
-                skillIcon = conversation.skillId?.let { skillsById[normalizeUuid(it)]?.icon },
+                skillGlyphKey = conversationSkillGlyphKey(conversation, skillsById),
                 isEditing = isEditing,
                 provider = provider,
                 isStreaming = isStreaming,

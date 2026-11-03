@@ -48,7 +48,7 @@ struct LongArabicTextHangCostTests {
         let window: UIWindow
         let host: UIViewController
         let state: AppState
-        let cleanup: () -> Void
+        let cleanup: () async -> Void
     }
 
     /// Mounts the real `ChatView` in a 430x932 window (same assembly as `ComposerTextViewTests.productionChatViewLongPaste`).
@@ -80,10 +80,8 @@ struct LongArabicTextHangCostTests {
         return ChatHarness(window: window, host: host, state: state) {
             window.isHidden = true
             window.rootViewController = nil
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
+            await TestPartitionCleanup.remove(uid)
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
         }
     }
 
@@ -95,7 +93,7 @@ struct LongArabicTextHangCostTests {
             uid: "long-arabic-composer-\(UUID().uuidString)",
             messages: [TestFactories.makeMessage(role: .user, text: "hi"), TestFactories.makeMessage(role: .assistant, text: "hello")]
         )
-        defer { harness.cleanup() }
+        defer { await harness.cleanup() }
         harness.window.makeKeyAndVisible()
         try await yieldMainActor(for: 2.0)
         let input = try #require(firstEditableTextView(in: harness.host.view) as? ComposerUITextView)
@@ -262,7 +260,7 @@ struct LongArabicTextHangCostTests {
             harness.window.makeKeyAndVisible()
             try await yieldMainActor(for: 4.0)
             probe.stop()
-            harness.cleanup()
+            await harness.cleanup()
             stalls[utf16] = probe.maxStall
             print("[HANG-COST] real chat screen first open (last user message a single Arabic paragraph of \(utf16) UTF-16): longest main-thread stall \(ms(probe.maxStall)), >16ms total \(ms(probe.jankTotal))")
         }

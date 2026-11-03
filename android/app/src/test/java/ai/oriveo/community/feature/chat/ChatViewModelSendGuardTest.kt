@@ -108,6 +108,17 @@ class ChatViewModelSendGuardTest {
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
+                quoteContext = any(),
+                libraryResearchEnabled = any(),
+                libraryContextDocuments = any(),
+                libraryContextCancelledText = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
     }
@@ -242,6 +253,17 @@ class ChatViewModelSendGuardTest {
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
+                quoteContext = any(),
+                libraryResearchEnabled = any(),
+                libraryContextDocuments = any(),
+                libraryContextCancelledText = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -285,6 +307,17 @@ class ChatViewModelSendGuardTest {
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
                 appendToAssistant = any(),
+                quoteContext = any(),
+                libraryResearchEnabled = any(),
+                libraryContextDocuments = any(),
+                libraryContextCancelledText = any(),
+                attemptKind = any(),
+                overflowRecovery = any(),
+                onUserMessageCreated = any(),
+                memoryPropose = any(),
+                memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         }
     }
@@ -317,6 +350,7 @@ class ChatViewModelSendGuardTest {
         attachmentProcessor = mockk(relaxed = true),
         globalSnackbarManager = globalSnackbarManager,
         applicationScope = applicationScope,
+        ioDispatcher = dispatcher,
     )
 
     private fun buildConversation(id: String): Conversation = Conversation(

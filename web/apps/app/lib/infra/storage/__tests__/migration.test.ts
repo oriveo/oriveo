@@ -144,10 +144,41 @@ describe('migration.ts', () => {
       const hasCheckpoints = newDB.objectStoreNames.contains('contextCheckpoints');
       const hasMemoryItems = newDB.objectStoreNames.contains('memoryItems');
       const hasMemoryCandidates = newDB.objectStoreNames.contains('memoryCandidates');
+      const hasRemoteDeletionJournal = newDB.objectStoreNames.contains('remoteDeletionJournal');
+      const studioStores = ['studio_works', 'studio_rounds', 'studio_versions', 'studio_round_refs']
+        .filter((name) => newDB.objectStoreNames.contains(name));
+      // Same expectation table as idb.test.ts studio_stores_created_on_upgrade_from_v15.
+      const expectedStudio: Record<string, { keyPath: string | string[]; indexes: Record<string, string> }> = {
+        studio_works: { keyPath: 'id', indexes: { 'by-updated': 'updatedAt' } },
+        studio_rounds: { keyPath: 'id', indexes: { 'by-work': 'workId' } },
+        studio_versions: {
+          keyPath: 'id',
+          indexes: { 'by-work': 'workId', 'by-round': 'roundId', 'by-asset': 'assetId' },
+        },
+        studio_round_refs: {
+          keyPath: ['roundId', 'order'],
+          indexes: { 'by-round': 'roundId', 'by-asset': 'assetId' },
+        },
+      };
+      for (const [name, spec] of Object.entries(expectedStudio)) {
+        if (!newDB.objectStoreNames.contains(name)) continue;
+        const tx = newDB.transaction(name, 'readonly');
+        const store = tx.objectStore(name);
+        expect(store.keyPath, `${name} keyPath`).toEqual(spec.keyPath);
+        expect([...store.indexNames].sort(), `${name} indexes`).toEqual(Object.keys(spec.indexes).sort());
+        for (const [indexName, keyPath] of Object.entries(spec.indexes)) {
+          const index = store.index(indexName);
+          expect(index.keyPath, `${name}.${indexName} keyPath`).toBe(keyPath);
+          expect(index.unique, `${name}.${indexName} unique`).toBe(false);
+        }
+        await tx.done;
+      }
       newDB.close();
 
-      // The migration builds straight to the current schema: v13 memoryItems + v14 memoryCandidates.
-      expect(PARTITION_DB_VERSION).toBe(14);
+      // Migration builds straight to the current schema: v13 memoryItems + v14 memoryCandidates + v15 remoteDeletionJournal.
+      expect(PARTITION_DB_VERSION).toBe(16);
+      expect(hasRemoteDeletionJournal).toBe(true);
+      expect(studioStores).toEqual(['studio_works', 'studio_rounds', 'studio_versions', 'studio_round_refs']);
       expect(version).toBe(PARTITION_DB_VERSION);
       expect(hasMemoryItems).toBe(true);
       expect(hasMemoryCandidates).toBe(true);

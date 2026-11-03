@@ -1,10 +1,14 @@
 package ai.oriveo.community.di
 
 import android.content.Context
+import android.media.MediaRecorder
 import ai.oriveo.community.BuildConfig
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.storage.AppStoragePaths
+import ai.oriveo.community.core.voice.AndroidAudioSessionCoordinator
 import ai.oriveo.community.core.voice.AndroidDictationEnvironment
 import ai.oriveo.community.core.voice.AndroidMicrophonePermission
 import ai.oriveo.community.core.voice.AndroidReadAloudEnvironment
@@ -31,6 +35,7 @@ import ai.oriveo.community.core.voice.SystemSpeechEngine
 import ai.oriveo.community.core.voice.SystemTtsVoiceProbe
 import ai.oriveo.community.core.voice.VoiceCatalogClient
 import ai.oriveo.community.core.voice.VoiceEngineSettings
+import ai.oriveo.community.core.voice.providerDisclosureCoRecorder
 import ai.oriveo.community.core.voice.VoicePreviewController
 import ai.oriveo.community.core.voice.asDictationCatalogSource
 import ai.oriveo.community.core.voice.SpeakablePlaceholder
@@ -40,6 +45,7 @@ import ai.oriveo.community.core.voice.conversation.DictationConversationSttSourc
 import ai.oriveo.community.core.voice.conversation.ReadAloudConversationTtsSource
 import ai.oriveo.community.core.voice.conversation.ServiceConversationForeground
 import ai.oriveo.community.core.voice.conversation.SpeakerBargeInMemory
+import ai.oriveo.community.core.voice.conversation.SpeechProbSource
 import ai.oriveo.community.core.voice.conversation.SystemConversationTts
 import ai.oriveo.community.core.voice.conversation.VoiceConversationController
 import ai.oriveo.community.core.voice.conversation.VoiceConversationEnvironment
@@ -70,12 +76,20 @@ val appModule = module {
     )
     single {
         val ctx = androidContext()
-        VoiceEngineSettings {
+        val koin = getKoin()
+        VoiceEngineSettings(
+            onRealtimeDisclosureAccepted = providerDisclosureCoRecorder(
+                preferences = { koin.getOrNull<AppPreferencesRepository>() },
+                scope = get(named("applicationScope")),
+            ),
+        ) {
             ctx.getSharedPreferences(VoiceEngineSettings.PREFS_NAME, Context.MODE_PRIVATE)
         }
     }
-    // Read-aloud and voice preview share one synthesized-audio cache.
-    single { SpeechAudioCache(File(androidContext().cacheDir, "voice-tts")) }
+    // Read-aloud, conversation and realtime conversation share one audio session coordinator (AudioManager operations are serialized onto its thread).
+    single { AndroidAudioSessionCoordinator(androidContext()) }
+    // Read-aloud and voice-preview playback share one synthesized-audio cache.
+    single { SpeechAudioCache(File(AppStoragePaths.cacheDir(androidContext()), "voice-tts")) }
     single {
         val ctx = androidContext()
         val settings = get<VoiceEngineSettings>()
@@ -95,7 +109,7 @@ val appModule = module {
                 refreshCatalog = { appScope.launch { catalogClient.ensureFresh() } },
                 providers = { get<ProviderRepository>().observeAll().first() },
             ),
-            environment = AndroidReadAloudEnvironment(ctx, get()),
+            environment = AndroidReadAloudEnvironment(ctx, get(), get()),
             languageDetector = AndroidReadingLanguageDetector(ctx),
             showToast = get<GlobalSnackbarManager>()::show,
             beforeStart = { koin.get<VoicePreviewController>().stop() },
@@ -104,7 +118,7 @@ val appModule = module {
     single {
         val ctx = androidContext()
         val catalogClient = get<VoiceCatalogClient>()
-        val environment = AndroidReadAloudEnvironment(ctx, get())
+        val environment = AndroidReadAloudEnvironment(ctx, get(), get())
         val koin = getKoin()
         VoicePreviewController(
             engineSource = SettingsVoicePreviewEngineSource(
@@ -125,7 +139,7 @@ val appModule = module {
         VoiceCatalogClient(
             get(),
             BuildConfig.METADATA_BASE_URL,
-            File(androidContext().filesDir, "voice"),
+            File(AppStoragePaths.filesDir(androidContext()), "voice"),
         )
     }
     // Warm the voice catalog at app start: read the cache cold in a background coroutine, then refresh if needed, so the main thread never builds the client.
@@ -143,7 +157,7 @@ val appModule = module {
         val router = SystemSTTRouter(AndroidSystemSTTBackend(ctx))
         DefaultDictationEngineFactory(
             get<HttpClient>(),
-            File(ctx.cacheDir, "voice-upload"),
+            File(AppStoragePaths.cacheDir(ctx), "voice-upload"),
             SystemSTTEngine(AndroidSystemSTTSessionBackend(ctx), routeFor = router::route),
             router,
         )
@@ -155,7 +169,8 @@ val appModule = module {
             settings = get<VoiceEngineSettings>(),
             catalog = get<VoiceCatalogClient>().asDictationCatalogSource(),
             providers = { get<ProviderRepository>().observeAll().first() },
-            capture = AudioRecordCapture(ctx),
+            // Dictation uses the VOICE_RECOGNITION capture source; conversation and realtime still use the default MIC.
+            capture = AudioRecordCapture(ctx, MediaRecorder.AudioSource.VOICE_RECOGNITION),
             store = RecordingStore.production(ctx),
             encoderFactory = { MediaCodecAacEncoder() },
             permission = get<AndroidMicrophonePermission>(),
@@ -167,7 +182,7 @@ val appModule = module {
         val settings = get<VoiceEngineSettings>()
         val catalogClient = get<VoiceCatalogClient>()
         val appScope = get<CoroutineScope>(named("applicationScope"))
-        val readAloudEnvironment = AndroidReadAloudEnvironment(ctx, get())
+        val readAloudEnvironment = AndroidReadAloudEnvironment(ctx, get(), get())
         val detector = AndroidReadingLanguageDetector(ctx)
         val dictationEnvironment = AndroidDictationEnvironment(ctx, get(), settings)
         val koin = getKoin()
@@ -181,10 +196,10 @@ val appModule = module {
             ctx,
             speechRate = settings::speechRate,
             localeFor = localeFor,
-            tempDir = File(ctx.cacheDir, "voice-conversation-tts"),
+            tempDir = File(AppStoragePaths.cacheDir(ctx), "voice-conversation-tts"),
         )
         VoiceConversationController(
-            audio = AndroidConversationAudio(ctx, File(ctx.cacheDir, "voice-conversation")),
+            audio = AndroidConversationAudio(ctx, get(), File(AppStoragePaths.cacheDir(ctx), "voice-conversation")),
             sttSource = DictationConversationSttSource(
                 engines = get<DictationEngineFactory>(),
                 settings = settings,
@@ -220,6 +235,9 @@ val appModule = module {
                     when (which) {
                         VoicePrompt.DidNotCatch -> R.string.voice_conversation_prompt_did_not_catch
                         VoicePrompt.ApprovalNeeded -> R.string.voice_conversation_prompt_approval_needed
+                        VoicePrompt.SayAgain -> R.string.voice_conversation_prompt_say_again
+                        VoicePrompt.CheckLanguage -> R.string.voice_conversation_prompt_check_language
+                        VoicePrompt.EchoHint -> R.string.voice_conversation_prompt_echo_hint
                         is VoicePrompt.Placeholder -> when (which.kind) {
                             SpeakablePlaceholder.CODE -> R.string.voice_placeholder_code
                             SpeakablePlaceholder.TABLE -> R.string.voice_placeholder_table
@@ -228,6 +246,7 @@ val appModule = module {
                     },
                 )
             },
+            speechProbs = SpeechProbSource.silero(ctx),
         )
     } bind VoiceConversationEngine::class
     // The chat page voice conversation on a cloud realtime model: no foreground service, closes in the background.
@@ -236,13 +255,42 @@ val appModule = module {
         val catalogClient = get<VoiceCatalogClient>()
         val conversations = get<ai.oriveo.community.core.data.repository.ConversationRepository>()
         val appScope = get<CoroutineScope>(named("applicationScope"))
-        val preferences = get<ai.oriveo.community.core.app.AppPreferencesRepository>()
+        val audioSessions = get<AndroidAudioSessionCoordinator>()
+        // Same target route the realtime audio selects on start; not the communication device (audio not started yet). Maintained on the coordinator thread from the output devices and their callbacks,
+        // until then it defaults to the speaker.
+        val outputRoute = java.util.concurrent.atomic.AtomicReference(
+            ai.oriveo.community.core.voice.conversation.ConversationRoute.SPEAKER,
+        )
+        audioSessions.post {
+            val ops = this
+            val refresh = {
+                outputRoute.set(
+                    ai.oriveo.community.core.voice.conversation.routeForOutputs(
+                        ops.devices(android.media.AudioManager.GET_DEVICES_OUTPUTS).map { it.type },
+                    ),
+                )
+            }
+            refresh()
+            registerDeviceCallback(
+                object : android.media.AudioDeviceCallback() {
+                    override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) = refresh()
+
+                    override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) =
+                        refresh()
+                },
+            )
+        }
         ai.oriveo.community.feature.chat.voice.RealtimeVoiceSessionBuilder(
             settings = get<VoiceEngineSettings>(),
             catalog = {
                 val source = catalogClient.asDictationCatalogSource()
                 source.loadCached()
                     ?: (source.refresh() as? ai.oriveo.community.core.voice.VoiceCatalogState.Available)?.catalog
+            },
+            // A failed connect asks the server again: the cache may still list a model that was removed (model_gone).
+            refreshedCatalog = {
+                (catalogClient.asDictationCatalogSource().refresh() as? ai.oriveo.community.core.voice.VoiceCatalogState.Available)
+                    ?.catalog
             },
             providers = { get<ProviderRepository>().observeAll().first() },
             conversation = { id -> conversations.getWithMessages(id) },
@@ -255,10 +303,12 @@ val appModule = module {
                     createHomeConversation,
                 )
             },
-            audio = { ai.oriveo.community.core.voice.realtime.AndroidRealtimeAudio(ctx) },
+            outputRoute = outputRoute::get,
+            audio = { ai.oriveo.community.core.voice.realtime.AndroidRealtimeAudio(ctx, audioSessions) },
             scope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main.immediate),
-            rememberLastUsed = { providerId, modelId -> preferences.setLastUsedModel(providerId, modelId) },
             latestCheckpoint = get<ai.oriveo.community.core.data.repository.ContextCompactionCoordinator>()::latestValid,
+            speechProbs = SpeechProbSource.silero(ctx),
+            foreground = ServiceConversationForeground(ctx),
         )
     }
     // Hands one voice conversation from the home hero to the chat page it creates.

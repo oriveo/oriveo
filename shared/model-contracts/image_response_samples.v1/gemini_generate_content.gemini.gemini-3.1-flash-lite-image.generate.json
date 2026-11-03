@@ -1,0 +1,71 @@
+{
+  "meta": {
+    "route": "gemini_generate_content",
+    "provider": "gemini",
+    "op": "generate",
+    "http": 200,
+    "seconds": 3.4,
+    "captured_at": "2026-10-28T01:14:07.189Z",
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent"
+  },
+  "observed": {
+    "shapes": [
+      "inlineData"
+    ],
+    "images": [
+      {
+        "mime": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 688053,
+        "host": null
+      }
+    ]
+  },
+  "response": {
+    "candidates": [
+      {
+        "content": {
+          "parts": [
+            {
+              "inlineData": {
+                "mimeType": "image/jpeg",
+                "data": "<base64 bytes=688053 sha256=cf2f640b9965b3f8>"
+              },
+              "thoughtSignature": "<base64 bytes=1013972 sha256=95b6fb39e2c555c0>"
+            }
+          ],
+          "role": "model"
+        },
+        "finishReason": "STOP",
+        "index": 0,
+        "safetyRatings": [
+          {
+            "category": "HARM_CATEGORY_HATE_SPEECH",
+            "probability": "NEGLIGIBLE"
+          }
+        ]
+      }
+    ],
+    "usageMetadata": {
+      "promptTokenCount": 14,
+      "candidatesTokenCount": 1508,
+      "totalTokenCount": 1522,
+      "promptTokensDetails": [
+        {
+          "modality": "TEXT",
+          "tokenCount": 14
+        }
+      ],
+      "candidatesTokensDetails": [
+        {
+          "modality": "IMAGE",
+          "tokenCount": 1120
+        }
+      ],
+      "serviceTier": "standard"
+    },
+    "modelVersion": "gemini-3.1-flash-lite-image",
+    "responseId": "XEzhauzsELWL694P9L2N-QQ"
+  }
+}

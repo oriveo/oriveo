@@ -9,6 +9,7 @@ import { relayIconSource } from '../relay-avatar';
 import { useIsDarkTheme } from '../../lib/hooks/useIsDarkTheme';
 import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
 import { formatCostTotals, hasNonUsdCostTotals, type NonUsdCostTotals } from '../../lib/core/cost/cost-currency';
+import { formatUsd } from '../../lib/utils/currency-format';
 import {
   formatProviderBalanceAmount,
   isBalanceCapable,
@@ -53,8 +54,8 @@ export function resolveProviderListTrailingAmount(
     };
   }
 
-  // A month with only non-USD spend is not shown as $0
-  const text = formatCostTotals(monthlyCost, monthlyNonUsdTotals, locale) || '$0';
+  // Months with only non-USD costs do not show $0
+  const text = formatCostTotals(monthlyCost, monthlyNonUsdTotals, locale) || formatUsd(0, locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
   return { label: 'usageLabel', text, isZero: monthlyCost === 0 && !hasNonUsdCostTotals(monthlyNonUsdTotals) };
 }
 

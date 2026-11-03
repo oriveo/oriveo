@@ -8,6 +8,10 @@ enum ComposerPrimaryAction: Equatable {
     case send(enabled: Bool)
     /// Generating: ■ stop.
     case stop
+    /// A realtime voice model is selected in the picker: the input area becomes the persistent voice console (idle orb stays still + "Tap to start talking").
+    case voiceStage
+    /// Realtime selected and the user switched to typing with an empty draft: the ≋ slot becomes a button back to the voice console.
+    case backToStage
 }
 
 /// Pure decisions for entering a voice conversation, shared by the chat page and the home page.
@@ -19,15 +23,26 @@ enum VoiceConversationEntry {
         return !CapabilityEvidenceFacade.isImageOnlyModel(model)
     }
 
-    /// Primary button form. voiceAvailable = this page can enter voice conversation (not read-only, model not removed, dictation engine present).
+    /// Primary button shape. voiceAvailable = this page can enter a voice conversation (not read-only, model not removed, dictation engine available).
+    /// realtimeSelected = this page (conversation / home) has a realtime selection: it does not swap the whole block for the voice console while generating, and ignores the draft and text-model capability.
+    /// realtimeTyping = with a realtime selection, the user switched from the voice console to typing: an empty draft returns to the voice console, with text it shows ↑; no effect without a realtime selection.
+    /// realtimeReadOnly = the check only the realtime branch uses (page read-only): realtime does not use the dictation engine, and the text-model-removed banner is meaningless for realtime models
+    /// (realtime delisting goes through model_gone); when nil, falls back to !voiceAvailable.
     static func primaryAction(
         isSending: Bool,
         hasContent: Bool,
         sendEnabled: Bool,
         voiceAvailable: Bool,
-        modelProducesText: Bool
+        modelProducesText: Bool,
+        realtimeSelected: Bool = false,
+        realtimeTyping: Bool = false,
+        realtimeReadOnly: Bool? = nil
     ) -> ComposerPrimaryAction {
         if isSending { return .stop }
+        if realtimeSelected && !(realtimeReadOnly ?? !voiceAvailable) {
+            guard realtimeTyping else { return .voiceStage }
+            return hasContent ? .send(enabled: sendEnabled) : .backToStage
+        }
         if hasContent { return .send(enabled: sendEnabled) }
         if canEnterVoice(hasContent: hasContent, voiceAvailable: voiceAvailable, modelProducesText: modelProducesText) {
             return .voice
@@ -35,19 +50,34 @@ enum VoiceConversationEntry {
         return .send(enabled: false)
     }
 
-    /// Home input card: the primary key is always ↑ (sends with text, opens the chat page without creating a conversation on an empty draft); ≋ is a secondary button that appears only when voice conversation is available.
-    /// isSending = the home page is sending; with text or when unavailable ≋ is hidden outright rather than shown grey (same as the chat page).
+    /// Home input card: the primary key is always ↑ (sends with text; an empty draft enters the conversation page without creating a session); ≋ appears as a secondary button only when a voice conversation is possible.
+    /// isSending = sending on home, or a managed privacy confirmation is pending; with text or when unavailable, ≋ is hidden rather than shown grayed out (same as the conversation page).
+    /// realtimeSelected / realtimeTyping work as in primaryAction: on home in realtime typing mode with an empty draft, the ≋ slot becomes the button back to the voice console; with text, only ↑ appears.
     static func homeComposer(
         isSending: Bool,
         hasContent: Bool,
         voiceAvailable: Bool,
-        modelProducesText: Bool
+        modelProducesText: Bool,
+        realtimeSelected: Bool = false,
+        realtimeTyping: Bool = false,
+        realtimeReadOnly: Bool? = nil
     ) -> HomeComposerActions {
-        HomeComposerActions(
+        let backToStage = primaryAction(
+            isSending: isSending,
+            hasContent: hasContent,
             sendEnabled: !isSending,
-            showsVoice: !isSending && canEnterVoice(
+            voiceAvailable: voiceAvailable,
+            modelProducesText: modelProducesText,
+            realtimeSelected: realtimeSelected,
+            realtimeTyping: realtimeTyping,
+            realtimeReadOnly: realtimeReadOnly
+        ) == .backToStage
+        return HomeComposerActions(
+            sendEnabled: !isSending,
+            showsVoice: !isSending && !backToStage && canEnterVoice(
                 hasContent: hasContent, voiceAvailable: voiceAvailable, modelProducesText: modelProducesText
-            )
+            ),
+            showsBackToStage: backToStage
         )
     }
 
@@ -57,10 +87,11 @@ enum VoiceConversationEntry {
     }
 }
 
-/// State of the two keys on the home input card: whether ↑ is tappable and whether the ≋ secondary button appears.
+/// State of the two home input card keys: whether ↑ is tappable, whether the ≋ secondary button appears, and whether the ≋ slot becomes the button back to the voice console (realtime typing mode, empty draft).
 struct HomeComposerActions: Equatable {
     let sendEnabled: Bool
     let showsVoice: Bool
+    var showsBackToStage = false
 }
 
 /// For `stopToVoiceGuardMs` after ■ turns back into ≋, ≋ ignores taps (mic opened by mistake

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="studio_tab_title">Bilder</string>
+    <plurals name="studio_generating_title">
+        <item quantity="one">%1$d Bild wird erstellt</item>
+        <item quantity="other">%1$d Bilder werden erstellt</item>
+    </plurals>
+</resources>

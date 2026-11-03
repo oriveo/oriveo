@@ -71,6 +71,9 @@ final class MessageWindowLoader {
         stop()
         observedConversationID = conversationID
         observedDbPool = dbPool
+        #if DEBUG
+        MessageWindowDebugRegistry.shared.register(self, conversationID: conversationID)
+        #endif
         if let remoteAnchorHydrator {
             self.remoteAnchorHydrator = remoteAnchorHydrator
         }
@@ -497,3 +500,29 @@ final class MessageWindowLoader {
 private struct Message: TableRecord {
     static let databaseTableName = "message"
 }
+
+#if DEBUG
+/// E2E test-rig read: the loader (weak reference) and conversation id from the latest `observe(conversationID:)` call.
+/// Only records an in-memory reference and does not change loader behavior; `generation` increments on each registration so observers can detect a loader swap.
+@MainActor
+@Observable
+final class MessageWindowDebugRegistry {
+    static let shared = MessageWindowDebugRegistry()
+
+    @ObservationIgnored private(set) weak var loader: MessageWindowLoader?
+    private(set) var conversationID: UUID?
+    private(set) var generation = 0
+
+    func register(_ loader: MessageWindowLoader, conversationID: UUID) {
+        self.loader = loader
+        if self.conversationID != conversationID { self.conversationID = conversationID }
+        generation &+= 1
+    }
+
+    /// Count of messages with the given role in the registered loader (including streaming temporary rows); 0 once the loader is released.
+    func count(_ role: ChatRole) -> Int {
+        _ = generation
+        return loader?.messages.reduce(0) { $0 + ($1.role == role ? 1 : 0) } ?? 0
+    }
+}
+#endif

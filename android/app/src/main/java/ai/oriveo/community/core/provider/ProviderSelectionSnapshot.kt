@@ -6,6 +6,9 @@ import ai.oriveo.community.core.model.LastUsedModelRef
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.voice.VoiceCatalog
+import ai.oriveo.community.core.voice.realtime.RealtimeModel
+import ai.oriveo.community.core.voice.realtime.RealtimeSelection
 import java.time.Instant
 
 /**
@@ -44,11 +47,16 @@ object ProviderSelectionSnapshot {
         return enabled.firstOrNull(::usable)
     }
 
+    /**
+     * When [voiceCatalog] is non-null, an id that cannot be found among the enabled models is first matched against the voice catalog realtime[] (official apiKey connections),
+     * and resolved to a synthesized model ([RealtimeSelection.realtimeAIModel]); null = realtime is not recognized, and behavior is unchanged.
+     */
     fun selectedModel(
         provider: Provider?,
         modelId: String?,
         metadata: MetadataClient = MetadataClient.instance,
-    ): AIModel? = selectedModel(provider, modelId, metadata) { enabled, targetId ->
+        voiceCatalog: VoiceCatalog? = null,
+    ): AIModel? = selectedModel(provider, modelId, metadata, voiceCatalog) { enabled, targetId ->
         ModelSelectionUtils.resolveStoredModel(enabled, targetId, provider?.kind)
     }
 
@@ -61,15 +69,20 @@ object ProviderSelectionSnapshot {
         provider: Provider?,
         modelId: String?,
         metadata: MetadataClient,
+        voiceCatalog: VoiceCatalog? = null,
         enabledMatch: (enabled: List<AIModel>, targetId: String) -> AIModel?,
     ): AIModel? {
         val targetId = modelId?.trim().orEmpty()
         if (provider == null || targetId.isEmpty()) return null
 
         val enabled = enabledModels(provider)
-        if (enabled.isEmpty()) return null
+        if (enabled.isNotEmpty()) enabledMatch(enabled, targetId)?.let { return it }
 
-        enabledMatch(enabled, targetId)?.let { return it }
+        // Realtime models are not in the enabled list: a hit of catalog realtime[] x an official apiKey connection synthesizes the model, and it is not judged for retirement.
+        RealtimeSelection.realtimeEntry(provider, targetId, voiceCatalog)
+            ?.let { return RealtimeSelection.realtimeAIModel(it) }
+
+        if (enabled.isEmpty()) return null
 
         if (provider.kind != ProviderKind.Relay) {
             val resolved = metadata.resolveCatalogModel(targetId, provider.kind)
@@ -98,8 +111,9 @@ object ProviderSelectionSnapshot {
         storedModelId: String?,
         metadata: MetadataClient = MetadataClient.instance,
         lastUsedModelRef: LastUsedModelRef? = null,
+        voiceCatalog: VoiceCatalog? = null,
     ): AIModel? {
-        selectedModel(provider, storedModelId, metadata)?.let { return it }
+        selectedModel(provider, storedModelId, metadata, voiceCatalog)?.let { return it }
         if (storedModelId.isNullOrBlank() && provider != null && lastUsedModelRef?.providerID == provider.id) {
             ModelSelectionUtils.resolveStoredModel(enabledModels(provider), lastUsedModelRef.modelID, provider.kind)
                 ?.takeIf { newChatUsable(provider, it.id, metadata) }
@@ -124,21 +138,24 @@ object ProviderSelectionSnapshot {
         )
 
     /**
-     * Adapter for conversation-model retirement: only judges official BYOK providers.
-     * Relay (goes through [RelayModelFallback]), subscription-login connections and an empty model id return null (not judged).
-     * The catalog of an official BYOK provider = that provider's catalog once MetadataClient is Loaded.
-     * userModels = the model ids enabled on the connection.
+     * Adapter layer for the conversation-model retirement check (contract: model catalog and capability truth, section 8): only official BYOK connections are judged.
+     * Relay (via [RelayModelFallback]), subscription-login connections, and empty model ids return null (not judged).
+     * The catalog for official BYOK is this provider's catalog once MetadataClient has loaded it; the catalog for Free is its own model list (empty = not loaded).
+     * userModels = the enabled model ids of this connection.
+     * When [voiceCatalogPending] is true (the voice catalog is not ready), a missing model on an official apiKey connection is not judged, since it may be a realtime model;
+     * tombstoned / expired retired, Free and subscription-login are still judged as before, and the caller re-judges once the catalog arrives.
      */
     fun modelRetirement(
         provider: Provider?,
         modelId: String?,
         metadata: MetadataClient = MetadataClient.instance,
         now: Instant = Instant.now(),
+        voiceCatalogPending: Boolean = false,
     ): ModelRetirement.ConversationModelStatus? {
         val targetId = modelId?.trim().orEmpty()
         if (targetId.isEmpty()) return null
         val judged = retirementInputs(provider, metadata) ?: return null
-        return ModelRetirement.conversationStatus(
+        val status = ModelRetirement.conversationStatus(
             catalog = judged.catalog,
             userModels = judged.userModels,
             modelId = targetId,
@@ -146,6 +163,10 @@ object ProviderSelectionSnapshot {
             now = now,
             bundled = judged.bundled,
         )
+        if (voiceCatalogPending && status.status == ModelRetirement.Status.Missing && provider != null &&
+            RealtimeModel.connectionAuth(provider.kind, provider.authMode) == RealtimeModel.AUTH_API_KEY
+        ) return null
+        return status
     }
 
     /**
@@ -231,6 +252,7 @@ object ProviderSelectionSnapshot {
             webSearchProfile = metadataModel.profiles.webSearch,
             imageGenProfile = metadataModel.profiles.imageGen,
             toolCall = metadataModel.toolCall,
+            libraryAgentic = metadataModel.libraryAgentic,
         )
     }
 

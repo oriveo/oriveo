@@ -174,7 +174,7 @@ struct McpConfirmationSheet: View {
         Button(action: action) {
             Text(L10n.tr("View all", table: .mcp))
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 .frame(minHeight: 44)
         }
         .buttonStyle(.plain)

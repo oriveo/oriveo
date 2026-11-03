@@ -140,6 +140,31 @@ struct ModelOptionsPanelModelTests {
     }
 
     @Test("custom connection without an official configuration: thinking is the chat template toggle and comes first, the web search row says it cannot be done, the seal is unverified")
+    func realtimeCapabilityDropsVisionFilesAndSummary() {
+        for mode in [RealtimeModelPolicy.ComposerMode.stage, .typing] {
+            var facts = Self.facts()
+            facts.realtimeCapability = RealtimeModelPolicy.capability(modelKind: .realtime, mode: mode)
+            let model = ModelOptionsPanelModel.make(facts)
+            #expect(Self.rows(model).map(\.capability) == [.web, .reasoning], "\(mode)")
+            #expect(model.tiles.map(\.kind) == [.web, .reasoning], "\(mode)")
+            #expect(model.summary.isEmpty, "\(mode)")
+            #expect(model.summaryText == nil, "\(mode)")
+        }
+    }
+
+    @Test("custom connection without an official configuration: thinking is the chat template toggle and comes first, the web search row says it cannot be done, the seal is unverified")
+    func textCapabilityKeepsVisionFilesAndSummary() {
+        let plain = ModelOptionsPanelModel.make(Self.facts())
+        var facts = Self.facts()
+        facts.realtimeCapability = RealtimeModelPolicy.capability(modelKind: .text, mode: .typing)
+        let model = ModelOptionsPanelModel.make(facts)
+        #expect(model.tiles.map(\.kind) == [.web, .reasoning, .vision, .files])
+        #expect(model.tiles == plain.tiles)
+        #expect(!model.summary.isEmpty)
+        #expect(model.summary == plain.summary)
+    }
+
+    @Test("custom connection without an official configuration: thinking is the chat template toggle and comes first, the web search row says it cannot be done, the seal is unverified")
     func customConnectionPutsTheTemplateSwitchFirst() {
         var facts = Self.facts(web: Self.custom(.web), reasoning: Self.custom(.reasoning))
         let off = ModelOptionsPanelModel.make(facts)

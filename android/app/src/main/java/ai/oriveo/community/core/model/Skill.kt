@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/** Skill — scenario-based AI shortcut */
 @Immutable
 @Serializable
 data class Skill(
@@ -14,6 +15,15 @@ data class Skill(
     val icon: String = "\uD83E\uDD16",
     val color: String = "#6d38ff",
     val systemPrompt: String,
+    /** Model-facing trigger line (skill_schema.v2 whenToUse); old caches / responses omit it. */
+    val whenToUse: String = "",
+    val autoInvoke: Boolean = false,
+    /** `glyph:<key>`; empty means resolve from [icon] via skill_icon_map.v1. */
+    val iconKey: String = "",
+    /** Templates only: `{locale: text}`. */
+    val whenToUseTranslations: Map<String, String> = emptyMap(),
+    val previewUser: Map<String, String> = emptyMap(),
+    val previewAssistant: Map<String, String> = emptyMap(),
     val suggestedProviderId: String? = null,
     val suggestedModelId: String? = null,
     val modelCapabilityHint: String = "any",

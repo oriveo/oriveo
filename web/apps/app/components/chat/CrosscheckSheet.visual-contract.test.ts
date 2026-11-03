@@ -21,12 +21,11 @@ import {
  * became invalid at computed-value time. The subheading bar was transparent and completely flush
  * with the provider group around it.
  *
- * It now uses `--o-bg-inset`. This file pins why it is bg-inset rather than bg-subtle: the outer
- * `.modelProviderGroup` is `--o-surface-raised` at 78% opacity over `.modelMenu`'s `--o-surface`,
- * which composites to #F6F6F7 in the light theme, not #F4F4F5. `--o-bg-subtle` is therefore not
- * strictly a no-op, but the lightness step it produces is 1.012, invisible in practice, while
- * `--o-bg-inset` gives 1.032, which really does read as a layer. The assertion measures that step
- * directly.
+ * The previous round changed it to `--o-bg-inset`. This file turns "why bg-inset, not bg-subtle"
+ * into an executable check: the outer `.modelProviderGroup` is `--o-fill-muted` at 78% opacity over
+ * the `--o-surface` of `.modelMenu`, which composites to #F6F6F7 in light mode, not #F4F4F5. So
+ * `--o-bg-subtle` is not strictly a no-op, but its luminance step is only 1.012 (invisible), while
+ * `--o-bg-inset` gives 1.032, a visible layer. The assertion below measures exactly that step.
  */
 
 const tokens = readThemeTokens();

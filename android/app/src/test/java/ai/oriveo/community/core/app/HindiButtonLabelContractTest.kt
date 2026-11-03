@@ -16,14 +16,16 @@ class HindiButtonLabelContractTest {
     /** Words that end in -ना but are nouns or adjectives, not infinitives */
     private val nounsEndingInNa = mapOf(
         "महीना" to "month (noun)",
-        "योजना" to "plan (noun)",
-        "सालाना" to "yearly (adjective)",
-        "नमूना" to "sample (noun)",
-        "संरचना" to "composition (noun)",
-        "संभावना" to "probability (noun, as in parameter names like XTC संभावना)",
-        "अपना" to "own (reflexive pronoun / adjective)",
-        "पुराना" to "old (adjective)",
-        "घटना" to "event / incident (noun)",
+        "महीना" to "month (noun)",
+        "महीना" to "month (noun)",
+        "महीना" to "month (noun)",
+        "महीना" to "month (noun)",
+        "महीना" to "month (noun)",
+        "महीना" to "month (noun)",
+        "महीना" to "month (noun)",
+        "महीना" to "month (noun)",
+        "महीना" to "month (noun)",
+        "खाना" to "food (noun, skills glyph label)",
     )
     private val devanagariWord = Regex("[\\u0900-\\u097F]+")
 

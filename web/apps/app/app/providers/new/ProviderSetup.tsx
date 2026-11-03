@@ -126,9 +126,11 @@ export function ProviderSetup() {
   const [error, setError] = useState<ProviderError | null>(null);
   const [keyCharsError, setKeyCharsError] = useState<string | null>(null);
   const [newProviderId, setNewProviderId] = useState<string | null>(null);
-  // Additional-instance mode: the default instance uses a deterministic id. After the user
-  // explicitly picks "add another account" while already connected, this flips to true and the
-  // connection gets a random id instead (auto-named "X 2").
+  // Provider draft computed by handleConnect when the catalog came back empty. It is not saved
+  // until the user picks manual model entry, so the manual page receives a persisted id.
+  const emptyCatalogDraftRef = useRef<Provider | null>(null);
+  // Separate-instance mode: the default instance uses a deterministic id; after the user explicitly taps "Add another account" in the connected state,
+  // this is set to true and the connection uses a random id instead (auto-named X 2), per spec §5.
   const [additionalInstanceMode, setAdditionalInstanceMode] = useState(false);
   // Auth mode. When the server sends nothing, or the kill switch is off, the whole selector is
   // hidden and the flow is unchanged. One piece of state serves both links (Grok and Codex),
@@ -424,6 +426,7 @@ export function ProviderSetup() {
 
     setError(null);
     setKeyCharsError(null);
+    emptyCatalogDraftRef.current = null;
     setState("validating");
     setupStateRef.current = {
       ...setupStateRef.current,
@@ -461,7 +464,24 @@ export function ProviderSetup() {
       );
 
       if (build.models.length === 0) {
-        // Empty catalog (metadata not loaded yet, or this provider has no models): take the syncFailed branch.
+        // Keep the computed configuration (key, endpoint, 0 models) so manual entry can save it.
+        // The key was not validated on this path, so it is marked unverified.
+        emptyCatalogDraftRef.current = {
+          id,
+          kind: selectedKind,
+          status: { kind: "connected" },
+          models: [],
+          catalogModels: [],
+          lastCheckedAt: new Date().toISOString(),
+          lastError: PROVIDER_VALIDATION_MESSAGES.unverified,
+          apiKey: trimmedKey,
+          apiKeyPreview: formatApiKeyPreview(trimmedKey),
+          baseURLText: effectiveBase,
+          endpointSource: endpoint.endpointSource,
+          ...(endpoint.setupValues ? { setupValues: endpoint.setupValues } : {}),
+          customName: makeDefaultProviderInstanceName(selectedKind, providers),
+        };
+        // Catalog empty (metadata not loaded yet, or the provider has no models) → takes the syncFailed branch
         throw {
           kind: "emptyModelCatalog",
           message: "The model catalog is empty. Please try again later or enter a model ID manually.",
@@ -805,6 +825,32 @@ export function ProviderSetup() {
     t,
   ]);
 
+  // Manual entry needs a saved provider: persist the empty-catalog draft first, then navigate.
+  // On save failure the error banner shows and we stay on this page.
+  const handleManualModelEntry = useCallback(async () => {
+    if (!newProviderId) return;
+    const draft = emptyCatalogDraftRef.current;
+    if (!draft || draft.id !== newProviderId) {
+      router.push(`/providers/${newProviderId}/manual-model`);
+      return;
+    }
+    setError(null);
+    setState("syncing");
+    try {
+      await providerOps.addProvider(getVanillaStore(), draft);
+      emptyCatalogDraftRef.current = null;
+      setHasCompletedOnboarding(true);
+      setState("success");
+      setupStateRef.current = { ...setupStateRef.current, completed: true };
+      router.push(`/providers/${draft.id}/manual-model`);
+    } catch (err) {
+      const pe = err as ProviderError;
+      setupStateRef.current.lastErrorCode = pe?.kind ?? "unknown";
+      setError(pe);
+      setState("syncFailed");
+    }
+  }, [newProviderId, router, setHasCompletedOnboarding]);
+
   const isWorking = state === "validating" || state === "syncing";
   const showStatusSection =
     isWorking || (state === "syncFailed" && Boolean(newProviderId));
@@ -897,9 +943,7 @@ export function ProviderSetup() {
           {state === "syncFailed" && newProviderId && (
             <button
               className={styles.manualLink}
-              onClick={() =>
-                router.push(`/providers/${newProviderId}/manual-model`)
-              }
+              onClick={() => void handleManualModelEntry()}
             >
               {t("manualModelEntry")}
             </button>

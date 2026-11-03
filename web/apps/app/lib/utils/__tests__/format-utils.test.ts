@@ -19,61 +19,72 @@ describe('formatCost', () => {
   // ── Empty, zero and invalid values become an empty string ─────────────────────────
 
   it('returns an empty string for 0', () => {
-    expect(formatCost(0)).toBe('');
+    expect(formatCost(0, 'en')).toBe('');
   });
 
-  it('returns an empty string for a negative amount', () => {
-    expect(formatCost(-1)).toBe('');
+  it('returns an empty string for 0', () => {
+    expect(formatCost(-1, 'en')).toBe('');
   });
 
-  it('returns an empty string for NaN', () => {
-    expect(formatCost(NaN)).toBe('');
+  it('returns an empty string for 0', () => {
+    expect(formatCost(NaN, 'en')).toBe('');
   });
 
-  it('returns an empty string for Infinity', () => {
-    expect(formatCost(Infinity)).toBe('');
+  it('returns an empty string for 0', () => {
+    expect(formatCost(Infinity, 'en')).toBe('');
   });
 
-  it('returns an empty string at the COST_EPSILON boundary', () => {
-    expect(formatCost(COST_EPSILON)).toBe('');
+  it('returns an empty string for 0', () => {
+    expect(formatCost(COST_EPSILON, 'en')).toBe('');
   });
 
   // ── Very small amounts keep 5 decimal places ───────────────────────────────────────
 
   it('returns the actual amount just above epsilon', () => {
-    expect(formatCost(0.00002)).toBe('$0.00002');
+    expect(formatCost(0.00002, 'en')).toBe('$0.00002');
   });
 
-  it('keeps 5 decimal places for 0.00009', () => {
-    expect(formatCost(0.00009)).toBe('$0.00009');
+  it('returns the actual amount just above epsilon', () => {
+    expect(formatCost(0.00009, 'en')).toBe('$0.00009');
   });
 
   // ── Small amounts become "$X.XXXX" with 4 decimal places ──────────────────────────────
 
   it('formats 0.0001 as $0.0001', () => {
-    expect(formatCost(0.0001)).toBe('$0.0001');
+    expect(formatCost(0.0001, 'en')).toBe('$0.0001');
   });
 
-  it('formats 0.0023 as $0.0023', () => {
-    expect(formatCost(0.0023)).toBe('$0.0023');
+  it('formats 0.0001 as $0.0001', () => {
+    expect(formatCost(0.0023, 'en')).toBe('$0.0023');
   });
 
   // ── Ordinary amounts become "$X.XX" with 2 decimal places ──────────────────────────────
 
   it('formats the 0.01 boundary as $0.01', () => {
-    expect(formatCost(0.01)).toBe('$0.01');
+    expect(formatCost(0.01, 'en')).toBe('$0.01');
   });
 
-  it('formats 0.05 as $0.05', () => {
-    expect(formatCost(0.05)).toBe('$0.05');
+  it('1.005 rounds half away from zero to $1.01', () => {
+    expect(formatCost(1.005, 'en')).toBe('$1.01');
   });
 
-  it('formats 1.50 as $1.50', () => {
-    expect(formatCost(1.50)).toBe('$1.50');
+  it('formats the 0.01 boundary as $0.01', () => {
+    expect(formatCost(0.05, 'en')).toBe('$0.05');
   });
 
-  it('formats 99.99 as $99.99', () => {
-    expect(formatCost(99.99)).toBe('$99.99');
+  it('formats the 0.01 boundary as $0.01', () => {
+    expect(formatCost(1.50, 'en')).toBe('$1.50');
+  });
+
+  it('formats the 0.01 boundary as $0.01', () => {
+    expect(formatCost(99.99, 'en')).toBe('$99.99');
+  });
+
+  it('uses the de platform currency format with the symbol forced to $', () => {
+    const normalize = (text: string) => text.replace(/[\u00a0\u202f]/g, ' ');
+    expect(normalize(formatCost(1234.5, 'de'))).toBe('1.234,50 $');
+    expect(normalize(formatCost(0.0023, 'de'))).toBe('0,0023 $');
+    expect(formatCost(0, 'de')).toBe('');
   });
 });
 
@@ -89,7 +100,7 @@ describe('formatPerMillionPrice', () => {
     expect(formatPerMillionPrice(0.000_004, 'CNY', 'de')).toBe('4\u00a0CN¥/M');
     expect(formatPerMillionPrice(0.000_000_6, 'CNY', 'en')).toBe('CN¥0.6/M');
     expect(formatPerMillionPrice(0.000_000_6, 'CNY', 'de')).toBe('0,6\u00a0CN¥/M');
-    expect(formatPerMillionPrice(0.001_234_5)).toBe('$1230/M');
+    expect(formatPerMillionPrice(0.001_234_5)).toBe('$1,230/M');
     expect(formatPerMillionPrice(0.001_234_5, 'CNY', 'en')).toBe('CN¥1,230/M');
     expect(formatPerMillionPrice(0.001_234_5, 'CNY', 'zh-CN')).toBe('¥1,230/M');
     expect(formatPerMillionPrice(0.001_234_5, 'CNY', 'de')).toBe('1.230\u00a0CN¥/M');

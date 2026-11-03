@@ -11,9 +11,8 @@ struct ConversationColdStartLoadTests {
         let previousUID = AppSessionStore.activeUID
         let uid = "coldstart-recovery-\(UUID().uuidString)"
         defer {
-            DatabaseManager.shared.close()
+            await TestPartitionCleanup.remove(uid)
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
         }
         DatabaseManager.shared.close()
 
@@ -41,9 +40,8 @@ struct ConversationColdStartLoadTests {
         let previousUID = AppSessionStore.activeUID
         let uid = "coldstart-recovery-order-\(UUID().uuidString)"
         defer {
-            DatabaseManager.shared.close()
+            await TestPartitionCleanup.remove(uid)
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
         }
         DatabaseManager.shared.close()
 
@@ -68,14 +66,9 @@ struct ConversationColdStartLoadTests {
 
     @Test("bind reuses the already-loaded in-memory projection instead of re-reading the whole table")
     @MainActor
-    func bindReusesAlreadyLoadedProjection() throws {
+    func bindReusesAlreadyLoadedProjection() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "coldstart-bind-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let inDatabaseOnly = TestFactories.makeConversation(
@@ -88,6 +81,10 @@ struct ConversationColdStartLoadTests {
         )
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations([inDatabaseOnly], uid: uid)
         state.conversations = [inMemory]
 
@@ -98,14 +95,9 @@ struct ConversationColdStartLoadTests {
 
     @Test("bind still falls back to the database when the in-memory mirror is empty")
     @MainActor
-    func bindFallsBackToDatabaseWhenMemoryIsEmpty() throws {
+    func bindFallsBackToDatabaseWhenMemoryIsEmpty() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "coldstart-bind-empty-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let stored = TestFactories.makeConversation(
@@ -114,6 +106,10 @@ struct ConversationColdStartLoadTests {
         )
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations([stored], uid: uid)
         state.conversations = []
 
@@ -124,14 +120,9 @@ struct ConversationColdStartLoadTests {
 
     @Test("cache rebuild uses the authoritative projection and does not hydrate attachment bytes")
     @MainActor
-    func cacheRebuildProjectionSkipsAttachmentHydration() throws {
+    func cacheRebuildProjectionSkipsAttachmentHydration() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "coldstart-hydrate-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let attachment = TestFactories.makeFileAttachment(
@@ -143,6 +134,10 @@ struct ConversationColdStartLoadTests {
         )
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations([stored], uid: uid)
         state.conversations = []
 
@@ -160,14 +155,9 @@ struct ConversationColdStartLoadTests {
 
     @Test("editing a user message with attachments puts the text and original attachments back in the composer as independent copies that can be sent again")
     @MainActor
-    func editUserMessageRestoresItsAttachments() throws {
+    func editUserMessageRestoresItsAttachments() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "coldstart-edit-att-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let body = Data("report body".utf8).base64EncodedString()
@@ -190,6 +180,10 @@ struct ConversationColdStartLoadTests {
         _ = try ConversationRuntimeBridge().replaceAllConversations([conversation], uid: uid)
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         ImageStore.save(imageData: imageBytes, for: imageKey, partitionUID: uid)
         // The thread in memory comes from a projection that does not read file payloads: editing has to read the payload back itself.
         #expect(state.hydrateConversationMessagesIfNeeded(id: conversation.id, hydrateFilePayloads: false))
@@ -227,14 +221,9 @@ struct ConversationColdStartLoadTests {
 
     @Test("Editing a user message after a summary load hydrates the thread instead of failing silently")
     @MainActor
-    func editUserMessageAfterSummaryLoadHydratesThread() throws {
+    func editUserMessageAfterSummaryLoadHydratesThread() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "coldstart-edit-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let user = TestFactories.makeMessage(role: .user, text: "please edit me", state: .delivered)
@@ -246,6 +235,10 @@ struct ConversationColdStartLoadTests {
         _ = try ConversationRuntimeBridge().replaceAllConversations([conversation], uid: uid)
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         let listed = try #require(state.conversations.first { $0.id == conversation.id })
         #expect(listed.messages.isEmpty)
         #expect(listed.displayMessageCount == 2)

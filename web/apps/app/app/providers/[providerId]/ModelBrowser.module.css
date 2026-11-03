@@ -47,7 +47,7 @@
 }
 
 .searchShell:focus-within .searchIcon {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .searchInput {
@@ -249,7 +249,7 @@
   height: 26px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--o-primary) 14%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-size: 10.5px;
   font-weight: 700;
   letter-spacing: 0.4px;
@@ -579,7 +579,7 @@
   height: 28px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--o-primary) 12%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   transition: background 200ms ease, transform 200ms ease;
   flex-shrink: 0;
 }

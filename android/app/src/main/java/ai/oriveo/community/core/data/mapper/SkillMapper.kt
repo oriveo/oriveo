@@ -13,6 +13,9 @@ object SkillMapper {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
 
+    private fun decodeLocaleMap(raw: String): Map<String, String> =
+        runCatching { json.decodeFromString<Map<String, String>>(raw) }.getOrDefault(emptyMap())
+
     fun SkillEntity.toDomain(): Skill = Skill(
         id = id,
         key = key,
@@ -21,6 +24,12 @@ object SkillMapper {
         icon = icon,
         color = color,
         systemPrompt = systemPrompt,
+        whenToUse = whenToUse,
+        autoInvoke = autoInvoke,
+        iconKey = iconKey,
+        whenToUseTranslations = decodeLocaleMap(whenToUseTranslationsJson),
+        previewUser = decodeLocaleMap(previewUserJson),
+        previewAssistant = decodeLocaleMap(previewAssistantJson),
         suggestedProviderId = suggestedProviderId,
         suggestedModelId = suggestedModelId,
         modelCapabilityHint = modelCapabilityHint,
@@ -60,6 +69,12 @@ object SkillMapper {
         icon = icon,
         color = color,
         systemPrompt = systemPrompt,
+        whenToUse = whenToUse,
+        autoInvoke = autoInvoke,
+        iconKey = iconKey,
+        whenToUseTranslationsJson = json.encodeToString(whenToUseTranslations),
+        previewUserJson = json.encodeToString(previewUser),
+        previewAssistantJson = json.encodeToString(previewAssistant),
         suggestedProviderId = suggestedProviderId,
         suggestedModelId = suggestedModelId,
         modelCapabilityHint = modelCapabilityHint,

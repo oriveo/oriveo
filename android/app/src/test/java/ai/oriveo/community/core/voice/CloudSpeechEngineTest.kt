@@ -1,6 +1,10 @@
 package ai.oriveo.community.core.voice
 
+import android.media.MediaPlayer
+import android.media.audiofx.Visualizer
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.voice.conversation.CloudConversationTts
+import ai.oriveo.community.core.voice.conversation.TtsOutcome
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.MockRequestHandleScope
@@ -18,12 +22,15 @@ import java.util.concurrent.Executors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
@@ -150,6 +157,130 @@ class CloudSpeechEngineTest {
         val second = engine.synthesizeToFile(text, Locale.US)!!
         assertEquals(first[0].file, second[0].file)
         assertEquals(1, requests.size)
+    }
+
+    @Test
+    fun `conversation cloud playback level comes from the player probe`() = runBlocking {
+        val engine = engine(FakePlayer()) { _, input -> audio(input) }
+        val levels = Collections.synchronizedList(mutableListOf<Float>())
+        val tts = CloudConversationTts(
+            engine,
+            { Locale.US },
+            playerFactory = { onLevel -> ProbePlayer(onLevel, listOf(0.2f, 0.9f, 0.4f)) },
+            clock = { 0L },
+        )
+        val outcome = tts.speak("Hello there.") { levels += it }
+        assertTrue(outcome != TtsOutcome.FAILED)
+        // Only measured playback levels reach the orb; no constant mid level is inserted.
+        assertEquals(listOf(0.2f, 0.9f, 0.4f), levels.toList())
+    }
+
+    /** Plays instantly, reporting the given levels through the probe callback it was built with. */
+    private class ProbePlayer(private val onLevel: (Float) -> Unit, private val levels: List<Float>) : ChunkPlayer {
+        override suspend fun play(file: File): Boolean {
+            levels.forEach(onLevel)
+            return true
+        }
+
+        override fun stop() = Unit
+    }
+
+    @Test
+    fun `peak rms millibels map to orb level`() {
+        // Real Visualizer.MeasurementPeakRms: mRms is in millibels. Noise floor -50 dBFS, starts at +6 dB, full scale at 30 dB.
+        fun level(mRms: Int) = playbackLevelFromPeakRms(Visualizer.MeasurementPeakRms().apply { this.mRms = mRms })
+        assertEquals(0.8f, level(-2_000), 1e-5f)
+        assertEquals(0f, level(-4_400), 1e-5f)
+        assertEquals(0f, level(-9_600), 1e-5f)
+        assertEquals(1f, level(0), 1e-5f)
+    }
+
+    /** Fake probe: records enable and release calls and keeps the reading callback so tests can feed real measurement objects. */
+    private class FakeProbe(private val onEnable: () -> Unit = {}) : PlaybackLevelProbe {
+        var onMeasurement: ((Visualizer.MeasurementPeakRms) -> Unit)? = null
+        var enables = 0
+        var releases = 0
+
+        override fun enable() {
+            enables++
+            onEnable()
+        }
+
+        override fun release() {
+            releases++
+        }
+    }
+
+    private fun measurement(mRms: Int) = Visualizer.MeasurementPeakRms().apply { this.mRms = mRms }
+
+    /** Starts a play() call (hooked on prepareAsync) and returns the MediaPlayer it creates and its coroutine. */
+    private fun CoroutineScope.startPlaying(chunk: MediaChunkPlayer, players: List<MediaPlayer>): Pair<MediaPlayer, Job> {
+        val job = launch(start = CoroutineStart.UNDISPATCHED) { chunk.play(tmp.newFile()) }
+        return players.single() to job
+    }
+
+    @Test
+    fun `playback probe readings map to levels and stop after release`() = runBlocking {
+        val levels = Collections.synchronizedList(mutableListOf<Float>())
+        val players = mutableListOf<MediaPlayer>()
+        val probe = FakeProbe()
+        val chunk = MediaChunkPlayer(
+            null,
+            { levels += it },
+            probeFactory = { _, onMeasurement -> probe.also { it.onMeasurement = onMeasurement } },
+            playerFactory = { MediaPlayer().also { players += it } },
+        )
+        val (player, job) = startPlaying(chunk, players)
+        chunk.onPrepared(player)
+        probe.onMeasurement!!(measurement(-2_000))
+        assertEquals(listOf(0.8f), levels.toList())
+        chunk.stop()
+        probe.onMeasurement!!(measurement(-2_000))
+        assertEquals(listOf(0.8f), levels.toList())
+        assertEquals(1, probe.enables)
+        assertEquals(1, probe.releases)
+        job.cancel()
+    }
+
+    @Test
+    fun `playback probe that cannot be built reports zero`() = runBlocking {
+        val levels = Collections.synchronizedList(mutableListOf<Float>())
+        val players = mutableListOf<MediaPlayer>()
+        val chunk = MediaChunkPlayer(
+            null,
+            { levels += it },
+            probeFactory = { _, _ -> throw IllegalStateException("no visualizer") },
+            playerFactory = { MediaPlayer().also { players += it } },
+        )
+        val (player, job) = startPlaying(chunk, players)
+        chunk.onPrepared(player)
+        // An unreadable probe reports 0; no intermediate level is fabricated.
+        assertEquals(listOf(0f), levels.toList())
+        job.cancel()
+    }
+
+    @Test
+    fun `release during probe attach releases once and reports nothing`() = runBlocking {
+        val levels = Collections.synchronizedList(mutableListOf<Float>())
+        val players = mutableListOf<MediaPlayer>()
+        lateinit var chunk: MediaChunkPlayer
+        // Playback stops while enable is in progress: release() takes and frees the probe, then enable throws like a released Visualizer.
+        val probe = FakeProbe {
+            chunk.stop()
+            throw IllegalStateException("released")
+        }
+        chunk = MediaChunkPlayer(
+            null,
+            { levels += it },
+            probeFactory = { _, onMeasurement -> probe.also { it.onMeasurement = onMeasurement } },
+            playerFactory = { MediaPlayer().also { players += it } },
+        )
+        val (player, job) = startPlaying(chunk, players)
+        chunk.onPrepared(player)
+        probe.onMeasurement!!(measurement(-2_000))
+        assertEquals(1, probe.releases)
+        assertEquals(emptyList<Float>(), levels.toList())
+        job.cancel()
     }
 
     @Test

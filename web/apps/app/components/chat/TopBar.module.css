@@ -75,7 +75,7 @@
 }
 
 .modelTrigger:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   border-color: var(--o-border);
 }
 
@@ -165,53 +165,29 @@
   flex-shrink: 0;
 }
 
-/* -- Skill chip - neutral by default; the badge keeps its purple so it stays recognizable -- */
+/* ── Skill chip: non-interactive indicator; neutral surface, glyph keeps its own hue (no theme accent). ── */
 
 .skillChip {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 2px 10px 2px 2px;
+  padding-block: 2px;
+  padding-inline-start: 2px;
+  padding-inline-end: 10px;
   border-radius: var(--o-radius-full);
   background: var(--o-tag-bg);
   border: 1px solid var(--o-border);
   flex-shrink: 0;
-  transition: border-color var(--o-transition-fast), background var(--o-transition-fast);
-}
-
-.skillChip:hover {
-  background: var(--o-primary-subtle);
-  border-color: color-mix(in srgb, var(--o-primary) 24%, var(--o-border-strong));
 }
 
 .skillChipBadge {
-  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 22px;
   height: 22px;
   flex-shrink: 0;
-}
-
-.skillChipBadgeHalo {
-  position: absolute;
-  inset: 0;
-  border-radius: 50%;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--o-primary) 80%, #b07aff),
-    var(--o-primary)
-  );
-  box-shadow: 0 2px 6px color-mix(in srgb, var(--o-primary) 30%, transparent);
-}
-
-.skillChipBadgeIcon {
-  position: relative;
-  z-index: 1;
-  font-size: 12px;
   line-height: 1;
-  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));
 }
 
 .skillChipName {
@@ -251,7 +227,7 @@
 .memoryIndicator:hover {
   background: var(--o-primary-subtle);
   border-color: color-mix(in srgb, var(--o-primary) 24%, var(--o-border-strong));
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .memoryIndicatorDot {
@@ -276,7 +252,8 @@
   margin-top: 8px;
   width: min(320px, calc(100vw - 24px));
   padding: 6px;
-  background: color-mix(in srgb, var(--o-surface) 92%, transparent);
+  /* Opaque so chat text never shows through. */
+  background: var(--o-surface);
   border: 1px solid var(--o-border-strong);
   border-radius: 14px;
   box-shadow: var(--o-elevation-modal);
@@ -392,7 +369,7 @@
 }
 
 .memoryPopoverPrimaryAction:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
 }
 
 .memoryPopoverDangerAction {
@@ -416,7 +393,7 @@
 
 .memoryPopoverActionIconWrap {
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .memoryPopoverActionIconDangerWrap {
@@ -428,7 +405,7 @@
 .memoryPopoverDangerText {
   flex: 1;
   min-width: 0;
-  text-align: left;
+  text-align: start;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.35;
@@ -522,5 +499,5 @@
 
 .instructionsBadge:hover {
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }

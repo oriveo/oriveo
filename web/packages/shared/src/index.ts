@@ -22,6 +22,7 @@ export type {
   RelayKeyStatus,
   RelayKeyStatusState,
   ChatMessage,
+  UsedSkill,
   QuoteContentKind,
   QuoteContext,
   McpToolStep,
@@ -87,6 +88,8 @@ export {
   isValidProviderKind,
   isAggregatedProvider,
   usesServerOrderedModels,
+  conversationSkillIds,
+  conversationSkillFields,
 } from './types';
 export { formatApiKeyPreview } from './utils/api-key-utils';
 export { PUBLIC_METADATA_BASE_URL } from './constants/metadata-backend';
@@ -249,4 +252,5 @@ export {
   lightBrandColors,
   lightBrandFor,
 } from './theme/light-brand';
+export { PROVIDER_TEXT_TINT_RULE, providerTextTint } from './theme/provider-text-tint';
 export type { LightBrand, LightBrandMode, LightBrandSource, LightBrandToken } from './theme/light-brand';

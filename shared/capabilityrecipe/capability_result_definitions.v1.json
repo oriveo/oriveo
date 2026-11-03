@@ -137,6 +137,10 @@
       "responseEvidenceRef": "mistral.chat.reasoning",
       "errorRecoveryRef": "mistral.chat.reasoning"
     },
+    "mistral.chat.reasoning.v2": {
+      "responseEvidenceRef": "mistral.chat.reasoning",
+      "errorRecoveryRef": "mistral.chat.reasoning"
+    },
     "siliconflow.chat.reasoning.v1": {
       "responseEvidenceRef": "siliconflow.chat.reasoning",
       "errorRecoveryRef": "siliconflow.chat.reasoning"

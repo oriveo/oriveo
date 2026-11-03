@@ -28,6 +28,13 @@ import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 
+/**
+ * Add Provider button: a plain "+" circular icon button (no text), matching the iOS `HeaderBar` add button:
+ * 36×36 solid primary circle + white plus(16) + 0.5dp cardHighlight stroke (white 55% in light / 8% glow in dark, as on iOS)
+ * + primary glow shadow (radius 10). Pressed: scale 0.92 with slight fade (matching iOS HeaderAddButtonStyle).
+ *
+ * The label is kept only in contentDescription for screen readers (no visible text).
+ */
 @Composable
 fun ProvidersAddButton(
     onClick: () -> Unit,

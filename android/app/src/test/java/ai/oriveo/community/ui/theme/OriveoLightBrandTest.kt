@@ -118,6 +118,22 @@ class OriveoLightBrandTest {
         assertSame(DarkPaletteChoice.Custom(0x22D3EE).lightBrand, DarkPaletteChoice.Custom(0x22D3EE).lightBrand)
     }
 
+    @Test
+    fun `primary fill text keeps onPrimary readable on light and follows primary on dark`() {
+        assertEquals(0xFF6D28D9.toInt(), LightOriveoColors.primaryFillText.toArgb())
+        assertEquals(0xFF6D28D9.toInt(), lightOriveoColorsOf(OriveoLightBrand.Default).primaryFillText.toArgb())
+        for (seed in listOf(0xFBBF24, 0x2DD4BF)) {
+            val choice = DarkPaletteChoice.Custom(seed)
+            val light = lightOriveoColorsOf(choice.lightBrand)
+            assertEquals(choice.lightBrand.fillText, light.primaryFillText)
+            val ratio = OriveoCustomPalette.contrast(light.onPrimary.rgb(), light.primaryFillText.rgb())
+            assertTrue("seed ${OriveoCustomPalette.format(seed)} onPrimary on fill is $ratio", ratio >= 4.5)
+            assertEquals(choice.colors.primary, choice.colors.primaryFillText)
+        }
+        assertEquals(DarkOriveoColors.primary, DarkOriveoColors.primaryFillText)
+        assertEquals(DarkOceanOriveoColors.primary, DarkOceanOriveoColors.primaryFillText)
+    }
+
     private data class Captured(val primary: Color, val textSafe: Color, val onPrimary: Color, val brand: OriveoLightBrand)
 
     private fun capture(palette: DarkPaletteChoice): Captured {
@@ -175,5 +191,14 @@ class OriveoLightBrandTest {
         assertEquals(ocean.onPrimary, OriveoGradients.onPrimaryContent(colors, isDark = false))
         val default = OriveoLightBrand.Default
         assertEquals(listOf(default.gradStart, default.gradEnd), OriveoGradients.primaryStops(LightOriveoColors, isDark = false))
+    }
+
+    /** Light tertiary text matches iOS #71717A and reaches AA 4.5:1 on the white base. */
+    @Test
+    fun light_text_tertiary_matches_ios() {
+        val tertiary = LightOriveoColors.textTertiary
+        assertEquals(Color(0xFF71717A), tertiary)
+        val ratio = OriveoCustomPalette.contrast(tertiary.rgb(), LightOriveoColors.backgroundBase.rgb())
+        assertTrue("light textTertiary on white is $ratio:1", ratio >= 4.5)
     }
 }

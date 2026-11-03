@@ -10,7 +10,9 @@ import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.NonUsdCost
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.QuoteContext
+import ai.oriveo.community.core.model.SkillSyncFields
 import ai.oriveo.community.core.model.UnhandledToolCall
+import ai.oriveo.community.core.model.UsedSkill
 import ai.oriveo.community.core.mcp.McpToolStep
 import ai.oriveo.community.core.provider.CostSource
 import ai.oriveo.community.core.util.normalizeAttachmentIds
@@ -97,6 +99,21 @@ object MessageMapper {
                 costSource = nonUsdCostSource?.takeIf { it.isNotBlank() } ?: CostSource.UNKNOWN.name,
             )
         },
+        attachedSkillIds = if (role == ChatRole.User.name) {
+            SkillSyncFields.idList(
+                attachedSkillIdsJson?.let { raw -> runCatching { json.decodeFromString<List<String>>(raw) }.getOrNull() },
+                SkillSyncFields.SKILL_IDS_MAX,
+            )
+        } else {
+            emptyList()
+        },
+        usedSkills = if (role == ChatRole.Assistant.name) {
+            SkillSyncFields.usedList(
+                usedSkillsJson?.let { raw -> runCatching { json.decodeFromString<List<UsedSkill>>(raw) }.getOrNull() },
+            )
+        } else {
+            emptyList()
+        },
     ))
 
     /**
@@ -160,5 +177,16 @@ object MessageMapper {
             nonUsdCostCurrency = nonUsdCost?.currencyCode,
             nonUsdCostAmount = nonUsdCost?.amount,
             nonUsdCostSource = nonUsdCost?.costSource,
+            attachedSkillIdsJson = if (role == ChatRole.User) {
+                SkillSyncFields.idList(attachedSkillIds, SkillSyncFields.SKILL_IDS_MAX)
+                    .takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) }
+            } else {
+                null
+            },
+            usedSkillsJson = if (role == ChatRole.Assistant) {
+                SkillSyncFields.usedList(usedSkills).takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) }
+            } else {
+                null
+            },
         )
 }

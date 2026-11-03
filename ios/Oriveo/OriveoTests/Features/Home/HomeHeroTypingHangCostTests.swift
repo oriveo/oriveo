@@ -28,11 +28,6 @@ struct HomeHeroTypingHangCostTests {
     func typingInHeroComposer() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "home-typing-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let provider = TestFactories.makeProvider(kind: .openAI)
@@ -64,6 +59,10 @@ struct HomeHeroTypingHangCostTests {
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         defer { state.flushConversationPersistQueue() }
         AppSessionStore.switchToUser(uid)
         state.providers = [provider]

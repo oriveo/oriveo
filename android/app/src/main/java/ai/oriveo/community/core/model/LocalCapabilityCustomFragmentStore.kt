@@ -7,8 +7,8 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class LocalCapabilityCustomFragmentStore internal constructor(
-    private val read: () -> String?,
-    private val write: (String?) -> Unit,
+    read: () -> String?,
+    write: (String?) -> Unit,
     /** Retired global developer gate. Returns null once the legacy key is gone (or never existed). */
     private val readRetiredDeveloperGate: () -> Boolean? = { null },
     private val clearRetiredDeveloperGate: () -> Unit = {},
@@ -18,18 +18,70 @@ class LocalCapabilityCustomFragmentStore internal constructor(
 ) {
     // A constructor given only the two older lambdas (storage unit tests) falls back to process memory, so the additional request body is never dropped silently.
     private var memoryAdditionalBody: String? = null
-    private val readAdditional: () -> String? = readAdditionalBody ?: { memoryAdditionalBody }
-    private val writeAdditional: (String?) -> Unit = writeAdditionalBody ?: { memoryAdditionalBody = it }
+    private val rawRead: () -> String? = read
+    private val rawWrite: (String?) -> Unit = write
+    private val rawReadAdditional: () -> String? = readAdditionalBody ?: { memoryAdditionalBody }
+    private val rawWriteAdditional: (String?) -> Unit = writeAdditionalBody ?: { memoryAdditionalBody = it }
 
+    /**
+     * The two one-time migrations are deferred until the first read or write of storage (not at construction): the DI viewModel{} factory
+     * constructs this object on the main thread, and reading disk during construction would be synchronous IO on the main thread. Every read and write goes
+     * through the four entry points below, which first run [ensureMigrated], so whatever data a caller first sees has already been migrated, with the same result
+     * as migrating at construction.
+     */
+    @Volatile private var migrated = false
+    /** Read and written only on the thread holding the lock; the migration itself also goes through the read/write entry points, which keeps it from re-entering. */
+    private var migrating = false
 
+    private fun ensureMigrated() {
+        if (migrated) return
+        synchronized(this) {
+            if (migrated || migrating) return
+            migrating = true
+            try {
+                migrateRetiredDeveloperGate()
+                migrateLegacyGenerationFragments()
+                migrated = true
+            } finally {
+                migrating = false
+            }
+        }
+    }
+
+    private fun read(): String? {
+        ensureMigrated()
+        return rawRead()
+    }
+
+    private fun write(payload: String?) {
+        ensureMigrated()
+        rawWrite(payload)
+    }
+
+    private fun readAdditional(): String? {
+        ensureMigrated()
+        return rawReadAdditional()
+    }
+
+    private fun writeAdditional(payload: String?) {
+        ensureMigrated()
+        rawWriteAdditional(payload)
+    }
+
+    /**
+     * In-process decode cache, **keyed by the raw string that [read] returns** (ASM-12).
+     *
+     * One discrete event (opening the panel, switching models, sending) calls `records()` a dozen times:
+     * three `fragmentsByOwner` namespaces, each going through `effectiveConfiguration` plus a forward probe and two `latestRecord`
+     * calls. The full JSON decode runs on the main thread, while this data does not change within a single event.
+     *
+     * Comparing raw strings is used instead of an invalidate-on-write flag: a write can come from this object or from
+     * another store instance built on the same SharedPreferences, and a flag would only catch the first case. `apply()` updates the
+     * in-memory map synchronously, so `read()` gets the new string immediately, and the comparison covers both kinds of write.
+     */
     private var cachedRaw: String? = null
     private var cachedRecords: List<Record> = emptyList()
     private var hasCachedRecords = false
-
-    init {
-        migrateRetiredDeveloperGate()
-        migrateLegacyGenerationFragments()
-    }
 
     /**
      * Additional request body: the content is stored apart from the "send with request" switch, so it survives being turned off.
@@ -151,6 +203,18 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         writeAdditional(json.encodeToString(records.sortedByDescending { it.updatedAt }.take(MAX_RECORDS)))
     }
 
+    /**
+     * 2026-08-16 decision: the developer master switch for custom request fields is retired; outbound now only checks [Configuration.enabled].
+     *
+     * Why migrate instead of simply deleting the key: on installs where the master switch is off, storage can still hold records
+     * with `enabled = true` (they were written while the switch was on, and drafts are kept by design). Once the master switch disappears,
+     * those fragments would **suddenly start going out**, which decides something for the user that they never chose, and the first symptom
+     * would be a message that fails to send or behaves differently. Here they are rewritten as disabled; `rawJSON` is kept as is, so the user can
+     * still see what they wrote in the editor and re-enable it. If the master switch was on, nothing is rewritten and only the key is cleared.
+     *
+     * Idempotent: when the old key is absent nothing happens ([readRetiredDeveloperGate] returns null), so several store instances
+     * each reading it first do not rewrite twice. An absent key likewise does **not** get a marker key written (spec appendix 3 L8).
+     */
     private fun migrateRetiredDeveloperGate() {
         val wasEnabled = readRetiredDeveloperGate() ?: return
         clearRetiredDeveloperGate()
@@ -509,7 +573,9 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         fun supportedNamespaces(): Set<String> = OWNER_NAMESPACES.values.toSet()
 
         fun from(context: Context): LocalCapabilityCustomFragmentStore {
-            val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val app = context.applicationContext
+            // The SharedPreferences handle is taken only on the first read or write; the migration is deferred to that point too, so construction does no disk I/O.
+            val prefs by lazy(LazyThreadSafetyMode.PUBLICATION) { app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
             return LocalCapabilityCustomFragmentStore(
                 read = { prefs.getString(KEY_PAYLOAD, null) },
                 write = { payload -> prefs.edit().putString(KEY_PAYLOAD, payload).apply() },

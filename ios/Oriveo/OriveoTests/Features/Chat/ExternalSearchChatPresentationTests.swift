@@ -124,6 +124,36 @@ struct ExternalSearchChatPresentationTests {
         ).secondary == nil)
     }
 
+    @Test("live model selected: the error card shows no retry or answer-again-with-X, jump-type actions stay; with a text model the mapping is unchanged")
+    func realtimeSelectionHidesSearchErrorReanswerActions() {
+        let target = ExternalSearchMessageRecord.SwitchTarget(id: "s-tavily", name: "Tavily")
+        for raw in ["update_key", "top_up", "retry", "retry_later", "switch_service", "check_settings", "view_setup_guide", "reconfirm"] {
+            let card = Self.card(headline: "insufficient_balance", primaryAction: raw, switchTo: target)
+            let text = SearchErrorCardPresentation.make(card: card, isLastAssistant: true)
+            let realtime = SearchErrorCardPresentation.make(card: card, isLastAssistant: true, realtimeSelected: true)
+            #expect(realtime.titleKey == text.titleKey, "\(raw)")
+            #expect(realtime.serviceName == "DeepSeek", "\(raw)")
+            #expect(realtime.detailKey == text.detailKey, "\(raw)")
+            #expect(realtime.secondary == nil, "\(raw)")
+            #expect(text.secondary?.action == .answerWith(serviceID: "s-tavily", name: "Tavily"), "\(raw)")
+            let primary = text.primary
+            #expect(primary != nil, "\(raw)")
+            if primary?.action.regenerates == true {
+                #expect(primary?.action == .retry, "\(raw)")
+                #expect(realtime.primary == nil, "\(raw)")
+            } else {
+                #expect(realtime.primary == text.primary, "\(raw)")
+            }
+        }
+        // Card with only regenerate-type buttons: live shows only the error text and does not add "switch model".
+        let retryOnly = SearchErrorCardPresentation.make(
+            card: Self.card(headline: "no_response", primaryAction: "retry", switchTo: target),
+            isLastAssistant: true, realtimeSelected: true
+        )
+        #expect(retryOnly.primary == nil && retryOnly.secondary == nil)
+        #expect(retryOnly.titleKey == "chatError.noResponse")
+    }
+
     @Test("action destinations: when the service no longer exists locally, jump types open the \"Web search\" settings page; top-up goes to the pricing page; switch service opens the search method")
     func routeResolution() throws {
         #expect(ExternalSearchChatRoute.resolve(.updateKey(serviceID: "s1"), serviceExists: true, pricingURL: nil)

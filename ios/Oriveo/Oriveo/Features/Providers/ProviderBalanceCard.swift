@@ -193,7 +193,7 @@ struct ProviderBalanceCard: View {
     private func loadedContent(_ b: ProviderBalance) -> some View {
         VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(formatAmount(b.total, currency: b.currency))
+                Text(Self.formatAmount(b.total, currency: b.currency))
                     .font(OriveoTheme.Typography.display(32))
                     .foregroundStyle(OriveoTheme.Palette.textPrimary)
                     .contentTransition(.numericText())
@@ -232,7 +232,7 @@ struct ProviderBalanceCard: View {
                     breakdownItem(
                         icon: "sparkles",
                         title: grantedLabel(for: provider.kind),
-                        value: formatAmount(granted, currency: b.currency)
+                        value: Self.formatAmount(granted, currency: b.currency)
                     )
                 }
                 if let topUp = b.topUp, topUp != 0 {
@@ -240,7 +240,7 @@ struct ProviderBalanceCard: View {
                     breakdownItem(
                         icon: owing ? "exclamationmark.triangle.fill" : "arrow.down.circle.fill",
                         title: topUpLabel(for: provider.kind),
-                        value: formatAmount(topUp, currency: b.currency),
+                        value: Self.formatAmount(topUp, currency: b.currency),
                         isWarning: owing
                     )
                 }
@@ -248,7 +248,7 @@ struct ProviderBalanceCard: View {
                     breakdownItem(
                         icon: "arrow.up.circle.fill",
                         title: L10n.tr("Used", table: .providers),
-                        value: formatAmount(totalUsage, currency: b.currency)
+                        value: Self.formatAmount(totalUsage, currency: b.currency)
                     )
                 }
                 Spacer()
@@ -340,7 +340,7 @@ struct ProviderBalanceCard: View {
                         Text(L10n.tr("Refresh", table: .providers))
                             .font(OriveoTheme.Typography.caption.weight(.semibold))
                     }
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(OriveoTheme.Palette.primarySoft, in: Capsule())
@@ -401,6 +401,8 @@ struct ProviderBalanceCard: View {
 
     // MARK: - Helpers
 
+    /// Amount formatter: always 2 fraction digits plus thousands separator.
+    /// Used only for currencies other than USD / CNY.
     private static let amountFormatter: NumberFormatter = {
         let f = NumberFormatter()
         f.numberStyle = .decimal
@@ -410,15 +412,21 @@ struct ProviderBalanceCard: View {
         return f
     }()
 
-    private func formatAmount(_ value: Double, currency: String) -> String {
-        let symbol: String = switch currency.uppercased() {
-        case "USD": "$"
-        case "CNY": "¥"
-        default: "\(currency) "
+    /// USD uses the shared USD display (rounded half away from zero), CNY the platform currency format;
+    /// both keep 2 fraction digits.
+    static func formatAmount(
+        _ value: Double, currency: String, locale: Locale = AppLocalization.currentLocale
+    ) -> String {
+        switch currency.uppercased() {
+        case "USD":
+            return CostFormatter.usd(value, minFraction: 2, maxFraction: 2, locale: locale, roundingMode: .halfUp)
+        case "CNY":
+            return NonUsdCurrencyFormatters.shared.string(from: value, locale: locale, currencyCode: "CNY", digits: 2)
+        default:
+            let number = Self.amountFormatter.string(from: NSNumber(value: value))
+                ?? String(format: "%.2f", value)
+            return "\(currency) " + number
         }
-        let number = Self.amountFormatter.string(from: NSNumber(value: value))
-            ?? String(format: "%.2f", value)
-        return symbol + number
     }
 
     private func grantedLabel(for kind: ProviderKind) -> String {

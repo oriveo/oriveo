@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Source: Google material-design-icons, Material Symbols Rounded "arrow_upward" weight 700, 24px.
+  https://github.com/google/material-design-icons/blob/master/symbols/android/arrow_upward/materialsymbolsrounded/arrow_upward_wght700_24px.xml
+  License: Apache License 2.0 (https://www.apache.org/licenses/LICENSE-2.0), Copyright Google LLC.
+  pathData copied verbatim; the 960 grid is scaled into the 24x24 viewport by a group; the original tint is removed and the caller applies the color.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+  <group
+      android:scaleX="0.025"
+      android:scaleY="0.025">
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M417,368L260,525Q241,544 215,544Q189,544 170,525Q152,506 152,480Q152,454 171,435L435,171Q444,162 456,157Q468,152 480,152Q492,152 504,157Q516,162 525,171L790,436Q809,455 809,480.5Q809,506 790,525Q771,544 745,544Q719,544 700,525L543,368L543,771Q543,797 524.5,815.5Q506,834 480,834Q454,834 435.5,815.5Q417,797 417,771L417,368Z" />
+  </group>
+</vector>

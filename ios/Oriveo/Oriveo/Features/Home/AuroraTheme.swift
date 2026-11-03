@@ -154,8 +154,6 @@ struct AuroraHeroSurface: View {
     enum Glow {
         /// Hero: violet top-left plus pink top-right in light mode; full-strength aurora afterglow in dark mode.
         case heroPair
-        /// Notes: a single violet glow top-right in light mode; a softer aurora afterglow in dark mode.
-        case notesCorner
     }
 
     let cornerRadius: CGFloat
@@ -170,16 +168,13 @@ struct AuroraHeroSurface: View {
             ZStack {
                 fill(size: size)
                 if isDark {
-                    crownWash(size: size, scale: glow == .heroPair ? 1 : AuroraCrown.notesWashScale)
+                    crownWash(size: size, scale: 1)
                 } else {
                     switch glow {
                     case .heroPair:
                         // left -60 / top -80 / 260×220; right -70 / top -90 / 240×210
                         blob(tintA, block: CGSize(width: 260, height: 220), center: CGPoint(x: 70, y: 30))
                         blob(tintB, block: CGSize(width: 240, height: 210), center: CGPoint(x: size.width - 50, y: 15))
-                    case .notesCorner:
-                        // right -50 / top -70 / 220×200
-                        blob(tintA, block: CGSize(width: 220, height: 200), center: CGPoint(x: size.width - 60, y: 30))
                     }
                 }
             }
@@ -283,7 +278,7 @@ enum AuroraCrown {
 /// past the top corners, and the remaining edges keep the white rim that is brighter at the top.
 struct AuroraCrownRim: View {
     let cornerRadius: CGFloat
-    /// 1 for the hero, [AuroraCrown.notesRimScale] for Notes.
+    /// Glow strength multiplier; the hero card uses 1
     var scale: Double = 1
     var hotCore: Bool = true
 
@@ -605,17 +600,22 @@ struct AuroraTitleCount: View {
     let titleFont: Font
     let count: Int?
     var spacing: CGFloat = 8
+    /// Fixed-colour cards (home entry cards) pass their own ink; nil keeps the themed defaults.
+    var titleColor: Color? = nil
+    var countColor: Color? = nil
+    /// Shows a zero count instead of hiding it.
+    var showsZero = false
 
     var body: some View {
         HStack(alignment: .center, spacing: spacing) {
             Text(title)
                 .font(titleFont)
                 .tracking(-0.3)
-                .foregroundStyle(AuroraTheme.Colors.textPrimary)
-            if let count, count > 0 {
+                .foregroundStyle(titleColor ?? AuroraTheme.Colors.textPrimary)
+            if let count, count > 0 || (showsZero && count == 0) {
                 Text("\(count)")
                     .font(AuroraTheme.Typography.countMono)
-                    .foregroundStyle(AuroraTheme.Colors.accent)
+                    .foregroundStyle(countColor ?? AuroraTheme.Colors.accent)
             }
         }
     }

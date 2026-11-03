@@ -130,6 +130,8 @@ class ChatViewModelMemoryTest {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
     }
@@ -174,6 +176,8 @@ class ChatViewModelMemoryTest {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -190,6 +194,7 @@ class ChatViewModelMemoryTest {
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
             memoryItemsSource = memoryItems,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -237,6 +242,7 @@ class ChatViewModelMemoryTest {
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
             memoryItemsSource = memoryItems,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -258,6 +264,8 @@ class ChatViewModelMemoryTest {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         }
     }
@@ -297,6 +305,8 @@ class ChatViewModelMemoryTest {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -313,6 +323,7 @@ class ChatViewModelMemoryTest {
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
             memoryItemsSource = memoryItems,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -367,6 +378,8 @@ class ChatViewModelMemoryTest {
                 onUserMessageCreated = any(),
                 memoryPropose = any(),
                 memorySearch = any(),
+                externalSearch = any(),
+                skillTurn = any(),
             )
         } returns Unit
 
@@ -383,6 +396,7 @@ class ChatViewModelMemoryTest {
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
             memoryItemsSource = memoryItems,
+            ioDispatcher = dispatcher,
         )
         advanceUntilIdle()
 
@@ -423,6 +437,7 @@ class ChatViewModelMemoryTest {
             globalSnackbarManager = globalSnackbarManager,
             applicationScope = applicationScope,
             memoryItemsSource = memoryItems,
+            ioDispatcher = dispatcher,
         )
         backgroundScope.launch { viewModel.showMemoryIndicator.collect {} }
         advanceUntilIdle()

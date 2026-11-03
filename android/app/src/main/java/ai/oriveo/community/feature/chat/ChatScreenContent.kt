@@ -117,6 +117,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
@@ -154,6 +155,7 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.context.ContextCompactionMode
 import ai.oriveo.community.core.context.PendingContextCapConfirmation
 import ai.oriveo.community.core.data.remote.MetadataClient
+import ai.oriveo.community.core.model.effectiveSkillIds
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
@@ -191,6 +193,13 @@ import ai.oriveo.community.feature.chat.components.SkillStarterView
 import ai.oriveo.community.feature.chat.composer.ChatComposerHost
 import ai.oriveo.community.feature.modelpicker.ModelPickerContext
 import ai.oriveo.community.feature.modelpicker.ModelPickerSheet
+import ai.oriveo.community.feature.modelpicker.RealtimePickerDisclosure
+import ai.oriveo.community.feature.modelpicker.acceptRealtimeDisclosure
+import ai.oriveo.community.feature.settings.VoiceDisclosureSheet
+import ai.oriveo.community.core.voice.VoiceDirection
+import ai.oriveo.community.core.voice.VoiceDisclosureStore
+import ai.oriveo.community.core.voice.VoiceEngineSettings
+import org.koin.compose.koinInject
 import ai.oriveo.community.ui.component.CostPill
 import ai.oriveo.community.ui.component.OriveoCard
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
@@ -247,6 +256,10 @@ internal fun ChatScreenContent(
     /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
     onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
     onNavigateToSkillEdit: () -> Unit = {},
+    /** Composer skill picker footer: the Skills page. */
+    onNavigateToSkills: () -> Unit = {},
+    /** Used-skill card "View skill". */
+    onNavigateToSkillDetail: (skillId: String) -> Unit = {},
     onNavigateToNoteDetail: (String) -> Unit = {},
     /**
      * Remote MCP: where the server management screen and the add-server flow live. Re-authorization
@@ -281,6 +294,15 @@ internal fun ChatScreenContent(
     val trueTransparentBlurEnabled = remember { Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2 }
     val hazeState = rememberHazeState(blurEnabled = trueTransparentBlurEnabled)
     var composerOverlayHeightPx by remember { mutableIntStateOf(0) }
+    // While the voice stage covers the input area, the page glow fades and the bottom uses the plain page background; the top 30% of the visible message list fades out along the mask (ChatListEdgeFade stage tier).
+    var voiceStageShown by remember { mutableStateOf(false) }
+    // Transient bubbles for the realtime session's list: the source changes only when the conversation changes; per-frame updates do not recompose the whole page.
+    var realtimeLive by remember { mutableStateOf<RealtimeLiveBubbleSource?>(null) }
+    val voiceStageBackdrop by animateFloatAsState(
+        targetValue = if (voiceStageShown) 1f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "voiceStageBackdrop",
+    )
     val composerOverlayHeightDp = with(density) { composerOverlayHeightPx.toDp() }
     val imeInsets = WindowInsets.ime
     val imeBottomPx = imeInsets.getBottom(density)
@@ -414,6 +436,8 @@ internal fun ChatScreenContent(
         { memoryBarConversationId?.let(memorySuggestions::save); Unit }
     }
     val globalSnackbarManager: ai.oriveo.community.core.app.GlobalSnackbarManager = org.koin.compose.koinInject()
+    val realtimeDisclosureStore: VoiceDisclosureStore = koinInject<VoiceEngineSettings>().disclosure
+    var pendingRealtimeDisclosure by remember { mutableStateOf<RealtimePickerDisclosure?>(null) }
     val onAskSelection = remember(viewModel, globalSnackbarManager) {
         { message: ChatMessage, selection: QuoteSelectionContent ->
             if (!viewModel.askAboutSelection(message, selection)) {
@@ -445,14 +469,28 @@ internal fun ChatScreenContent(
             providersById[viewModel.activeProviderId]
         }
     }
-    val activeModel by remember(providersById) {
+    // Whether the current conversation model is a realtime voice model (catalog realtime[] x official apiKey connection): regenerate / edit on messages are not rendered.
+    val voiceCatalogClient = remember {
+        runCatching { org.koin.core.context.GlobalContext.get().getOrNull<ai.oriveo.community.core.voice.VoiceCatalogClient>() }.getOrNull()
+    }
+    val voiceCatalogState = voiceCatalogClient?.state?.collectAsStateWithLifecycle()?.value
+    // Top-bar model name: a realtime model uses the catalog model name (same source as the row label); recomputed when the catalog changes.
+    val activeModel by remember(providersById, voiceCatalogState) {
         derivedStateOf {
             capabilityObservationRevision.value
             ProviderSelectionSnapshot.currentModel(
                 providersById[viewModel.activeProviderId],
                 viewModel.activeModelId,
+                voiceCatalog = (voiceCatalogState as? ai.oriveo.community.core.voice.VoiceCatalogState.Available)?.catalog,
             )
         }
+    }
+    val isRealtimeModel = remember(activeProvider, viewModel.activeModelId, voiceCatalogState) {
+        ai.oriveo.community.core.voice.realtime.RealtimeSelection.isRealtime(
+            activeProvider,
+            viewModel.activeModelId,
+            (voiceCatalogState as? ai.oriveo.community.core.voice.VoiceCatalogState.Available)?.catalog,
+        )
     }
     val activeModelName = (activeModel?.name ?: viewModel.activeModelId ?: "") +
         if (activeModel?.executionLocality == ai.oriveo.community.core.model.ModelExecutionLocality.ProxiedCloud) {
@@ -509,6 +547,7 @@ internal fun ChatScreenContent(
         listState = listState,
         scrollController = scrollController,
         isPointerDown = isPointerDown,
+        realtimeActive = realtimeLive != null,
     )
 
     ChatStreamingModeEffect(viewModel.isGenerating, scrollController)
@@ -529,6 +568,7 @@ internal fun ChatScreenContent(
         composerOverlayHeightPx = composerOverlayHeightPx,
         listState = listState,
         scrollController = scrollController,
+        realtimeActive = realtimeLive != null,
         onInitialBottomSettledConversationChange = { initialBottomSettledConversationId = it },
     )
 
@@ -625,8 +665,11 @@ internal fun ChatScreenContent(
         OriveoScreenBackground(
             modifier = Modifier.hazeSource(state = hazeState, zIndex = 0f),
         )
-
-        ChatAuroraBackground(prominent = messagesEmpty)
+        // Ambient aurora layer: above the shared background and below the content, always full screen (aligned with iOS ChatEmptyStateAurora; does not scale with the keyboard);
+        // when the voice stage's opaque backdrop covers it entirely, the layer is no longer drawn.
+        if (voiceStageBackdrop < 1f) ChatAuroraBackground(prominent = messagesEmpty)
+        // While the voice stage is shown, a solid page-background layer covers the screen, fading out the shared background and the aurora glow.
+        VoiceStagePageBackdrop(alpha = voiceStageBackdrop)
 
         Box(
             modifier = Modifier
@@ -662,6 +705,7 @@ internal fun ChatScreenContent(
                 transparentChrome = messagesEmpty,
                 hazeState = hazeState,
                 trueTransparentBlurEnabled = trueTransparentBlurEnabled,
+                isRealtime = isRealtimeModel,
             )
 
             viewModel.noteCoordinator.returnToNoteId?.let { noteId ->
@@ -712,6 +756,13 @@ internal fun ChatScreenContent(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
+                    .then(
+                        if (voiceStageShown) {
+                            Modifier.voiceStageTopFade(colors.background) { composerOverlayHeightPx }
+                        } else {
+                            Modifier
+                        },
+                    )
                     .hazeSource(state = hazeState, zIndex = 1f),
             ) {
                 if (chatLoadState == ChatLoadState.Bootstrapping) {
@@ -767,6 +818,7 @@ internal fun ChatScreenContent(
                         isDragging = isDragging,
                         onPointerDownChange = { isPointerDown = it },
                         isGenerating = viewModel.isGenerating,
+                        isRealtimeModel = isRealtimeModel,
                         isRateLimitError = ::isRateLimitError,
                         onCopy = onCopyMessage,
                         onEdit = onEditMessage,
@@ -800,6 +852,8 @@ internal fun ChatScreenContent(
                         onIgnoreMemorySuggestion = onIgnoreMemorySuggestion,
                         onEditMemorySuggestion = onEditMemorySuggestion,
                         onSaveMemorySuggestion = onSaveMemorySuggestion,
+                        realtimeLive = realtimeLive,
+                        voiceStageFade = { voiceStageBackdrop },
                     )
                     }
                 }
@@ -815,11 +869,13 @@ internal fun ChatScreenContent(
         // every character. See the KDoc on ChatComposerHost.
         ChatComposerHost(
             viewModel = viewModel,
+            voiceModelName = ai.oriveo.community.feature.chat.voice.voiceSwitchModelName(activeModel, viewModel.activeModelId),
             activeProvider = activeProvider,
             conversationId = conversationId,
-            conversationSkillId = conversation?.skillId,
+            conversationSkillIds = remember(conversation?.skillIds, conversation?.skillId) {
+                conversation?.effectiveSkillIds ?: emptyList()
+            },
             sendingBlockedByLoadState = chatLoadState.blocksSending(),
-            transparentChrome = messagesEmpty,
             hazeState = hazeState,
             trueTransparentBlurEnabled = trueTransparentBlurEnabled,
             onOverlayHeightChange = { composerOverlayHeightPx = it },
@@ -831,6 +887,9 @@ internal fun ChatScreenContent(
             onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
             onNavigateToSkillEdit = onNavigateToSkillEdit,
             onOpenContextUsage = { showContextUsagePanel = true },
+            onVoiceStageChange = { voiceStageShown = it },
+            onRealtimeLiveChange = { realtimeLive = it },
+            onBackToVoiceStage = viewModel.voice::request,
             modifier = Modifier.align(Alignment.BottomCenter),
         )
         }
@@ -1040,10 +1099,26 @@ internal fun ChatScreenContent(
                     viewModel.selectModel(providerId, modelId)
                 },
                 onDismiss = { viewModel.showModelSwitcher = false },
+                onRequestRealtimeDisclosure = { pendingRealtimeDisclosure = it },
             )
         }
     }
 
+    // Tapping a realtime row collapses the picker; the disclosure for a model the user has not agreed to is shown by the page.
+    // Agreeing selects the model; "Not now" or dismissing keeps the current model.
+    pendingRealtimeDisclosure?.let { pending ->
+        VoiceDisclosureSheet(
+            direction = VoiceDirection.Realtime,
+            providerKind = pending.providerKind,
+            onAgree = {
+                pendingRealtimeDisclosure = null
+                acceptRealtimeDisclosure(pending, realtimeDisclosureStore, viewModel::selectModel)
+            },
+            onDecline = { pendingRealtimeDisclosure = null },
+        )
+    }
+
+    // Provider data-disclosure consent sheet (Apple 5.1.2(i) / Google Play GenAI policy)
     viewModel.providerDisclosurePrompt?.let { prompt ->
         ProviderDisclosureSheet(
             prompt = prompt,
@@ -1112,3 +1187,34 @@ internal fun ChatScreenContent(
 internal const val MESSAGE_WINDOW_LOAD_MORE_THRESHOLD = 5
 
 internal const val MARKDOWN_PREWARM_RECENT_MESSAGE_LIMIT = 12
+
+/**
+ * Solid page background (colors.background, same color as the stage panel) that covers the whole screen while the voice stage is shown; [alpha] follows the stage entering and leaving, 0 = not drawn.
+ * The chat page and the design-sample host share this layer, so the two page backgrounds cannot diverge.
+ */
+@Composable
+internal fun VoiceStagePageBackdrop(alpha: Float, modifier: Modifier = Modifier) {
+    if (alpha <= 0f) return
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .graphicsLayer { this.alpha = alpha }
+            .background(OriveoTheme.colors.background),
+    )
+}
+
+/**
+ * While the voice stage is shown, a vertical gradient from the page background [pageColor] to transparent is layered over the message list, covering the visible area
+ * (minus the bottom overlay height [overlayHeightPx]) at its top 30%; no mask / offscreen compositing (aligned with iOS).
+ * The overlay height is read only during drawing, so it does not trigger recomposition.
+ */
+private fun Modifier.voiceStageTopFade(pageColor: Color, overlayHeightPx: () -> Int): Modifier = this
+    .drawWithContent {
+        drawContent()
+        val visible = (size.height - overlayHeightPx()).coerceAtLeast(1f)
+        val end = visible * 0.3f
+        drawRect(
+            brush = Brush.verticalGradient(listOf(pageColor, pageColor.copy(alpha = 0f)), startY = 0f, endY = end),
+            size = size.copy(height = end),
+        )
+    }

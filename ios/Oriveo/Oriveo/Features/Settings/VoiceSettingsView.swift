@@ -74,12 +74,16 @@ final class VoiceSettingsFlow {
     }
 }
 
-/// Settings › Voice: dictation group (engine, recognition language), read-aloud group
-/// (engine, speaking voices with inline preview, speed) and voice conversation group (engine), each with a footnote. Renders `VoiceSettingsModel` only.
+/// Settings › Voice: realtime voice group (official realtime models; tapping one selects it on Home),
+/// dictation group (engine, recognition language) and read-aloud group (engine, speaking voices with
+/// inline preview, speed), each with a footnote. Renders `VoiceSettingsModel` only.
 struct VoiceSettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var flow: VoiceSettingsFlow
     @ObservedObject private var readAloud = ReadAloudController.shared
+    /// Disclosure raised by a realtime row; `realtimeDisclosurePending` makes the answer (swipe-down included) apply once.
+    @State private var realtimeDisclosure: RealtimeModelDisclosureRequest?
+    @State private var realtimeDisclosurePending = RealtimeDisclosurePending()
 
     init(flow: VoiceSettingsFlow) {
         _flow = State(initialValue: flow)
@@ -87,14 +91,12 @@ struct VoiceSettingsView: View {
 
     init(appState: AppState) {
         self.init(flow: VoiceSettingsFlow(model: VoiceSettingsModel(
-            providers: { [weak appState] in appState?.providers ?? [] }
+            providers: { [weak appState] in appState?.providers ?? [] },
+            realtimeSelection: { [weak appState] in appState?.realtimeModelSelection(for: nil) }
         )))
     }
 
     private var model: VoiceSettingsModel { flow.model }
-
-    /// Scroll anchor of the voice conversation group.
-    static let realtimeGroupID = "voice_settings_realtime_group"
 
     /// Top bar: back button and centered title, same layout as other settings sub-pages.
     private var topBar: some View {
@@ -127,7 +129,6 @@ struct VoiceSettingsView: View {
 
     var body: some View {
         @Bindable var flow = flow
-        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text(VoiceSettingsModel.pageHeader)
@@ -135,12 +136,11 @@ struct VoiceSettingsView: View {
                     .foregroundStyle(OriveoTheme.Palette.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 8)
+                realtimeGroup
+                    .padding(.bottom, 12)
                 dictationGroup
                     .padding(.bottom, 12)
                 readAloudGroup
-                    .padding(.bottom, 12)
-                realtimeGroup
-                    .id(Self.realtimeGroupID)
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 20)
@@ -148,12 +148,6 @@ struct VoiceSettingsView: View {
         }
         .task {
             await flow.appear()
-            #if DEBUG
-            if VoiceSettingsModel.shotsInjection?.scrollToRealtimeEngine == true {
-                proxy.scrollTo(Self.realtimeGroupID, anchor: .bottom)
-            }
-            #endif
-        }
         }
         // The route hides the system navigation bar (oriveoNavigationChrome), so the page draws its own bar.
         .safeAreaInset(edge: .top, spacing: 0) { topBar }
@@ -165,9 +159,76 @@ struct VoiceSettingsView: View {
         .sheet(item: $flow.engineSheet, onDismiss: { flow.engineSheetDismissed() }) { presentation in
             VoiceEngineSheet(model: presentation.model)
         }
+        .sheet(item: $realtimeDisclosure, onDismiss: { answerRealtimeDisclosure(accepted: false) }) { request in
+            VoiceDisclosureSheet(
+                provider: request.selection.providerKind,
+                direction: .realtime,
+                onAnswer: { accepted in answerRealtimeDisclosure(accepted: accepted) }
+            )
+            .environment(appState)
+        }
     }
 
     // MARK: Groups
+
+    private var realtimeGroup: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(L10n.tr("Realtime Voice", table: .voice))
+            switch model.realtimeGroup {
+            case .loading:
+                flatGroup {
+                    HStack {
+                        Spacer(minLength: 0)
+                        ProgressView()
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 18)
+                }
+            case .failed:
+                flatGroup {
+                    HStack(spacing: OriveoTheme.Spacing.sm) {
+                        Text(model.realtimeFailedText)
+                            .font(.system(size: 15))
+                            .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Spacer(minLength: 8)
+                        Button(model.realtimeRetryTitle) {
+                            Task { await model.retryRealtime() }
+                        }
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+                    }
+                    .padding(.horizontal, OriveoTheme.Spacing.lg)
+                    .padding(.vertical, 12)
+                }
+            case .empty:
+                flatGroup {
+                    flatTapRow {
+                        appState.openProviderSetup(from: .providers)
+                    } label: {
+                        HStack(spacing: OriveoTheme.Spacing.sm) {
+                            Text(model.realtimeAddProviderTitle)
+                                .font(.system(size: 16))
+                                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+                            Spacer(minLength: 0)
+                            chevron
+                        }
+                    }
+                }
+                footnote(model.realtimeEmptyText)
+            case .rows(let rows):
+                flatGroup {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                        if index > 0 {
+                            insetHairline()
+                        }
+                        realtimeRow(row)
+                    }
+                }
+                footnote(model.realtimeFooter)
+            }
+        }
+    }
 
     private var dictationGroup: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -227,24 +288,63 @@ struct VoiceSettingsView: View {
         }
     }
 
-    private var realtimeGroup: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionHeader(VoiceSettingsModel.realtimeGroupTitle)
-            flatGroup {
-                flatTapRow {
-                    flow.openEngineSheet(.realtime)
-                } label: {
-                    engineRowLabel(model.realtimeEngine)
+    // MARK: Rows
+
+    /// Same look as the model picker's realtime row; the check is the Home realtime selection.
+    private func realtimeRow(_ row: VoiceRealtimeRow) -> some View {
+        flatTapRow {
+            selectRealtime(row)
+        } label: {
+            HStack(spacing: OriveoTheme.Spacing.sm) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(OriveoTheme.V2.Colors.realtimeBadgeGradient)
+                    .frame(width: 32, height: 32)
+                    .overlay(
+                        Image(systemName: "waveform")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundStyle(OriveoTheme.Palette.switchThumb)
+                    )
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ModelIdentifierBreaks.displayTitle(row.model))
+                        .font(.system(size: 16))
+                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                        .accessibilityLabel(row.model)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(row.subtitle)
+                        .font(.footnote)
+                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if row.isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .accessibilityHidden(true)
                 }
             }
-            if let text = model.realtimeNotice {
-                notice(text)
-            }
-            footnote(model.realtimeFooter)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(row.isSelected ? [.isButton, .isSelected] : .isButton)
         }
     }
 
-    // MARK: Rows
+    /// Same as the provider detail chat button: select as the Home realtime model and go Home
+    /// (no microphone); the first time for a provider shows the disclosure first.
+    private func selectRealtime(_ row: VoiceRealtimeRow) {
+        guard case .needsDisclosure(let selection) = ProviderRealtimeModelsSection.startRealtimeChat(
+            providerID: row.providerID, model: row.model, appState: appState
+        ) else { return }
+        let request = RealtimeModelDisclosureRequest(selection: selection, conversationID: nil)
+        realtimeDisclosurePending.present(request, origin: .picker)
+        realtimeDisclosure = request
+    }
+
+    private func answerRealtimeDisclosure(accepted: Bool) {
+        guard let (request, _) = realtimeDisclosurePending.take(accepted: accepted) else { return }
+        ProviderRealtimeModelsSection.resolveDisclosure(request, accepted: accepted, appState: appState)
+    }
 
     private func engineRowLabel(_ row: VoiceEngineRow) -> some View {
         HStack(spacing: OriveoTheme.Spacing.sm) {

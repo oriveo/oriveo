@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.voice.realtime.wire
 
 import ai.oriveo.community.core.data.repository.RealtimeTransportInput
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.realtime.RealtimeSessionEvent
 import ai.oriveo.community.core.voice.realtime.RealtimeTransportKind
 import java.util.Base64
@@ -35,6 +36,10 @@ internal class GeminiLiveSessionControl(private val transport: GeminiLiveTranspo
     }
 
     override fun truncate(itemId: String?, contentIndex: Int, playedMs: Double) = Unit
+
+    override fun sendUserText(text: String) = transport.sendUserText(text)
+
+    override fun updateOutputRoute(route: ConversationRoute) = transport.updateOutputRoute(route)
 
     override fun close() = transport.close()
 }

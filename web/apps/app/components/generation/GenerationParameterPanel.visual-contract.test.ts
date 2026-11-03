@@ -94,10 +94,14 @@ function declaredTokenName(selector: string, property: string): string {
   return token![1];
 }
 
-function tokenColor(name: string, theme: Theme): string {
+function tokenColor(name: string, theme: Theme, seen: string[] = []): string {
+  if (seen.includes(name)) throw new Error(`token reference cycle in ${theme}: ${[...seen, name].join(' -> ')}`);
   const value = themeTokens[theme].get(name);
-  // No value means the name does not exist in the design system, which means production always falls back to the literal.
+  // No value = this name does not exist in the design system = production always falls back to the literal fallback.
   expect(value, `${name} is defined in the ${theme} theme`).toBeTruthy();
+  // A token aliasing another token resolves within the same theme.
+  const alias = /^var\(\s*(--[a-zA-Z0-9-]+)\s*\)$/.exec(value!.trim());
+  if (alias) return tokenColor(alias[1], theme, [...seen, name]);
   return value!;
 }
 

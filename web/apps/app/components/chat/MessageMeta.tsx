@@ -24,6 +24,9 @@ interface MessageMetaProps {
   estimatedCost: number;
   /** Non-USD part; when an amount is unavailable it renders as "not available", never 0. */
   nonUsdCost?: ChatMessage['nonUsdCost'];
+  /** Persisted cost source and provider kind, read by the token usage sheet's cost row. */
+  costSource?: ChatMessage['costSource'];
+  providerKind?: ChatMessage['providerKind'];
   copied: boolean;
   onCopy: () => void;
   /** Retry action for a delivered message; undefined while in flight, which hides the retry button. */
@@ -39,7 +42,7 @@ interface MessageMetaProps {
 /**
  * Meta row under an assistant message: provider, model, cost pill, copy and retry.
  */
-export function MessageMeta({ providerName, modelName, estimatedCost, nonUsdCost, copied, onCopy, onRetry, onSaveNote, onCrosscheck, tokenUsage, capabilityResults, memoryItemIds }: MessageMetaProps) {
+export function MessageMeta({ providerName, modelName, estimatedCost, nonUsdCost, costSource, providerKind, copied, onCopy, onRetry, onSaveNote, onCrosscheck, tokenUsage, capabilityResults, memoryItemIds }: MessageMetaProps) {
   const locale = useLocale();
   const t = useTranslations('pages.chat');
   const tCtx = useTranslations('contextMenu');
@@ -287,7 +290,7 @@ export function MessageMeta({ providerName, modelName, estimatedCost, nonUsdCost
       </div>
       <MessageTokenUsageDialog
         open={isTokenUsageOpen}
-        usage={tokenUsage}
+        usage={{ ...tokenUsage, estimatedCost, costSource, nonUsdCost, providerKind }}
         onClose={() => setIsTokenUsageOpen(false)}
       />
     </div>

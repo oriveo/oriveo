@@ -98,6 +98,7 @@ export const LIGHT_BRAND_CSS_VARS: ReadonlyArray<readonly [LightBrandToken, stri
   ['gradEnd', '--o-brand-grad-end'],
   ['bgTop', '--o-brand-bg-top'],
   ['bgBottom', '--o-brand-bg-bottom'],
+  ['soft', '--o-primary-soft'],
 ];
 
 // ── Color math (the same oklch / fromOklch as custom-palette; contrast is computed here separately to avoid widening custom-palette's exports) ──

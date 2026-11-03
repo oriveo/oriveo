@@ -4,6 +4,8 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import ai.oriveo.community.core.data.mapper.ConversationMapper
+import ai.oriveo.community.core.model.SkillSyncFields
 import ai.oriveo.community.core.data.dao.ContextCheckpointDao
 import ai.oriveo.community.core.data.dao.ContextLedgerDao
 import ai.oriveo.community.core.data.dao.ConversationDao
@@ -19,7 +21,12 @@ import ai.oriveo.community.core.data.dao.NoteFolderDao
 import ai.oriveo.community.core.data.dao.PreferenceDao
 import ai.oriveo.community.core.data.dao.ProviderDao
 import ai.oriveo.community.core.data.dao.SkillDao
+import ai.oriveo.community.core.data.dao.StudioWorkDao
 import ai.oriveo.community.core.data.entity.ContextCheckpointEntity
+import ai.oriveo.community.core.data.entity.StudioRoundEntity
+import ai.oriveo.community.core.data.entity.StudioRoundRefEntity
+import ai.oriveo.community.core.data.entity.StudioVersionEntity
+import ai.oriveo.community.core.data.entity.StudioWorkEntity
 import ai.oriveo.community.core.data.entity.ContextManifestEntity
 import ai.oriveo.community.core.data.entity.ContextRhoCalibrationEntity
 import ai.oriveo.community.core.data.entity.ConversationEntity
@@ -94,7 +101,20 @@ const val LOCAL_PARTITION_ID = "local"
  *   `searchNotice` (a one-off notice key) and `searchSourcesLineJson` (the title line of the sources card, as JSON).
  *   All three are local only and are not backfilled. See [MIGRATION_6_7].
  *
- * `exportSchema = true` plus the checked-in Room schema JSON serve as an anchor for future diffs.
+ * v8 change: `skills` gains whenToUse / autoInvoke / iconKey and three `{locale: text}` JSON columns
+ *   (skill_schema.v2), NOT NULL with defaults so existing rows read the contract defaults, see [MIGRATION_7_8].
+ *
+ * v9 change: `conversations` gains `skillIdsJson` / `disabledAutoSkillIdsJson`, `messages` gains
+ *   `attachedSkillIdsJson` / `usedSkillsJson` (skill_sync_fields.v1), all nullable; skillIdsJson is backfilled
+ *   from the legacy skillId, which keeps its value, see [MIGRATION_8_9].
+ *
+ * v10 change: `messages` gains nullable `skillManifestTokens` (local-only skill list overhead estimate), no backfill,
+ *   see [MIGRATION_9_10].
+ *
+ * v11 change: new empty studio work tables `studio_works` / `studio_rounds` / `studio_versions` / `studio_round_refs`
+ *   (studio_data_model.v1 localTables) with their indexes, no rows written, see [MIGRATION_10_11].
+ *
+ * `exportSchema = true`: the Room schema JSON is committed as an anchor, so future changes show up as a diff.
  */
 @Database(
     entities = [
@@ -122,8 +142,12 @@ const val LOCAL_PARTITION_ID = "local"
         ContextCheckpointEntity::class,
         MemoryItemEntity::class,
         MemoryCandidateEntity::class,
+        StudioWorkEntity::class,
+        StudioRoundEntity::class,
+        StudioVersionEntity::class,
+        StudioRoundRefEntity::class,
     ],
-    version = 7,
+    version = 11,
     exportSchema = true,
 )
 abstract class OriveoDatabase : RoomDatabase() {
@@ -142,6 +166,7 @@ abstract class OriveoDatabase : RoomDatabase() {
     abstract fun contextCheckpointDao(): ContextCheckpointDao
     abstract fun memoryItemDao(): MemoryItemDao
     abstract fun memoryCandidateDao(): MemoryCandidateDao
+    abstract fun studioWorkDao(): StudioWorkDao
 
     companion object {
         const val DATABASE_NAME = "oriveo.db"
@@ -378,6 +403,96 @@ abstract class OriveoDatabase : RoomDatabase() {
             }
         }
 
+        /** v7 -> v8: skill_schema.v2 cache fields on `skills`; existing rows take the contract defaults. */
+        val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `skills` ADD COLUMN `whenToUse` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `skills` ADD COLUMN `autoInvoke` INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE `skills` ADD COLUMN `iconKey` TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE `skills` ADD COLUMN `whenToUseTranslationsJson` TEXT NOT NULL DEFAULT '{}'")
+                db.execSQL("ALTER TABLE `skills` ADD COLUMN `previewUserJson` TEXT NOT NULL DEFAULT '{}'")
+                db.execSQL("ALTER TABLE `skills` ADD COLUMN `previewAssistantJson` TEXT NOT NULL DEFAULT '{}'")
+            }
+        }
+
+        /**
+         * v8 -> v9: skill_sync_fields.v1 columns, nullable without defaults. Rows with a non-blank legacy
+         * skillId get skillIdsJson = [skillId] (sync id); skillId itself is left untouched for old app versions.
+         */
+        val MIGRATION_8_9: Migration = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `conversations` ADD COLUMN `skillIdsJson` TEXT")
+                db.execSQL("ALTER TABLE `conversations` ADD COLUMN `disabledAutoSkillIdsJson` TEXT")
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `attachedSkillIdsJson` TEXT")
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `usedSkillsJson` TEXT")
+                val backfill = mutableListOf<Pair<Long, String>>()
+                db.query("SELECT rowid, skillId FROM `conversations` WHERE skillId IS NOT NULL").use { cursor ->
+                    while (cursor.moveToNext()) {
+                        val ids = SkillSyncFields.resolveSkillIds(null, cursor.getString(1))
+                        ConversationMapper.encodeIdList(ids)?.let { backfill += cursor.getLong(0) to it }
+                    }
+                }
+                for ((rowId, json) in backfill) {
+                    db.execSQL("UPDATE `conversations` SET `skillIdsJson` = ? WHERE rowid = ?", arrayOf<Any>(json, rowId))
+                }
+            }
+        }
+
+        /** v9 -> v10: local-only `messages.skillManifestTokens`, nullable, existing rows stay null. */
+        val MIGRATION_9_10: Migration = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `messages` ADD COLUMN `skillManifestTokens` INTEGER")
+            }
+        }
+
+        /**
+         * v10 -> v11: creates the four empty studio work tables and their indexes, no rows written; the SQL matches
+         * the `11.json` createSql verbatim.
+         */
+        val MIGRATION_10_11: Migration = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `studio_works` (`id` TEXT NOT NULL COLLATE NOCASE, `title` TEXT NOT NULL, " +
+                        "`currentVersionId` TEXT COLLATE NOCASE, `source` TEXT NOT NULL, `chatConversationId` TEXT, " +
+                        "`chatMessageId` TEXT, `favorite` INTEGER NOT NULL, `selectedVersionIds` TEXT NOT NULL, " +
+                        "`deletedVersionIds` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, " +
+                        "`deletedAt` INTEGER, `revision` INTEGER NOT NULL, `baseRevision` INTEGER NOT NULL, " +
+                        "`accountPartition` TEXT NOT NULL, `syncState` TEXT NOT NULL, PRIMARY KEY(`id`))",
+                )
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_studio_works_accountPartition_updatedAt` " +
+                        "ON `studio_works` (`accountPartition`, `updatedAt`)",
+                )
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `studio_rounds` (`id` TEXT NOT NULL COLLATE NOCASE, " +
+                        "`workId` TEXT NOT NULL COLLATE NOCASE, `index` INTEGER NOT NULL, `baseVersionId` TEXT COLLATE NOCASE, " +
+                        "`operation` TEXT NOT NULL, `prompt` TEXT NOT NULL, `composedPrompt` TEXT NOT NULL, " +
+                        "`enhancedPrompt` TEXT, `presetIds` TEXT NOT NULL, `params` TEXT NOT NULL, `modelRef` TEXT, " +
+                        "`status` TEXT NOT NULL, `errorKind` TEXT, `adjustments` TEXT NOT NULL, " +
+                        "`nRequested` INTEGER NOT NULL, `nDelivered` INTEGER NOT NULL, `costEstimateUsd` REAL, " +
+                        "`chargedUsd` REAL, `fundingSource` TEXT NOT NULL, `managedJobId` TEXT, `clientJobId` TEXT, " +
+                        "`startedAt` INTEGER NOT NULL, `finishedAt` INTEGER, PRIMARY KEY(`id`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_studio_rounds_workId` ON `studio_rounds` (`workId`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `studio_versions` (`id` TEXT NOT NULL COLLATE NOCASE, " +
+                        "`roundId` TEXT NOT NULL COLLATE NOCASE, `workId` TEXT NOT NULL COLLATE NOCASE, " +
+                        "`parentVersionId` TEXT COLLATE NOCASE, `assetId` TEXT NOT NULL COLLATE NOCASE, " +
+                        "`width` INTEGER NOT NULL, `height` INTEGER NOT NULL, `mime` TEXT NOT NULL, " +
+                        "`kept` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, PRIMARY KEY(`id`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_studio_versions_workId` ON `studio_versions` (`workId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_studio_versions_roundId` ON `studio_versions` (`roundId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_studio_versions_assetId` ON `studio_versions` (`assetId`)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `studio_round_refs` (`roundId` TEXT NOT NULL COLLATE NOCASE, " +
+                        "`order` INTEGER NOT NULL, `assetId` TEXT NOT NULL COLLATE NOCASE, `role` TEXT NOT NULL, " +
+                        "PRIMARY KEY(`roundId`, `order`))",
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_studio_round_refs_assetId` ON `studio_round_refs` (`assetId`)")
+            }
+        }
+
         /** Every registered migration, from v1 up to the current version. Production and tests both open the database through this list, so a new version is added in one place. */
         fun allMigrations(): Array<Migration> = arrayOf(
             MIGRATION_1_2,
@@ -386,6 +501,14 @@ abstract class OriveoDatabase : RoomDatabase() {
             MIGRATION_4_5,
             MIGRATION_5_6,
             MIGRATION_6_7,
+            // v7 -> v8: skills gains the skill_schema.v2 cache columns (defaults, no backfill).
+            MIGRATION_7_8,
+            // v8 -> v9: skill_sync_fields.v1 columns; skillIdsJson backfilled from the legacy skillId.
+            MIGRATION_8_9,
+            // v9 -> v10: messages gains the local-only skillManifestTokens (nullable, no backfill).
+            MIGRATION_9_10,
+            // v10 -> v11: four empty studio work tables and their indexes (studio_data_model.v1 localTables).
+            MIGRATION_10_11,
         )
     }
 }

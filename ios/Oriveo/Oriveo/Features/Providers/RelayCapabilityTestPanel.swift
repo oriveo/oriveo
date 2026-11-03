@@ -595,7 +595,7 @@ struct RelayCapabilityTestSheet: View {
             case let .progress(current, total):
                 Text(String(format: L10n.tr("%1$lld / %2$lld", table: .providers), Int64(current), Int64(total)))
                     .font(OriveoTheme.Typography.title3.monospacedDigit())
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             case .done:
                 Label(L10n.tr("Completed", table: .providers), systemImage: "checkmark")
                     .font(OriveoTheme.Typography.body.weight(.medium))
@@ -670,7 +670,7 @@ struct RelayCapabilityTestSheet: View {
             if let trailing = row.trailing {
                 Text(RelayCapabilityTestPanel.trailingText(trailing))
                     .font(OriveoTheme.Typography.caption.monospacedDigit())
-                    .foregroundStyle(row.icon == .running ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textTertiary)
+                    .foregroundStyle(row.icon == .running ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textTertiary)
             }
         }
         .padding(.vertical, OriveoTheme.Spacing.md)

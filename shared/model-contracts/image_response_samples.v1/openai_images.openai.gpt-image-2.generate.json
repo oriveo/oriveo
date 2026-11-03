@@ -1,0 +1,52 @@
+{
+  "meta": {
+    "route": "openai_images",
+    "provider": "openai",
+    "op": "generate",
+    "http": 200,
+    "seconds": 14.7,
+    "captured_at": "2026-10-28T01:13:35.316Z",
+    "endpoint": "https://api.openai.com/v1/images/generations"
+  },
+  "observed": {
+    "shapes": [
+      "data[].b64_json"
+    ],
+    "images": [
+      {
+        "mime": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1296761,
+        "host": null
+      }
+    ]
+  },
+  "response": {
+    "created": 1793150013,
+    "background": "opaque",
+    "data": [
+      {
+        "b64_json": "<base64 bytes=1296761 sha256=6caf128b98bf57d4>",
+        "generation_id": "a803fbec-dcb1-4d08-9d5e-b605bf60490d"
+      }
+    ],
+    "output_format": "png",
+    "quality": "low",
+    "safety_identifier": null,
+    "size": "1024x1024",
+    "usage": {
+      "input_tokens": 20,
+      "input_tokens_details": {
+        "image_tokens": 0,
+        "text_tokens": 20
+      },
+      "output_tokens": 196,
+      "output_tokens_details": {
+        "image_tokens": 196,
+        "text_tokens": 0
+      },
+      "total_tokens": 216
+    }
+  }
+}

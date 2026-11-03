@@ -56,8 +56,10 @@ import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.TextButton
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.component.rootTabTopInset
+import ai.oriveo.community.ui.component.liquidGlassTabBarReservedHeight
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.ScaffoldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -169,6 +171,8 @@ fun SettingsScreen(
 
         Scaffold(
             containerColor = Color.Transparent,
+            // Drop the bottom system inset: the reserved tab bar height below already includes the navigation bar.
+            contentWindowInsets = ScaffoldDefaults.contentWindowInsets.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top),
             topBar = {
                 TopAppBar(
                     title = {
@@ -200,7 +204,8 @@ fun SettingsScreen(
                     .padding(padding)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = layout.screenH)
-                    .padding(bottom = OriveoTheme.layout.tabBarOverlay),
+                    // Keep the last row at least 16dp above the floating tab bar.
+                    .padding(bottom = liquidGlassTabBarReservedHeight() + 16.dp),
             ) {
                 // AI grid: memory, context, skills, voice (2x2)
                 Spacer(modifier = Modifier.height(20.dp))

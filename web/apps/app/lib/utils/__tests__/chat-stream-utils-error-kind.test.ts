@@ -33,8 +33,9 @@ describe('resolveErrorCopyKey', () => {
   it('maps a known kind to a copy key usable at render time', () => {
     expect(resolveErrorCopyKey('network')).toBe('network');
     expect(resolveErrorCopyKey('moderation')).toBe('moderationBlocked');
-    // Kinds bucketed into upstream but semantically settled are translated at render time too
-    expect(resolveErrorCopyKey('emptyResponse')).toBe('upstream');
+    // Chat empty reply has its own copy (errors.emptyReply), matching iOS/Android; errors.emptyResponse is model-catalog copy.
+    expect(resolveErrorCopyKey('emptyResponse')).toBe('emptyReply');
+    expect(mapErrorKindKey('emptyResponse')).toBe('emptyReply');
   });
 
   it('returns null for older data with no errorKind so the caller falls back to the stored string', () => {
@@ -99,17 +100,17 @@ describe('every ProviderErrorKind renders localized copy', () => {
 
   // relayUpstream goes through the separate RelayGuidanceCode path (errors.relay*), not errors.<kind>.
   const NOT_KEYED_BY_KIND = new Set<ProviderErrorKind>(['relayUpstream']);
-  // moderation is the one deliberate rename (to moderationBlocked), pinned by the test above.
-  const RENAMED = new Set<ProviderErrorKind>(['moderation']);
-  // Same name does not mean same meaning: both kinds do have entries under errors.*, but that copy
-  // describes the **model catalog** ("invalid model catalog response" / "empty model catalog"),
-  // whereas emptyResponse in chat means "the provider returned no assistant content". Passing it
-  // through would render a chat failure as a catalog error, so these are deliberately bucketed into
-  // upstream; see the existing resolveErrorCopyKey assertion.
-  // That is also the one weakness of this gate: it can verify that a key exists, not that the
-  // meaning matches. A new exemption must spell out why, and must never be added just to turn the
-  // test green.
-  const INTENTIONALLY_BUCKETED = new Set<ProviderErrorKind>(['emptyResponse', 'emptyModelCatalog']);
+  // Intentional renames (moderation → moderationBlocked, emptyResponse → emptyReply), pinned in the case above.
+  const RENAMED = new Set<ProviderErrorKind>(['moderation', 'emptyResponse']);
+  // Same name ≠ same meaning (emptyResponse was here until it got errors.emptyReply).
+  // Same name is not the same meaning: errors.emptyResponse and errors.emptyModelCatalog describe the **model catalog** case
+  // ("model catalog response is invalid" / "model catalog is empty"), while emptyResponse in chat means "the provider returned no
+  // assistant content". Passing it through would render a chat failure card as a catalog error, so emptyResponse is renamed to
+  // emptyReply (see RENAMED) and emptyModelCatalog is intentionally bucketed to upstream -- see the existing assertion in resolveErrorCopyKey.
+  //
+  // This is the only weak point of this check: it can only verify that the key exists, not that the meaning matches. When adding an
+  // exemption, state the reason the way this comment does, and do not add one just because a test went red.
+  const INTENTIONALLY_BUCKETED = new Set<ProviderErrorKind>(['emptyModelCatalog']);
 
   it.each(kinds.filter((k) => !NOT_KEYED_BY_KIND.has(k)))(
     '%s has copy under errors.* in en.json',

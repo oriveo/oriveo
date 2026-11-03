@@ -58,11 +58,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.ProviderBalance
+import ai.oriveo.community.core.voice.appUiLocale
+import ai.oriveo.community.ui.component.rememberCostLocale
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.NumberFormat
+import java.util.Currency
 import java.util.Locale
 
 @Composable
@@ -312,6 +318,7 @@ private fun BalanceSkeleton() {
 @Composable
 private fun BalanceLoadedContent(balance: ProviderBalance, providerKind: ProviderKind) {
     val colors = OriveoTheme.colors
+    val costLocale = rememberCostLocale()
 
     Column(
         verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
@@ -320,7 +327,7 @@ private fun BalanceLoadedContent(balance: ProviderBalance, providerKind: Provide
 
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
-                text = formatAmount(balance.total, balance.currency),
+                text = formatAmount(balance.total, balance.currency, costLocale),
                 style = OriveoTheme.typography.title2.copy(
                     fontSize = 32.sp,
                     fontWeight = FontWeight.Bold,
@@ -355,7 +362,7 @@ private fun BalanceLoadedContent(balance: ProviderBalance, providerKind: Provide
                     BreakdownItem(
                         icon = Icons.Filled.AutoAwesome,
                         label = stringResource(grantedLabelRes(providerKind)),
-                        value = formatAmount(granted, balance.currency),
+                        value = formatAmount(granted, balance.currency, costLocale),
                     )
                 }
                 if (topUp != null) {
@@ -363,7 +370,7 @@ private fun BalanceLoadedContent(balance: ProviderBalance, providerKind: Provide
                     BreakdownItem(
                         icon = if (isOwing) Icons.Filled.WarningAmber else Icons.Filled.ArrowCircleDown,
                         label = stringResource(topUpLabelRes(providerKind)),
-                        value = formatAmount(topUp, balance.currency),
+                        value = formatAmount(topUp, balance.currency, costLocale),
                         isWarning = isOwing,
                         warningLabel = if (isOwing) stringResource(R.string.provider_balance_owing_label) else null,
                     )
@@ -372,7 +379,7 @@ private fun BalanceLoadedContent(balance: ProviderBalance, providerKind: Provide
                     BreakdownItem(
                         icon = Icons.Filled.ArrowCircleUp,
                         label = stringResource(R.string.provider_balance_used_label),
-                        value = formatAmount(totalUsage, balance.currency),
+                        value = formatAmount(totalUsage, balance.currency, costLocale),
                     )
                 }
             }
@@ -512,19 +519,43 @@ private fun topUpLabelRes(kind: ProviderKind): Int = when (kind) {
     else -> R.string.provider_balance_topup_label
 }
 
+/** Grouping + 2 fraction digits for currencies other than USD / CNY ("EUR 1,234.56"). */
 private val amountFormatter: NumberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
     minimumFractionDigits = 2
     maximumFractionDigits = 2
     isGroupingUsed = true
 }
 
-private fun formatAmount(amount: Double, currency: String): String {
-    val symbol = when (currency.uppercase()) {
-        "USD" -> "$"
-        "CNY" -> "¥"
-        else -> "$currency "
+internal fun formatAmount(amount: Double, currency: String, locale: Locale = appUiLocale()): String {
+    return when (currency.uppercase()) {
+        // Shared USD renderer: fixed 2 digits, half away from zero like every non-truncated amount
+        "USD" -> CostFormatter.usd(
+            amount,
+            minFraction = 2,
+            maxFraction = 2,
+            locale = locale,
+            roundingMode = RoundingMode.HALF_UP,
+        )
+        "CNY" -> cnyAmount(amount, locale)
+        else -> {
+            val sign = if (amount < 0) "-" else ""
+            "$currency " + sign + amountFormatter.format(kotlin.math.abs(amount))
+        }
     }
-    val sign = if (amount < 0) "-" else ""
-    val abs = kotlin.math.abs(amount)
-    return symbol + sign + amountFormatter.format(abs)
+}
+
+/**
+ * CNY in the platform currency format of [locale] with its standard symbol, same as
+ * CostFormatter.formatPart; keeps the card's fixed 2 digits and also renders zero / negative values.
+ */
+private fun cnyAmount(amount: Double, locale: Locale): String {
+    val format = NumberFormat.getCurrencyInstance(locale).apply {
+        currency = Currency.getInstance("CNY")
+        minimumFractionDigits = 2
+        maximumFractionDigits = 2
+        // Half away from zero from the shortest decimal form, matching iOS and CNY cost parts
+        roundingMode = RoundingMode.HALF_UP
+    }
+    if (!amount.isFinite()) return format.format(amount)
+    return format.format(BigDecimal.valueOf(amount))
 }

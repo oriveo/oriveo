@@ -88,13 +88,11 @@ struct ConversationInstructionsTests {
 
     @Test("set_instructions_normalizes")
     @MainActor
-    func setInstructionsNormalizes() throws {
+    func setInstructionsNormalizesAndSyncs() async throws {
         let uid = "instructions-set-\(UUID().uuidString)"
         let state = AppState(seedDemoData: false, sessionUID: uid)
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
         // Custom title: keeps the projection from recomputing the fixture title from the first user message, so we can assert that setting instructions leaves the title alone
         let conversation = TestFactories.makeConversation(hasCustomTitle: true, messages: [TestFactories.makeMessage()])

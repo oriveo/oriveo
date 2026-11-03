@@ -107,6 +107,8 @@ internal fun BoxScope.ChatMessagesList(
     isDragging: Boolean,
     onPointerDownChange: (Boolean) -> Unit,
     isGenerating: Boolean,
+    /** The current conversation model is a realtime voice model: regenerate / edit on messages is not rendered. */
+    isRealtimeModel: Boolean = false,
     isRateLimitError: (ChatMessage) -> Boolean,
     /** Relay failure message "switch to another key". */
     onSwitchKey: (ChatMessage) -> Unit = {},
@@ -119,6 +121,7 @@ internal fun BoxScope.ChatMessagesList(
     onSwitchModel: () -> Unit,
     onShare: (ChatMessage) -> Unit,
     onSaveAsNote: (ChatMessage) -> Unit,
+    /** Message menu "save this approach as a skill"; null hides it. */
     onSaveCodeAsNote: (message: ChatMessage, code: String) -> Unit,
     onSaveSelectionAsNote: (message: ChatMessage, text: String) -> Unit,
     onAskSelection: (message: ChatMessage, selection: QuoteSelectionContent) -> Unit,
@@ -142,6 +145,10 @@ internal fun BoxScope.ChatMessagesList(
     onIgnoreMemorySuggestion: () -> Unit = {},
     onEditMemorySuggestion: () -> Unit = {},
     onSaveMemorySuggestion: () -> Unit = {},
+    /** Realtime voice session on this page: its live bubbles follow the stored messages; null = none. */
+    realtimeLive: RealtimeLiveBubbleSource? = null,
+    /** Voice stage entrance progress 0…1, read at draw time: blends in the top tier of [chatListEdgeFade]. */
+    voiceStageFade: () -> Float = { 0f },
 ) {
     val density = LocalDensity.current
     // The pointerInput block starts once, on the first pointer event, and recomposition does not
@@ -155,6 +162,11 @@ internal fun BoxScope.ChatMessagesList(
             state = listState,
             modifier = Modifier
                 .fillMaxSize()
+                // List content fades out under the mask (PM0 card A4): fades above the composer and the stage fades at the top 30% when present; no background color.
+                .chatListEdgeFade(
+                    overlayHeightPx = { with(density) { composerOverlayHeightDp.roundToPx() } },
+                    stage = voiceStageFade,
+                )
                 .userBubbleViewport(bubbleViewport)
                 .alpha(if (hideInitialListUntilBottomSettled) 0f else 1f)
                 // The baseline has to be block-local state (tracker). A captured parameter freezes when
@@ -284,6 +296,7 @@ internal fun BoxScope.ChatMessagesList(
                             streamingActivity = liveStreamingActivity,
                             isLiveStream = isStreaming,
                             isSendingMessage = isGenerating,
+                            isRealtimeModel = isRealtimeModel,
                             isRateLimitError = isRateLimitError(message),
                             topPadding = topPadding,
                             showMetadata = showMetadata,
@@ -339,6 +352,12 @@ internal fun BoxScope.ChatMessagesList(
                             )
                         }
                     }
+                }
+            }
+            // Handoff counts the id written in this session (carried by realtimeLive), and does not depend on which messages were already in the list when the session attached.
+            if (realtimeLive != null) {
+                item(key = "realtime_live_bubbles", contentType = "realtime_live_bubbles") {
+                    RealtimeLiveBubbles(realtimeLive, messages, displayLookup)
                 }
             }
         }
@@ -463,7 +482,7 @@ private fun SuggestionPillButton(label: String, primary: Boolean, onClick: () ->
         modifier = Modifier
             .height(MemorySuggestionRowLayout.actionHeight)
             .clip(MemorySuggestionRowLayout.actionShape)
-            .background(if (primary) colors.primaryTextSafe else MemorySuggestionRowLayout.secondaryActionFill(OriveoTheme.isDark))
+            .background(if (primary) colors.primaryFillText else MemorySuggestionRowLayout.secondaryActionFill(OriveoTheme.isDark))
             .clickable(role = androidx.compose.ui.semantics.Role.Button, onClick = onClick)
             .padding(horizontal = if (primary) 16.dp else 12.dp),
         contentAlignment = Alignment.Center,

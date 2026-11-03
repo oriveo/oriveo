@@ -65,7 +65,43 @@ nonisolated enum ChatCollectionProjectionBuilder {
         case user
         case assistant
         case spacer
+        /// Transient live-call bubbles (not stored in the database, not synced); rendered with the existing user / assistant cells.
+        case liveUser
+        case liveAssistant
     }
+
+    /// Input for the list from the live call in progress: controller drafts, attribution of stored rows, and message ids already stored in this call.
+    nonisolated struct RealtimeLiveInput: Equatable, Sendable {
+        let drafts: RealtimeDrafts
+        let attribution: RealtimeVoiceAttribution
+        /// Message ids stored during this call (including reopened ones); handover counts only these new ids, never matches text.
+        let callMessageIDs: Set<UUID>
+        /// Header name and relay avatar are resolved up front with the same rules as stored rows (see makeRows), so the header stays the same at handover.
+        let resolvedProviderName: String?
+        let resolvedModelName: String?
+        let relayKind: RelayKind?
+        let relayAvatar: RelayAvatar?
+
+        init(
+            drafts: RealtimeDrafts,
+            attribution: RealtimeVoiceAttribution,
+            callMessageIDs: Set<UUID>,
+            metadata: ChatCollectionProviderMetadata = .empty
+        ) {
+            self.drafts = drafts
+            self.attribution = attribution
+            self.callMessageIDs = callMessageIDs
+            let probe = ChatCollectionProjectionBuilder.liveMessage(UUID(), .assistant, "", attribution)
+            resolvedProviderName = metadata.resolvedProviderName(for: probe)
+            resolvedModelName = metadata.resolvedModelName(for: probe)
+            relayKind = metadata.relayKind(for: probe)
+            relayAvatar = metadata.relayAvatar(for: probe)
+        }
+    }
+
+    /// Fixed ids for the two transient bubbles: when a draft changes word by word, the same row is reconfigured in place, never added or removed.
+    nonisolated static let realtimeLiveUserID = UUID(uuidString: "6F1E0C1A-0000-4000-8000-00000000A001")!
+    nonisolated static let realtimeLiveAssistantID = UUID(uuidString: "6F1E0C1A-0000-4000-8000-00000000A002")!
 
     nonisolated struct MessageItem: Hashable, Sendable {
         let id: UUID
@@ -199,6 +235,8 @@ nonisolated enum ChatCollectionProjectionBuilder {
     nonisolated struct SnapshotPlan: Equatable, Sendable {
         let items: [MessageItem]
         let renderModelsByID: [UUID: MessageRenderModel]
+        /// Trailing live rows (already included in items / renderModelsByID); the data source renders rows + liveRows.
+        var liveRows: [MessageRow] = []
     }
 
     nonisolated struct MarkdownHintRefreshKey: Equatable, Sendable {
@@ -292,16 +330,25 @@ nonisolated enum ChatCollectionProjectionBuilder {
         from rows: [MessageRow],
         streamingMessageID: UUID? = nil,
         streamingText: String = "",
-        providerMetadataVersion: UInt
+        providerMetadataVersion: UInt,
+        realtimeLive: RealtimeLiveInput? = nil
     ) -> SnapshotPlan {
+        let liveRows = realtimeLive.map { realtimeLiveRows($0, after: rows) } ?? []
+        let allRows = rows + liveRows
         var items: [MessageItem] = []
-        items.reserveCapacity(rows.count)
+        items.reserveCapacity(allRows.count)
 
         var renderModelsByID: [UUID: MessageRenderModel] = [:]
-        renderModelsByID.reserveCapacity(rows.count)
+        renderModelsByID.reserveCapacity(allRows.count)
 
-        for row in rows {
-            let presentationKind: PresentationKind = row.message.role == .user ? .user : .assistant
+        for row in allRows {
+            let isLive = row.message.id == realtimeLiveUserID || row.message.id == realtimeLiveAssistantID
+            let presentationKind: PresentationKind = switch (row.message.role == .user, isLive) {
+            case (true, false): .user
+            case (false, false): .assistant
+            case (true, true): .liveUser
+            case (false, true): .liveAssistant
+            }
             let displayText: String? = streamingMessageID == row.message.id ? streamingText : nil
             let effectiveText = displayText ?? row.message.text
 
@@ -338,7 +385,79 @@ nonisolated enum ChatCollectionProjectionBuilder {
             )
         }
 
-        return SnapshotPlan(items: items, renderModelsByID: renderModelsByID)
+        return SnapshotPlan(items: items, renderModelsByID: renderModelsByID, liveRows: liveRows)
+    }
+
+    /// Trailing live rows, following Android's RealtimeLiveHandover. The controller clears a side in the reduce that issues the persist,
+    /// but the stored row reaches the list a little later: a cleared side keeps showing its last text while fewer of this call's new messages of that role are listed than were persisted.
+    /// The stored message then takes over, so nothing duplicates or flickers; the order follows the persist order (a reply interrupting another is stored first).
+    nonisolated static func realtimeLiveRows(
+        _ live: RealtimeLiveInput,
+        after rows: [MessageRow]
+    ) -> [MessageRow] {
+        var listedUser = 0
+        var listedAssistant = 0
+        for row in rows where live.callMessageIDs.contains(row.message.id) {
+            switch row.message.role {
+            case .user: listedUser += 1
+            case .assistant: listedAssistant += 1
+            default: break
+            }
+        }
+        let drafts = live.drafts
+        let userText = liveSide(drafts.user, drafts.userPersistedText, awaitingStored: listedUser < drafts.userPersisted)
+        let assistantText = liveSide(
+            drafts.assistant, drafts.assistantPersistedText, awaitingStored: listedAssistant < drafts.assistantPersisted
+        )
+        let user = userText.map { liveMessage(realtimeLiveUserID, .user, $0, live.attribution) }
+        let assistant = assistantText.map { liveMessage(realtimeLiveAssistantID, .assistant, $0, live.attribution) }
+        let ordered = (drafts.userAfterAssistant ? [assistant, user] : [user, assistant]).compactMap { $0 }
+        var previousRole = rows.last?.message.role
+        return ordered.enumerated().map { index, message in
+            let next = index + 1 < ordered.count ? ordered[index + 1].role : nil
+            defer { previousRole = message.role }
+            return MessageRow(
+                message: message,
+                // Same rule as the stored list: user rows always show it; assistant rows only when no assistant row follows.
+                showMetadata: message.role == .user || next != .assistant,
+                resolvedProviderName: live.resolvedProviderName,
+                resolvedModelName: live.resolvedModelName,
+                relayKind: live.relayKind,
+                relayAvatar: live.relayAvatar,
+                noteReferences: [],
+                noteBadgePresentation: .none,
+                renderHint: nil,
+                topPadding: previousRole == message.role ? compactTopPadding : groupedTopPadding,
+                isLastInConversation: false
+            )
+        }
+    }
+
+    /// Show the live text when there is some; otherwise show the last stored text until the stored row reaches the list; show nothing if neither exists.
+    private nonisolated static func liveSide(_ draft: String?, _ persisted: String?, awaitingStored: Bool) -> String? {
+        if let draft, !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return draft }
+        guard awaitingStored, let persisted,
+              !persisted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return persisted
+    }
+
+    /// Same attribution as the stored row (AppStateRealtimeTranscriptSink.message), so the header stays the same at handover.
+    fileprivate nonisolated static func liveMessage(
+        _ id: UUID, _ role: ChatRole, _ text: String, _ attribution: RealtimeVoiceAttribution
+    ) -> ChatMessage {
+        ChatMessage(
+            id: id,
+            role: role,
+            text: text,
+            providerID: attribution.providerID,
+            providerKind: attribution.providerKind,
+            providerName: attribution.providerName,
+            modelID: attribution.model,
+            modelName: attribution.model,
+            state: .delivered,
+            // No timestamp: rebuilds yield the same value, so an unchanged draft is not reconfigured.
+            createdAt: nil
+        )
     }
 
     nonisolated static func markdownHintRefreshKey(messages: [ChatMessage]) -> MarkdownHintRefreshKey {
@@ -395,4 +514,6 @@ struct ChatCollectionViewModel {
     var memorySuggestion: MemorySuggestionBar? = nil
     /// The current model's vision input projection; rows must be rebuilt when it changes (the "not sent to this model" caption on user bubbles with images).
     var currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
+    /// Row metadata (used to resolve the header name of live bubbles; O(1) via the shared lookup); not part of the rebuild check.
+    var providerMetadata: ChatCollectionProviderMetadata = .empty
 }

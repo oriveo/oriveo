@@ -65,6 +65,8 @@ import ai.oriveo.community.core.usage.MonthlyCostSummary
 import ai.oriveo.community.ui.component.OriveoFadeHairline
 import ai.oriveo.community.ui.component.OriveoIconPlate
 import ai.oriveo.community.ui.component.costPartsText
+import ai.oriveo.community.ui.component.rememberCostLocale
+import ai.oriveo.community.ui.component.usdTextOrZero
 import ai.oriveo.community.ui.component.oriveoGradientPanel
 import ai.oriveo.community.ui.theme.OriveoTheme
 import java.text.SimpleDateFormat
@@ -233,11 +235,10 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
     val isDark = OriveoTheme.isDark
     val subtitleRes = R.string.based_on_usage_on_this_device
 
-    // Per-currency totals (USD first, joined with " + "); a month with only non-USD cost shows that
-    // currency's amount, never "$0".
-    val fullText = costPartsText(summary.totals).ifEmpty { "$0" }
-    val hasDollarPrefix = fullText.startsWith("$")
-    val dollarBody = if (hasDollarPrefix) fullText.substring(1) else fullText
+    // Totals per currency (USD first, joined with ` + `); months with only non-USD costs show that currency's amount, never $0
+    val fullText = usdTextOrZero(costPartsText(summary.totals), rememberCostLocale())
+    val dollarSplit = splitDollarSymbol(fullText)
+    val dollarBody = dollarSplit.body
 
     val baseNumberSize = if (isCompact) 28f else 36f
     val numberMinSize = baseNumberSize * 0.7f
@@ -253,7 +254,7 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            if (hasDollarPrefix) {
+            val dollarSymbol: @Composable () -> Unit = {
                 Text(
                     text = "$",
                     style = compactTextStyle(
@@ -267,6 +268,7 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
                     maxLines = 1,
                 )
             }
+            if (dollarSplit.position == DollarSymbolPosition.Prefix) dollarSymbol()
             Text(
                 text = dollarBody,
                 style = compactTextStyle(
@@ -287,6 +289,7 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
                     }
                 },
             )
+            if (dollarSplit.position == DollarSymbolPosition.Suffix) dollarSymbol()
         }
 
         Box(
@@ -769,3 +772,25 @@ private fun compactTextStyle(base: TextStyle): TextStyle =
     )
 
 // endregion
+
+internal enum class DollarSymbolPosition { Prefix, Suffix, None }
+
+internal data class DollarSplit(val body: String, val position: DollarSymbolPosition)
+
+/**
+ * Splits the "$" off a formatted USD total so it can be typeset separately. Locales such as de place
+ * the symbol after the number ("1,20 $") and pt-BR separates it with a space ("$ 1,20"); the spacing
+ * next to the symbol is trimmed. Bidi marks (LRM / RLM / ALM, e.g. from ar) are stripped first so
+ * they neither hide the symbol position nor leak into the split body. Mirrors iOS hasDollarPrefix /
+ * hasDollarSuffix.
+ */
+internal fun splitDollarSymbol(fullText: String): DollarSplit {
+    val text = fullText.replace(costBidiMarks, "")
+    return when {
+        text.startsWith("$") -> DollarSplit(text.drop(1).trim(), DollarSymbolPosition.Prefix)
+        text.endsWith("$") -> DollarSplit(text.dropLast(1).trim(), DollarSymbolPosition.Suffix)
+        else -> DollarSplit(text, DollarSymbolPosition.None)
+    }
+}
+
+private val costBidiMarks = Regex("[\u200E\u200F\u061C]")

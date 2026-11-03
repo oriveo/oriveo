@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "消去",
     "generationParameterDormantRestored": "{count} 件のパラメータを復元しました",
     "generationPresetName": "プリセット名",
-    "capabilityControlFixedByConnection": "この接続で設定",
     "capabilityControlReasonPending": "自動設定はまだ準備中です",
     "capabilityControlReasonUnsupported": "このモデルではこのリクエストは利用できません",
     "capabilityControlReasonExternalConnector": "独立した外部サービスで提供され、このチャットリクエストには含まれません",
@@ -166,7 +165,7 @@
     "currentConversation": "現在の会話",
     "restoreModelBehavior": "デフォルトに戻す",
     "restoreModelBehaviorConfirm": "このモデルに設定したすべての値を消去します。取り消せません。",
-    "modelBehaviorScopeHint": "この会話でこのモデルを使う場合のみ有効です。モデル切替時に値はコピーされず、戻すと復元されます。",
+    "modelBehaviorScopeHint": "この会話でこのモデルを使っている間だけ適用されます。モデルを切り替えても値はコピーされず、戻すと復元されます。",
     "controlledByReasoningShortcut": "「思考」ショートカットで制御",
     "customRequestFieldsCustom": "カスタムリクエスト項目",
     "customRequestFieldsReasonSyntax": "重複キーのない有効な JSON オブジェクトか確認してください。",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "最難問にはいくらでも時間をかけます。",
     "capabilityControlReasoningFixedLevel": "このモデルの思考レベルは固定で、調整できません。",
     "capabilityControlCannotAdjustYet": "調整は未対応",
+    "capabilityControlGoToParameters": "パラメータへ",
     "customRequestFieldsNotAllowed": "このフィールドは使用できません。このモデルで使用可能：{fields}",
     "customRequestFieldsFooter": "フィールドは書いたとおりリクエストに追加されます。プロバイダーが公式に宣言したフィールドのみ対応し、誤りはリクエスト失敗の原因になります。下書きはこの端末にのみ保存されます。",
     "customRequestFieldsScopeConnectionModel": "適用範囲：この接続のこのモデル。その会話の既定として使われます。",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "追加",
     "advancedStopSequenceRemove": "{sequence} を削除",
     "advancedMore": "その他",
-    "add": "追加",
-    "capabilityControlGoToParameters": "パラメータへ"
+    "add": "追加"
   },
   "pages": {
     "welcome": {
       "title": "Oriveo へようこそ",
       "tagline": "すべてのモデルを、ひとつのアプリで。",
-      "slogan": "あなたのキー、あなたのコスト、あなたのデータ。",
       "description": "最初の AI プロバイダーを設定して、マルチモデル会話を始めましょう。",
       "addProvider": "プロバイダーを追加",
       "enterHome": "アプリへ進む"
@@ -502,7 +500,6 @@
       "stop": "生成を停止",
       "generating": "生成中",
       "activityWebSearch": "ウェブを検索中",
-      "activityMcpTool": "{server} · {tool} を使用中",
       "aiAnswering": "AIが回答中…",
       "export": "エクスポート",
       "continueAnswering": "回答を続ける",
@@ -586,7 +583,9 @@
         "cacheRead": "キャッシュ読取",
         "cacheWrite": "キャッシュ書込",
         "total": "合計",
-        "unavailable": "データなし"
+        "unavailable": "データなし",
+        "cost": "コスト",
+        "estimated": "概算"
       },
       "attachedNotesTitle": "このチャットに追加済みのノート",
       "removeNoteContext": "コンテキストを削除：{title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Ollama Cloud 経由",
       "modelRemovedBanner": "この会話で使っていたモデルは、{connection} にもうありません。",
       "modelRemovedChoose": "モデルを選ぶ",
+      "connectionRemovedBanner": "この会話で使っていた接続は削除されました。",
+      "modelRetiredBanner": "{model} は提供終了しました。",
+      "modelRetiredSwitchTo": "{model} に切り替える",
+      "lastUsedModelRetiredHint": "前回使っていたモデルは提供終了となったため、{model} に切り替えました。",
       "copyFailed": "コピーできませんでした",
+      "activityMcpTool": "{server} · {tool} を使用中",
       "contextCompaction": {
         "summaryLine1": "{count, plural, other {以前のメッセージ {count} 件を整理しました · {before} → {after} トークン}}",
         "summaryLine2": "{model} で整理 · 要約を見る",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "さらに {model} の割増ライン {line} も超えるため、リクエスト全体がロングコンテキスト料金になります。",
         "confirmDontAsk": "この会話では今後確認しない",
         "confirmSend": "それでも送信"
-      },
-      "connectionRemovedBanner": "この会話で使っていた接続は削除されました。",
-      "modelRetiredBanner": "{model} は提供終了しました。",
-      "modelRetiredSwitchTo": "{model} に切り替える",
-      "lastUsedModelRetiredHint": "前回使っていたモデルは提供終了となったため、{model} に切り替えました。"
+      }
     },
     "providerSetup": {
       "title": "プロバイダーを追加",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "API キーに切り替える",
         "disabledFallback": "ChatGPT のサブスクリプションログインは現在利用できません。API キーに切り替えるか、この接続を削除できます。"
       },
-      "subscription": "サブスクリプション",
-      "tokenPrices": {
-        "input": "入力 {count}",
-        "cacheRead": "キャッシュ読取 {count}",
-        "cacheWrite": "キャッシュ書込 {count}",
-        "output": "出力 {count}",
-        "unit": "トークン"
-      }
+      "subscription": "サブスクリプション"
     },
     "providers": {
       "title": "プロバイダー",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "プライバシーポリシー",
-      "sourceCode": "ソースコード",
       "aiSection": "AI",
       "skills": "スキル",
       "backupImportExport": "バックアップとインポート/エクスポート",
-      "reportIssue": "問題を報告",
-      "documentation": "ドキュメント",
       "aboutTagline": "すべてのモデル、ひとつのアプリ。",
       "context": {
         "title": "コンテキスト",
@@ -1781,7 +1771,7 @@
       "editorCategory": "カテゴリー",
       "editorTooLong": "2,000文字まで",
       "deleteConfirmTitle": "このメモリーを削除しますか？",
-      "deleteConfirmBody": "この端末から完全に削除されます。",
+      "deleteConfirmBody": "すべての端末から削除されます。",
       "actionOrganize": "項目に分ける",
       "rawView": "プレーンテキスト",
       "rawViewHint": "項目と項目のあいだは「---」だけの行で区切ってください。",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "プロバイダーエラー",
       "message": "プロバイダーがこのリクエストでエラーを返しました。再試行するか、モデルを切り替えてください。"
+    },
+    "emptyReply": {
+      "title": "プロバイダーの応答が空です",
+      "message": "プロバイダーがこのメッセージに対するアシスタントの内容を返しませんでした。"
     },
     "moderationBlocked": {
       "title": "コンテンツがブロックされました",
@@ -2059,24 +2053,21 @@
   "skills": {
     "title": "スキル",
     "mySkills": "マイスキル",
-    "builtinSkills": "組み込みスキル",
-    "pinned": "ピン留め",
+    "builtinSkills": "ビルトインスキル",
     "newSkill": "新規スキル",
     "editSkill": "スキルを編集",
     "deleteSkill": "スキルを削除",
     "forkSkill": "マイスキルにコピー",
-    "useSkill": "使用",
-    "pinToHome": "ホームにピン留め",
-    "unpinFromHome": "ピン留めを解除",
+    "useSkill": "このスキルを使用",
     "instructions": "プロンプト",
     "instructionsPlaceholder": "例：あなたはシニアコードレビュアーです。セキュリティ、パフォーマンス、可読性の観点からコードをレビューしてください。ユーザーの言語で回答してください。",
     "starterMessages": "会話スターター",
-    "useMemory": "好みを記憶",
-    "useMemoryHint": "会話にあなたの個人設定を含めます",
+    "useMemory": "設定を記憶",
+    "useMemoryHint": "会話にあなたの個人設定を含める",
     "referenceFiles": "参考資料",
     "tipInstructions": "AIの振る舞いを定義します——性格、専門分野、回答スタイルなど。AIだけが見ることができ、ユーザーには表示されません。",
     "knowledgeSectionTitle": "ナレッジ",
-    "tipReferenceFiles": "AIは返答のたびにこれらのファイルを全文読み込みます——デスクに常に開いてあるメモのようなものです。短くて重要なドキュメント（スタイルガイド、用語集、基本ルールなど）に最適です。ファイルが大きいほど、毎回の応答コストが増加します。",
+    "tipReferenceFiles": "AIは返答のたびにこれらのファイルを全文読み込みます。デスクに常に開いてあるメモのようなものです。短く重要なドキュメント（スタイルガイド、用語集、主要ルール）に最適です。ファイルが大きいほど応答コストが増加します。",
     "noReferenceFiles": "参考資料はまだありません",
     "addFile": "ファイルを追加",
     "filesQuota": "{count} / {max}",
@@ -2117,7 +2108,7 @@
     "knowledgeCtaSecondaryLater": "今じゃない",
     "knowledgeCtaSecondaryContinue": "スキルの編集を続ける",
     "knowledgeEmptyHint": "ナレッジベースファイルはまだありません",
-    "knowledgeRetryUnavailable": "再試行は、この編集セッションで追加されたファイルに対してのみ使用できます。",
+    "knowledgeRetryUnavailable": "このデバイスではこのファイルを再試行できません。",
     "replaceKnowledgeFile": "差し替え",
     "retryKnowledgeFile": "再試行",
     "deleteKnowledgeFile": "削除",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "ナレッジベースには、公式の OpenAI API キーが必要です。",
     "openai_endpoint_not_official": "ナレッジベースは、公式の OpenAI エンドポイントでのみ動作します。",
     "retrieval_model_not_enabled": "まず、OpenAI プロバイダーに {model} を追加して有効にします。",
-    "knowledge_service_unavailable": "ナレッジベースは一時的に利用できなくなります。このスキルは引き続き編集して保存できます。",
+    "knowledge_service_unavailable": "ナレッジベースは現在利用できません。",
     "unsupported_file_type": "このファイルの種類はナレッジベースではサポートされていません。",
     "reference_file_too_large": "参照ファイルは 3 MB 以下である必要があります。",
     "knowledge_file_too_large": "ナレッジベース ファイルは 20 MB 以下である必要があります。",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "このスキルを使うにはプロバイダーが必要です",
     "providerRequiredMessage": "会話を開始する前に、利用可能な AI プロバイダーを追加してください。",
     "providerRequiredAction": "プロバイダーを追加",
-    "promptCancel": "後で"
+    "promptCancel": "後で",
+    "home": {
+      "autoCount": "自動 · {count}",
+      "slashHint": "/ を入力して使用",
+      "empty": "いつものやり方を保存できます",
+      "notesRecent": "最近の編集"
+    },
+    "list": {
+      "subtitle": "いつものやり方を保存しておくと、AI が場面に合わせて使います。"
+    },
+    "create": {
+      "describePlaceholder": "やり方を説明すると、AI がスキルにまとめます",
+      "fromChat": "チャットから作成",
+      "manual": "手動で作成"
+    },
+    "segment": {
+      "mine": "マイスキル",
+      "templates": "テンプレート"
+    },
+    "group": {
+      "auto": "自動で使用",
+      "manual": "手動のみ"
+    },
+    "card": {
+      "usageCount": "使用回数: {count}"
+    },
+    "row": {
+      "slashHint": "{slash} と入力したときに使用"
+    },
+    "auto": {
+      "needWhenTitle": "まず、使うタイミングを書いてください",
+      "suggest": "AI で提案",
+      "limitReached": "自動使用は上限（{count}）に達しています。先にどれかをオフにしてください。"
+    },
+    "search": {
+      "placeholder": "スキルを検索"
+    },
+    "empty": {
+      "title": "スキルはまだありません",
+      "body": "よく使うやり方を保存しておけば、毎回説明しなくて済みます。",
+      "browseTemplates": "テンプレートを見る"
+    },
+    "migrate": {
+      "banner": "「使うタイミング」が未設定のスキル: {count}。一文足すと自動で使えるようになります。",
+      "review": "1件ずつ設定"
+    },
+    "templates": {
+      "note": "テンプレートは「マイスキル」に追加してはじめて自動で使われます。",
+      "featured": "おすすめ",
+      "addToMine": "マイスキルに追加",
+      "add": "追加",
+      "added": "追加済み",
+      "tryOnce": "一度だけ試す"
+    },
+    "detail": {
+      "useInNewChat": "新しいチャットで使用",
+      "orSlash": "またはメッセージ欄に {slash} と入力",
+      "usage": "使用回数: {count} · 前回 {time}",
+      "neverUsed": "まだ使われていません",
+      "autoInvoke": "自動で使う",
+      "whenToUse": "使うタイミング",
+      "whenToUseNote": "AI はこれを見て使うかどうかを判断します",
+      "instructions": "やり方",
+      "showAll": "すべて表示",
+      "references": "参考資料",
+      "starters": "会話のきっかけ",
+      "recentChats": "このスキルを使った最近のチャット",
+      "try": "試す"
+    },
+    "edit": {
+      "changeIcon": "アイコンを変更",
+      "name": "名前",
+      "whenBadge": "自動使用の判断基準",
+      "whenPlaceholder": "例：メモを週報にまとめてほしいと頼んだとき。日報には使わない。",
+      "keywordsCaption": "これらの語で反応します · 場面を書けば十分です",
+      "whenTip": "何をするか、いつ使うか、ふだんどう頼むかを書いてください。「〜には使わない」と添えると、誤って使われにくくなります。「」で囲んだ語は強調表示されます。",
+      "polish": "AI で整える",
+      "addStarter": "きっかけを追加",
+      "modelAndFeatures": "モデルと機能",
+      "followChat": "チャットに合わせる",
+      "needWhenForAuto": "「使うタイミング」を入力するか、自動使用をオフにしてください。"
+    },
+    "draft": {
+      "askScenarios": "これを使う場面を1つか2つ挙げてください",
+      "askQuality": "どんな結果なら理想的ですか？",
+      "skip": "スキップ",
+      "generating": "下書きを作成中…",
+      "title": "下書き",
+      "editFirst": "先に編集",
+      "suggestedIcon": "おすすめのアイコン",
+      "failed": "下書きを最後まで作成できませんでした。使える部分は入力済みです。"
+    },
+    "fromChat": {
+      "menuConversation": "スキルとして保存",
+      "menuMessage": "このやり方をスキルとして保存",
+      "messages": "メッセージ: {count}",
+      "extracting": "まとめています…"
+    },
+    "limit": {
+      "upgrade": "アップグレードで増やす",
+      "draftKept": "下書きはこの端末に保存されています。"
+    },
+    "composer": {
+      "placeholder": "/ を入力してスキルを使う"
+    },
+    "picker": {
+      "title": "マイスキル",
+      "multi": "複数選択可",
+      "auto": "自動",
+      "manual": "手動",
+      "manage": "スキルを管理",
+      "maxReached": "同時に使えるのは {count} 個までです"
+    },
+    "chip": {
+      "deleted": "削除済み"
+    },
+    "message": {
+      "attached": "{names} を使用"
+    },
+    "used": {
+      "chip": "使用: {names}",
+      "loading": "{names} を使用中…",
+      "byChoice": "選択されたため使用",
+      "why": "使われた理由",
+      "disableHere": "このチャットでは自動で使わない",
+      "view": "スキルを見る"
+    },
+    "settings": {
+      "autoToggle": "スキルを自動で使う",
+      "autoToggleFooter": "オフにすると、モデルが自分でスキルを選ぶことはありません。/ を入力すれば手動で使えます。"
+    },
+    "try": {
+      "banner": "お試し中 · 履歴には保存されません",
+      "saveToSkill": "スキルに反映",
+      "adjust": "やり方を調整",
+      "saved": "「{name}」に反映しました",
+      "savedToDraft": "編集画面に反映しました。保存すると確定します"
+    },
+    "improve": {
+      "prompt": "これを「{name}」に追加しますか？",
+      "review": "変更を確認",
+      "accept": "スキルに追加",
+      "dismiss": "今はしない",
+      "addedLine": "追加",
+      "removedLine": "削除",
+      "saved": "「{name}」に追加しました"
+    },
+    "usage": {
+      "manifestRow": "スキル一覧のオーバーヘッド"
+    },
+    "glyph": {
+      "writing": "執筆",
+      "report": "レポート",
+      "code": "コード",
+      "study": "学習",
+      "travel": "旅行",
+      "health": "健康",
+      "meeting": "会議",
+      "idea": "アイデア",
+      "translate": "翻訳",
+      "email": "メール",
+      "data": "データ",
+      "design": "デザイン",
+      "legal": "法務",
+      "finance": "財務",
+      "marketing": "マーケティング",
+      "support": "サポート",
+      "teaching": "教育",
+      "research": "研究",
+      "life": "暮らし",
+      "food": "料理",
+      "music": "音楽",
+      "photo": "写真",
+      "product": "プロダクト",
+      "general": "汎用"
+    },
+    "capability": {
+      "title": "モデル設定",
+      "any": "任意",
+      "reasoning": "推論",
+      "vision": "ビジョン",
+      "fast": "高速",
+      "largeContext": "大規模コンテキスト"
+    },
+    "saveFailed": "変更を保存できませんでした。もう一度お試しください。"
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2589,11 +2764,11 @@
         "title": "識別できない接続の確認",
         "message": "この接続の先にあるサービスを Oriveo が識別できないため、トークン使用量と料金を予測しにくい場合があります。"
       },
+      "estimatedTokens": "最大約 {count} トークン",
       "hosted_provider": {
         "title": "ドキュメント共有の確認",
         "message": "ドキュメントの本文は、この回答のために Oriveo のホステッドモデルサービス経由で送信されます。"
       },
-      "estimatedTokens": "最大約 {count} トークン",
       "estimatedCost": "推定料金：US${cost}",
       "document": "ドキュメント",
       "mayContain": "含まれる可能性",
@@ -2636,8 +2811,7 @@
       "stepLimit": "今回選択したドキュメントが多すぎるか長すぎます。選択を減らして再試行してください。",
       "notConnected": "調査を始める前にライブラリソースを接続してください。",
       "sourceForbidden": "権限またはポリシーの制限により、ソースがアクセスを拒否しました。再接続しても解決しません。ソース側の共有設定やコンプライアンス設定を確認してください。",
-      "unavailable": "ライブラリは一時的に利用できません。後でもう一度お試しください。",
-      "retry": "再試行"
+      "unavailable": "ライブラリは一時的に利用できません。後でもう一度お試しください。"
     }
   },
   "notes": {

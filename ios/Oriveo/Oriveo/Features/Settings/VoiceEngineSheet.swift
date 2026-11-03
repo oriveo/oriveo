@@ -185,7 +185,7 @@ struct VoiceEngineSheet: View {
                     .foregroundStyle(OriveoTheme.Palette.primary)
                     .frame(width: 32, height: 32)
                 Text(model.addConnectionTitle)
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 Spacer()
             }
         }
@@ -229,7 +229,7 @@ struct VoiceDisclosureSheet: View {
         case .realtime:
             // The provider name appears three times; %1$@ fills all of them from one argument.
             return L10n.format(
-                L10n.tr("In voice conversations, %1$@ answers instead of this chat's model. Your voice and this chat's history are sent to %1$@, usage is billed to your connection, and %1$@'s privacy policy applies.", table: .voice),
+                L10n.tr("Your voice and this chat's history are sent directly to %1$@, and %1$@'s privacy policy applies. Realtime voice is billed by audio length and usually costs more than text chats; charges go to your %1$@ account.", table: .voice),
                 provider.displayName
             )
         }
@@ -310,7 +310,7 @@ struct VoiceDisclosureSheet: View {
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { buttonsHeight = $0 }
         }
         // The asset catalog AccentColor is empty, so the link would fall back to system blue.
-        .tint(OriveoTheme.Palette.primary)
+        .tint(OriveoTheme.Palette.primaryTextOnSurface)
         // Size the sheet to its content (a fixed .medium squeezed long titles into an ellipsis), capped at 640pt;
         // .large is the fallback when the content is taller than that.
         .presentationDetents([.height(fittedHeight), .large])

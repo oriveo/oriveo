@@ -10,7 +10,7 @@
 
 .default {
   color: var(--o-text-secondary);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
 }
 
 .success {

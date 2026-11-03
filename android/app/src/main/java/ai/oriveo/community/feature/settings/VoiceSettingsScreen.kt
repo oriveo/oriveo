@@ -3,7 +3,6 @@ package ai.oriveo.community.feature.settings
 import android.content.Context
 import android.content.Intent
 import android.speech.tts.TextToSpeech
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,8 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -23,12 +20,14 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -39,7 +38,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -62,9 +60,10 @@ import ai.oriveo.community.core.app.resolve
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchExternalActivitySafely
-import ai.oriveo.community.core.voice.VoiceChoice
 import ai.oriveo.community.core.voice.VoiceDirection
 import ai.oriveo.community.core.voice.VoicePreviewController
+import ai.oriveo.community.feature.modelpicker.ModelPickerRealtimeRow
+import ai.oriveo.community.feature.modelpicker.RealtimePickerDisclosure
 import ai.oriveo.community.ui.component.FlatGroup
 import ai.oriveo.community.ui.component.FlatSectionHeader
 import ai.oriveo.community.ui.component.InsetHairline
@@ -89,28 +88,24 @@ private const val SPEED_STEPS = 14
 /** Settings action for the system text-to-speech screen (not a public SDK constant). */
 private const val ACTION_TTS_SETTINGS = "com.android.settings.TTS_SETTINGS"
 
-/** Row scrolled into view when the Settings > Voice page opens. */
-enum class VoiceSettingsScrollTarget {
-    RealtimeEngine,
-}
-
 /**
- * Settings › Voice: dictation group (engine, recognition language), read-aloud group
- * (engine, voice, speed, system voice hint) and voice conversation group (engine), each with its footer.
+ * Settings › Voice: realtime voice group (official realtime models; tapping one selects it for Home),
+ * dictation group (engine, recognition language), read-aloud group (engine, voice, speed, system voice hint),
+ * each with its footer.
  *
- * [initialEngineSheet] opens the engine sheet of that direction right away, [initialDisclosure] stacks the provider disclosure on top of it,
- * and [initialScrollTarget] scrolls that row into view; the defaults are a normal page entry (the overrides exist for screenshots).
+ * [onOpenHome] After a realtime model is picked, return to the home voice stage (without opening the mic).
+ *
+ * [initialEngineSheet] Opens the engine sheet for that direction on entry; the default is a normal entry (used by the screenshot entry point).
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VoiceSettingsScreen(
     onBack: () -> Unit = {},
     onAddConnection: () -> Unit = {},
+    onOpenHome: () -> Unit = {},
     viewModel: VoiceSettingsViewModel = koinViewModel(),
     previewController: VoicePreviewController = koinInject(),
     initialEngineSheet: VoiceDirection? = null,
-    initialDisclosure: VoiceChoice.NeedsDisclosure? = null,
-    initialScrollTarget: VoiceSettingsScrollTarget? = null,
 ) {
     val colors = OriveoTheme.colors
     val context = LocalContext.current
@@ -121,21 +116,11 @@ fun VoiceSettingsScreen(
     val previewing by previewController.previewing.collectAsStateWithLifecycle()
 
     var engineSheet by remember { mutableStateOf(initialEngineSheet) }
-    val realtimeRowRequester = remember { BringIntoViewRequester() }
     var languageSheet by remember { mutableStateOf(false) }
     var voiceSheet by remember { mutableStateOf(false) }
+    var realtimeDisclosure by remember { mutableStateOf<RealtimePickerDisclosure?>(null) }
 
     LaunchedEffect(locale) { viewModel.onEnter(locale) }
-    LaunchedEffect(initialScrollTarget) {
-        when (initialScrollTarget) {
-            null -> Unit
-            VoiceSettingsScrollTarget.RealtimeEngine -> {
-                // Wait for the first layout so the row has a position inside the scroll container before scrolling.
-                withFrameNanos {}
-                realtimeRowRequester.bringIntoView()
-            }
-        }
-    }
     DisposableEffect(previewController) {
         onDispose { previewController.stop() }
     }
@@ -172,6 +157,17 @@ fun VoiceSettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
             ) {
                 Footnote(text = state.header.text())
+                RealtimeGroup(
+                    state = state.realtime,
+                    footer = state.realtimeFooter?.text(),
+                    onRow = { row ->
+                        // The first pick for a provider goes through the cloud disclosure; if already consented, write the home selection directly and return home
+                        realtimeDisclosure = viewModel.onRealtimeRow(row)
+                        if (realtimeDisclosure == null) onOpenHome()
+                    },
+                    onAddProvider = onAddConnection,
+                    onRetry = viewModel::retryRealtimeCatalog,
+                )
                 DictationGroup(
                     state = state.dictation,
                     onEngine = { engineSheet = VoiceDirection.Stt },
@@ -185,11 +181,6 @@ fun VoiceSettingsScreen(
                     onSpeed = viewModel::setSpeed,
                     onTtsHint = { openSystemTtsSettings(context, snackbar) },
                 )
-                ConversationGroup(
-                    state = state.conversation,
-                    onEngine = { engineSheet = VoiceDirection.Realtime },
-                    modifier = Modifier.bringIntoViewRequester(realtimeRowRequester),
-                )
             }
         }
     }
@@ -201,12 +192,25 @@ fun VoiceSettingsScreen(
             model = input.model,
             catalog = input.catalog,
             chooser = viewModel.chooser,
-            initialPending = initialDisclosure?.takeIf { it.direction == direction },
             onDismiss = {
                 engineSheet = null
                 viewModel.onEngineSheetDismissed(direction)
             },
             onAddConnection = onAddConnection,
+        )
+    }
+
+    realtimeDisclosure?.let { pending ->
+        VoiceDisclosureSheet(
+            direction = VoiceDirection.Realtime,
+            providerKind = pending.providerKind,
+            onAgree = {
+                realtimeDisclosure = null
+                viewModel.acceptRealtimeDisclosure(pending)
+                onOpenHome()
+            },
+            // Declined / swiped away: no selection and no consent recorded
+            onDecline = { realtimeDisclosure = null },
         )
     }
 
@@ -252,6 +256,70 @@ fun VoiceSettingsScreen(
             }
         }
     }
+}
+
+@Composable
+private fun RealtimeGroup(
+    state: RealtimeSectionState,
+    footer: String?,
+    onRow: (RealtimeSettingsRow) -> Unit,
+    onAddProvider: () -> Unit,
+    onRetry: () -> Unit,
+) {
+    val colors = OriveoTheme.colors
+    FlatSectionHeader(title = stringResource(R.string.voice_realtime_model_tag))
+    FlatGroup {
+        when (state) {
+            RealtimeSectionState.Loading -> Box(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+            }
+            RealtimeSectionState.Failed -> Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = OriveoTheme.spacing.lg, end = OriveoTheme.spacing.sm, top = 4.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.voice_realtime_catalog_unavailable),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = colors.textSecondary,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = onRetry,
+                    modifier = Modifier
+                        .testTag("voice_settings_realtime_retry_button")
+                        ,
+                ) {
+                    Text(text = stringResource(R.string.voice_realtime_action_retry), color = colors.primary)
+                }
+            }
+            // The empty-state group only holds an "Add provider" navigation row; the empty-state copy goes in the group footnote. It opens the add-provider page directly (not the provider list)
+            RealtimeSectionState.Empty -> OriveoSettingsRow(
+                title = stringResource(R.string.add_provider),
+                onClick = onAddProvider,
+                modifier = Modifier
+                    .testTag("voice_settings_realtime_add_provider_row")
+                    
+                    .padding(horizontal = OriveoTheme.spacing.lg, vertical = 9.dp),
+            )
+            is RealtimeSectionState.Rows -> state.rows.forEachIndexed { index, row ->
+                if (index > 0) InsetHairline()
+                ModelPickerRealtimeRow(
+                    entry = row.entry,
+                    isSelected = row.checked,
+                    onClick = { onRow(row) },
+                    connectionName = row.connectionName,
+                    tag = "voice_settings_realtime_model_row",
+                    sentryTag = "voice_settings_realtime_model_row",
+                )
+            }
+        }
+    }
+    footer?.let { Footnote(text = it) }
 }
 
 @Composable
@@ -344,32 +412,7 @@ private fun ReadAloudGroup(
     Footnote(text = state.footer.text())
 }
 
-@Composable
-private fun ConversationGroup(
-    state: ConversationSectionState,
-    onEngine: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    FlatSectionHeader(title = stringResource(R.string.voice_realtime_group_header))
-    FlatGroup {
-        // The title is always "Conversation engine"; the subtitle is "follow the current model" for system and "provider name · model" for cloud.
-        val subtitle = state.engineSubtitle.text()
-        val direction = stringResource(R.string.voice_realtime_engine_title)
-        EngineRow(
-            direction = direction,
-            engineName = direction,
-            engineKind = state.engineKind,
-            subtitle = subtitle,
-            tag = "voice_settings_realtime_engine_row",
-            onClick = onEngine,
-            modifier = modifier,
-        )
-        state.fallbackNotice?.let { WarningLine(it.text()) }
-    }
-    Footnote(text = state.footer.text())
-}
-
-/** Engine icon + title = current engine name + subtitle; the direction title is only joined into the accessibility description (e.g. "Dictation Engine, OpenAI"). */
+/** Same as iOS: engine icon + title = current engine name + subtitle; the direction title is only appended to the accessibility description (e.g. "Dictation Engine, OpenAI"). */
 @Composable
 private fun EngineRow(
     direction: String,

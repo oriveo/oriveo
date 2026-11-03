@@ -127,13 +127,13 @@
 }
 
 .chip:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
 }
 
 .chip[data-active='true'] {
   background: color-mix(in srgb, var(--o-primary) 12%, transparent);
   border-color: color-mix(in srgb, var(--o-primary) 25%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-weight: 600;
 }
 
@@ -317,7 +317,7 @@
 }
 
 .customEntry:hover {
-  background: var(--o-surface);
+  background: color-mix(in srgb, var(--o-surface-raised) 94%, var(--o-text));
   transform: translateY(-1px);
 }
 
@@ -340,7 +340,7 @@
 }
 
 .customEntryIconLocal {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .customEntryIconEndpoint {

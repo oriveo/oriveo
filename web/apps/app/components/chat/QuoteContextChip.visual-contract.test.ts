@@ -7,7 +7,7 @@ const css = readFileSync(join(process.cwd(), 'components/chat/QuoteContextChip.m
 describe('QuoteContextChip visual contract', () => {
   it('uses restrained dynamic surfaces with distinct shadowless sent presentation', () => {
     expect(css).toContain('var(--o-primary) 10%');
-    expect(css).toContain('var(--o-surface-raised)');
+    expect(css).toContain('var(--o-fill-muted)');
     expect(css).toMatch(/\[data-presentation='sent'\][\s\S]*?box-shadow:\s*none/);
     expect(css).not.toContain('backdrop-filter');
     expect(css).not.toContain('text-shadow');

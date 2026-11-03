@@ -18,10 +18,8 @@ import type { AppStore } from "../store/app-store";
 import type { StreamUsage } from "../providers/types";
 import type { CostSource } from "./cost";
 import { COST_EPSILON } from "../../utils/format-utils";
-import { withErrorReporting } from "../../sentry/report-silent";
 import { trackEvent, telemetryProviderKind, telemetryModelID } from "../telemetry";
 import { relaySendTelemetryProperties } from "../telemetry/relay-properties";
-import { shouldTrackProviderUsage } from "./usage-tracking";
 import type { SkillRetrievalUsageClaim } from "./prompt-injection";
 import { promoteRelayTransportOnDelivered } from "../providers/relay-model-observed";
 import { recordRelayKeyAccessOnDelivered } from "../providers/relay-key-access-writeback";
@@ -62,21 +60,21 @@ export interface SendCompletionParams {
   };
 }
 
-/** Combines the chat_message_completed and image_generated telemetry into one call for sendMessage. */
+/**
+ * Merges the chat_message_completed / image_generated telemetry +
+ * Knowledge retrieval usage reporting + Provider usage reporting + budget check
+ * combined in one place for the sendMessage caller.
+ */
 export function reportSendCompletion(p: SendCompletionParams): void {
   const {
     store,
     provider,
     model,
-    conversationId,
     effectiveConversation,
-    skillId,
     usage,
     cost,
-    costSource,
     servedModelID,
     processedAttachments,
-    promptContext,
     sendStartedAt,
     completedAt,
   } = p;

@@ -111,7 +111,7 @@ struct RelaySetupKeysBlock: View {
                         PhosphorIcon.plus.inline(14)
                     }
                         .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
@@ -213,7 +213,7 @@ struct RelaySetupDetectionCard: View {
                 Spacer(minLength: 0)
                 Text(verbatim: "\(card.completedCount) / \(card.totalCount)")
                     .font(OriveoTheme.Typography.body.weight(.semibold).monospacedDigit())
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .environment(\.layoutDirection, .leftToRight)
             }
             ProgressView(value: Double(card.completedCount), total: Double(card.totalCount))
@@ -482,7 +482,7 @@ struct RelaySetupModelsView: View {
                         PhosphorIcon.plus.inline(16)
                     }
                     .font(OriveoTheme.Typography.body.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .frame(minHeight: 44)
                 }
                 .buttonStyle(.plain)
@@ -609,7 +609,7 @@ struct RelaySetupModelsView: View {
                                 group.selectedCount
                             ))
                             .font(OriveoTheme.Typography.footnote)
-                            .foregroundStyle(OriveoTheme.Palette.primary)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         }
                         Spacer(minLength: 0)
                     }
@@ -623,7 +623,7 @@ struct RelaySetupModelsView: View {
                 } label: {
                     Text(L10n.tr(RelaySetupModelsBoard.selectGroupKey, table: .providers))
                         .font(OriveoTheme.Typography.footnote.weight(.medium))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .background(Capsule().fill(OriveoTheme.Palette.primarySoft))

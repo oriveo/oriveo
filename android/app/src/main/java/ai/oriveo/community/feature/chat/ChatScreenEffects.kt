@@ -74,26 +74,46 @@ internal fun ChatFollowToBottomEffect(
     listState: LazyListState,
     scrollController: ChatScrollController,
     isPointerDown: Boolean,
+    realtimeActive: Boolean = false,
 ) {
     val latestIsPointerDown = rememberUpdatedState(isPointerDown)
+    val latestRealtimeActive = rememberUpdatedState(realtimeActive)
+    LaunchedEffect(realtimeActive) { if (realtimeActive) scrollController.releasePin() }
 
     LaunchedEffect(Unit) {
         snapshotFlow {
             val info = listState.layoutInfo
             val last = info.visibleItemsInfo.lastOrNull()
-            val overflow = if (last != null && last.index >= info.totalItemsCount - 1) {
-                last.offset + last.size - info.viewportEndOffset
-            } else {
-                0
+            when {
+                last == null -> 0
+                // Realtime sessions land the same way as chat scroll-to-bottom: the last item's bottom aligns to the true bottom minus the bottom contentPadding,
+                // otherwise the newest turn sits at the viewport bottom, hidden behind the voice stage and input area.
+                last.index >= info.totalItemsCount - 1 && latestRealtimeActive.value -> bottomAlignDelta(
+                    lastMessageBottom = last.offset + last.size,
+                    viewportEndOffset = info.viewportEndOffset,
+                    afterContentPadding = info.afterContentPadding,
+                ).coerceAtLeast(0)
+                last.index >= info.totalItemsCount - 1 ->
+                    (last.offset + last.size - info.viewportEndOffset).coerceAtLeast(0)
+                // Each realtime turn inserts new messages before the temporary realtime bubble, which pushes the last item fully out of the viewport. overflow cannot measure that,
+                // so a sentinel value makes the follow state land directly on the last item (follows while pinned to bottom; after the user scrolls up and stops following, following=false keeps it from taking over).
+                latestRealtimeActive.value -> LATEST_ITEM_BELOW_VIEWPORT
+                else -> 0
             }
-            overflow.coerceAtLeast(0)
         }
             .distinctUntilChanged()
             .collect { overflow ->
-                scrollController.followToBottom(listState, overflow, latestIsPointerDown.value)
+                if (overflow == LATEST_ITEM_BELOW_VIEWPORT) {
+                    scrollController.followToLatestItem(listState, latestIsPointerDown.value)
+                } else {
+                    scrollController.followToBottom(listState, overflow, latestIsPointerDown.value)
+                }
             }
     }
 }
+
+/** Sentinel for [ChatFollowToBottomEffect]: in a realtime session the last item sits entirely below the viewport. */
+private const val LATEST_ITEM_BELOW_VIEWPORT = -1
 
 @Composable
 internal fun ChatStreamingModeEffect(
@@ -114,6 +134,7 @@ internal fun ChatInitialScrollToBottomEffect(
     composerOverlayHeightPx: Int,
     listState: LazyListState,
     scrollController: ChatScrollController,
+    realtimeActive: Boolean = false,
     onInitialBottomSettledConversationChange: (String?) -> Unit,
 ) {
     val latestMessageCountState = rememberUpdatedState(latestMessageCount)
@@ -131,6 +152,14 @@ internal fun ChatInitialScrollToBottomEffect(
         scrollController.scrollToBottom(listState, latestMessageCountState.value)
         scrollController.resumeFollowing()
         onInitialBottomSettledConversationChange(conversationId)
+    }
+
+    // A new session started from the home page's realtime entry (conversationId differs from the route's initialConversationId) skips the scroll-to-bottom branch above,
+    // so the follow state is set when the realtime session starts; otherwise the list stays where it is on every landed turn. Starting realtime on an existing session does not reset it, keeping the user's scrolled-up state.
+    LaunchedEffect(conversationId, realtimeActive) {
+        if (!enabled || !realtimeActive) return@LaunchedEffect
+        if (conversationId == null || conversationId == initialConversationId) return@LaunchedEffect
+        scrollController.resumeFollowing()
     }
 }
 
@@ -528,5 +557,21 @@ private inline fun recentPrewarmCandidatesReverse(
             taken++
             if (taken >= limit) break
         }
+    }
+}
+
+/**
+ * chat.open end point (start is at OriveoNavHost entering the Chat route): once session loading resolves to [ChatLoadState.Content] (first-screen messages)
+ * or [ChatLoadState.Empty] (empty session, input interactive), wait until that frame is actually drawn before closing the span. Ready state is not the same as visible on screen.
+ * Not closed during skeleton, backfill or stall; past the fixture deadline the monitor reports deadline_exceeded.
+ */
+@Composable
+internal fun ChatOpenTraceEffect(chatLoadState: ChatLoadState, messageCount: Int) {
+    val ready = chatLoadState == ChatLoadState.Content || chatLoadState == ChatLoadState.Empty
+    val latestMessageCount by rememberUpdatedState(messageCount)
+    LaunchedEffect(ready) {
+        if (!ready) return@LaunchedEffect
+        withFrameNanos { }
+        ai.oriveo.community.core.performance.ChatPerformanceMonitor.shared.finishChatOpen(latestMessageCount)
     }
 }

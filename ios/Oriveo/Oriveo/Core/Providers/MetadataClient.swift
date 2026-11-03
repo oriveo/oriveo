@@ -256,6 +256,11 @@ actor MetadataClient {
             guard case .object(let object)? = promptCache, case .string(let ref)? = object["policyRef"] else { return nil }
             return ref
         }
+        /// Key into `profiles.image`, kept as raw JSON so any shape decodes; only a non-empty string is a
+        /// ref, converted by the resolver slice adapter (image_profile.v2).
+        var imageProfile: JSONValue? = nil
+        /// Top-level shallow override merged over the referenced profile; kept as raw JSON.
+        var imageProfileOverride: JSONValue? = nil
     }
 
     /// One regional price of a model: when the connection's effective region equals `regionScope`, it replaces the five model-level price keys as a whole
@@ -835,6 +840,9 @@ actor MetadataClient {
         let transport: ProviderTransportDefinition?
         /// Tombstones of retired models. With a split catalog only the index carries them, like defaultModelId.
         let retiredModels: [RetiredModelTombstone]?
+        /// Image-only models keyed by wire id, kept as raw JSON (any shape decodes); in split mode they
+        /// come from the provider catalog.
+        var imageModels: JSONValue? = nil
     }
 
     /// Tombstone of a retired model: a model a conversation still references but the catalog no longer offers.
@@ -974,6 +982,9 @@ actor MetadataClient {
         let webSearch: [String: WebSearchProfileDefinition]?
         let imageGen: [String: ImageGenProfileDefinition]?
         let generation: GenerationProfileDefinitions?
+        /// `profiles.image`: profile ref -> raw ImageProfile object, kept as raw JSON (any shape decodes)
+        /// and validated only at resolve time.
+        let image: JSONValue?
     }
 
     private struct GenerationProfileDefinitions: Codable, Sendable {
@@ -1224,10 +1235,13 @@ actor MetadataClient {
         /// On disk: the tombstone snapshot at adoption time - for schema 3 the catalog's own, otherwise the index's for this provider at that time;
         /// a missing key means a row written by an older version, with no snapshot.
         var retiredModels: [RetiredModelTombstone]?
+        /// Image-only models of this provider as raw JSON; carried into the assembled provider and the
+        /// cache row.
+        var imageModels: JSONValue?
 
         enum CodingKeys: String, CodingKey {
             case view, provider, catalogRevision, tables, resolveMap, models
-            case metadataSchema, generatedAt, rollbackOf, retiredModels
+            case metadataSchema, generatedAt, rollbackOf, retiredModels, imageModels
             case payloadRevision = "metadataRevision"
         }
     }
@@ -1246,6 +1260,8 @@ actor MetadataClient {
         var payloadSchema: Int? = nil
         /// Tombstone snapshot at the time this catalog was adopted; used when assembling a provider while the index is schema 3. nil = a row cached by an older version, no snapshot.
         var retiredModels: [RetiredModelTombstone]? = nil
+        /// The catalog's image-only models as raw JSON.
+        var imageModels: JSONValue? = nil
     }
 
     private enum CatalogRejection: String, Error, Sendable {
@@ -1879,6 +1895,37 @@ actor MetadataClient {
             guard let provider = Self.providerData(for: providerKind, in: snapshot) else { return [] }
             return provider.models.keys.sorted()
         }
+    }
+
+    /// The image-capability slice of the current shared snapshot; nil before any snapshot.
+    nonisolated func imageProfileSlice() -> ImageProfileResolver.Slice? {
+        Self.withSharedSnapshot { snapshot in snapshot.map(Self.imageProfileSlice(from:)) }
+    }
+
+    /// MetadataResponse -> resolver slice in wire shape (`profiles.image` + per-provider `models` /
+    /// `imageModels`). Every catalog model is kept so a chat model without imageProfile still shadows
+    /// an image-only entry of the same id.
+    nonisolated private static func imageProfileSlice(from response: MetadataResponse) -> ImageProfileResolver.Slice {
+        typealias Slice = ImageProfileResolver.Slice
+        var table: [String: JSONValue]?
+        if case .object(let object)? = response.profiles?.image { table = object }
+        return Slice(
+            profiles: .init(image: table),
+            providers: response.providers.mapValues { provider in
+                Slice.Provider(
+                    models: provider.models.mapValues {
+                        var ref: String?
+                        if case .string(let text)? = $0.imageProfile { ref = text }
+                        return Slice.ModelEntry(
+                            displayName: $0.displayName,
+                            imageProfile: ref,
+                            imageProfileOverride: $0.imageProfileOverride
+                        )
+                    },
+                    imageModels: Slice.Provider.entries(provider.imageModels)
+                )
+            }
+        )
     }
 
     nonisolated func providerDefaultModelID(providerKind: ProviderKind) -> String? {
@@ -2575,6 +2622,12 @@ actor MetadataClient {
     /// ProviderKind to backend catalog kind; nil for providers without an official catalog (relay).
     nonisolated private static func catalogKind(for providerKind: ProviderKind) -> String? {
         kindMap[providerKind.rawValue]
+    }
+
+    /// Server catalog key of a provider kind (e.g. `together` -> `togetherAI`), the key of
+    /// `imageProfileSlice().providers`; nil for relay / managed / free.
+    nonisolated static func catalogKey(for providerKind: ProviderKind) -> String? {
+        catalogKind(for: providerKind)
     }
 
     nonisolated private static func providerData(
@@ -3452,7 +3505,8 @@ actor MetadataClient {
                         resolveMap: provider.resolveMap,
                         models: provider.models,
                         generationParameters: parameters,
-                        retiredModels: provider.retiredModels ?? []
+                        retiredModels: provider.retiredModels ?? [],
+                        imageModels: provider.imageModels
                     ),
                     etag: nil
                 )
@@ -4133,7 +4187,8 @@ actor MetadataClient {
                 schema: catalog.metadataSchema, revision: catalog.payloadRevision
             ),
             payloadSchema: catalog.metadataSchema,
-            retiredModels: catalog.retiredModels
+            retiredModels: catalog.retiredModels,
+            imageModels: catalog.imageModels
         ))
     }
 
@@ -4164,7 +4219,8 @@ actor MetadataClient {
             payloadRevision: safe.payloadRevision,
             generatedAt: safe.generatedAt,
             rollbackOf: safe.rollbackOf,
-            retiredModels: safe.retiredModels
+            retiredModels: safe.retiredModels,
+            imageModels: safe.imageModels
         )
     }
 
@@ -4191,7 +4247,8 @@ actor MetadataClient {
                 models: catalog?.models ?? [:],
                 transport: entry.transport,
                 // When the index is schema 3 tombstones live only in the catalogs: use the tombstone snapshot cached with this provider's catalog; otherwise use the index's.
-                retiredModels: index.metadataSchema == 3 ? catalog?.retiredModels : entry.retiredModels
+                retiredModels: index.metadataSchema == 3 ? catalog?.retiredModels : entry.retiredModels,
+                imageModels: catalog?.imageModels
             )
         }
         return MetadataResponse(
@@ -4570,7 +4627,8 @@ actor MetadataClient {
                 resolveMap: provider.resolveMap,
                 models: models,
                 transport: provider.transport,
-                retiredModels: provider.retiredModels
+                retiredModels: provider.retiredModels,
+                imageModels: provider.imageModels
             )
         }
         return MetadataResponse(

@@ -100,7 +100,7 @@ describe('ContextContractDirectiveDetector', () => {
   it('long_history_detection_stays_linear', () => {
     const build = (n: number): string[] => ['This is an ordinary sentence about the weather and the town. '.repeat(n)];
     expect(scaleRatio(build, 20, 8)).toBeLessThan(RATIO_LIMIT);
-    // loose absolute cap only guards against exponential blow-up; it is not used to judge linearity
+    // The loose absolute ceiling only guards against exponential blow-up; it is not used to judge linearity
     const started = performance.now();
     detectDirective(build(40)[0]!);
     expect(performance.now() - started).toBeLessThan(200);

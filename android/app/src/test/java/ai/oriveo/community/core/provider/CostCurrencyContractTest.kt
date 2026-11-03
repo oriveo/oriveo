@@ -4,6 +4,7 @@ import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.NonUsdCost
 import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.core.usage.CostParts
+import ai.oriveo.community.feature.managedwallet.formatManagedLedgerAmountMicrousd
 import java.io.File
 import java.util.Locale
 import kotlinx.serialization.json.Json
@@ -15,6 +16,7 @@ import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.long
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -30,7 +32,7 @@ class CostCurrencyContractTest {
 
     @Test
     fun `fixture ids are exactly the tests`() {
-        val ids = listOf("totalCases", "displayCases").flatMap { key ->
+        val ids = listOf("recordCases", "totalCases", "displayCases", "ledgerAmountCases", "totalsIncompleteThreadCases", "relayPricingCases", "multiLegCostCases").flatMap { key ->
             fixture.getValue(key).jsonArray.map { it.jsonObject.getValue("id").jsonPrimitive.content }
         }.toSet()
         val tests = javaClass.declaredMethods.map { it.name }.filter { it.startsWith("COST_CURRENCY_") }
@@ -56,6 +58,18 @@ class CostCurrencyContractTest {
     @Test fun COST_CURRENCY_mixed_message_two_parts() = assertDisplayCase("mixed_message_two_parts")
     @Test fun COST_CURRENCY_second_non_usd_currency_part_not_available() = assertDisplayCase("second_non_usd_currency_part_not_available")
     @Test fun COST_CURRENCY_cny_half_rounds_away_from_zero() = assertDisplayCase("cny_half_rounds_away_from_zero")
+    @Test fun COST_CURRENCY_de_usd_small_locale_currency() = assertDisplayCase("de_usd_small_locale_currency")
+    @Test fun COST_CURRENCY_de_usd_grouping() = assertDisplayCase("de_usd_grouping")
+    @Test fun COST_CURRENCY_fr_usd_no_us_suffix() = assertDisplayCase("fr_usd_no_us_suffix")
+    @Test fun COST_CURRENCY_ja_usd() = assertDisplayCase("ja_usd")
+    @Test fun COST_CURRENCY_ar_usd_latin_digits() = assertDisplayCase("ar_usd_latin_digits")
+    @Test fun COST_CURRENCY_pt_br_usd_no_us_prefix() = assertDisplayCase("pt_br_usd_no_us_prefix")
+    @Test fun COST_CURRENCY_de_mixed_usd_cny() = assertDisplayCase("de_mixed_usd_cny")
+    @Test fun COST_CURRENCY_usd_half_rounds_away_from_zero() = assertDisplayCase("usd_half_rounds_away_from_zero")
+
+    /** Normalizes platform output before comparing with fixtures: drop bidi marks, map narrow / no-break spaces to U+0020. */
+    private fun normalizeDisplay(text: String): String =
+        text.replace(Regex("[\u200E\u200F\u061C]"), "").replace('\u00A0', ' ').replace('\u202F', ' ')
 
     /**
      * displayCases feed the production [CostFormatter.formatParts]: USD keeps the `$` notation, non-USD uses the currency format of the UI locale;
@@ -78,9 +92,9 @@ class CostCurrencyContractTest {
             assertEquals(id, want.getValue("fractionDigits").jsonPrimitive.int, CostFormatter.fractionDigits(got.amount))
         }
         val expect = case.getValue("expect").jsonPrimitive.content
-        assertEquals(id, expect, CostFormatter.formatParts(parts, locale))
+        assertEquals(id, expect, normalizeDisplay(CostFormatter.formatParts(parts, locale)))
         val withUnavailable = CostFormatter.formatParts(parts, locale, notAvailable, NOT_AVAILABLE)
-        assertEquals(id, (listOf(expect) + notAvailable.map { NOT_AVAILABLE }).joinToString(" + "), withUnavailable)
+        assertEquals(id, (listOf(expect) + notAvailable.map { NOT_AVAILABLE }).joinToString(" + "), normalizeDisplay(withUnavailable))
     }
 
     private fun parseNonUsd(element: JsonElement?): NonUsdCost? =

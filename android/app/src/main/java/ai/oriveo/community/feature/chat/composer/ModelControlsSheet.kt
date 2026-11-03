@@ -351,6 +351,18 @@ private fun ModelControlsPanel(
     val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val metadata = MetadataClient.instance
+    // Realtime voice model (catalog realtime[] x official apiKey connection): the web / thinking cards collapse into one unavailable row plus a switch-model action.
+    val voiceCatalogClient = remember {
+        runCatching { org.koin.core.context.GlobalContext.get().getOrNull<ai.oriveo.community.core.voice.VoiceCatalogClient>() }.getOrNull()
+    }
+    val voiceCatalogState = voiceCatalogClient?.state?.collectAsState()?.value
+    val isRealtimeModel = remember(provider, model.id, voiceCatalogState) {
+        ai.oriveo.community.core.voice.realtime.RealtimeSelection.isRealtime(
+            provider,
+            model.id,
+            (voiceCatalogState as? ai.oriveo.community.core.voice.VoiceCatalogState.Available)?.catalog,
+        )
+    }
 
     var route by remember { mutableStateOf<ModelControlsRoute?>(if (opensSearchMethod) ModelControlsRoute.SearchSource else null) }
     var routeOrigin by remember { mutableStateOf<ModelControlsRoute?>(null) }
@@ -610,6 +622,7 @@ private fun ModelControlsPanel(
             customProtocol = customProtocol,
             relayWeb = webRelayFact,
             webSearch = webSearchState,
+            realtime = isRealtimeModel,
         ),
     )
     // When the model options panel really closes with a fallback notice showing, mark it seen (acknowledge_notice): the key
@@ -642,6 +655,7 @@ private fun ModelControlsPanel(
             localEngineThinking = ModelOptionsPanelInput.localEngineThinking(provider, model),
             rejectedIntents = reasoningVerdict.rejectedIntents,
             showsThinking = ModelOptionsPanelInput.showsThinking(provider, model),
+            realtime = isRealtimeModel,
         ),
     )
 
@@ -756,8 +770,9 @@ private fun ModelControlsPanel(
         reasoningToggleBlockedNoteRes = reasoningActions.toggleBlockedNoteRes,
         visionReasonRes = attachmentEntry.image.disabledReasonRes,
         fileReasonRes = attachmentEntry.file.nativeDisabledReasonRes,
+        realtime = isRealtimeModel,
     )
-    val turnSummary = ModelOptionsTiles.summary(webShape, reasoningShape)
+    val turnSummary = ModelOptionsTiles.summary(webShape, reasoningShape, realtime = isRealtimeModel)
 
     val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
     val pageMillis = OriveoMotion.modelControlPageMillis(reduceMotion)
@@ -913,7 +928,8 @@ private fun ModelControlsPanel(
                                     openRoute(ModelControlsRoute.Parameters)
                                 },
                             )
-                            ModelOptionsTurnSummary(turnSummary)
+                            // A realtime voice model keeps only the web / thinking rows and shows no "this turn actually sends" summary.
+                            if (!isRealtimeModel) ModelOptionsTurnSummary(turnSummary)
                         }
                     }
                     is ModelControlsRoute.SupportedModels -> CapabilitySupportedModelsPage(

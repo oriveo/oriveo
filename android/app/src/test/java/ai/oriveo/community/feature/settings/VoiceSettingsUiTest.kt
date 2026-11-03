@@ -21,6 +21,7 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithContentDescription
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
@@ -56,8 +57,6 @@ import io.mockk.mockk
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Rule
 import org.junit.Test
@@ -176,8 +175,9 @@ class VoiceSettingsUiTest {
         launch()
 
         // Copy from p2-copy.v1.json.
-        text("You don't need to change anything here: dictation, read aloud, and voice conversations use your " +
-            "device's built-in voice at no cost. For better accuracy or a nicer voice, switch to a provider you've connected.").assertIsDisplayed()
+        text("Dictation and read aloud use your device's built-in voice for free. For better accuracy or a more natural " +
+            "voice, switch to a provider you've connected. Realtime voice talks to your provider's model directly and is " +
+            "billed to your account with that provider.").assertIsDisplayed()
         text("Dictation").assertIsDisplayed()
         // Engine row: the title is the engine name, with no separate "Dictation Engine" leading title; the direction is read out only in the accessibility description.
         composeRule.onNodeWithText("Dictation Engine").assertDoesNotExist()
@@ -231,57 +231,16 @@ class VoiceSettingsUiTest {
     }
 
     @Test
-    fun `conversation group disclosure writes only on agree`() {
-        launch()
-
-        text("Voice Conversation").assertIsDisplayed()
-        text("Follow Current Model").assertIsDisplayed()
-        text(
-            "A realtime model hears you and answers directly, so replies come faster, but this chat's model isn't used.",
-        ).assertIsDisplayed()
-
-        // With the system engine the title is the direction name "Conversation Engine" and the subtitle is "Follow Current Model".
-        text("Conversation Engine").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Conversation Engine, Follow Current Model", substring = true)
-            .performScrollTo()
-            .performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText("Dictation → current model → read aloud").assertIsDisplayed()
-        composeRule.onNodeWithText("gpt-realtime").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText("Use OpenAI for Voice Conversations?").assertIsDisplayed()
-        composeRule.onNodeWithText(
-            "In voice conversations, OpenAI answers instead of this chat's model. Your voice and this chat's history " +
-                "are sent to OpenAI, usage is billed to your connection, and OpenAI's privacy policy applies.",
-        ).assertIsDisplayed()
-
-        // Not now: nothing is written and no consent is recorded.
-        composeRule.onNodeWithText("Not Now").performClick()
-        composeRule.waitForIdle()
-        assertEquals(VoiceEngineSelection.System, settings.selection(VoiceDirection.Realtime))
-        assertFalse(settings.disclosure.isAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime))
-
-        // Agree: the selection is written and consent recorded, and the row subtitle becomes "provider · model".
-        composeRule.onNodeWithText("gpt-realtime").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText("Agree and Use").performClick()
-        composeRule.waitForIdle()
-        val selection = settings.selection(VoiceDirection.Realtime) as VoiceEngineSelection.Cloud
-        assertEquals("gpt-realtime", selection.model)
-        assertEquals(openAI.id, selection.connectionId)
-        assertTrue(settings.disclosure.isAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime))
-        text("OpenAI · gpt-realtime").assertIsDisplayed()
-    }
-
-    @Test
-    fun `cloud conversation engine row keeps direction title`() {
+    fun `no conversation group even with legacy realtime choice`() {
         cloud(VoiceDirection.Realtime, "gpt-realtime")
         launch()
 
-        // With a cloud engine the title is still "Conversation Engine"; the provider name appears only in the subtitle "provider name · model".
-        text("Conversation Engine").assertIsDisplayed()
-        text("OpenAI · gpt-realtime").assertIsDisplayed()
-        composeRule.onNodeWithText(ProviderKind.OpenAI.displayName).assertDoesNotExist()
+        text("Dictation").assertIsDisplayed()
+        composeRule.onNodeWithText("Voice Conversation").assertDoesNotExist()
+        composeRule.onNodeWithText("Conversation Engine").assertDoesNotExist()
+        composeRule.onNodeWithText("OpenAI · gpt-realtime").assertDoesNotExist()
+        composeRule.onNodeWithText("Follow Current Model").assertDoesNotExist()
+        composeRule.onNodeWithTag("voice_settings_realtime_engine_row").assertDoesNotExist()
     }
 
     @Test

@@ -254,14 +254,20 @@ final class AssistantMessageCell: UICollectionViewCell {
         onOpenCompactionDetail: (() -> Void)? = nil,
         onSaveMemorySuggestion: (() -> Void)? = nil,
         onEditMemorySuggestion: (() -> Void)? = nil,
-        onIgnoreMemorySuggestion: (() -> Void)? = nil
+        onIgnoreMemorySuggestion: (() -> Void)? = nil,
+        realtimeSelected: Bool = false,
+        // false = live temporary bubble: keeps the header model-name row and shows no action row (copy / save note / read aloud / more).
+        allowsMessageActions: Bool = true
     ) {
         self.onToolStepAction = onToolStepAction
         self.onSearchAction = onSearchAction
         configureCompactionSeparator(model.compactionSeparator, onTap: onOpenCompactionDetail)
         let previousMessageID = boundMessageID
         let previousMessageState = currentMessageState
-        let effectiveText = model.displayText ?? model.message.text
+        // The empty-reply recovery card already states the failure; do not repeat it in the bubble.
+        let effectiveText = suppressesEmptyReplyBubbleText(for: model)
+            ? ""
+            : (model.displayText ?? model.message.text)
         let isGenerating = model.message.state == .generating
         let didExitGenerating = previousMessageID == model.messageID
             && previousMessageState == .generating
@@ -403,7 +409,8 @@ final class AssistantMessageCell: UICollectionViewCell {
                 ? nil
                 : ExternalSearchChatPresentation.errorCard(
                     model.message, isLastAssistant: model.message.role == .assistant && model.isLastInConversation,
-                    serviceExists: { WebSearchLocalServices.contains($0) }
+                    serviceExists: { WebSearchLocalServices.contains($0) },
+                    realtimeSelected: realtimeSelected
                 )
         )
         configureReplyNotice(isGenerating ? nil : model.replyNotice)
@@ -425,7 +432,8 @@ final class AssistantMessageCell: UICollectionViewCell {
                 onOpenNoteReferences: onOpenNoteReferences,
                 onCrosscheck: onCrosscheck,
                 onOpenMemoryUsed: onOpenMemoryUsed,
-                isVisualRenderPending: shouldDeferFinalBody
+                isVisualRenderPending: shouldDeferFinalBody,
+                showsActions: allowsMessageActions
             )
         } else {
             metadataView.resetForReuse()

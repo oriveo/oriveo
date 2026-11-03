@@ -572,6 +572,51 @@ class ModelOptionsPanelModelTest {
     }
 
     @Test
+    fun `realtime board keeps only web and reasoning, summary empty`() {
+        fun resolved(capability: ModelOptionCapabilityShape.Capability, intents: List<String>, selected: String, realtime: Boolean) =
+            ModelOptionCapabilityShape.resolve(
+                ModelOptionCapabilityShape.Input(
+                    capability = capability,
+                    presentation = CapabilityControlPresentation.AutomaticAvailable,
+                    availableIntents = intents,
+                    selectedIntent = selected,
+                    connection = ConnectionCategory.Other,
+                    realtime = realtime,
+                ),
+            )
+        val web = resolved(ModelOptionCapabilityShape.Capability.Web, listOf("off", "automatic"), "automatic", realtime = true)
+        val reasoning = resolved(ModelOptionCapabilityShape.Capability.Reasoning, listOf("off", "balanced"), "balanced", realtime = true)
+        val realtimeTiles = ModelOptionsTiles.board(
+            web = web,
+            reasoning = reasoning,
+            vision = ModelOptionsTiles.Vision.Available,
+            file = ModelOptionsTiles.FileDelivery.NativeWhenSupported,
+            realtime = true,
+        )
+        // Only the web and thinking status rows and the exit (switch model) remain; image and file cards do not appear.
+        assertEquals(listOf(ModelOptionsTiles.Kind.Web, ModelOptionsTiles.Kind.Reasoning), realtimeTiles.map { it.kind })
+        assertEquals(R.string.voice_realtime_no_web_search, realtimeTiles[0].statusRes)
+        assertEquals(R.string.voice_realtime_no_thinking, realtimeTiles[1].statusRes)
+        assertTrue(realtimeTiles.all { it.tappable })
+        // Summary: toggles that normally produce items also produce none in realtime.
+        val webOn = ModelOptionCapabilityShape.Toggle(isOn = true, kind = ModelOptionCapabilityShape.ToggleKind.Capability)
+        val thinkingOn = ModelOptionCapabilityShape.Toggle(isOn = true, kind = ModelOptionCapabilityShape.ToggleKind.Capability)
+        assertEquals(emptyList<ModelOptionsTiles.SummaryItem>(), ModelOptionsTiles.summary(webOn, thinkingOn, realtime = true))
+        assertEquals(emptyList<ModelOptionsTiles.SummaryItem>(), ModelOptionsTiles.summary(web, reasoning, realtime = true))
+        // Text model unchanged: four cards, summary still shown.
+        val textWeb = resolved(ModelOptionCapabilityShape.Capability.Web, listOf("off", "automatic"), "automatic", realtime = false)
+        val textReasoning = resolved(ModelOptionCapabilityShape.Capability.Reasoning, listOf("off", "balanced"), "balanced", realtime = false)
+        assertEquals(
+            listOf(ModelOptionsTiles.Kind.Web, ModelOptionsTiles.Kind.Reasoning, ModelOptionsTiles.Kind.Vision, ModelOptionsTiles.Kind.File),
+            ModelOptionsTiles.board(textWeb, textReasoning, ModelOptionsTiles.Vision.Available, ModelOptionsTiles.FileDelivery.NativeWhenSupported).map { it.kind },
+        )
+        assertEquals(
+            listOf(ModelOptionsTiles.SummaryItem.WebOn, ModelOptionsTiles.SummaryItem.ThinkingOn),
+            ModelOptionsTiles.summary(webOn, thinkingOn),
+        )
+    }
+
+    @Test
     fun `file tile drops to text with the reason when the native file projection is unavailable`() {
         val unavailable = entry("auto_available", "unavailable", fileReason = "transport_not_supported")
         // Inline text stays tappable, but the native-file reason must be spelled out.

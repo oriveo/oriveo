@@ -62,7 +62,7 @@ describe('chat dialogs rely on the Dialog base class shell', () => {
   it('the Dialog base class still provides the surface that makes these two dialogs read as overlays', () => {
     const base = ruleBody(dialogCss, '.dialog', 'Dialog.module.css');
 
-    expect(base).toMatch(/background:\s*color-mix\(in srgb, var\(--o-surface\)/);
+    expect(base).toMatch(/background:\s*var\(--o-surface\)/);
     expect(base).toMatch(/border:\s*1px solid var\(--o-border\)/);
     expect(base).toMatch(/box-shadow:\s*var\(--o-elevation-modal\)/);
   });

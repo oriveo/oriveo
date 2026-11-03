@@ -48,10 +48,22 @@ import ai.oriveo.community.core.model.ConnectionAvatar
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.Skill
+import ai.oriveo.community.core.model.effectiveSkillIds
+import ai.oriveo.community.core.util.normalizeUuid
 import ai.oriveo.community.ui.theme.DefaultLightBrandTuned
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
+
+/**
+ * Icon shown on the conversation row: the first of [Conversation.effectiveSkillIds] (legacy skillId
+ * fallback) read from [skillsById]; null when there is no skill or it is not in the map.
+ */
+internal fun conversationSkillGlyphKey(conversation: Conversation, skillsById: Map<String, Skill>): String? {
+    val firstId = conversation.effectiveSkillIds.firstOrNull() ?: return null
+    return skillsById[normalizeUuid(firstId)]?.icon
+}
 
 /**
  * Conversation list row (matches iOS ConversationRow).
@@ -72,7 +84,8 @@ fun ConversationRow(
     providerName: String,
     modelName: String,
     folderName: String? = null,
-    skillIcon: String? = null,
+    /** Skill icon (see [conversationSkillGlyphKey]); null hides it. */
+    skillGlyphKey: String? = null,
     isEditing: Boolean = false,
     /** The connection the conversation belongs to: a relay draws the unified avatar; null when the connection was deleted, falling back to [providerKind]. */
     provider: Provider? = null,
@@ -163,9 +176,9 @@ fun ConversationRow(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    if (skillIcon != null) {
+                    if (skillGlyphKey != null) {
                         Text(
-                            text = skillIcon,
+                            text = skillGlyphKey,
                             fontSize = 13.sp,
                             lineHeight = 16.sp,
                         )

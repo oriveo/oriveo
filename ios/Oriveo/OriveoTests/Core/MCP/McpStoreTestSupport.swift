@@ -46,6 +46,9 @@ struct McpTestDatabase {
     }
 
     func cleanUp() {
+        // Close the pool before deleting the directory so SQLite/WAL descriptors are not
+        // left pointing at unlinked vnodes in tmp.
+        try? pool.close()
         try? FileManager.default.removeItem(at: directory)
     }
 

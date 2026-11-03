@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.data.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -17,6 +18,13 @@ data class SkillEntity(
     val icon: String,
     val color: String,
     val systemPrompt: String,
+    @ColumnInfo(defaultValue = "''") val whenToUse: String = "",
+    @ColumnInfo(defaultValue = "0") val autoInvoke: Boolean = false,
+    @ColumnInfo(defaultValue = "''") val iconKey: String = "",
+    // `{locale: text}` maps stored as JSON objects.
+    @ColumnInfo(defaultValue = "'{}'") val whenToUseTranslationsJson: String = "{}",
+    @ColumnInfo(defaultValue = "'{}'") val previewUserJson: String = "{}",
+    @ColumnInfo(defaultValue = "'{}'") val previewAssistantJson: String = "{}",
     val suggestedProviderId: String?,
     val suggestedModelId: String?,
     val modelCapabilityHint: String,

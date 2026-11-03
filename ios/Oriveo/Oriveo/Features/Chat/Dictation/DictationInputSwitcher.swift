@@ -1,19 +1,67 @@
 import SwiftUI
 
-/// Input-row switcher: switches between the host's normal input row, the recording bar and the busy state according to the controller state.
-/// ✕ / Transcribe / ↑ call the controller directly; ↑ is enabled exactly when the host send button is (canSend).
-/// When this host is not the one the controller is currently bound to (two hosts on screen at once on iPad), only the normal content is shown.
-struct DictationInputSwitcher<Idle: View>: View {
+/// Dictation input row phase: the host uses it to decide whether the input field is editable, and the mic and glow edge inside the field.
+enum DictationInputPhase: Hashable, Sendable {
+    case normal, recording, busy
+
+    init(_ mode: DictationInputRowMode) {
+        switch mode {
+        case .normal: self = .normal
+        case .recording: self = .recording
+        case .busy: self = .busy
+        }
+    }
+
+    /// Recording or transcribing: the input field stays on screen but is not editable.
+    var isDictating: Bool { self != .normal }
+}
+
+/// The switcher container reports the current phase upward, so hosts that outline it from outside the container
+/// (the home glass card) can attach the glow edge.
+struct DictationInputPhaseKey: PreferenceKey {
+    static let defaultValue: DictationInputPhase = .normal
+
+    static func reduce(value: inout DictationInputPhase, nextValue: () -> DictationInputPhase) {
+        let next = nextValue()
+        if next != .normal { value = next }
+    }
+}
+
+/// Layout of the input slot and the button slot.
+enum DictationInputRowArrangement: Sendable, Equatable {
+    /// Normally the input and buttons sit side by side (bottom-aligned); while dictating, the input sits on top and the
+    /// recording bar spans the full width below (chat input bar).
+    case sideBySide(spacing: CGFloat, stackedSpacing: CGFloat)
+    /// Always stacked vertically (home card).
+    case stacked(spacing: CGFloat)
+}
+
+/// Input row switcher: by controller state, switches the button slot between the host buttons and the recording bar or
+/// busy state; the input slot always stays on screen (contract items 2 and 6).
+/// ✕ / Done / ↑ call the controller directly; the availability of ↑ matches the host's send key (canSend).
+/// When the host is not the one the controller is currently bound to (iPad two-column layout with two hosts on screen),
+/// only the ordinary content is shown.
+struct DictationInputSwitcher<Input: View, Buttons: View>: View {
     @ObservedObject var controller: DictationController
     let canSend: Bool
-    @ViewBuilder let idle: () -> Idle
+    let arrangement: DictationInputRowArrangement
+    @ViewBuilder let input: (DictationInputPhase) -> Input
+    @ViewBuilder let buttons: () -> Buttons
 
     @Environment(\.dictationHost) private var host
 
-    init(controller: DictationController, canSend: Bool, @ViewBuilder idle: @escaping () -> Idle) {
+    init(
+        controller: DictationController,
+        canSend: Bool,
+        arrangement: DictationInputRowArrangement = .stacked(spacing: 12),
+        @ViewBuilder input: @escaping (DictationInputPhase) -> Input,
+        @ViewBuilder buttons: @escaping () -> Buttons
+    ) {
         self.controller = controller
         self.canSend = canSend
-        self.idle = idle
+        self.arrangement = arrangement
+        self.input = input
+        self.buttons = buttons
     }
 
     /// Controller state → input row mode (same as DictationPresentation.inputRow).
@@ -28,42 +76,52 @@ struct DictationInputSwitcher<Idle: View>: View {
             mode: bound ? Self.rowMode(state: controller.state, engineInfo: controller.engineInfo) : .normal,
             levelMeter: controller.levelMeter,
             canSend: canSend,
+            arrangement: arrangement,
             onDiscard: { Task { await DictationToasts.discard(controller) } },
             onTranscribe: { Task { await controller.finish(.insert) } },
             onTranscribeAndSend: { Task { await controller.finish(.send) } },
-            idle: idle
+            input: input,
+            buttons: buttons
         )
     }
 }
 
-/// The switcher itself: looks only at the mode and never touches the controller (tests render it directly). Switches fade in and out, with no animation under Reduce Motion.
-struct DictationInputRow<Idle: View>: View {
+/// The switch itself: looks only at the mode and does not touch the controller (tests render it directly). The input slot
+/// always stays in the same structural position (changing the arrangement does not rebuild the input field); the button
+/// slot cross-fades when switching, and there is no animation under Reduce Motion.
+struct DictationInputRow<Input: View, Buttons: View>: View {
     let mode: DictationInputRowMode
     let levelMeter: DictationLevelMeter
     let canSend: Bool
+    let arrangement: DictationInputRowArrangement
     let onDiscard: () -> Void
     let onTranscribe: () -> Void
     let onTranscribeAndSend: () -> Void
-    @ViewBuilder let idle: () -> Idle
+    @ViewBuilder let input: (DictationInputPhase) -> Input
+    @ViewBuilder let buttons: () -> Buttons
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    /// Animate only when switching between the three forms; timer and progress changes do not trigger it.
-    private enum Phase: Hashable { case normal, recording, busy }
+    /// Animates only when switching between the three forms; timer and progress changes do not trigger it.
+    private var phase: DictationInputPhase { DictationInputPhase(mode) }
 
-    private var phase: Phase {
-        switch mode {
-        case .normal: return .normal
-        case .recording: return .recording
-        case .busy: return .busy
+    private var layout: AnyLayout {
+        switch arrangement {
+        case let .sideBySide(spacing, stackedSpacing):
+            phase.isDictating
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: stackedSpacing))
+                : AnyLayout(HStackLayout(alignment: .bottom, spacing: spacing))
+        case let .stacked(spacing):
+            AnyLayout(VStackLayout(alignment: .leading, spacing: spacing))
         }
     }
 
     var body: some View {
-        ZStack {
+        layout {
+            input(phase)
             switch mode {
             case .normal:
-                idle()
+                buttons()
                     .transition(.opacity)
             case .recording, .busy:
                 ComposerDictationBar(
@@ -78,6 +136,7 @@ struct DictationInputRow<Idle: View>: View {
                 .transition(.opacity)
             }
         }
+        .preference(key: DictationInputPhaseKey.self, value: phase)
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: phase)
     }
 }

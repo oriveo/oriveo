@@ -40,6 +40,18 @@ export interface Skill {
   name: string;
   description: string;
   translations?: Record<string, SkillTranslation>;
+  /** Model-facing trigger line (skill_schema.v2); absent in old caches, read as "". */
+  whenToUse?: string;
+  /** Auto-invoke opt-in; absent in old caches, read as false. */
+  autoInvoke?: boolean;
+  /** Glyph key; absent in old caches, read as "". */
+  iconKey?: string;
+  /** Template-only per-locale whenToUse; absent → {}. */
+  whenToUseTranslations?: Record<string, string>;
+  /** Template-only per-locale preview user line; absent → {}. */
+  previewUser?: Record<string, string>;
+  /** Template-only per-locale preview assistant line; absent → {}. */
+  previewAssistant?: Record<string, string>;
   icon: string;
   color: string;
   systemPrompt: string;

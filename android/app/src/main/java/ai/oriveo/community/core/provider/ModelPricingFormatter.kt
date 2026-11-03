@@ -1,5 +1,7 @@
 package ai.oriveo.community.core.provider
 
+import ai.oriveo.community.core.model.CostFormatter
+import ai.oriveo.community.core.voice.appUiLocale
 import java.math.RoundingMode
 import java.text.DecimalFormat
 import java.text.DecimalFormatSymbols
@@ -10,15 +12,13 @@ import java.util.Optional
 import java.util.concurrent.ConcurrentHashMap
 
 object ModelPricingFormatter {
-    fun formatPerMillionValue(perTokenPrice: Double): String? {
+    fun formatPerMillionValue(perTokenPrice: Double, locale: Locale = appUiLocale()): String? {
         if (perTokenPrice < 0.0) return null
 
         val pricePerMillion = perTokenPrice * 1_000_000
-        if (pricePerMillion == 0.0) return "$0/M"
-
-        val pattern = if (pricePerMillion < 0.01) "0.########" else "0.###"
-        val formatter = DecimalFormat(pattern, DecimalFormatSymbols(Locale.US))
-        return "$${formatter.format(pricePerMillion)}/M"
+        // Same digit tiers and HALF_EVEN rounding as before; only symbol placement and separators follow the locale.
+        val maxDigits = if (pricePerMillion != 0.0 && pricePerMillion < 0.01) 8 else 3
+        return CostFormatter.usd(pricePerMillion, 0, maxDigits, locale, RoundingMode.HALF_EVEN) + "/M"
     }
 
     /**
@@ -27,7 +27,7 @@ object ModelPricingFormatter {
      */
     fun formatPerMillionValue(perTokenPrice: Double, currencyCode: String, locale: Locale): String? {
         val code = currencyCode.trim().uppercase()
-        if (code.isEmpty() || code == DeliveredCostResolver.USD) return formatPerMillionValue(perTokenPrice)
+        if (code.isEmpty() || code == DeliveredCostResolver.USD) return formatPerMillionValue(perTokenPrice, locale)
         if (perTokenPrice < 0.0) return null
 
         val pricePerMillion = perTokenPrice * 1_000_000

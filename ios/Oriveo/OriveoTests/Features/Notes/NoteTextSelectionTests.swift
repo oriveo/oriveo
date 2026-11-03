@@ -3,13 +3,13 @@ import Testing
 import UIKit
 @testable import Oriveo
 
-/// The long-note reading surface is a series of lazy blocks; selecting across blocks goes through "Select text", which puts the whole note into one selectable bounded text view.
+/// The long-note reading surface is a series of lazy blocks; continuous selection across blocks goes through "Select Text": the whole note sits in one optional bounded text view.
 @MainActor
 @Suite("Long note body cross-block selection", .serialized, .sharedProcessState)
 struct NoteTextSelectionTests {
     private typealias Gate = NoteLongBodyPerformanceGateTests
 
-    /// The two markers sit in different lazy units (proves the selection spans blocks).
+    /// The two markers each sit in a different lazy unit (proving the selection spans blocks).
     private func markersInDifferentUnits(_ body: String, _ a: String, _ b: String) -> Bool {
         guard let units = NoteLazyMarkdownBody.units(markdown: NoteText.readingMarkdown(body)) else { return false }
         let ia = units.firstIndex { $0.content.text.contains(a) }
@@ -51,9 +51,7 @@ struct NoteTextSelectionTests {
     func detailPageSelectionMode() async throws {
         let state = AppState(seedDemoData: false, sessionUID: "note-select-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         let body = Gate.virtualizationBody(sections: 300)
         let note = try #require(state.noteManager.createNote(from: NoteDraft(title: "Select", body: body, captureKind: .blank)))
@@ -107,9 +105,7 @@ struct NoteTextSelectionTests {
     func longPressPreselectsWord() async throws {
         let state = AppState(seedDemoData: false, sessionUID: "note-press-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         let body = Gate.virtualizationBody(sections: 300)
         let note = try #require(state.noteManager.createNote(from: NoteDraft(title: "Press", body: body, captureKind: .blank)))

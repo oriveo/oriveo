@@ -318,6 +318,8 @@ class McpChatToolRunner(
         searchHost: ai.oriveo.community.core.search.SearchToolHost? = null,
         // Defaults to null rather than a lambda so tests that stub with default arguments still match
         forceOnceConfirmation: (() -> Boolean)? = null,
+        // P3 contract 12: the oriveo_use_skill entry, registered after web_search; it shares the loop and its step limit.
+        skillEntry: ToolRegistryEntry? = null,
     ): ToolCallLoop.Result {
         val legRunner = ProviderToolLegRunner(
             client = httpClient,
@@ -330,7 +332,7 @@ class McpChatToolRunner(
         )
         return makeLoop(
             plan, executor(conversationId, forceOnceConfirmation ?: { false }, onStep), legRunner, runtimeConfig(), proposeEntry, searchEntry,
-            webSearchEntry = webSearchEntry, searchHost = searchHost, onUnhandledToolCalls = onUnhandledToolCalls,
+            webSearchEntry = webSearchEntry, searchHost = searchHost, skillEntry = skillEntry, onUnhandledToolCalls = onUnhandledToolCalls,
         )
             .run(transport.toolLoopMessages(toolLoopMessagesFrom(transport.messages, provider, model, json)), onProgress)
     }
@@ -399,10 +401,12 @@ class McpChatToolRunner(
             // web_search goes last (same order as plan.toolHost.tools: mcp, memory, web_search).
             webSearchEntry: ToolRegistryEntry? = null,
             searchHost: ai.oriveo.community.core.search.SearchToolHost? = null,
-            // Names outside the lookup table are not executed; the caller shows them with the existing notice card.
+            // P3 contract 12: oriveo_use_skill goes after web_search; no own step limit, it counts toward the shared one.
+            skillEntry: ToolRegistryEntry? = null,
+            // Names outside the lookup table are not executed (S-05); the caller shows them with the existing notice card and telemetry.
             onUnhandledToolCalls: suspend (List<ToolLoopToolCall>) -> Unit,
         ): ToolCallLoop = ToolCallLoop(
-            registry = ToolRegistry(McpToolBridge.entries(plan, executor) + listOfNotNull(proposeEntry, searchEntry, webSearchEntry)),
+            registry = ToolRegistry(McpToolBridge.entries(plan, executor) + listOfNotNull(proposeEntry, searchEntry, webSearchEntry, skillEntry)),
             legRunner = legRunner,
             // Neutral shape; each protocol's wire shape is translated by the protocol adapter in the leg runner.
             adapter = OpenAIChatToolAdapter(),

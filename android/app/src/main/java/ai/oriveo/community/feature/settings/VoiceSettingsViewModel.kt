@@ -8,7 +8,9 @@ import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.LanguageOption
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.voice.RecognitionLanguageRow
 import ai.oriveo.community.core.voice.SystemTtsVoiceProbe
+import ai.oriveo.community.core.voice.recognitionLanguageRows
 import ai.oriveo.community.core.voice.VoiceCatalog
 import ai.oriveo.community.core.voice.VoiceCatalogClient
 import ai.oriveo.community.core.voice.VoiceCatalogState
@@ -19,8 +21,14 @@ import ai.oriveo.community.core.voice.VoiceEngineResolver
 import ai.oriveo.community.core.voice.VoiceEngineSelection
 import ai.oriveo.community.core.voice.VoiceEngineSettings
 import ai.oriveo.community.core.voice.VoiceFallbackReason
+import ai.oriveo.community.core.voice.VoiceRealtimeEntry
 import ai.oriveo.community.core.voice.VoiceNoticeSite
 import ai.oriveo.community.core.voice.VoiceTtsEntry
+import ai.oriveo.community.core.voice.realtime.HomeRealtimeSelectionStore
+import ai.oriveo.community.core.voice.realtime.RealtimeModel
+import ai.oriveo.community.feature.modelpicker.RealtimePickerDisclosure
+import ai.oriveo.community.feature.modelpicker.acceptRealtimeDisclosure
+import ai.oriveo.community.feature.modelpicker.pickRealtimeModel
 import java.util.Locale
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,13 +41,6 @@ import kotlinx.coroutines.launch
 data class VoiceEngineSheetInput(
     val model: VoiceEngineSheetModel,
     val catalog: VoiceCatalog,
-)
-
-/** One row of the recognition language panel; a null [tag] means automatic. */
-data class RecognitionLanguageRow(
-    val tag: String?,
-    val label: UiText,
-    val selected: Boolean,
 )
 
 /** One row of the voice panel. */
@@ -78,19 +79,30 @@ data class ReadAloudSectionState(
     val footer: UiText,
 )
 
-/** Voice conversation group: a single engine row titled "follow the current model" or the provider name; the cloud subtitle is "provider name · model". */
-data class ConversationSectionState(
-    val engineSubtitle: UiText,
-    val engineKind: ProviderKind? = null,
-    val fallbackNotice: UiText? = null,
-    val footer: UiText = UiText.Resource(R.string.voice_realtime_group_footer),
+/** One row of the "Realtime voice" group: official connection x catalog realtime model; [checked] = current home-store selection. */
+data class RealtimeSettingsRow(
+    val providerId: String,
+    val providerKind: ProviderKind,
+    val connectionName: String,
+    val entry: VoiceRealtimeEntry,
+    val checked: Boolean,
 )
+
+/** The four states of the "Realtime voice" group: catalog not yet loaded / fetch failed / no listable model (including no voice catalog on the server) / rows. */
+sealed interface RealtimeSectionState {
+    data object Loading : RealtimeSectionState
+    data object Failed : RealtimeSectionState
+    data object Empty : RealtimeSectionState
+    data class Rows(val rows: List<RealtimeSettingsRow>) : RealtimeSectionState
+}
 
 data class VoiceSettingsUiState(
     val header: UiText = UiText.Resource(R.string.voice_settings_header),
+    val realtime: RealtimeSectionState = RealtimeSectionState.Loading,
+    /** Realtime group footnote: rows = regular note, empty state = empty-state copy, no footnote while loading or on failure (same as iOS). */
+    val realtimeFooter: UiText? = null,
     val dictation: DictationSectionState,
     val readAloud: ReadAloudSectionState,
-    val conversation: ConversationSectionState,
     val recognitionLanguages: List<RecognitionLanguageRow>,
 )
 
@@ -106,12 +118,15 @@ class VoiceSettingsViewModel(
     private val catalogClient: VoiceCatalogClient,
     private val ttsVoiceProbe: SystemTtsVoiceProbe,
     private val providerRepository: ProviderRepository,
+    private val realtimeSelectionStore: HomeRealtimeSelectionStore = HomeRealtimeSelectionStore.shared,
 ) : ViewModel() {
 
     /** The same chooser the engine sheet uses: picking an engine and the cloud disclosure both write settings through it. */
     val chooser = VoiceEngineChooser(settings, settings.disclosure)
 
     private var catalogState: VoiceCatalogState? = null
+    /** The realtime group shows a loading state from tapping "Retry" until the fetch returns. */
+    private var realtimeRetrying = false
     private var catalog: VoiceCatalog? = null
     private var providers: List<Provider> = emptyList()
     private val notices = mutableMapOf<VoiceDirection, VoiceFallbackReason>()
@@ -142,6 +157,10 @@ class VoiceSettingsViewModel(
                     publish()
                     _sheetSourcesRevision.value += 1
                 }
+        }
+        // The home selection changed elsewhere (home / picker / provider detail); the check mark follows it
+        viewModelScope.launch {
+            realtimeSelectionStore.selection.collect { publish() }
         }
     }
 
@@ -179,6 +198,38 @@ class VoiceSettingsViewModel(
         publish()
     }
 
+    /** "Retry" after the realtime catalog fetch failed. */
+    fun retryRealtimeCatalog() {
+        // Go back to the loading state (spinner) before fetching; when the result equals the current state the StateFlow does not re-emit, so re-publish on return
+        realtimeRetrying = true
+        publish()
+        viewModelScope.launch {
+            try {
+                catalogClient.refresh()
+            } finally {
+                realtimeRetrying = false
+                publish()
+            }
+        }
+    }
+
+    /**
+     * Tapping a realtime row: if this provider's Realtime direction was already consented to, write the home selection directly and return null (the caller goes back to home);
+     * if not yet consented, write nothing and return the pending choice so the UI shows the disclosure.
+     */
+    internal fun onRealtimeRow(row: RealtimeSettingsRow): RealtimePickerDisclosure? = pickRealtimeModel(
+        providerId = row.providerId,
+        providerKind = row.providerKind,
+        modelId = row.entry.model,
+        store = settings.disclosure,
+        select = realtimeSelectionStore::set,
+    )
+
+    /** The disclosure was accepted: record consent and write the home selection. */
+    internal fun acceptRealtimeDisclosure(pending: RealtimePickerDisclosure) {
+        acceptRealtimeDisclosure(pending, settings.disclosure, realtimeSelectionStore::set)
+    }
+
     /** null = automatic. */
     fun setRecognitionLanguage(tag: String?) {
         settings.setRecognitionLanguage(tag)
@@ -200,7 +251,8 @@ class VoiceSettingsViewModel(
 
     private fun applyResolutions() {
         val current = catalog
-        for (direction in VoiceDirection.entries) {
+        // The settings page only has the dictation and read-aloud groups; the legacy conversation-engine key is kept for migration reads and is neither parsed nor rewritten here.
+        for (direction in SETTINGS_DIRECTIONS) {
             val resolution = current?.let {
                 VoiceEngineResolver.resolve(it, direction, settings.selection(direction), connections())
             }
@@ -217,12 +269,17 @@ class VoiceSettingsViewModel(
     private fun buildState(): VoiceSettingsUiState {
         val stt = settings.selection(VoiceDirection.Stt)
         val tts = settings.selection(VoiceDirection.Tts)
-        val realtime = settings.selection(VoiceDirection.Realtime)
         val language = settings.recognitionLanguage()
         publishedSelections[VoiceDirection.Stt] = stt
         publishedSelections[VoiceDirection.Tts] = tts
-        publishedSelections[VoiceDirection.Realtime] = realtime
+        val realtime = realtimeSection()
         return VoiceSettingsUiState(
+            realtime = realtime,
+            realtimeFooter = when (realtime) {
+                is RealtimeSectionState.Rows -> UiText.Resource(R.string.voice_realtime_settings_footer)
+                RealtimeSectionState.Empty -> UiText.Resource(R.string.voice_realtime_settings_empty)
+                RealtimeSectionState.Loading, RealtimeSectionState.Failed -> null
+            },
             dictation = DictationSectionState(
                 engineValue = engineLabel(stt),
                 engineKind = (stt as? VoiceEngineSelection.Cloud)?.providerKind,
@@ -238,13 +295,55 @@ class VoiceSettingsViewModel(
                 ),
             ),
             readAloud = readAloudSection(tts),
-            conversation = ConversationSectionState(
-                engineSubtitle = realtimeLabel(realtime),
-                engineKind = (realtime as? VoiceEngineSelection.Cloud)?.providerKind,
-                fallbackNotice = noticeText(VoiceDirection.Realtime),
-            ),
             recognitionLanguages = recognitionLanguageRows(language),
         )
+    }
+
+    private fun realtimeSection(): RealtimeSectionState {
+        if (realtimeRetrying) return RealtimeSectionState.Loading
+        val state = catalogState
+        val available = when (state) {
+            null -> return RealtimeSectionState.Loading
+            VoiceCatalogState.LoadFailed -> return RealtimeSectionState.Failed
+            // No voice catalog on the server (404) shows the empty state, not a failure
+            VoiceCatalogState.Unavailable -> return RealtimeSectionState.Empty
+            is VoiceCatalogState.Available -> state.catalog
+        }
+        val entries = providers.map { it.kind }.distinct().associateWith { kind ->
+            available.entries(kind, VoiceDirection.Realtime).filterIsInstance<VoiceRealtimeEntry>()
+        }
+        // Same source as the picker: catalog realtime[] x official apiKey connections, isDefault first, the rest in catalog order
+        val result = RealtimeModel.pickerRows(
+            context = RealtimeModel.CONTEXT_HOME,
+            connections = providers.map {
+                RealtimeModel.Connection(
+                    id = it.id,
+                    providerKind = it.kind.rawValue,
+                    auth = RealtimeModel.connectionAuth(it.kind, it.authMode),
+                )
+            },
+            realtimeCatalog = entries.entries.associate { (kind, list) ->
+                kind.rawValue to list.map { RealtimeModel.RealtimeCatalogEntry(it.model, it.isDefault) }
+            },
+        )
+        val byId = providers.associateBy { it.id }
+        val selected = realtimeSelectionStore.selection.value
+        val rows = result.groups.flatMap { group ->
+            val provider = byId[group.connectionId] ?: return@flatMap emptyList()
+            val byModel = entries[provider.kind].orEmpty().associateBy { it.model }
+            group.rows.mapNotNull { row ->
+                byModel[row.model]?.let { entry ->
+                    RealtimeSettingsRow(
+                        providerId = provider.id,
+                        providerKind = provider.kind,
+                        connectionName = provider.displayName,
+                        entry = entry,
+                        checked = selected == (provider.id to entry.model),
+                    )
+                }
+            }
+        }
+        return if (rows.isEmpty()) RealtimeSectionState.Empty else RealtimeSectionState.Rows(rows)
     }
 
     private fun readAloudSection(tts: VoiceEngineSelection): ReadAloudSectionState {
@@ -273,18 +372,6 @@ class VoiceSettingsViewModel(
         )
     }
 
-    private fun recognitionLanguageRows(current: String?): List<RecognitionLanguageRow> {
-        val automatic = RecognitionLanguageRow(
-            tag = null,
-            label = UiText.Resource(R.string.voice_language_automatic),
-            selected = current == null,
-        )
-        return listOf(automatic) + LanguageOption.entries.mapNotNull { option ->
-            val tag = option.localeTag ?: return@mapNotNull null
-            RecognitionLanguageRow(tag = tag, label = UiText.Dynamic(option.displayName), selected = tag == current)
-        }
-    }
-
     private fun languageLabel(tag: String?): UiText {
         if (tag == null) return UiText.Resource(R.string.voice_language_automatic)
         val option = LanguageOption.entries.firstOrNull { it.localeTag == tag }
@@ -295,11 +382,6 @@ class VoiceSettingsViewModel(
 
     private fun engineLabel(selection: VoiceEngineSelection): UiText = voiceEngineLabel(selection)
 
-    private fun realtimeLabel(selection: VoiceEngineSelection): UiText = when (selection) {
-        VoiceEngineSelection.System -> UiText.Resource(R.string.voice_realtime_follow_model)
-        is VoiceEngineSelection.Cloud -> UiText.Dynamic("${selection.providerKind.displayName} · ${selection.model}")
-    }
-
     private fun billedTo(selection: VoiceEngineSelection): UiText = when (selection) {
         VoiceEngineSelection.System -> UiText.Resource(R.string.voice_engine_system_subtitle)
         is VoiceEngineSelection.Cloud ->
@@ -307,18 +389,14 @@ class VoiceSettingsViewModel(
     }
 
     private fun noticeText(direction: VoiceDirection): UiText? =
-        notices[direction]?.let {
-            UiText.Resource(
-                if (direction == VoiceDirection.Realtime) {
-                    R.string.voice_realtime_engine_fallback_settings
-                } else {
-                    R.string.voice_engine_fallback_settings
-                },
-            )
-        }
+        notices[direction]?.let { UiText.Resource(R.string.voice_engine_fallback_settings) }
 
     private fun capitalized(id: String): String =
         id.replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.ROOT) else it.toString() }
+
+    private companion object {
+        val SETTINGS_DIRECTIONS = listOf(VoiceDirection.Stt, VoiceDirection.Tts)
+    }
 }
 
 /**

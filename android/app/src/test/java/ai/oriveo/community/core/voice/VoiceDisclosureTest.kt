@@ -106,6 +106,20 @@ class VoiceDisclosureTest {
     }
 
     @Test
+    fun `clearing legacy realtime keeps realtime consent`() {
+        store.markAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime)
+        settings.setSelection(
+            VoiceDirection.Realtime,
+            VoiceEngineSelection.Cloud(ProviderKind.OpenAI, "conn-openai", "gpt-realtime-2.1", voice = "marin"),
+        )
+
+        settings.clearLegacyRealtime()
+
+        assertEquals(setOf("openAI/realtime"), prefs.getStringSet(VoiceDisclosureStore.KEY_ACCEPTED, null))
+        assertTrue(VoiceDisclosureStore(prefsProvider = { prefs }).isAccepted(ProviderKind.OpenAI, VoiceDirection.Realtime))
+    }
+
+    @Test
     fun `accepted per kind and direction`() {
         store.markAccepted(ProviderKind.OpenAI, VoiceDirection.Stt)
 

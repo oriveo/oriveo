@@ -32,7 +32,7 @@ struct AdvancedParameterValueBadge: View {
             Text(value)
                 .font(Self.numberFont)
                 .lineLimit(1)
-                .foregroundStyle(invalid ? OriveoTheme.Palette.danger : OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(invalid ? OriveoTheme.Palette.danger : OriveoTheme.Palette.primaryTextOnSurface)
                 .padding(.horizontal, 11)
                 .frame(height: 28)
                 .background {
@@ -216,7 +216,7 @@ struct AdvancedParameterRowView: View {
             Button(action: onDisabledAction) {
                 Text(disabledActionTitle)
                     .font(.caption.weight(.medium))
-                    .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .frame(minHeight: 30, alignment: .leading)
                     .contentShape(Rectangle())
             }
@@ -315,7 +315,7 @@ struct AdvancedParameterRowView: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 13.5, weight: .medium))
-                .foregroundStyle(isOn ? OriveoTheme.Palette.primaryTextSafe : OriveoTheme.Palette.textSecondary)
+                .foregroundStyle(isOn ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textSecondary)
                 .padding(.horizontal, 13)
                 .frame(height: 34)
                 .background {
@@ -348,7 +348,7 @@ struct AdvancedParameterRowView: View {
             .textInputAutocapitalization(.never)
             .foregroundStyle(
                 invalid ? OriveoTheme.Palette.danger
-                    : (isSet ? OriveoTheme.Palette.primaryTextSafe : OriveoTheme.Palette.textPrimary)
+                    : (isSet ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textPrimary)
             )
             .padding(.horizontal, 12)
             .frame(width: draft.count > 5 ? 124 : 92, height: 38)
@@ -385,7 +385,7 @@ struct AdvancedParameterRowView: View {
                 }
             }
             .labelsHidden()
-            .tint(OriveoTheme.Palette.primaryTextSafe)
+            .tint(OriveoTheme.Palette.primaryTextOnSurface)
             .accessibilityLabel(Text(row.model.title))
         } else if schema == "string-list" {
             let count = stopList.count
@@ -476,7 +476,7 @@ struct AdvancedParameterRowView: View {
                             .font(.system(size: 13.5, design: .monospaced))
                             .foregroundStyle(
                                 GenerationParameterStopSequences.hasInvisibleCharacters(sequence)
-                                    ? OriveoTheme.Palette.primaryTextSafe : OriveoTheme.Palette.textPrimary
+                                    ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textPrimary
                             )
                             .lineLimit(1)
                         Button {
@@ -509,7 +509,7 @@ struct AdvancedParameterRowView: View {
                     } label: {
                         Text(L10n.tr("Add", table: .chat))
                             .font(.system(size: 13.5, weight: .semibold))
-                            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             .padding(.horizontal, 13)
                             .frame(height: 34)
                             .background {
@@ -555,7 +555,7 @@ struct AdvancedParameterRowView: View {
                     } label: {
                         Text(L10n.tr("Add", table: .chat))
                             .font(.system(size: 13.5, weight: .semibold))
-                            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             .frame(minWidth: 44, minHeight: 36)
                             .contentShape(Rectangle())
                     }
@@ -955,7 +955,7 @@ struct AdvancedSummaryText: View {
         if emphasized {
             Text(text)
                 .font(AdvancedParameterValueBadge.numberFont)
-                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 .lineLimit(1)
                 .padding(.horizontal, 11)
                 .frame(height: 28)

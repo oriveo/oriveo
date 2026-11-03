@@ -78,7 +78,41 @@ struct UserBubbleGradientContractTests {
         #expect(checked > 0)
     }
 
-    // MARK: 2. Pure anchoring functions
+    @Test("Color stops change only lightness, not hue: each colored stop's OKLCH hue stays within 5° of the bottom hue")
+    func bubbleStopsKeepPrimaryHue() {
+        func hueGap(_ a: Double, _ b: Double) -> Double {
+            let d = abs(a - b).truncatingRemainder(dividingBy: 360)
+            return min(d, 360 - d)
+        }
+        var checked = 0
+        for id in OriveoDarkPaletteID.allCases {
+            for dark in [true, false] {
+                let stops = OriveoUserBubble.stops(for: .preset(id), dark: dark)
+                let bottom = OriveoCustomPalette.oklch(stops[stops.count - 1])
+                guard bottom.c >= 0.02 else { continue }
+                for (index, hex) in stops.enumerated() {
+                    let color = OriveoCustomPalette.oklch(hex)
+                    guard color.c >= 0.02 else { continue }
+                    #expect(
+                        hueGap(color.h, bottom.h) <= 5,
+                        "\(id.rawValue).\(dark ? "dark" : "light")[\(index)] hue \(color.h) deviates from bottom \(bottom.h)"
+                    )
+                    checked += 1
+                }
+            }
+        }
+        #expect(checked > 0)
+        // Pure-black palette with a sky-blue accent and pink primary: the top is no longer the raw accent color, but the accent's lightness and chroma with the primary hue
+        let black = OriveoDarkPalettes.darkBlack
+        let blackStops = OriveoUserBubble.stops(for: .preset(.darkBlack), dark: true)
+        #expect(blackStops.first != black.accent)
+        #expect(blackStops.last == black.primary)
+        let accent = OriveoCustomPalette.oklch(black.accent)
+        let top = OriveoCustomPalette.oklch(blackStops[0])
+        #expect(abs(top.l - accent.l) <= 0.01, "top keeps the accent lightness")
+    }
+
+    // MARK: 2. Anchored pure functions
 
     @Test("Anchoring: start y = -t and end y = H - t; the result changes with t")
     func anchorFollowsBubblePosition() {
@@ -143,7 +177,11 @@ struct UserBubbleGradientContractTests {
         let stops = cell.bubbleGradientColorsForTesting.map { OriveoDarkPalettesTests.hex(of: UIColor(cgColor: $0)) }
         #expect(stops.count == OriveoUserBubble.stopCount)
         #expect(stops == OriveoUserBubble.stops(for: .darkOcean, dark: true))
-        #expect(stops.first == ocean.accent)
+        // First stop = the fixture userBubbleStops first stop (top hue now primary); no longer the raw accent color
+        let contract = try OriveoDarkPalettesTests.loadContract()
+        let table = try #require(contract["userBubbleStops"] as? [String: [String: [String]]])
+        let fixtureFirst = try #require(table[OriveoDarkPaletteID.darkOcean.rawValue]?["dark"]?.first)
+        #expect(stops.first == (try OriveoDarkPalettesTests.hex(fixtureFirst)))
         #expect(stops.last == ocean.primary)
         // The old implementation was a 135-degree two-color gradient (primary → accent, top-left → bottom-right)
         #expect(stops != [ocean.primary, ocean.accent])

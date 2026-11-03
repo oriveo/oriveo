@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderEffectiveStatusKind
@@ -47,11 +48,15 @@ import ai.oriveo.community.core.model.RelayAvatarResolver
 import ai.oriveo.community.core.provider.BALANCE_CAPABLE_KINDS
 import ai.oriveo.community.core.provider.ProviderBalance
 import ai.oriveo.community.core.usage.CostPart
+import ai.oriveo.community.core.voice.appUiLocale
 import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
+import java.math.BigDecimal
+import java.math.RoundingMode
 import java.text.NumberFormat
+import java.util.Currency
 import java.util.Locale
 
 /**
@@ -116,20 +121,24 @@ fun ProviderListCard(
     } else {
         stringResource(R.string.models_count, availableModelCount)
     }
-    // Only the USD part is compacted (non-USD keeps the platform currency format as is); a month with only non-USD cost shows the per-currency amount, not $0
-    val monthlyCostText = costPartsText(monthlyCostParts, usdPartTransform = ::compactCurrencyText).ifEmpty { "$0" }
+    // Only the compact USD part (non-USD uses the platform currency format as is); only months with non-USD costs show amounts per currency, not $0.
+    val costLocale = rememberCostLocale()
+    val compactUsd: (String) -> String = remember(costLocale) { { text -> compactCurrencyText(text, costLocale) } }
+    val monthlyCostText = usdTextOrZero(costPartsText(monthlyCostParts, usdPartTransform = compactUsd), costLocale)
     val isMonthlyCostZero = monthlyCostParts.isEmpty()
     val trailingAmount = remember(
         provider.kind,
         monthlyCostText,
         isMonthlyCostZero,
         providerBalance,
+        costLocale,
     ) {
         providerListTrailingAmount(
             providerKind = provider.kind,
             monthlyCostText = monthlyCostText,
             isMonthlyCostZero = isMonthlyCostZero,
             providerBalance = providerBalance,
+            locale = costLocale,
         )
     }
 
@@ -343,10 +352,11 @@ internal fun providerListTrailingAmount(
     monthlyCostText: String,
     isMonthlyCostZero: Boolean,
     providerBalance: ProviderBalance?,
+    locale: Locale,
 ): ProviderListTrailingAmount = when {
     providerKind in BALANCE_CAPABLE_KINDS -> ProviderListTrailingAmount(
         labelRes = R.string.provider_list_balance_label,
-        text = providerBalance?.let(::formatProviderBalanceAmount) ?: "--",
+        text = providerBalance?.let { formatProviderBalanceAmount(it, locale) } ?: "--",
         isZero = providerBalance?.total == 0.0,
     )
     else -> ProviderListTrailingAmount(
@@ -356,18 +366,34 @@ internal fun providerListTrailingAmount(
     )
 }
 
+/**
+ * Third-party balance in the UI [locale]: USD through the shared `$` renderer, CNY through the platform
+ * currency format (e.g. "CN¥3.50" in en, "¥3.50" in zh-Hans). Negative amounts use the platform's own
+ * sign placement.
+ */
 internal fun formatProviderBalanceAmount(
     balance: ProviderBalance,
-    locale: Locale = Locale.US,
+    locale: Locale,
 ): String {
-    val formatter = NumberFormat.getNumberInstance(locale).apply {
+    if (balance.currency.uppercase() != "CNY") {
+        return CostFormatter.usd(
+            balance.total,
+            minFraction = 2,
+            maxFraction = 2,
+            locale = locale,
+            roundingMode = RoundingMode.HALF_UP,
+        )
+    }
+    val formatter = NumberFormat.getCurrencyInstance(locale).apply {
+        currency = Currency.getInstance("CNY")
         minimumFractionDigits = 2
         maximumFractionDigits = 2
         isGroupingUsed = true
+        // CNY rounds half away from zero, matching iOS NonUsdCurrencyFormatters and CNY cost parts
+        roundingMode = RoundingMode.HALF_UP
     }
-    val symbol = if (balance.currency.uppercase() == "CNY") "¥" else "$"
-    val sign = if (balance.total < 0) "-" else ""
-    return "$sign$symbol${formatter.format(kotlin.math.abs(balance.total))}"
+    if (!balance.total.isFinite()) return formatter.format(balance.total)
+    return formatter.format(BigDecimal.valueOf(balance.total))
 }
 
 private fun providerStatusColor(
@@ -434,18 +460,40 @@ private val ProviderAmountLabelTextStyle: TextStyle = compactTextStyle(
     TextStyle(fontWeight = FontWeight.Medium, fontSize = 10.5.sp, lineHeight = 13.sp),
 )
 
-/** Strips redundant trailing zeros from USD amount text (the `$1.50` form); used for the USD part only, since in non-USD locale text `.` may be a thousands separator. */
-internal fun compactCurrencyText(text: String): String {
-    val separatorIndex = text.lastIndexOf('.')
-    if (separatorIndex == -1 || separatorIndex == text.lastIndex) return text
-    val prefix = text.substring(0, separatorIndex + 1)
-    var suffix = text.substring(separatorIndex + 1)
-    while (suffix.length > 2 && suffix.endsWith("0")) suffix = suffix.dropLast(1)
-    while (suffix.length > 1 && suffix.endsWith("0")) suffix = suffix.dropLast(1)
-    return prefix + suffix
+/**
+ * Drops redundant trailing zeros from a USD amount rendered by [CostFormatter.usd] for [locale]
+ * (en "$1.50" -> "$1.5", de "12,50 $" -> "12,5 $"). The decimal separator comes from the same
+ * formatter, so the symbol may sit on either side. Only for USD parts: in non-USD locale text the
+ * "." may be a grouping separator.
+ */
+internal fun compactCurrencyText(text: String, locale: Locale = appUiLocale()): String {
+    val separator = usdDecimalSeparator(locale) ?: return text
+    val separatorIndex = text.lastIndexOf(separator)
+    if (separatorIndex == -1) return text
+    var fractionEnd = separatorIndex + 1
+    while (fractionEnd < text.length && text[fractionEnd].isDigit()) fractionEnd++
+    var fraction = text.substring(separatorIndex + 1, fractionEnd)
+    if (fraction.isEmpty()) return text
+    while (fraction.length > 1 && fraction.endsWith("0")) fraction = fraction.dropLast(1)
+    return text.substring(0, separatorIndex + 1) + fraction + text.substring(fractionEnd)
 }
 
-/** Maps a persisted English error key onto its localized message in the current language. */
+/** Decimal separator used by [CostFormatter.usd] for [locale], read from a probe amount. */
+private fun usdDecimalSeparator(locale: Locale): Char? {
+    val probe = CostFormatter.usd(0.5, minFraction = 1, maxFraction = 1, locale = locale)
+    val digitIndex = probe.lastIndexOf('5')
+    return if (digitIndex > 0) probe[digitIndex - 1] else null
+}
+
+/** Empty cost text falls back to a locale-formatted zero (de "0 $") instead of a hard-coded "$0". */
+internal fun usdTextOrZero(text: String, locale: Locale = appUiLocale()): String =
+    text.ifEmpty { CostFormatter.usd(0.0, minFraction = 0, maxFraction = 0, locale = locale) }
+
+fun shouldShowProviderListErrorCopy(
+    @Suppress("UNUSED_PARAMETER") provider: Provider,
+): Boolean = false
+
+/** Persisted English error key -> localized text in the current language (keeps the existing mapping). */
 @Composable
 fun localizedProviderError(key: String): String = when (key) {
     "The API key could not be validated. Check the value or generate a new key." ->

@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">終了</string>
     <string name="voice_conversation_start_failed_toast">音声会話を開始できませんでした。もう一度お試しください。</string>
     <string name="voice_conversation_background_paused_toast">Oriveo がバックグラウンドに移ったため、音声会話を一時停止しました。</string>
+    <string name="voice_conversation_status_say_again">聞き取れませんでした。もう一度どうぞ</string>
+    <string name="voice_conversation_status_check_language">聞き取れませんでした</string>
+    <string name="voice_conversation_prompt_say_again">聞き取れませんでした。もう一度言ってください。</string>
+    <string name="voice_conversation_prompt_check_language">まだ聞き取れません。別の言語で話している場合は、「認識する言語」をタップして変更してください。</string>
+    <string name="voice_conversation_prompt_echo_hint">スピーカーの音が反響しています。イヤホンを使うとより快適です。</string>
+    <string name="voice_conversation_language_chip">認識する言語：%1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">認識する言語を変更します</string>
 </resources>

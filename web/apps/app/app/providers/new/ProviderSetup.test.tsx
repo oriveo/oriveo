@@ -660,6 +660,37 @@ describe('ProviderSetup', () => {
     expect(mockProviderOpsAdd).not.toHaveBeenCalled();
   });
 
+  it('empty_catalog_manual_entry_saves_provider_then_opens_manual_page', async () => {
+    mockBuildOfficialEnabledModels.mockReturnValue({
+      models: [],
+      defaultModelId: '',
+      catalogModels: [],
+    });
+
+    render(<ProviderSetup />);
+    await selectOpenRouter();
+
+    fireEvent.change(await screen.findByPlaceholderText('sk-or-...'), {
+      target: { value: 'sk-test-key' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'connectAndSync' }));
+
+    expect(await screen.findByText('emptyModelCatalog.title')).toBeTruthy();
+    expect(mockProviderOpsAdd).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: 'manualModelEntry' }));
+
+    await waitFor(() => {
+      expect(mockProviderOpsAdd).toHaveBeenCalledTimes(1);
+    });
+    const saved = mockProviderOpsAdd.mock.calls[0][1] as Provider;
+    expect(saved.models).toEqual([]);
+    expect(saved.apiKey).toBe('sk-test-key');
+    await waitFor(() => {
+      expect(routerPush).toHaveBeenCalledWith(`/providers/${saved.id}/manual-model`);
+    });
+  });
+
   it('shows a dismissible top error banner when connect fails', async () => {
     mockBuildOfficialEnabledModels.mockReturnValue({
       models: [],

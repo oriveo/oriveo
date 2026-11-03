@@ -42,7 +42,7 @@ describe('Dialog visual contract: the surface must not be switched off by a padd
   it('.dialog always provides the background, border and shadow', () => {
     const base = ruleBody('.dialog');
 
-    expect(base).toMatch(/background:\s*color-mix\(in srgb, var\(--o-surface\)/);
+    expect(base).toMatch(/background:\s*var\(--o-surface\);/);
     expect(base).toMatch(/border:\s*1px solid var\(--o-border\)/);
     expect(base).toMatch(/box-shadow:\s*\n?\s*var\(--o-elevation-modal\)/);
   });

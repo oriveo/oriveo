@@ -317,11 +317,11 @@ struct GenerationParameterDefaultsSheet: View {
                 )
             }
         }
-        // System blue seeps in from menus, pickers and DisclosureGroup chevrons,
-        // while this page is pushed from the purple model options panel. The whole chain uses the brand primary color.
+        // System blue seeps in from menus, pickers, DisclosureGroup chevrons and upgrade entries,
+        // while this page is pushed from the purple "Model options" panel. The whole chain uses the brand primary color.
         // **It must sit at the end of the chain**: `.tint` only affects the subtree it wraps, and placed before `.toolbar` / `.alert`
         // those buttons take their environment from further out and stay system blue. Destructive is decided by the role and stays red.
-        .tint(OriveoTheme.Palette.primary)
+        .tint(OriveoTheme.Palette.primaryTextOnSurface)
     }
 
     // MARK: - The `.sheet` presentation (opened from the provider detail page, with connection-level maintenance)

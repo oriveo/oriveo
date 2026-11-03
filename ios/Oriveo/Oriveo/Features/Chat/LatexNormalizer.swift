@@ -1,5 +1,12 @@
 import Foundation
 
+/// Normalizes LaTeX-style delimiters to the markdown standard (dollar form); all three platforms follow it.
+///
+/// Rules:
+/// - Inline: `\(text\)` → `$text$` (may not span lines)
+/// - Block: `\[text\]` → `$$text$$` (may span lines)
+///
+/// Protected: content inside fenced code blocks (``` or ~~~) and inline code (`...`) is left unchanged.
 nonisolated enum LatexNormalizer {
     static func normalize(_ text: String) -> String {
         guard text.contains("\\(") || text.contains("\\[") else { return text }

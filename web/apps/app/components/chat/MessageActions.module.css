@@ -9,6 +9,31 @@
   transition: height var(--o-transition-fast), opacity var(--o-transition-fast);
 }
 
+/* Keyboard focus reveals the row regardless of the host; hover scope belongs to the host via the className prop. */
+.actions:focus-within {
+  height: 28px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* No hover on small screens: keep the row visible and clickable. */
+@media (max-width: 767px) {
+  .actions {
+    height: 28px;
+    opacity: 0.5;
+    pointer-events: auto;
+  }
+}
+
+/* Touch-only devices: always show the row. */
+@media (hover: none) {
+  .actions {
+    height: 28px;
+    opacity: 0.7;
+    pointer-events: auto;
+  }
+}
+
 .actions[data-role='user'] {
   justify-content: flex-end;
 }

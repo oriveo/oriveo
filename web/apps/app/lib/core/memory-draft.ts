@@ -5,6 +5,7 @@ import { requestBaseURLText } from './providers/endpoint-source';
 import { readStream } from '../utils/chat-stream-utils';
 import { assemblePurposeRequest } from './chat/context-pipeline/purpose-request';
 import { transportInput } from './chat/context-pipeline/transport-input';
+import { buildProviderStreamOptions } from './chat/stream-options';
 
 // The instruction part of the memory draft (purposeSystem); the recent-conversation excerpt is sent as the only user message, unchanged.
 export const MEMORY_DRAFT_INSTRUCTIONS = `Based on the following conversation excerpts, write a concise personal profile in the same language the user is using (under 400 words).
@@ -24,7 +25,8 @@ export async function requestMemoryDraft(input: {
     purposeSystem: MEMORY_DRAFT_INSTRUCTIONS,
     userText: input.excerpts,
   });
-  const transport = transportInput(planned, { options: undefined, planMessages: true });
+  // Relay runtime options (security mode, transport, resolved root) must ride along; without them a LocalHttp relay is rejected as cleartext.
+  const transport = transportInput(planned, { options: buildProviderStreamOptions(input.provider, undefined, input.model), planMessages: true });
   const { stream } = sendStream(
     input.provider.kind,
     resolveProviderAPIKey(input.provider, input.model.id),

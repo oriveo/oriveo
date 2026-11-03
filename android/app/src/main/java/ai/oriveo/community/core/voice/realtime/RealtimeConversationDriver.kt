@@ -5,6 +5,7 @@ import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveSessionExpiredExce
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeSessionControl
 import ai.oriveo.community.core.voice.realtime.wire.RealtimeTransport
 import java.util.Base64
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -17,7 +18,12 @@ import kotlinx.coroutines.flow.flow
 internal class RealtimeConversationDriver<C>(
     private val connection: C,
     private val audio: RealtimeAudioIO,
+    /** Whether the mic opens together with the connection on ready; false = playback only (text-started session), and [startCapture] opens it later. */
+    private val captureOnReady: () -> Boolean = { true },
 ) where C : RealtimeTransport, C : RealtimeSessionControl {
+
+    // Playback opened on ready; capture not started yet.
+    @Volatile private var playbackOnly = false
 
     private val lock = Any()
     private var playingItem: String? = null
@@ -28,8 +34,12 @@ internal class RealtimeConversationDriver<C>(
     // Barge-in without an item id (Gemini): all assistant audio is dropped until interrupted or turn end.
     private var droppingUnkeyed = false
 
+    // Audio activation fails after start returns: the flow ends with that error, same reason as when start threw synchronously.
+    @Volatile private var activationFailure: Throwable? = null
+
     fun run(plan: PlannedRealtimeSession): Flow<RealtimeSessionEvent> = flow {
         var started = false
+        activationFailure = null
         synchronized(lock) {
             playingItem = null
             truncatedItem = null
@@ -42,14 +52,25 @@ internal class RealtimeConversationDriver<C>(
                 when (event) {
                     RealtimeSessionEvent.Ready -> if (!started) {
                         started = true
-                        audio.start(
-                            onFrame = { frame -> connection.sendAudio(frame) },
-                            onInterruption = {
-                                connection.close()
-                                audio.stop()
-                            },
-                            uplinkRateHz = connection.uplinkSampleRateHz,
-                        )
+                        val onInterruption = {
+                            connection.close()
+                            audio.stop()
+                        }
+                        val onActivationFailed = { error: Throwable ->
+                            activationFailure = error
+                            connection.close()
+                        }
+                        if (captureOnReady()) {
+                            audio.start(
+                                onFrame = { frame -> connection.sendAudio(frame) },
+                                onInterruption = onInterruption,
+                                uplinkRateHz = connection.uplinkSampleRateHz,
+                                onActivationFailed = onActivationFailed,
+                            )
+                        } else {
+                            playbackOnly = true
+                            audio.startPlayback(onInterruption, onActivationFailed)
+                        }
                     }
                     is RealtimeSessionEvent.AssistantAudio -> playAssistantAudio(event)
                     is RealtimeSessionEvent.UserSpeechStarted -> interruptPlayback()
@@ -65,13 +86,28 @@ internal class RealtimeConversationDriver<C>(
                 }
                 emit(event)
             }
+            activationFailure?.let { throw it }
         } catch (failure: GeminiLiveSessionExpiredException) {
             // A muted expiry may reopen on the same audio (contract C item 1); the controller stops it on end.
             expired = true
             throw failure
+        } catch (cancel: CancellationException) {
+            throw cancel
+        } catch (failure: Throwable) {
+            throw activationFailure ?: failure
         } finally {
             if (!expired) audio.stop()
         }
+    }
+
+    /**
+     * Opens the mic later for a playback-only connection: frames go up under the same rule as on ready.
+     * Does nothing before ready (captureOnReady decides then) or when already capturing.
+     */
+    fun startCapture() {
+        if (!playbackOnly) return
+        playbackOnly = false
+        audio.startCapture({ frame -> connection.sendAudio(frame) }, connection.uplinkSampleRateHz)
     }
 
     /**

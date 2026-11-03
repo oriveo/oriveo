@@ -72,7 +72,8 @@ nonisolated enum ExternalSearchChatRoute: Equatable, Sendable {
 
 /// Error card.
 nonisolated struct SearchErrorCardPresentation: Equatable, Sendable {
-    struct Button: Equatable, Sendable {
+    /// Named apart from SwiftUI `Button` so the two never read as the same construction.
+    struct CardButton: Equatable, Sendable {
         /// Key after `webSearch.` in WebSearch.xcstrings.
         let titleKey: String
         /// {name} argument (action.answerWith).
@@ -85,8 +86,8 @@ nonisolated struct SearchErrorCardPresentation: Equatable, Sendable {
     let titleKey: String
     let serviceName: String
     let detailKey = "chat.errorDetail"
-    let primary: Button?
-    let secondary: Button?
+    let primary: CardButton?
+    let secondary: CardButton?
 
     /// Known headlines (WebSearch.xcstrings has chatError.<camelCase>); unknown ones fall back to the service_error title.
     static let knownHeadlines: Set<String> = [
@@ -94,13 +95,16 @@ nonisolated struct SearchErrorCardPresentation: Equatable, Sendable {
         "format_mismatch", "searxng_json_disabled", "host_changed", "service_withdrawn",
     ]
 
-    /// - switchTargetExists: the service for the secondary button still exists locally (if not, "Answer again with X" is not offered).
+    /// - switchTargetExists: the secondary button's service still exists locally (otherwise no "Answer again with X").
+    /// - realtimeSelected: while a realtime model is selected, retry-type buttons are withheld (retry / answer again with X both use the current model over the text API,
+    ///   which a realtime model cannot serve). Hidden rather than disabled, and no "change model" is added; the card keeps only the error text and jump-type actions.
     static func make(
         card: ExternalSearchMessageRecord.ErrorCard,
         isLastAssistant: Bool,
-        switchTargetExists: (String) -> Bool = { _ in true }
+        switchTargetExists: (String) -> Bool = { _ in true },
+        realtimeSelected: Bool = false
     ) -> SearchErrorCardPresentation {
-        let primary: Button? = {
+        let primary: CardButton? = {
             let id = card.serviceId
             let (key, action, external): (String, ExternalSearchCardAction, Bool)
             switch card.primaryAction {
@@ -113,12 +117,12 @@ nonisolated struct SearchErrorCardPresentation: Equatable, Sendable {
             case "reconfirm": (key, action, external) = ("action.reconfirm", .reconfirm(serviceID: id), false)
             default: return nil
             }
-            guard isLastAssistant || !action.regenerates else { return nil }
-            return Button(titleKey: key, titleArgument: nil, action: action, external: external)
+            guard (isLastAssistant && !realtimeSelected) || !action.regenerates else { return nil }
+            return CardButton(titleKey: key, titleArgument: nil, action: action, external: external)
         }()
-        let secondary: Button? = card.switchTo.flatMap { target in
-            guard isLastAssistant, switchTargetExists(target.id) else { return nil }
-            return Button(
+        let secondary: CardButton? = card.switchTo.flatMap { target in
+            guard isLastAssistant, !realtimeSelected, switchTargetExists(target.id) else { return nil }
+            return CardButton(
                 titleKey: "action.answerWith", titleArgument: target.name,
                 action: .answerWith(serviceID: target.id, name: target.name), external: false
             )
@@ -186,10 +190,14 @@ nonisolated enum ExternalSearchChatPresentation {
     }
 
     static func errorCard(
-        _ message: ChatMessage, isLastAssistant: Bool, serviceExists: (String) -> Bool = { _ in true }
+        _ message: ChatMessage, isLastAssistant: Bool, serviceExists: (String) -> Bool = { _ in true },
+        realtimeSelected: Bool = false
     ) -> SearchErrorCardPresentation? {
         message.capabilityExecution?.externalSearch?.errorCard.map {
-            SearchErrorCardPresentation.make(card: $0, isLastAssistant: isLastAssistant, switchTargetExists: serviceExists)
+            SearchErrorCardPresentation.make(
+                card: $0, isLastAssistant: isLastAssistant, switchTargetExists: serviceExists,
+                realtimeSelected: realtimeSelected
+            )
         }
     }
 }
@@ -203,7 +211,7 @@ extension SearchErrorCardPresentation {
 }
 
 @MainActor
-extension SearchErrorCardPresentation.Button {
+extension SearchErrorCardPresentation.CardButton {
     var title: String { titleArgument.map { WebSearchCopy.format(titleKey, $0) } ?? WebSearchCopy.tr(titleKey) }
 }
 

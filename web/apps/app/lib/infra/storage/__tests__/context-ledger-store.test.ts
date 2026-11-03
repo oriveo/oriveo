@@ -100,14 +100,14 @@ describe('ContextLedgerStore', () => {
     });
     legacy.close();
 
-    expect(DB_VERSION).toBe(14);
+    expect(DB_VERSION).toBe(16);
     const migrated = await getConversationById('legacy');
     expect(migrated?.messages[0].id).toBe('legacy-m');
     expect(migrated?.messages[0].stopReason).toBeUndefined();
 
     resetDBConnection();
     const raw = await openDB('oriveo--guest');
-    expect(raw.version).toBe(14);
+    expect(raw.version).toBe(16);
     expect(raw.objectStoreNames.contains('contextRhoCalibration')).toBe(true);
     expect(raw.objectStoreNames.contains('contextManifests')).toBe(true);
     const tx = raw.transaction('contextManifests');

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/design.svg (glyphs.v1.json glyph:design, hue #C026D3); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12 2.5c5.3 0 9.5 3.8 9.5 8.5 0 2.9-2.3 4.8-5 4.8h-1.8a1.6 1.6 0 0 0-1.2 2.7c.4.4.6.9.6 1.4 0 1-.9 1.6-2.4 1.6C6.4 21.5 2.5 17.3 2.5 12S6.7 2.5 12 2.5Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="2.5"
+                android:startY="2.5"
+                android:endX="21.5"
+                android:endY="21.5">
+                <item android:offset="0" android:color="#F5D0FE" />
+                <item android:offset="1" android:color="#C026D3" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M6.15 11.6a1.25 1.25 0 1 0 2.5 0a1.25 1.25 0 1 0 -2.5 0ZM8.35 7.4a1.25 1.25 0 1 0 2.5 0a1.25 1.25 0 1 0 -2.5 0ZM13.35 7.4a1.25 1.25 0 1 0 2.5 0a1.25 1.25 0 1 0 -2.5 0ZM15.95 11a1.25 1.25 0 1 0 2.5 0a1.25 1.25 0 1 0 -2.5 0Z"
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.92" />
+</vector>

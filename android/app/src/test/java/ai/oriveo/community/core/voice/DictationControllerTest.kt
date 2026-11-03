@@ -3,6 +3,10 @@ package ai.oriveo.community.core.voice
 import android.speech.SpeechRecognizer
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.telemetry.NoopTelemetry
+import ai.oriveo.community.core.telemetry.Telemetry
+import ai.oriveo.community.core.telemetry.TelemetryEvent
+import ai.oriveo.community.core.telemetry.TelemetryHub
 import ai.oriveo.community.core.voice.conversation.CaptureTeardownGate
 import ai.oriveo.community.testing.TestSharedPreferences
 import java.io.File
@@ -17,6 +21,7 @@ import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.withContext
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -107,6 +112,9 @@ class DictationControllerTest {
 
     private class FakeEngine(override val engineName: String) : STTEngine {
         var result: STTResult = STTResult.Success("hello world")
+
+        /** When non-null, each transcription takes the next value from it in order, then uses [result]. */
+        val queued = ArrayDeque<STTResult>()
         val segments = mutableListOf<STTSegment>()
         val languages = mutableListOf<String?>()
         var audioExistedOnCall = false
@@ -124,7 +132,7 @@ class DictationControllerTest {
             audioExistedOnCall = segment.aac.exists()
             if (ignoreCancel) {
                 withContext(NonCancellable) { gate?.await() }
-                return result
+                return queued.removeFirstOrNull() ?: result
             }
             try {
                 gate?.await()
@@ -132,7 +140,7 @@ class DictationControllerTest {
                 cancelled++
                 throw error
             }
-            return result
+            return queued.removeFirstOrNull() ?: result
         }
     }
 
@@ -167,6 +175,38 @@ class DictationControllerTest {
         }
     }
 
+    /**
+     * Fake live session: tests push live text via [live] and set the result via [result]; a stop without an explicit result ends it with [onStop]
+     * (default empty text = empty live session, recording is recognized afterwards); when [onStop] is null the result is completed by the test.
+     */
+    private class FakeLiveSession : DictationLiveSession {
+        override val live = kotlinx.coroutines.flow.MutableStateFlow(LiveTranscript())
+        val result = CompletableDeferred<STTResult>()
+        var onStop: STTResult? = STTResult.Success("")
+        var pcmChunks = 0
+        var stops = 0
+        var cancels = 0
+
+        /** All samples received (in arrival order). */
+        val received = mutableListOf<Short>()
+
+        override fun onPcm(samples: ShortArray, count: Int) {
+            pcmChunks++
+            for (index in 0 until count) received += samples[index]
+        }
+
+        override fun stop() {
+            stops++
+            onStop?.let { result.complete(it) }
+        }
+
+        override suspend fun await(): STTResult = result.await()
+
+        override fun cancel() {
+            cancels++
+        }
+    }
+
     /** One fake engine each for system / cloud; records the cloud engine's constructor arguments. The self-record session is the production [SystemSTTSelfRecordSession] wired to a fake recognizer. */
     private class FakeEngineFactory(private val system: STTEngine, private val cloud: STTEngine) : DictationEngineFactory {
         var route: SystemSTTRoute = SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "zh-Hans")
@@ -178,7 +218,43 @@ class DictationControllerTest {
         override suspend fun startSelfRecord(route: SystemSTTRoute.SelfRecord): SystemSTTSelfRecordSession =
             recognizer.startSession()
 
-        override suspend fun systemRoute(language: String?): SystemSTTRoute = route
+        /** Language received by each selection (in call order). */
+        val routeLanguages = mutableListOf<String?>()
+
+        /** When non-null, selection suspends until it completes, simulating the recognition service checking support and missing the cache. */
+        var routeGate: CompletableDeferred<Unit>? = null
+
+        override fun cachedSystemRoute(language: String?): SystemSTTRoute? = route
+
+        override suspend fun systemRoute(language: String?): SystemSTTRoute {
+            routeLanguages += language
+            routeGate?.await()
+            return route
+        }
+
+        /** Live sessions opened by the pipeline selection (in open order); [nextLive] sets the behaviour of the next session. */
+        val liveSessions = mutableListOf<FakeLiveSession>()
+        var nextLive: () -> FakeLiveSession = { FakeLiveSession() }
+
+        /** When non-null, opening a live session suspends until it completes, simulating a recognizer that has not started listening yet. */
+        var liveGate: CompletableDeferred<Unit>? = null
+
+        /** When true, opening a live session fails (listening fails to start). */
+        var liveFails = false
+
+        override suspend fun startPipeSession(route: SystemSTTRoute.Pipe): DictationLiveSession {
+            liveGate?.await()
+            if (liveFails) throw IllegalStateException("listen failed")
+            return nextLive().also { liveSessions += it }
+        }
+
+        /** Language pack download requests (in call order). */
+        val languagePackDownloads = mutableListOf<String>()
+
+        override suspend fun downloadLanguagePack(language: String): Boolean {
+            languagePackDownloads += language
+            return true
+        }
 
         override fun cloud(entry: VoiceSttEntry, baseUrl: String, apiKey: String): STTEngine {
             cloudCalls += Triple(entry, baseUrl, apiKey)
@@ -216,7 +292,13 @@ class DictationControllerTest {
             calls += "stopReadAloud"
         }
 
-        override fun recognitionLanguage(): String? = "zh-Hans"
+        /** Recognition language saved in settings; null = auto. */
+        var language: String? = "zh-Hans"
+        var uiLanguage = "en-US"
+
+        override fun recognitionLanguage(): String? = language
+
+        override fun uiLanguageTag(): String = uiLanguage
 
         override fun observeInterruptions(onInterrupted: () -> Unit): AutoCloseable {
             this.onInterrupted = onInterrupted
@@ -225,6 +307,45 @@ class DictationControllerTest {
 
         /** Simulates the process going to the background (ProcessLifecycleOwner ON_STOP). */
         fun background() = onInterrupted?.invoke()
+    }
+
+    private class RecordingTelemetry : Telemetry {
+        val tracked = mutableListOf<Pair<TelemetryEvent, Map<String, Any?>?>>()
+        override val isEnabled = true
+        override fun identify(distinctId: String, properties: Map<String, Any?>?) = Unit
+        override fun track(event: TelemetryEvent, properties: Map<String, Any?>?) {
+            tracked += event to properties
+        }
+        override fun screen(screenName: String, properties: Map<String, Any?>?) = Unit
+        override fun reset() = Unit
+        override fun setSuperProperties(properties: Map<String, Any?>) = Unit
+        override fun optIn() = Unit
+        override fun optOut() = Unit
+
+        /** The three kinds of dictation events from this card, in emission order (failure and silence events are excluded). */
+        fun dictation(): List<Pair<TelemetryEvent, Map<String, Any?>>> =
+            tracked.filter { it.first in DICTATION_EVENTS }.map { it.first to it.second.orEmpty() }
+
+        fun ended(): List<Map<String, Any?>> =
+            tracked.filter { it.first == TelemetryEvent.VoiceDictationEnded }.map { it.second.orEmpty() }
+
+        fun started(): List<Map<String, Any?>> =
+            tracked.filter { it.first == TelemetryEvent.VoiceDictationStarted }.map { it.second.orEmpty() }
+
+        companion object {
+            val DICTATION_EVENTS = setOf(
+                TelemetryEvent.VoiceDictationStarted,
+                TelemetryEvent.VoiceDictationEnded,
+                TelemetryEvent.VoiceDictationRecovered,
+            )
+        }
+    }
+
+    private val telemetry = RecordingTelemetry().also { TelemetryHub.setBackingForTest(it) }
+
+    @After
+    fun tearDownTelemetry() {
+        TelemetryHub.setBackingForTest(NoopTelemetry)
     }
 
     private val calls = mutableListOf<String>()
@@ -679,7 +800,7 @@ class DictationControllerTest {
             recordSeconds(key, 1)
             controller.finish(DictationSubmit.Insert)
 
-            assertEquals(DictationState.Failed(key, DictationFailedAction.CheckConnection), controller.state.value)
+            assertEquals(DictationState.Failed(key, DictationFailedAction.CheckConnection, "zh-Hans"), controller.state.value)
             assertSlotKept(key, RecordingSlotStatus.Failed)
             controller.discard()
         }
@@ -697,7 +818,7 @@ class DictationControllerTest {
             recordSeconds(key, 1)
             controller.finish(DictationSubmit.Send)
 
-            assertEquals(DictationState.Failed(key, DictationFailedAction.Retry), controller.state.value)
+            assertEquals(DictationState.Failed(key, DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
             assertSlotKept(key, RecordingSlotStatus.Failed)
             controller.discard()
         }
@@ -706,7 +827,7 @@ class DictationControllerTest {
     }
 
     @Test
-    fun `system file unsupported keeps recording and emits system unavailable`() {
+    fun `system file unsupported keeps recording and shows only the no service card`() {
         events
         engine.result = STTResult.Failed(
             DictationFailure.Recognizer(SystemSTTEngine.FILE_UNSUPPORTED_ERROR),
@@ -715,9 +836,11 @@ class DictationControllerTest {
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Insert)
 
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoService, "zh-Hans"), controller.state.value)
         assertSlotKept("conv-1", RecordingSlotStatus.Failed)
-        assertEquals(listOf<DictationEvent>(DictationEvent.SystemUnavailable("conv-1")), events)
+        // The no_service card carries its own "switch dictation engine"; do not also emit the system-unavailable prompt.
+        assertTrue(events.isEmpty())
+        assertEquals(1, telemetry.tracked.count { it.first == TelemetryEvent.VoiceDictationFailed })
         assertNoLostRecordings()
     }
 
@@ -731,9 +854,10 @@ class DictationControllerTest {
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Insert)
 
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Network, "zh-Hans"), controller.state.value)
         assertSlotKept("conv-1", RecordingSlotStatus.Failed)
         assertTrue(events.isEmpty())
+        assertEquals(1, telemetry.tracked.count { it.first == TelemetryEvent.VoiceDictationFailed })
         assertNoLostRecordings()
     }
 
@@ -747,7 +871,7 @@ class DictationControllerTest {
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Insert)
 
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
         assertTrue(events.isEmpty())
     }
 
@@ -758,7 +882,7 @@ class DictationControllerTest {
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Send)
 
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript, "zh-Hans"), controller.state.value)
         assertSlotKept("conv-1", RecordingSlotStatus.Failed)
         assertTrue(events.isEmpty())
         assertNoLostRecordings()
@@ -770,7 +894,7 @@ class DictationControllerTest {
         engine.result = failure(DictationFailure.Network)
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Send)
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
 
         engine.result = STTResult.Success("second try")
         controller.retry()
@@ -790,7 +914,7 @@ class DictationControllerTest {
         engine.result = failure(DictationFailure.Network)
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Insert)
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
 
         engine.result = STTResult.Success("second try")
         controller.transcribeSaved(DictationSubmit.Insert)
@@ -809,7 +933,7 @@ class DictationControllerTest {
         engine.result = STTResult.Success(" \u3000\n")
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Insert)
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript, "zh-Hans"), controller.state.value)
 
         engine.result = STTResult.Success("second try")
         controller.transcribeSaved(DictationSubmit.Insert)
@@ -828,7 +952,7 @@ class DictationControllerTest {
         engine.result = failure(DictationFailure.Network)
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Send)
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
         engine.result = STTResult.Success("first")
         controller.retry()
         assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "first")), events)
@@ -839,7 +963,7 @@ class DictationControllerTest {
         recordSeconds("conv-2", 1)
         controller.interrupt()
         controller.transcribeSaved(DictationSubmit.Send)
-        assertEquals(DictationState.Failed("conv-2", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-2", DictationFailedAction.Busy, "zh-Hans"), controller.state.value)
         engine.result = STTResult.Success("second")
         controller.retry()
 
@@ -899,8 +1023,9 @@ class DictationControllerTest {
         engine.result = failure(DictationFailure.Timeout)
         controller.retry()
 
-        assertEquals(2, engine.segments.size)
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        // System file recognition timeout is classified as busy: retried automatically once.
+        assertEquals(3, engine.segments.size)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Busy, "zh-Hans"), controller.state.value)
         assertSlotKept("conv-1", RecordingSlotStatus.Failed)
         assertTrue(events.isEmpty())
         assertNoLostRecordings()
@@ -1073,6 +1198,69 @@ class DictationControllerTest {
         controller.start(slotKey)
         capture.feed(speech)
         controller.finish(DictationSubmit.Insert)
+    }
+
+    // ---- Recognition language: auto = cloud sends no language, system uses the UI language ----
+
+    @Test
+    fun `auto recognition language sends null to cloud transcribe`() {
+        environment.language = null
+        settings.setSelection(VoiceDirection.Stt, cloudSelection)
+        catalog.cached = voiceCatalog
+        providers = listOf(openAI)
+
+        dictate("conv-1")
+
+        assertEquals(listOf<String?>(null), cloudEngine.languages)
+        assertTrue(engine.languages.isEmpty())
+        assertTrue(engines.routeLanguages.isEmpty())
+    }
+
+    @Test
+    fun `cloud auto failure records the ui language tag of the moment it failed`() {
+        environment.language = null
+        environment.uiLanguage = "fr-FR"
+        settings.setSelection(VoiceDirection.Stt, cloudSelection)
+        catalog.cached = voiceCatalog
+        providers = listOf(openAI)
+        cloudEngine.result = STTResult.Success(" ")
+
+        dictate("conv-1")
+
+        assertEquals(listOf<String?>(null), cloudEngine.languages)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript, "fr-FR"), controller.state.value)
+        // Changing the UI language later does not change a language already recorded for a failure.
+        environment.uiLanguage = "de-DE"
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript, "fr-FR"), controller.state.value)
+    }
+
+    @Test
+    fun `auto recognition language gives system engine and route the ui language tag`() {
+        environment.language = null
+        engine.result = STTResult.Failed(
+            DictationFailure.Recognizer(SpeechRecognizer.ERROR_NETWORK),
+            DictationPrimaryAction.Retry,
+        )
+
+        dictate("conv-1")
+
+        assertEquals(listOf<String?>("en-US"), engines.routeLanguages)
+        assertEquals(listOf<String?>("en-US"), engine.languages)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Network, "en-US"), controller.state.value)
+    }
+
+    @Test
+    fun `chosen recognition language reaches both cloud and system engines`() {
+        environment.language = "ja-JP"
+        dictate("conv-1")
+        assertEquals(listOf<String?>("ja-JP"), engines.routeLanguages)
+        assertEquals(listOf<String?>("ja-JP"), engine.languages)
+
+        settings.setSelection(VoiceDirection.Stt, cloudSelection)
+        catalog.cached = voiceCatalog
+        providers = listOf(openAI)
+        dictate("conv-2")
+        assertEquals(listOf<String?>("ja-JP"), cloudEngine.languages)
     }
 
     @Test
@@ -1391,7 +1579,7 @@ class DictationControllerTest {
         controller.interrupt()
         controller.transcribeSaved(DictationSubmit.Send)
 
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
         assertSlotKept("conv-1", RecordingSlotStatus.Failed)
         assertTrue(events.isEmpty())
 
@@ -1425,7 +1613,7 @@ class DictationControllerTest {
         engine.result = failure(DictationFailure.Network)
         recordSeconds("conv-1", 1)
         controller.finish(DictationSubmit.Insert)
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
         assertTrue(store.sidecarFile("conv-1").delete())
         controller.retry()
 
@@ -1489,7 +1677,7 @@ class DictationControllerTest {
         engine.result = failure(DictationFailure.Network)
         recordSeconds("conv-1", 2)
         controller.finish(DictationSubmit.Insert)
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
         armFallbackSelection()
         assertMicTapAsksFirst("conv-1")
 
@@ -1746,12 +1934,13 @@ class DictationControllerTest {
         controller.discard()
 
         assertEquals(DictationState.Idle, controller.state.value)
-        assertTrue(events.isEmpty())
+        // A live caption already appeared on screen: retract it first.
+        assertEquals(listOf<DictationEvent>(DictationEvent.LiveRetract("conv-1")), events)
         assertEquals(listOf("startListening", "restartListening", "cancel", "destroy"), engines.recognizer.calls)
         assertFalse(controller.undoDiscard("conv-1"))
         assertEquals(DictationState.Idle, controller.state.value)
         engines.recognizer.callbacks.onResults("late")
-        assertTrue(events.isEmpty())
+        assertEquals(listOf<DictationEvent>(DictationEvent.LiveRetract("conv-1")), events)
         assertNoSelfRecordFiles("conv-1")
     }
 
@@ -1782,40 +1971,115 @@ class DictationControllerTest {
     }
 
     @Test
-    fun `self record interrupted without text returns to idle`() {
+    fun `self record interrupted with text emits ended insert`() {
+        events
+        startSelfRecord("conv-1")
+        engines.recognizer.callbacks.onResults("hello")
+        now += 20_000
+        environment.background()
+
+        assertEquals(listOf(ended("system", "insert", "15-60", "1-20")), telemetry.ended())
+    }
+
+    @Test
+    fun `self record interrupted without text emits no ended`() {
         events
         startSelfRecord("conv-1")
         now += 20_000
         environment.background()
 
         assertEquals(DictationState.Idle, controller.state.value)
+        assertTrue(telemetry.ended().isEmpty())
     }
 
     @Test
-    fun `self record recognizer error inserts recognized text then reports failure`() {
+    fun `self record recognizer error with recognized text only inserts it`() {
         events
         startSelfRecord("conv-1")
         engines.recognizer.callbacks.onResults("hello")
         engines.recognizer.callbacks.onError(SpeechRecognizer.ERROR_NETWORK)
 
         assertEquals(DictationState.Idle, controller.state.value)
-        assertEquals(
-            listOf(DictationEvent.Insert("conv-1", "hello"), DictationEvent.SystemRecognizerFailed("conv-1")),
-            events,
-        )
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "hello")), events)
         assertNull(environment.onInterrupted)
         assertNoSelfRecordFiles("conv-1")
     }
 
     @Test
-    fun `self record recognizer error after finish with no text only reports failure`() {
+    fun `self record permission recognizer code inserts text then shows permission card without failure`() {
+        events
+        startSelfRecord("conv-1")
+        engines.recognizer.callbacks.onResults("hello")
+        engines.recognizer.callbacks.onError(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)
+
+        assertEquals(DictationState.Denied, controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "hello")), events)
+        assertTrue(telemetry.tracked.none { it.first == TelemetryEvent.VoiceDictationFailed })
+        assertNull(environment.onInterrupted)
+        assertNoSelfRecordFiles("conv-1")
+    }
+
+    @Test
+    fun `self record recognizer error after finish with no text shows the classified card`() {
         events
         startSelfRecord("conv-1")
         controller.finish(DictationSubmit.Send)
         engines.recognizer.callbacks.onError(SpeechRecognizer.ERROR_NETWORK)
 
-        assertEquals(DictationState.Idle, controller.state.value)
-        assertEquals(listOf<DictationEvent>(DictationEvent.SystemRecognizerFailed("conv-1")), events)
+        assertEquals(
+            DictationState.Failed("conv-1", DictationFailedAction.Network, "zh-Hans", hasRecording = false),
+            controller.state.value,
+        )
+        assertTrue(events.isEmpty())
+        assertNoSelfRecordFiles("conv-1")
+    }
+
+    /** Self-record failure: enters a failure card that does not occupy a slot (hasRecording=false). */
+    private fun failSelfRecord(slotKey: String) {
+        startSelfRecord(slotKey)
+        controller.finish(DictationSubmit.Insert)
+        engines.recognizer.callbacks.onError(SpeechRecognizer.ERROR_NETWORK)
+        assertEquals(
+            DictationState.Failed(slotKey, DictationFailedAction.Network, "zh-Hans", hasRecording = false),
+            controller.state.value,
+        )
+        assertNoSelfRecordFiles(slotKey)
+    }
+
+    @Test
+    fun `self record failure without a recording ignores retry`() {
+        events
+        failSelfRecord("conv-1")
+        controller.retry()
+        controller.transcribeSaved(DictationSubmit.Insert)
+
+        assertEquals(
+            DictationState.Failed("conv-1", DictationFailedAction.Network, "zh-Hans", hasRecording = false),
+            controller.state.value,
+        )
+        assertTrue(events.isEmpty())
+        assertTrue(engine.segments.isEmpty())
+    }
+
+    @Test
+    fun `self record failure rerecord starts a new dictation at once`() {
+        events
+        failSelfRecord("conv-1")
+        controller.discardAndRestart()
+
+        assertEquals(DictationState.Recording("conv-1", 5_000L), controller.state.value)
+        assertTrue(events.isEmpty())
+        assertNoSelfRecordFiles("conv-1")
+    }
+
+    @Test
+    fun `mic tap after self record failure starts a new dictation instead of the saved recording card`() {
+        events
+        failSelfRecord("conv-1")
+        controller.start("conv-1")
+
+        assertEquals(DictationState.Recording("conv-1", 5_000L), controller.state.value)
+        assertTrue(events.isEmpty())
         assertNoSelfRecordFiles("conv-1")
     }
 
@@ -1910,7 +2174,7 @@ class DictationControllerTest {
         engine.result = failure(DictationFailure.Network)
         recordSeconds("conv-1", 3)
         controller.finish(DictationSubmit.Send)
-        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
         assertEquals(RecordingSlotStatus.Failed, store.read("conv-1")?.status)
 
         store.sweepOnLaunch()
@@ -2116,8 +2380,17 @@ class DictationControllerTest {
         assertNoLostRecordings()
     }
 
+    private fun lifecycleEvents(): List<Pair<TelemetryEvent, Map<String, Any?>>> =
+        telemetry.tracked
+            .filter { it.first == TelemetryEvent.VoiceRecordingLost || it.first == TelemetryEvent.VoiceRecordingExpired }
+            .map { it.first to it.second.orEmpty() }
+
+    private val expiredEvent = TelemetryEvent.VoiceRecordingExpired to emptyMap<String, Any?>()
+
+    private fun lostEvent(stage: String) = TelemetryEvent.VoiceRecordingLost to mapOf<String, Any?>("stage" to stage)
+
     @Test
-    fun `sweep removes expired and missing-audio recordings`() {
+    fun `telemetry sweep reports expired and lost per recording`() {
         val weekOld = RecordingStore(store.root, clock = { 1_700_000_000_000L - 8L * 24 * 3_600_000 })
         listOf("conv-7", "conv-8").forEach { key ->
             weekOld.open(key, SystemSTTEngine.ENGINE_NAME, FakeEncoder()).apply {
@@ -2134,11 +2407,15 @@ class DictationControllerTest {
         controller.bind("conv-1")
         controller.bind("conv-2")
 
+        assertEquals(
+            listOf(lostEvent("launch_sweep"), lostEvent("launch_sweep"), expiredEvent, expiredEvent),
+            lifecycleEvents().sortedBy { it.first.ordinal },
+        )
         assertNotNull(store.read("conv-4"))
     }
 
     @Test
-    fun `runtime missing audio drops the slot and expired audio is discarded`() {
+    fun `telemetry runtime missing audio reports lost runtime`() {
         events
         controller.bind("conv-0")
         seedInterruptedSlot("conv-1", 1)
@@ -2151,6 +2428,7 @@ class DictationControllerTest {
         assertEquals(DictationState.Idle, controller.state.value)
         assertFalse(store.isOccupied("conv-1"))
         assertTrue(engine.segments.isEmpty())
+        assertEquals(listOf(lostEvent("runtime")), lifecycleEvents())
 
         // An expired recording read at runtime is discarded as expired, not counted as lost.
         RecordingStore(store.root, clock = { 1_700_000_000_000L - 8L * 24 * 3_600_000 })
@@ -2164,6 +2442,7 @@ class DictationControllerTest {
 
         assertEquals(DictationState.Idle, controller.state.value)
         assertFalse(store.isOccupied("conv-2"))
+        assertEquals(listOf(lostEvent("runtime"), expiredEvent), lifecycleEvents())
         assertTrue(events.isEmpty())
     }
 
@@ -2446,7 +2725,7 @@ class DictationControllerTest {
         engine.result = failure(DictationFailure.Http(401))
         recordSeconds("conv-3", 1)
         controller.finish(DictationSubmit.Insert)
-        assertEquals(DictationState.Failed("conv-3", DictationFailedAction.CheckConnection), controller.state.value)
+        assertEquals(DictationState.Failed("conv-3", DictationFailedAction.CheckConnection, "zh-Hans"), controller.state.value)
         assertEquals(1.0, controller.pendingDurationSec.value!!, 0.01)
 
         controller.discard()
@@ -2758,5 +3037,841 @@ class DictationControllerTest {
         assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "hello world")), events)
         assertFalse(store.isOccupied("conv-1"))
         assertNoLostRecordings()
+    }
+
+    private fun ended(engine: String, action: String, seconds: String, text: String): Map<String, Any?> = mapOf(
+        "engine" to engine,
+        "action" to action,
+        "recording_seconds_bucket" to seconds,
+        "text_length_bucket" to text,
+    )
+
+    private fun recovered(via: String) = TelemetryEvent.VoiceDictationRecovered to mapOf<String, Any?>("via" to via)
+
+    @Test
+    fun `telemetry started carries engine and provider kind for system and cloud`() {
+        events
+        controller.start("conv-1")
+        assertTrue(telemetry.ended().isEmpty())
+        capture.feed(speech)
+        controller.finish(DictationSubmit.Insert)
+
+        settings.setSelection(VoiceDirection.Stt, cloudSelection)
+        catalog.cached = voiceCatalog
+        providers = listOf(openAI)
+        controller.start("conv-2")
+
+        assertEquals(
+            listOf(
+                mapOf<String, Any?>("engine" to "system", "provider_kind" to "system"),
+                mapOf<String, Any?>("engine" to "cloud", "provider_kind" to ProviderKind.OpenAI.rawValue),
+            ),
+            telemetry.started(),
+        )
+    }
+
+    @Test
+    fun `telemetry self record started is system and success ends with clock seconds`() {
+        events
+        startSelfRecord("conv-1")
+        assertEquals(listOf(mapOf<String, Any?>("engine" to "system", "provider_kind" to "system")), telemetry.started())
+        engines.recognizer.callbacks.onResults("hello")
+        now += 20_000
+        controller.finish(DictationSubmit.Insert)
+        engines.recognizer.callbacks.onResults("world")
+
+        assertEquals(listOf(ended("system", "insert", "15-60", "1-20")), telemetry.ended())
+    }
+
+    @Test
+    fun `telemetry insert and send end with recording and text length buckets`() {
+        events
+        recordSeconds("conv-1", 2)
+        controller.finish(DictationSubmit.Insert)
+
+        settings.setSelection(VoiceDirection.Stt, cloudSelection)
+        catalog.cached = voiceCatalog
+        providers = listOf(openAI)
+        cloudEngine.result = STTResult.Success("a".repeat(25))
+        recordSeconds("conv-2", 6)
+        controller.finish(DictationSubmit.Send)
+
+        assertEquals(
+            listOf(ended("system", "insert", "0-5", "1-20"), ended("cloud", "send", "5-15", "21-100")),
+            telemetry.ended(),
+        )
+        assertTrue(telemetry.tracked.none { it.first == TelemetryEvent.VoiceDictationRecovered })
+    }
+
+    @Test
+    fun `telemetry retry success sends recovered retry before ended`() {
+        events
+        engine.result = failure(DictationFailure.Network)
+        recordSeconds("conv-1", 1)
+        controller.finish(DictationSubmit.Send)
+        assertTrue(telemetry.ended().isEmpty())
+
+        engine.result = STTResult.Success("second try")
+        controller.retry()
+
+        assertEquals(
+            listOf(
+                TelemetryEvent.VoiceDictationStarted to mapOf<String, Any?>("engine" to "system", "provider_kind" to "system"),
+                recovered("retry"),
+                TelemetryEvent.VoiceDictationEnded to ended("system", "insert", "0-5", "1-20"),
+            ),
+            telemetry.dictation(),
+        )
+    }
+
+    @Test
+    fun `telemetry interrupted and slot occupied transcription sends recovered interrupted_transcribe first`() {
+        events
+        recordSeconds("conv-1", 2)
+        controller.interrupt()
+        controller.transcribeSaved(DictationSubmit.Send)
+
+        seedInterruptedSlot("conv-2", 6)
+        controller.start("conv-2")
+        assertEquals(DictationState.SlotOccupied("conv-2"), controller.state.value)
+        controller.transcribeSaved(DictationSubmit.Insert)
+
+        assertEquals(
+            listOf(
+                recovered("interrupted_transcribe"),
+                TelemetryEvent.VoiceDictationEnded to ended("system", "send", "0-5", "1-20"),
+                recovered("interrupted_transcribe"),
+                TelemetryEvent.VoiceDictationEnded to ended("system", "insert", "5-15", "1-20"),
+            ),
+            telemetry.dictation().filter { it.first != TelemetryEvent.VoiceDictationStarted },
+        )
+    }
+
+    @Test
+    fun `telemetry transcription without a bound host sends neither ended nor recovered`() {
+        events
+        controller.bind("conv-1")
+        recordSeconds("conv-1", 2)
+        controller.detach("conv-1")
+        controller.transcribeSaved(DictationSubmit.Send)
+        assertEquals(DictationState.Interrupted("conv-1"), controller.state.value)
+        assertTrue(telemetry.ended().isEmpty())
+        assertTrue(telemetry.tracked.none { it.first == TelemetryEvent.VoiceDictationRecovered })
+
+        controller.bind("conv-1")
+        controller.transcribeSaved(DictationSubmit.Send)
+        assertEquals(
+            listOf(recovered("interrupted_transcribe"), TelemetryEvent.VoiceDictationEnded to ended("system", "send", "0-5", "1-20")),
+            telemetry.dictation().filter { it.first != TelemetryEvent.VoiceDictationStarted },
+        )
+    }
+
+    @Test
+    fun `telemetry close while recording or transcribing is cancel with the slot engine`() {
+        events
+        recordSeconds("conv-1", 2)
+        controller.discard()
+
+        settings.setSelection(VoiceDirection.Stt, cloudSelection)
+        catalog.cached = voiceCatalog
+        providers = listOf(openAI)
+        cloudEngine.gate = CompletableDeferred()
+        recordSeconds("conv-2", 3)
+        controller.finish(DictationSubmit.Insert)
+        controller.discard()
+        assertEquals(1, cloudEngine.cancelled)
+
+        settings.setSelection(VoiceDirection.Stt, VoiceEngineSelection.System)
+        startSelfRecord("conv-3")
+        controller.discard()
+
+        assertEquals(
+            listOf(ended("system", "cancel", "0-5", "0"), ended("cloud", "cancel", "0-5", "0"), ended("system", "cancel", "0-5", "0")),
+            telemetry.ended(),
+        )
+    }
+
+    @Test
+    fun `telemetry undoable discard reports only once it commits and nothing when undone`() {
+        events
+        recordSeconds("conv-1", 6)
+        controller.discard()
+        assertTrue(telemetry.ended().isEmpty())
+        assertTrue(controller.undoDiscard("conv-1"))
+        assertTrue(telemetry.ended().isEmpty())
+
+        // A retracted recording became Interrupted: a further discard is recorded and sent only when it takes effect.
+        controller.discard()
+        assertTrue(telemetry.ended().isEmpty())
+        advance(4_000)
+        assertEquals(listOf(ended("system", "discard", "5-15", "0")), telemetry.ended())
+
+        engine.result = failure(DictationFailure.Network)
+        recordSeconds("conv-2", 6)
+        controller.finish(DictationSubmit.Insert)
+        controller.discard()
+        controller.commitDiscard("conv-2")
+        assertEquals(
+            listOf(ended("system", "discard", "5-15", "0"), ended("system", "discard", "5-15", "0")),
+            telemetry.ended(),
+        )
+
+        // A new discard takes effect for the previous segment immediately: the previous segment's cancel is sent first.
+        recordSeconds("conv-3", 6)
+        controller.discard()
+        seedInterruptedSlot("conv-4", 2)
+        controller.bind("conv-4")
+        controller.discard()
+        assertEquals(
+            listOf(
+                ended("system", "discard", "5-15", "0"),
+                ended("system", "discard", "5-15", "0"),
+                ended("system", "cancel", "5-15", "0"),
+                ended("system", "discard", "0-5", "0"),
+            ),
+            telemetry.ended(),
+        )
+    }
+
+    @Test
+    fun `telemetry discard and restart reports discard before the new start`() {
+        events
+        seedInterruptedSlot("conv-1", 2)
+        controller.start("conv-1")
+        controller.discardAndRestart()
+
+        assertEquals(
+            listOf(
+                TelemetryEvent.VoiceDictationEnded to ended("system", "discard", "0-5", "0"),
+                TelemetryEvent.VoiceDictationStarted to mapOf<String, Any?>("engine" to "system", "provider_kind" to "system"),
+            ),
+            telemetry.dictation(),
+        )
+    }
+
+    // ---- Failure and silence telemetry ----
+
+    private fun failed(
+        engine: String,
+        code: String,
+        retried: Boolean,
+        kind: String? = null,
+        recognizerCode: Int? = null,
+    ): Map<String, Any?> = buildMap {
+        put("engine", engine)
+        put("error_code", code)
+        put("auto_retried", retried)
+        kind?.let { put("failure_kind", it) }
+        recognizerCode?.let { put("recognizer_code", it) }
+    }
+
+    /** ended / failed / no_speech in emission order. */
+    private fun outcomes(): List<Pair<TelemetryEvent, Map<String, Any?>>> =
+        telemetry.tracked
+            .filter {
+                it.first == TelemetryEvent.VoiceDictationEnded ||
+                    it.first == TelemetryEvent.VoiceDictationFailed ||
+                    it.first == TelemetryEvent.VoiceNoSpeech
+            }
+            .map { it.first to it.second.orEmpty() }
+
+    @Test
+    fun `telemetry cloud failure carries error code and auto retried`() {
+        events
+        engine.result = failure(DictationFailure.Network)
+        recordSeconds("conv-1", 1)
+        controller.finish(DictationSubmit.Insert)
+        controller.discard()
+
+        settings.setSelection(VoiceDirection.Stt, cloudSelection)
+        catalog.cached = voiceCatalog
+        providers = listOf(openAI)
+        cloudEngine.result = STTResult.Failed(DictationFailure.Http(500), DictationPrimaryAction.Retry, autoRetried = true)
+        recordSeconds("conv-2", 1)
+        controller.finish(DictationSubmit.Send)
+
+        assertEquals(DictationState.Failed("conv-2", DictationFailedAction.Retry, "zh-Hans"), controller.state.value)
+        assertEquals(
+            listOf(failed("system", "network", false), failed("cloud", "server_error", true)),
+            telemetry.tracked.filter { it.first == TelemetryEvent.VoiceDictationFailed }.map { it.second.orEmpty() },
+        )
+    }
+
+    @Test
+    fun `telemetry empty transcript fails with empty_transcript`() {
+        events
+        engine.result = STTResult.Success(" \u3000\n")
+        recordSeconds("conv-1", 1)
+        controller.finish(DictationSubmit.Send)
+
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript, "zh-Hans"), controller.state.value)
+        assertEquals(listOf(TelemetryEvent.VoiceDictationFailed to failed("system", "empty_transcript", false)), outcomes())
+    }
+
+    @Test
+    fun `telemetry close failure on finish fails with audio`() {
+        events
+        recordSeconds("conv-1", 2)
+        encoders.last().failOnFinish = true
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Retry), controller.state.value)
+        assertEquals(listOf(TelemetryEvent.VoiceDictationFailed to failed("system", "audio", false)), outcomes())
+    }
+
+    @Test
+    fun `telemetry silent recording sends no_speech without ended`() {
+        events
+        controller.start("conv-1")
+        capture.feed(silence)
+        controller.finish(DictationSubmit.Send)
+
+        assertEquals(listOf(DictationEvent.NoSpeech("conv-1")), events)
+        assertEquals(listOf(TelemetryEvent.VoiceNoSpeech to mapOf<String, Any?>("engine" to "system")), outcomes())
+    }
+
+    @Test
+    fun `telemetry self record with no text sends no_speech system`() {
+        events
+        startSelfRecord("conv-1")
+        controller.finish(DictationSubmit.Send)
+        engines.recognizer.callbacks.onError(SpeechRecognizer.ERROR_NO_MATCH)
+
+        assertEquals(listOf<DictationEvent>(DictationEvent.NoSpeech("conv-1")), events)
+        assertEquals(listOf(TelemetryEvent.VoiceNoSpeech to mapOf<String, Any?>("engine" to "system")), outcomes())
+    }
+
+    @Test
+    fun `telemetry self record recognizer error with text sends only ended insert`() {
+        events
+        startSelfRecord("conv-1")
+        engines.recognizer.callbacks.onResults("hello")
+        engines.recognizer.callbacks.onError(SpeechRecognizer.ERROR_NETWORK)
+
+        assertEquals(DictationState.Idle, controller.state.value)
+        assertEquals(listOf(TelemetryEvent.VoiceDictationEnded to ended("system", "insert", "0-5", "1-20")), outcomes())
+    }
+
+    @Test
+    fun `telemetry self record recognizer error without text sends only failed`() {
+        events
+        startSelfRecord("conv-1")
+        controller.finish(DictationSubmit.Send)
+        engines.recognizer.callbacks.onError(SpeechRecognizer.ERROR_NETWORK)
+
+        assertEquals(listOf(TelemetryEvent.VoiceDictationFailed to failed("system", "recognizer", false, "network", SpeechRecognizer.ERROR_NETWORK)), outcomes())
+    }
+
+    // ---- Live recognition while speaking (live session from the system pipeline selection / self-record live captions) ----
+
+    private fun liveRecognizerFailure(): STTResult =
+        STTResult.Failed(DictationFailure.Recognizer(SpeechRecognizer.ERROR_NETWORK), DictationPrimaryAction.Retry)
+
+    @Test
+    fun `recording and capture start before the route and live session are ready`() {
+        val routeGate = CompletableDeferred<Unit>().also { engines.routeGate = it }
+        controller.start("conv-1")
+
+        assertEquals(DictationState.Recording("conv-1", 5_000L), controller.state.value)
+        assertTrue(calls.contains("capture.start"))
+        assertTrue(store.isOccupied("conv-1"))
+        assertTrue(engines.liveSessions.isEmpty())
+
+        val liveGate = CompletableDeferred<Unit>().also { engines.liveGate = it }
+        routeGate.complete(Unit)
+        assertEquals(DictationState.Recording("conv-1", 5_000L), controller.state.value)
+        assertTrue(engines.liveSessions.isEmpty())
+
+        liveGate.complete(Unit)
+        assertEquals(1, engines.liveSessions.size)
+        assertEquals(LiveTranscript(), controller.livePartial.value)
+    }
+
+    @Test
+    fun `audio captured before the live session is ready reaches it first and in order`() {
+        val liveGate = CompletableDeferred<Unit>().also { engines.liveGate = it }
+        controller.start("conv-1")
+        val first = ShortArray(320) { it.toShort() }
+        val second = ShortArray(320) { (1_000 + it).toShort() }
+        val third = ShortArray(320) { (2_000 + it).toShort() }
+        capture.feed(first)
+        capture.feed(second)
+
+        liveGate.complete(Unit)
+        capture.feed(third)
+
+        assertEquals((first + second + third).toList(), engines.liveSessions.single().received)
+    }
+
+    @Test
+    fun `preroll keeps only the newest audio up to its cap`() {
+        val preroll = DictationLivePreroll(maxSamples = 640)
+        val first = ShortArray(320) { it.toShort() }
+        val second = ShortArray(320) { (1_000 + it).toShort() }
+        val third = ShortArray(320) { (2_000 + it).toShort() }
+        preroll.onPcm(first, first.size)
+        preroll.onPcm(second, second.size)
+        preroll.onPcm(third, third.size)
+        val live = FakeLiveSession()
+
+        assertTrue(preroll.attach(live))
+
+        assertEquals((second + third).toList(), live.received)
+    }
+
+    @Test
+    fun `live session failing to get ready keeps recording and transcribes the recording`() {
+        events
+        val liveGate = CompletableDeferred<Unit>().also { engines.liveGate = it }
+        controller.start("conv-1")
+        capture.feed(speech)
+        engines.liveFails = true
+        liveGate.complete(Unit)
+        assertEquals(DictationState.Recording("conv-1", 5_000L), controller.state.value)
+        capture.feed(speech)
+
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "hello world")), events)
+        assertEquals(1, engine.segments.size)
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `finishing before the live session is ready transcribes the recording`() {
+        events
+        val routeGate = CompletableDeferred<Unit>().also { engines.routeGate = it }
+        controller.start("conv-1")
+        capture.feed(speech)
+
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "hello world")), events)
+        assertEquals(1, engine.segments.size)
+        routeGate.complete(Unit)
+        assertTrue(engines.liveSessions.isEmpty())
+        assertNull(controller.livePartial.value)
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `pipe recording feeds the live session and publishes live text until it ends`() {
+        events
+        assertNull(controller.livePartial.value)
+        controller.start("conv-1")
+        val live = engines.liveSessions.single()
+        assertEquals(LiveTranscript(), controller.livePartial.value)
+
+        capture.feed(speech)
+        assertEquals(1, live.pcmChunks)
+        assertTrue(store.isOccupied("conv-1"))
+        live.live.value = LiveTranscript(listOf("\u4f60\u597d"), "\u4e16\u754c")
+        assertEquals(LiveTranscript(listOf("\u4f60\u597d"), "\u4e16\u754c"), controller.livePartial.value)
+
+        live.live.value = LiveTranscript(listOf("\u4f60\u597d", "\u4e16\u754c"), "")
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(1, live.stops)
+        assertNull(controller.livePartial.value)
+        assertEquals(DictationState.Idle, controller.state.value)
+    }
+
+    @Test
+    fun `live final text is used directly without transcribing the recording`() {
+        events
+        controller.start("conv-1")
+        capture.feed(speech)
+        val live = engines.liveSessions.single()
+        live.live.value = LiveTranscript(listOf("hello", "there"), "")
+        controller.finish(DictationSubmit.Send)
+
+        assertEquals(DictationState.Idle, controller.state.value)
+        assertEquals(
+            listOf<DictationEvent>(DictationEvent.Send("conv-1", DictationRules.join(listOf("hello", "there")))),
+            events,
+        )
+        assertTrue(engine.segments.isEmpty())
+        assertFalse(store.isOccupied("conv-1"))
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `live failure falls back to transcribing the recording`() {
+        events
+        engines.nextLive = { FakeLiveSession().apply { onStop = liveRecognizerFailure() } }
+        controller.start("conv-1")
+        capture.feed(speech)
+        engines.liveSessions.single().live.value = LiveTranscript(emptyList(), "hel")
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Idle, controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "hello world")), events)
+        assertEquals(1, engine.segments.size)
+        assertFalse(store.isOccupied("conv-1"))
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `empty or failed file result keeps the live text shown on screen`() {
+        events
+        engines.nextLive = { FakeLiveSession().apply { onStop = liveRecognizerFailure() } }
+        for ((key, fileResult) in listOf("conv-1" to STTResult.Success(""), "conv-2" to failure(DictationFailure.Network))) {
+            engine.result = fileResult
+            controller.start(key)
+            capture.feed(speech)
+            engines.liveSessions.last().live.value = LiveTranscript(listOf("\u4f60\u597d"), "\u4e16")
+            controller.finish(DictationSubmit.Insert)
+
+            assertEquals(DictationState.Idle, controller.state.value)
+            assertEquals(DictationEvent.Insert(key, "\u4f60\u597d\u4e16"), events.last())
+            assertFalse(store.isOccupied(key))
+        }
+        assertEquals(2, engine.segments.size)
+        assertEquals(2, events.size)
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `no transcript retracts the live text before the failure card`() {
+        events
+        engine.result = STTResult.Success("")
+        controller.start("conv-1")
+        capture.feed(speech)
+        val live = engines.liveSessions.single()
+        live.live.value = LiveTranscript(emptyList(), "\u55ef")
+        live.live.value = LiveTranscript()
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript, "zh-Hans"), controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.LiveRetract("conv-1")), events)
+        assertSlotKept("conv-1", RecordingSlotStatus.Failed)
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `discard while recording retracts the live text and closes the live session`() {
+        events
+        controller.start("conv-1")
+        capture.feed(speech)
+        val live = engines.liveSessions.single()
+        live.live.value = LiveTranscript(listOf("\u4f60\u597d"), "")
+        controller.discard()
+
+        assertEquals(DictationState.Idle, controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.LiveRetract("conv-1")), events)
+        assertTrue(live.cancels >= 1)
+        assertNull(controller.livePartial.value)
+        assertTrue(engine.segments.isEmpty())
+    }
+
+    @Test
+    fun `self record publishes live text while recording and clears it after`() {
+        events
+        startSelfRecord("conv-1")
+        assertEquals(LiveTranscript(), controller.livePartial.value)
+        engines.recognizer.callbacks.onPartialResult(" ni ")
+        assertEquals(LiveTranscript(emptyList(), "ni"), controller.livePartial.value)
+
+        controller.finish(DictationSubmit.Insert)
+        engines.recognizer.callbacks.onResults("ni hao")
+
+        assertEquals(DictationState.Idle, controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "ni hao")), events)
+        assertNull(controller.livePartial.value)
+        assertNoSelfRecordFiles("conv-1")
+    }
+
+    // ---- System recognizer failure classification (shared code table) and automatic busy retry ----
+
+    private fun recognizerFailure(code: Int): STTResult =
+        STTResult.Failed(DictationFailure.Recognizer(code), DictationPrimaryAction.Retry)
+
+    private fun failedEvents(): List<Map<String, Any?>> =
+        telemetry.tracked.filter { it.first == TelemetryEvent.VoiceDictationFailed }.map { it.second.orEmpty() }
+
+    @Test
+    fun `system recognizer failures go to the five classified cards with language and failure fields`() {
+        events
+        val cases = listOf(
+            Triple(SpeechRecognizer.ERROR_NETWORK, DictationFailedAction.Network, failed("system", "recognizer", false, "network", 2)),
+            Triple(
+                SpeechRecognizer.ERROR_LANGUAGE_NOT_SUPPORTED,
+                DictationFailedAction.LanguageUnsupported,
+                failed("system", "recognizer", false, "language_unsupported", 12),
+            ),
+            Triple(SpeechRecognizer.ERROR_CLIENT, DictationFailedAction.Retry, failed("system", "recognizer", false, "other", 5)),
+            Triple(
+                SystemSTTEngine.FILE_UNSUPPORTED_ERROR,
+                DictationFailedAction.NoService,
+                failed("system", "recognizer", false, "no_service"),
+            ),
+            // Busy: the card appears only if the automatic retry is still busy; auto_retried is true.
+            Triple(SpeechRecognizer.ERROR_SERVER_DISCONNECTED, DictationFailedAction.Busy, failed("system", "recognizer", true, "busy", 11)),
+        )
+        cases.forEachIndexed { index, (code, action, expected) ->
+            val key = "conv-$index"
+            engine.result = recognizerFailure(code)
+            recordSeconds(key, 1)
+            controller.finish(DictationSubmit.Insert)
+
+            assertEquals(key, DictationState.Failed(key, action, "zh-Hans"), controller.state.value)
+            assertSlotKept(key, RecordingSlotStatus.Failed)
+            assertEquals(key, expected, failedEvents().last())
+            controller.discard()
+        }
+        assertEquals(cases.size, failedEvents().size)
+        assertEquals(1 + 1 + 1 + 1 + 2, engine.segments.size)
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `busy file recognition rebuilds and retries once without card or telemetry`() {
+        events
+        engine.queued += recognizerFailure(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
+        recordSeconds("conv-1", 1)
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Idle, controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "hello world")), events)
+        assertEquals(2, engine.segments.size)
+        assertEquals(engine.segments[0].aac, engine.segments[1].aac)
+        assertTrue(failedEvents().isEmpty())
+        assertFalse(store.isOccupied("conv-1"))
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `manual retry after a busy card counts attempts from one again`() {
+        events
+        engine.result = recognizerFailure(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
+        recordSeconds("conv-1", 1)
+        controller.finish(DictationSubmit.Insert)
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Busy, "zh-Hans"), controller.state.value)
+        assertEquals(2, engine.segments.size)
+
+        engine.queued += recognizerFailure(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
+        engine.result = STTResult.Success("second try")
+        controller.retry()
+
+        assertEquals(DictationState.Idle, controller.state.value)
+        assertEquals(4, engine.segments.size)
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "second try")), events)
+        assertEquals(listOf(failed("system", "recognizer", true, "busy", 8)), failedEvents())
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `no match on the file goes no transcript card without failure kind`() {
+        events
+        engine.result = recognizerFailure(SpeechRecognizer.ERROR_NO_MATCH)
+        recordSeconds("conv-1", 1)
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.NoTranscript, "zh-Hans"), controller.state.value)
+        assertEquals(listOf(failed("system", "empty_transcript", false)), failedEvents())
+        controller.discard()
+
+        // Still an empty transcript after the busy retry: no_transcript, auto_retried is true.
+        engine.queued += recognizerFailure(SpeechRecognizer.ERROR_RECOGNIZER_BUSY)
+        engine.result = STTResult.Success(" ")
+        recordSeconds("conv-2", 1)
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Failed("conv-2", DictationFailedAction.NoTranscript, "zh-Hans"), controller.state.value)
+        assertEquals(failed("system", "empty_transcript", true), failedEvents().last())
+        assertTrue(events.isEmpty())
+    }
+
+    @Test
+    fun `permission recognizer code shows the microphone permission card without failure telemetry`() {
+        events
+        engine.result = recognizerFailure(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS)
+        recordSeconds("conv-1", 1)
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Denied, controller.state.value)
+        assertTrue(failedEvents().isEmpty())
+        assertSlotKept("conv-1", RecordingSlotStatus.Failed)
+        assertTrue(events.isEmpty())
+    }
+
+    // ---- Result wrap-up: timeout becomes busy, self-record goes through dictationOutcome, permission and duplicate prompts ----
+
+    @Test
+    fun `system file timeout retries once then shows the busy card with recognizer busy telemetry`() {
+        events
+        engine.queued += failure(DictationFailure.Timeout)
+        recordSeconds("conv-1", 1)
+        controller.finish(DictationSubmit.Insert)
+
+        // First timeout: rebuild the recognizer and retry automatically; no card, no telemetry.
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "hello world")), events)
+        assertEquals(2, engine.segments.size)
+        assertTrue(failedEvents().isEmpty())
+
+        engine.result = failure(DictationFailure.Timeout)
+        recordSeconds("conv-2", 1)
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Failed("conv-2", DictationFailedAction.Busy, "zh-Hans"), controller.state.value)
+        assertEquals(4, engine.segments.size)
+        assertEquals(listOf(failed("system", "recognizer", true, "busy")), failedEvents())
+        assertSlotKept("conv-2", RecordingSlotStatus.Failed)
+        assertEquals(1, events.size)
+    }
+
+    @Test
+    fun `self record failure inserts finals with the last partial without failure telemetry`() {
+        events
+        startSelfRecord("conv-1")
+        engines.recognizer.callbacks.onResults("\u4f60\u597d")
+        engines.recognizer.callbacks.onPartialResult("\u4e16\u754c")
+        controller.finish(DictationSubmit.Send)
+        engines.recognizer.callbacks.onError(SpeechRecognizer.ERROR_SERVER)
+
+        assertEquals(DictationState.Idle, controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-1", "\u4f60\u597d\u4e16\u754c")), events)
+        assertTrue(failedEvents().isEmpty())
+        assertNoSelfRecordFiles("conv-1")
+    }
+
+    @Test
+    fun `self record timeout with no text shows the busy card`() {
+        events
+        startSelfRecord("conv-1")
+        controller.finish(DictationSubmit.Insert)
+        advance(SystemSTTEngine.STOP_RESULT_TIMEOUT_MS + 1)
+
+        assertEquals(DictationState.Failed("conv-1", DictationFailedAction.Busy, "zh-Hans", hasRecording = false), controller.state.value)
+        assertTrue(events.isEmpty())
+        // Self-record has no recording to retry: canRetry=false, auto_retried is false.
+        assertEquals(listOf(failed("system", "recognizer", false, "busy")), failedEvents())
+        assertNoSelfRecordFiles("conv-1")
+    }
+
+    @Test
+    fun `live session permission code shows the permission card before merging results`() {
+        events
+        engines.nextLive = {
+            FakeLiveSession().apply { onStop = recognizerFailure(SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) }
+        }
+        controller.start("conv-1")
+        capture.feed(speech)
+        engines.liveSessions.single().live.value = LiveTranscript(emptyList(), "hel")
+        controller.finish(DictationSubmit.Insert)
+
+        assertEquals(DictationState.Denied, controller.state.value)
+        assertTrue(engine.segments.isEmpty())
+        assertTrue(failedEvents().isEmpty())
+        assertEquals(listOf<DictationEvent>(DictationEvent.LiveRetract("conv-1")), events)
+        assertSlotKept("conv-1", RecordingSlotStatus.Failed)
+    }
+
+    // ---- Language pack guidance: prompt once per language; accepting forwards to the routed download ----
+
+    @Test
+    fun `language pack offer is sent once per language and does not block dictation`() {
+        events
+        engines.route = SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "zh-CN", languagePackOffer = true)
+        dictate("conv-1")
+        dictate("conv-2")
+        engines.route = SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "fr-FR", languagePackOffer = true)
+        dictate("conv-3")
+        engines.route = SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "de-DE")
+        dictate("conv-4")
+
+        assertEquals(
+            listOf(
+                DictationEvent.LanguagePackOffer("zh-CN"),
+                DictationEvent.Insert("conv-1", "hello world"),
+                DictationEvent.Insert("conv-2", "hello world"),
+                DictationEvent.LanguagePackOffer("fr-FR"),
+                DictationEvent.Insert("conv-3", "hello world"),
+                DictationEvent.Insert("conv-4", "hello world"),
+            ),
+            events,
+        )
+        assertTrue(settings.languagePackOffered("zh-CN"))
+        assertFalse(settings.languagePackOffered("de-DE"))
+
+        // The new controller after a cold start reads the same settings: languages already prompted are not prompted again.
+        val restarted = makeController()
+        val restartedEvents = collectEvents(restarted)
+        engines.route = SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "zh-CN", languagePackOffer = true)
+        restarted.start("conv-5")
+        capture.feed(speech)
+        restarted.finish(DictationSubmit.Insert)
+        assertEquals(listOf<DictationEvent>(DictationEvent.Insert("conv-5", "hello world")), restartedEvents)
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `self record route with a language pack offer sends it once per language`() {
+        events
+        engines.route = SystemSTTRoute.SelfRecord(SystemSTTRecognizer.DEFAULT, "ja-JP", languagePackOffer = true)
+        controller.start("conv-1")
+        engines.recognizer.callbacks.onResults("hello")
+        controller.finish(DictationSubmit.Insert)
+        engines.recognizer.callbacks.onResults("world")
+        controller.start("conv-2")
+        engines.recognizer.callbacks.onResults("again")
+        controller.finish(DictationSubmit.Insert)
+        engines.recognizer.callbacks.onResults("")
+
+        assertEquals(DictationEvent.LanguagePackOffer("ja-JP"), events.first())
+        assertEquals(1, events.count { it is DictationEvent.LanguagePackOffer })
+        assertTrue(events.any { it is DictationEvent.Insert && it.slotKey == "conv-2" })
+        assertTrue(settings.languagePackOffered("ja-JP"))
+        assertNoSelfRecordFiles("conv-1")
+    }
+
+    @Test
+    fun `accepting the language pack offer routes the download through the engine factory`() {
+        val commands: DictationCommands = controller
+        commands.downloadLanguagePack("zh-CN")
+
+        assertEquals(listOf("zh-CN"), engines.languagePackDownloads)
+        assertEquals(DictationState.Idle, controller.state.value)
+    }
+
+    @Test
+    fun `interrupt with live text retracts it and the later transcription inserts once`() {
+        events
+        controller.start("conv-1")
+        capture.feed(speech)
+        val live = engines.liveSessions.single()
+        live.live.value = LiveTranscript(listOf("\u4f60\u597d"), "\u4e16")
+        controller.interrupt()
+
+        assertEquals(DictationState.Interrupted("conv-1"), controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.LiveRetract("conv-1")), events)
+        assertTrue(live.cancels >= 1)
+        assertSlotKept("conv-1", RecordingSlotStatus.Interrupted)
+
+        controller.transcribeSaved(DictationSubmit.Insert)
+        assertEquals(
+            listOf(DictationEvent.LiveRetract("conv-1"), DictationEvent.Insert("conv-1", "hello world")),
+            events,
+        )
+        assertNoLostRecordings()
+    }
+
+    @Test
+    fun `detach while transcribing with live text retracts it and keeps the recording`() {
+        events
+        engines.nextLive = { FakeLiveSession().apply { onStop = null } }
+        controller.start("conv-1")
+        capture.feed(speech)
+        val live = engines.liveSessions.single()
+        live.live.value = LiveTranscript(emptyList(), "\u4f60\u597d")
+        controller.finish(DictationSubmit.Insert)
+        assertTrue(controller.state.value is DictationState.Transcribing)
+
+        controller.detach("conv-1")
+
+        assertEquals(DictationState.Interrupted("conv-1"), controller.state.value)
+        assertEquals(listOf<DictationEvent>(DictationEvent.LiveRetract("conv-1")), events)
+        assertTrue(live.cancels >= 1)
+        assertTrue(store.isOccupied("conv-1"))
     }
 }

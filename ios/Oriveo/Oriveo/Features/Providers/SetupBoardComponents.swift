@@ -26,7 +26,7 @@ struct SetupBoardHero: View {
 
                 Text(L10n.tr(labelKey, table: .providers))
                     .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .fixedSize(horizontal: false, vertical: true)
 
                 if let trailingKey {

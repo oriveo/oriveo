@@ -1,7 +1,6 @@
 <resources>
     <!-- App -->
     <string name="app_tagline">Todos tus modelos, una aplicación</string>
-    <string name="provider_disclosure_ack_failed">No se pudo confirmar el aviso del proveedor. Comprueba tu conexión e inténtalo de nuevo.</string>
 
     <!-- Tabs -->
     <string name="tab_home">Inicio</string>
@@ -28,11 +27,15 @@
 
     <!-- Onboarding / Welcome -->
     <string name="get_started">Empezar</string>
+
+    <!-- Provider Setup -->
     <string name="api_key">Clave API</string>
     <string name="validating">Validando…</string>
     <string name="auto_fill_note">El punto final del servicio se completa automáticamente.</string>
     <string name="add_provider">Agregar proveedor</string>
     <string name="add_model">Agregar modelo</string>
+
+    <!-- Provider Connection State -->
     <string name="status_connected">Conectado</string>
     <string name="status_syncing">Sincronizando</string>
     <string name="status_issue">Problema</string>
@@ -58,6 +61,7 @@
     <string name="new_chat">Nuevo chat</string>
     <string name="send">Enviar</string>
     <string name="stop">Detener</string>
+    <string name="generation_parameter_name_stop">Secuencias de parada</string>
     <string name="type_a_message">Escribe un mensaje…</string>
     <string name="regenerate">Regenerar</string>
     <string name="continue_generating">Continuar generando</string>
@@ -79,8 +83,12 @@
     <string name="rename_conversation">Renombrar conversación</string>
     <string name="delete_conversation">Eliminar conversación</string>
     <string name="delete_conversation_confirm">¿Seguro que quieres eliminar esta conversación? Esta acción no se puede deshacer.</string>
+
+    <!-- Provider List -->
     <string name="providers_title">Proveedores</string>
     <string name="models_count">%d modelos</string>
+
+    <!-- Provider Detail -->
     <string name="change_api_key">Cambiar clave API</string>
     <string name="delete_provider">Eliminar proveedor</string>
     <string name="delete_provider_confirm">¿Seguro que quieres eliminar este proveedor? Todas las conversaciones asociadas seguirán disponibles, pero no podrás enviar nuevos mensajes con este proveedor.</string>
@@ -95,7 +103,6 @@
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Oscuro</string>
     <string name="theme_section_palettes">Paletas</string>
-    <string name="default_model_short">Predeterminado</string>
     <string name="theme_palette_purple">Morado</string>
     <string name="theme_palette_graphite">Grafito</string>
     <string name="theme_palette_black">Negro</string>
@@ -237,7 +244,6 @@
     <string name="backup_error_account_changed">La cuenta cambió mientras se preparaba esta importación. Inicia la importación de nuevo para la cuenta actual.</string>
     <string name="backup_error_save_failed">No se pudo guardar el archivo de respaldo.</string>
     <string name="remove">Eliminar</string>
-    <string name="legal_consent_notice">Al continuar, aceptas los términos legales a continuación.</string>
     <string name="provider_setup_relay_title">Retransmisión personalizada</string>
     <string name="aggregator_groq_subtitle">Inferencia LPU ultrarrápida</string>
     <string name="aggregator_together_subtitle">Más de 200 modelos de código abierto</string>
@@ -262,22 +268,22 @@
     <string name="greeting_afternoon_with_name">Buenas tardes, %1$s</string>
     <string name="greeting_evening_with_name">¿Qué tal todo, %1$s?</string>
     <string name="greeting_still_up_with_name">¿Sin sueño, %1$s?</string>
-<string name="greeting_morning_2">¿Descansaste?</string>
-<string name="greeting_morning_3">Hola</string>
-<string name="greeting_morning_4">¡Ey!</string>
-<string name="greeting_morning_5">Qué gusto verte</string>
-<string name="greeting_afternoon_2">¿Cómo va todo?</string>
-<string name="greeting_afternoon_3">¡Ey!</string>
-<string name="greeting_afternoon_4">Qué gusto verte</string>
-<string name="greeting_afternoon_5">Hola</string>
-<string name="greeting_evening_2">¡Buenas!</string>
-<string name="greeting_evening_3">Qué gusto verte</string>
-<string name="greeting_evening_4">Hola</string>
-<string name="greeting_evening_5">¡Ey!</string>
-<string name="greeting_night_2">¿Trasnochando?</string>
-<string name="greeting_night_3">¡Ey!</string>
-<string name="greeting_night_4">Qué gusto verte</string>
-<string name="greeting_night_5">Hola</string>
+    <string name="greeting_morning_2">¿Descansaste?</string>
+    <string name="greeting_morning_3">Hola</string>
+    <string name="greeting_morning_4">¡Ey!</string>
+    <string name="greeting_morning_5">Qué gusto verte</string>
+    <string name="greeting_afternoon_2">¿Cómo va todo?</string>
+    <string name="greeting_afternoon_3">¡Ey!</string>
+    <string name="greeting_afternoon_4">Qué gusto verte</string>
+    <string name="greeting_afternoon_5">Hola</string>
+    <string name="greeting_evening_2">¡Buenas!</string>
+    <string name="greeting_evening_3">Qué gusto verte</string>
+    <string name="greeting_evening_4">Hola</string>
+    <string name="greeting_evening_5">¡Ey!</string>
+    <string name="greeting_night_2">¿Trasnochando?</string>
+    <string name="greeting_night_3">¡Ey!</string>
+    <string name="greeting_night_4">Qué gusto verte</string>
+    <string name="greeting_night_5">Hola</string>
     <string name="tagline_morning_1">Sin prisa, con calma.</string>
     <string name="tagline_morning_2">Hoy, a tu ritmo.</string>
     <string name="tagline_morning_3">No hay preguntas tontas.</string>
@@ -294,22 +300,22 @@
     <string name="tagline_night_2">Si no puedes dormir, hablemos.</string>
     <string name="tagline_night_3">Todo está más tranquilo ahora.</string>
     <string name="tagline_night_4">Tómate tu tiempo.</string>
-<string name="tagline_morning_5">Un día ideal para probar algo nuevo.</string>
-<string name="tagline_morning_6">Aquí puedes pensar en voz alta.</string>
-<string name="tagline_morning_7">Una cosa a la vez.</string>
-<string name="tagline_morning_8">Pon en orden tus ideas.</string>
-<string name="tagline_afternoon_5">Sigue donde lo dejaste.</string>
-<string name="tagline_afternoon_6">Pregunta cuando quieras.</string>
-<string name="tagline_afternoon_7">Otro punto de vista puede ayudar.</string>
-<string name="tagline_afternoon_8">No tiene que ser perfecto.</string>
-<string name="tagline_evening_5">Lo demás puede esperar a mañana.</string>
-<string name="tagline_evening_6">Solo charlar también está bien.</string>
-<string name="tagline_evening_7">Un rato tranquilo para pensar.</string>
-<string name="tagline_evening_8">Cierra el día con calma.</string>
-<string name="tagline_night_5">Escribe lo que te ronda la cabeza.</string>
-<string name="tagline_night_6">No olvides descansar.</string>
-<string name="tagline_night_7">Noche en calma, ideas claras.</string>
-<string name="tagline_night_8">Esta noche no hay prisa.</string>
+    <string name="tagline_morning_5">Un día ideal para probar algo nuevo.</string>
+    <string name="tagline_morning_6">Aquí puedes pensar en voz alta.</string>
+    <string name="tagline_morning_7">Una cosa a la vez.</string>
+    <string name="tagline_morning_8">Pon en orden tus ideas.</string>
+    <string name="tagline_afternoon_5">Sigue donde lo dejaste.</string>
+    <string name="tagline_afternoon_6">Pregunta cuando quieras.</string>
+    <string name="tagline_afternoon_7">Otro punto de vista puede ayudar.</string>
+    <string name="tagline_afternoon_8">No tiene que ser perfecto.</string>
+    <string name="tagline_evening_5">Lo demás puede esperar a mañana.</string>
+    <string name="tagline_evening_6">Solo charlar también está bien.</string>
+    <string name="tagline_evening_7">Un rato tranquilo para pensar.</string>
+    <string name="tagline_evening_8">Cierra el día con calma.</string>
+    <string name="tagline_night_5">Escribe lo que te ronda la cabeza.</string>
+    <string name="tagline_night_6">No olvides descansar.</string>
+    <string name="tagline_night_7">Noche en calma, ideas claras.</string>
+    <string name="tagline_night_8">Esta noche no hay prisa.</string>
     <string name="aurora_placeholder_what_can_i_help">¿En qué puedo ayudarte?</string>
     <string name="search_results">Resultados de la búsqueda</string>
     <string name="select_all">Seleccionar todo</string>
@@ -326,10 +332,9 @@
     <string name="no_providers_title">Aún no se han agregado proveedores</string>
     <string name="no_providers_description">Primero conecta un proveedor. El cambio de modelo, el chat y la transparencia de costos comienzan aquí.</string>
     <string name="provider_detail_add_model_manually">+ Agregar ID de modelo manualmente</string>
+    <string name="default_model_short">Predeterminado</string>
     <string name="provider_detail_badge_recent">Recientes</string>
     <string name="undo">Deshacer</string>
-    <string name="settings_source_code">Código fuente</string>
-    <string name="settings_report_issue">Reportar un problema</string>
     <string name="manual_model_entry_title">Modelo alternativo</string>
     <string name="model_id_placeholder">Por ejemplo: claude-4-sonnet o gpt-4o</string>
     <string name="save_and_continue">Guardar y continuar</string>
@@ -407,6 +412,7 @@
     <string name="chat_model_removed_choose">Elegir modelo</string>
     <string name="chat_model_retired_banner">%1$s fue retirado.</string>
     <string name="chat_model_retired_switch_to">Cambiar a %1$s</string>
+    <string name="chat_last_used_model_retired_hint">El último modelo que usaste fue retirado. Ahora se usa %1$s.</string>
     <string name="chat_issue_model_missing_title">Modelo no disponible</string>
     <string name="chat_issue_no_provider_message">Esta conversación es de solo lectura hasta que agregues o reconectes un proveedor.</string>
     <string name="chat_issue_no_provider_title">Sin proveedor disponible</string>
@@ -479,6 +485,7 @@
     <string name="this_month">Este mes</string>
     <string name="costs_title">Costos</string>
     <string name="cost_summary_more">%1$d más</string>
+
 
     <!-- Usage Insights -->
     <string name="by_provider">Por proveedor</string>
@@ -563,31 +570,31 @@
     <string name="skill_fitness_coach_name">Coach de fitness</string>
     <string name="skill_image_analyst_name">Analista de imágenes</string>
     <!-- Built-in Skill descriptions -->
-    <string name="skill_code_assistant_desc">Programación, generación de código, depuración</string>
-    <string name="skill_code_review_desc">Calidad, seguridad y rendimiento del código</string>
+    <string name="skill_code_assistant_desc">Preguntas de programación, generación de código, depuración</string>
+    <string name="skill_code_review_desc">Revisión de calidad, seguridad y rendimiento del código</string>
     <string name="skill_sql_expert_desc">Consultas SQL, optimización y diseño de esquemas</string>
     <string name="skill_git_assistant_desc">Comandos Git, flujos de trabajo y resolución de conflictos</string>
-    <string name="skill_writing_coach_desc">Mejora el estilo, la estructura y la claridad</string>
-    <string name="skill_email_assistant_desc">Redacta emails profesionales y personales</string>
-    <string name="skill_copywriting_desc">Textos publicitarios, redes sociales y mensajes de marca</string>
-    <string name="skill_blog_writer_desc">Contenido largo atractivo y publicaciones de blog</string>
-    <string name="skill_translation_expert_desc">Traducción precisa preservando tono y matices</string>
-    <string name="skill_proofreader_desc">Corrige gramática, ortografía y mejora la claridad</string>
+    <string name="skill_writing_coach_desc">Mejorar el estilo, la estructura y la claridad de la escritura</string>
+    <string name="skill_email_assistant_desc">Redactar correos electrónicos profesionales y personales</string>
+    <string name="skill_copywriting_desc">Textos de marketing, redes sociales y mensajes de marca</string>
+    <string name="skill_blog_writer_desc">Contenido extenso atractivo y publicaciones de blog</string>
+    <string name="skill_translation_expert_desc">Traducción precisa preservando el tono y los matices</string>
+    <string name="skill_proofreader_desc">Corregir gramática, ortografía y mejorar la claridad</string>
     <string name="skill_learning_tutor_desc">Tutoría paciente con el método socrático</string>
     <string name="skill_research_assistant_desc">Revisión bibliográfica, escritura académica e investigación</string>
-    <string name="skill_language_teacher_desc">Practica y aprende idiomas</string>
-    <string name="skill_data_analyst_desc">Interpretación de datos, visualización e insights</string>
+    <string name="skill_language_teacher_desc">Practicar y aprender idiomas extranjeros</string>
+    <string name="skill_data_analyst_desc">Interpretación de datos, visualización e información</string>
     <string name="skill_math_tutor_desc">Resolución de problemas matemáticos paso a paso</string>
-    <string name="skill_document_summarizer_desc">Resume documentos y extrae puntos clave</string>
-    <string name="skill_brainstorm_desc">Genera ideas y explora posibilidades</string>
-    <string name="skill_story_creator_desc">Escritura de ficción, narrativa y construcción de mundos</string>
-    <string name="skill_meeting_notes_desc">Transforma transcripciones en resúmenes estructurados</string>
-    <string name="skill_interview_coach_desc">Preparación y simulación de entrevistas</string>
-    <string name="skill_presentation_outliner_desc">Esquemas de presentación, puntos clave y contenido</string>
+    <string name="skill_document_summarizer_desc">Resumir documentos y extraer puntos clave</string>
+    <string name="skill_brainstorm_desc">Generar ideas y explorar posibilidades</string>
+    <string name="skill_story_creator_desc">Escritura de ficción, narración y creación de mundos</string>
+    <string name="skill_meeting_notes_desc">Transformar transcripciones de reuniones en resúmenes estructurados</string>
+    <string name="skill_interview_coach_desc">Preparación para entrevistas de trabajo y simulacros</string>
+    <string name="skill_presentation_outliner_desc">Esquemas de presentación, puntos clave y contenido de diapositivas</string>
     <string name="skill_recipe_assistant_desc">Recetas, técnicas de cocina y planificación de comidas</string>
-    <string name="skill_travel_planner_desc">Itinerarios de viaje y recomendaciones</string>
-    <string name="skill_fitness_coach_desc">Planes de ejercicio, rutinas y guía nutricional</string>
-    <string name="skill_image_analyst_desc">Describe, analiza y extrae información de imágenes</string>
+    <string name="skill_travel_planner_desc">Itinerarios de viaje y recomendaciones de destinos</string>
+    <string name="skill_fitness_coach_desc">Planes de entrenamiento, ejercicios y guía de nutrición</string>
+    <string name="skill_image_analyst_desc">Describir, analizar y extraer información de imágenes</string>
     <!-- Skill starter messages -->
     <string name="skill_code_assistant_starter_0">Ayúdame a depurar este código</string>
     <string name="skill_code_assistant_starter_1">Escribe una función que...</string>
@@ -709,23 +716,21 @@
     <string name="skills_newSkill">Nueva habilidad</string>
     <string name="skills_editSkill">Editar habilidad</string>
     <string name="skills_useSkill">Usar esta habilidad</string>
-    <string name="skills_pinToHome">Fijar en inicio</string>
     <string name="pin_conversation">Fijar</string>
     <string name="unpin_conversation">Desfijar</string>
     <string name="pinned_section">Fijados</string>
-    <string name="skills_unpin">Desfijar</string>
     <string name="skills_instructions">Prompt</string>
     <string name="skills_knowledgeFiles">Materiales de referencia</string>
     <string name="skills_advancedSettings">Configuración avanzada</string>
     <string name="skills_useMemory">Recordar preferencias</string>
     <string name="skills_noCustomSkills">Aún no hay habilidades personalizadas</string>
-    <string name="skills_deleteConfirmTitle">¿Eliminar %s?</string>
+    <string name="skills_deleteConfirmTitle">¿Eliminar «%1$s»?</string>
     <string name="skills_discardChanges">¿Descartar cambios?</string>
     <string name="skills_needProviderMessage">Necesitas al menos un proveedor de IA para iniciar una conversación.</string>
     <string name="skills_addProvider">Agregar proveedor</string>
     <string name="skills_providerRequiredMessage">Esta habilidad necesita un proveedor de IA disponible antes de iniciar una conversación.</string>
     <string name="skills_providerRequiredTitle">Agrega un proveedor para usar esta habilidad</string>
-    <string name="skills_systemPromptPlaceholder">Ej. Eres un revisor de código senior. Revisa el código en seguridad, rendimiento y legibilidad. Responde en el idioma del usuario.</string>
+    <string name="skills_systemPromptPlaceholder">Ej.: Eres un revisor de código sénior. Revisa el código por seguridad, rendimiento y legibilidad. Responde en el idioma del usuario.</string>
     <string name="skills_advanced">Avanzado</string>
     <string name="skills_modelCapability">Preferencia de modelo</string>
     <string name="skills_capabilityAny">Cualquiera</string>
@@ -796,19 +801,27 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">Query clave de parámetro</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">Estás a punto de usar %1$s</string>
     <string name="provider_disclosure_body_default">Tu mensaje será enviado a %1$s para generar una respuesta. Oriveo no almacena tus mensajes ni claves API en nuestros servidores.</string>
     <string name="provider_disclosure_body_relay">Tu mensaje se enviará al servicio de modelos que configuraste. Oriveo no puede verificar las prácticas de privacidad de ese servicio.</string>
     <string name="provider_disclosure_view_policy">Ver %1$s política de privacidad</string>
     <string name="provider_disclosure_continue">Continuar</string>
     <string name="provider_disclosure_cancel">Cancelar</string>
+    <string name="provider_disclosure_ack_failed">No se pudo confirmar el aviso del proveedor. Comprueba tu conexión e inténtalo de nuevo.</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">Admite búsqueda web</string>
     <string name="relay_advanced_web_search_profile">Perfil de búsqueda web</string>
     <string name="relay_profile_auto">Automático</string>
     <string name="relay_test_connection">Probar conexión</string>
     <string name="relay_test_connection_missing_fields">Usa tu propia URL de solicitud y clave API</string>
     <string name="relay_value_label">Valor</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">Ingresa una URL de solicitud HTTPS válida.</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">auto / dejar en blanco</string>
     <string name="relay_disable_response_storage_footnote">Solo OpenAI Responses · establece store: false</string>
     <string name="relay_disable_response_storage_short">No conservar las respuestas en la nube</string>
@@ -865,10 +878,16 @@
     <string name="relay_security_mode_option_unknown_disabled">Ingresa primero una dirección local, de LAN o de VPN privada.</string>
     <string name="relay_connection_no_key_required_cleartext">Esta conexión no necesita clave · Las conexiones sin cifrar nunca envían credenciales.</string>
     <string name="relay_remove_api_key">Quitar clave</string>
-<string name="streaming_pulse_a11y">Generando</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">Generando</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">Activos este mes</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">Activos este mes</string>
     <string name="providers_all_providers">Todos los proveedores</string>
     <string name="providers_today">Hoy</string>
     <string name="providers_all_synced">Todo sincronizado</string>
@@ -877,6 +896,8 @@
     <string name="providers_delete_this_question">¿Eliminar este proveedor?</string>
     <string name="providers_delete_this_message">Al eliminar este proveedor también se eliminan sus chats relacionados y la configuración del modelo predeterminado.</string>
     <string name="manual_model_clear">Borrar</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">Falta clave API</string>
     <string name="tap_to_view">Toca para ver</string>
     <string name="tap_to_set">Toca para configurar</string>
@@ -892,6 +913,8 @@
     <string name="code_block_expand">Expandir</string>
     <string name="chat_show_full_message">Ver mensaje completo</string>
     <string name="code_block_lines">%d líneas</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">Sin conexión a Internet</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -901,6 +924,7 @@
     <string name="reasoning_hide">Ocultar razonamiento</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">No se pudo extraer texto de %1$s (parece un PDF escaneado).</string>
@@ -912,7 +936,6 @@
     <string name="file_extraction_error_generic">No se pudo procesar %1$s. Inténtalo de nuevo o elige otro archivo.</string>
     <string name="file_extraction_truncated_notice">%1$s es largo, así que solo se agregaron las primeras %2$d de %3$d líneas.</string>
     <string name="file_extraction_send_blocked_text_budget">No se envió: con %1$s, el texto adjunto supera el límite de este modelo. Quita un archivo o cambia de modelo.</string>
-    <string name="error_attachment_not_accepted_title">Adjunto no admitido</string>
     <string name="file_extraction_text_budget_exceeded">%1$s no se agregó: con este archivo, el texto adjunto al mensaje superaría el límite.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d líneas extraídas</string>
     <string name="file_attachment_count_limit_reached">Puedes adjuntar hasta %1$d archivos para este modelo.</string>
@@ -922,6 +945,8 @@
     <string name="empty_greeting_mind">¿Qué tienes en mente?</string>
     <string name="empty_greeting_together">¿A qué le damos vueltas?</string>
     <string name="empty_chat_ask_anything">Pregunta lo que quieras o empieza a escribir.</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">Modelos GPT insignia</string>
     <string name="provider_tagline_anthropic">Modelos Claude</string>
     <string name="provider_tagline_gemini">Texto, imagen y video</string>
@@ -937,6 +962,8 @@
     <string name="provider_tagline_groq">Inferencia ultrarrápida</string>
     <string name="provider_tagline_together">Modelos de código abierto</string>
     <string name="provider_tagline_fireworks">Rápido y económico</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">Conectar un proveedor</string>
     <string name="provider_setup_hero_subtitle">Elige tu proveedor de IA y luego ingresa tu clave de API</string>
     <string name="provider_category_all">Todos</string>
@@ -949,6 +976,8 @@
     <string name="provider_already_connected_subtitle">Gestiona la conexión existente o agrega otra cuenta con otra clave de API.</string>
     <string name="provider_manage_existing">Gestionar existente</string>
     <string name="provider_add_another_account">Agregar otra cuenta</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="app_name">Oriveo</string>
     <string name="ok">OK</string>
     <string name="selection_label_chinese_ai">IA china</string>
@@ -965,7 +994,6 @@
         <item quantity="other">%d modelos</item>
     </plurals>
     <string name="api_endpoint">Endpoint de API</string>
-    <string name="api_endpoint_not_configured">Sin configurar</string>
     <string name="relay_guidance_codex_identity_switch_type">Esta conexión requiere la identidad de cliente de Codex. Abre Proveedores → esta conexión → Biblioteca de modelos → este modelo → Avanzado, cambia el protocolo a OpenAI Responses y vuelve a intentarlo.</string>
     <string name="relay_guidance_codex_identity_still_rejected">Esta conexión sigue rechazando la identidad de cliente de Codex de Oriveo. Abre Proveedores → esta conexión → Editar conexión → Headers y parámetros de consulta, define un User-Agent o header personalizado, o cambia a otra conexión.</string>
     <string name="relay_guidance_responses_only_endpoint">Esta conexión solo expone /v1/responses y rechaza /chat/completions. Abre Proveedores → esta conexión → Biblioteca de modelos → este modelo → Avanzado, cambia el protocolo a OpenAI Responses y vuelve a intentarlo.</string>
@@ -1017,10 +1045,18 @@
     <string name="outline_nav_label">Esquema de la conversación</string>
     <string name="outline_jump_to">Ir a: %1$s</string>
     <string name="outline_attachment_only">(Adjunto)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">Notas</string>
     <string name="notes_subtitle">Guarda contenido del chat como notas</string>
     <string name="notes_untitled">Nota sin título</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="one">%1$d nota</item>
+        <item quantity="many">%1$d notas</item>
+        <item quantity="other">%1$d notas</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">Notas</string>
     <string name="notes_tab_trash">Papelera</string>
     <!-- Actions -->
@@ -1083,7 +1119,7 @@
     <string name="notes_toast_export_failed">Error al exportar</string>
     <string name="notes_toast_folder_created">Carpeta \"%1$s\" creada</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">Guardar como nota</string>
     <string name="notes_chat_replace_current_note">Actualizar nota con la selección</string>
     <string name="notes_chat_return_to_note">Volver a la nota</string>
@@ -1115,13 +1151,19 @@
     <string name="notes_detail_delete_this">Eliminar esta nota</string>
     <string name="notes_nothing_written">Aún no hay contenido.</string>
     <!-- Buscar actualizaciones (solo Android · Play In-App Updates) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">Precio desconocido</string>
     <string name="pricing_non_standard">Facturación no estándar</string>
     <string name="pricing_free">Gratis</string>
     <string name="enabled_models_help">Los modelos agregados aparecen en el selector de modelos de la pantalla de inicio.</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">No se pudo cargar esta conversación</string>
     <string name="chat_load_stalled_message">Los mensajes de esta conversación aún no están en este dispositivo. Vuelve a intentarlo para recuperarlos desde la nube.</string>
     <string name="chat_bootstrap_in_progress">Cargando la conversación…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">Todos tus modelos, {una sola app}</string>
     <string name="onboarding_title_models">Para cada pregunta, {el modelo adecuado}</string>
     <string name="onboarding_title_byok">Tus claves, {tu factura}</string>
@@ -1138,6 +1180,8 @@
     <string name="onboarding_legal">Al continuar, aceptas los [Términos de servicio](oriveo://terms) y la [Política de privacidad](oriveo://privacy).</string>
     <string name="developer_options">Opciones de desarrollador</string>
     <string name="replay_onboarding">Ver la introducción de nuevo</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">Configuración rápida</string>
     <string name="relay_quick_subtitle">Ingresa la URL de solicitud y la clave API. Oriveo detectará la configuración de conexión por ti.</string>
     <string name="relay_models_found">Modelo(s) %1$d encontrados en el catálogo.</string>
@@ -1205,9 +1249,8 @@
     <string name="generation_empty_not_verified">Todavía no hay parámetros ajustables para este modelo</string>
     <string name="generation_empty_not_verified_detail">Solo habilitamos los controles después de comprobar que un parámetro surte efecto de verdad, y todavía no hemos probado este modelo en esta conexión. Su capacidad de razonamiento no se ve afectada.</string>
     <string name="generation_empty_catalog_managed">Los parámetros de este modelo ahora los gestiona el catálogo oficial y no se pueden personalizar aquí.</string>
-    <string name="generation_empty_runtime_locked">Los parámetros de ejecución no se pueden ajustar en esta conexión.</string>
     <string name="generation_empty_all_unsupported">Este modelo no acepta parámetros ajustables en esta conexión.</string>
-<string name="generation_parameter_unverified_badge">Sin verificar</string>
+    <string name="generation_parameter_unverified_badge">Sin verificar</string>
     <string name="generation_parameter_unverified_group_note">Estos parámetros se deducen del protocolo que elegiste. Oriveo no ha comprobado que surtan efecto en esta conexión.</string>
     <string name="generation_parameter_dormant_summary">Se conservan %1$d parámetros que configuraste y ahora mismo no se envían.</string>
     <string name="generation_parameter_dormant_view">Ver</string>
@@ -1225,6 +1268,8 @@
     <string name="chat_token_usage_cache_write">Escritura de caché</string>
     <string name="chat_token_usage_total">Total</string>
     <string name="chat_token_usage_unavailable">Sin datos</string>
+    <string name="chat_token_usage_cost">Costo</string>
+    <string name="chat_token_usage_estimated">Estimado</string>
     <string name="generation_conversation_scope_hint">Solo se aplica mientras se use este modelo en esta conversación. Cambiar de modelo no copia los valores; al volver se restauran.</string>
     <string name="generation_parameter_self_healed">Este modelo rechazó %1$s. Se reintentó con la configuración predeterminada.</string>
     <string name="relay_transport_llamacpp_native">Completion nativo de llama.cpp</string>
@@ -1424,29 +1469,22 @@
     <string name="tool_call_unhandled_multiple">El modelo intentó usar herramientas (%1$s) no disponibles en esta conexión.</string>
     <string name="tool_call_arguments_truncated">Truncado a 2 KB</string>
     <string name="tool_fallback_library_not_searched">Esta conexión no admite herramientas, por lo que no se buscó en la biblioteca.</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">Sin espacio de almacenamiento</string>
     <string name="storage_blocked_message">Tu dispositivo se quedó sin espacio libre, así que Oriveo no puede abrir sus datos locales. Libera espacio e inténtalo de nuevo: tus chats siguen guardados en este dispositivo.</string>
     <string name="storage_blocked_action_free_space">Liberar espacio</string>
     <string name="database_unavailable_title">No se pueden abrir los datos locales</string>
     <string name="database_unavailable_message">Oriveo no pudo abrir sus datos locales en este dispositivo. Vuelve a intentarlo o contacta con soporte si sigue ocurriendo.</string>
     <string name="link_open_failed_message">No se pudo abrir el enlace. Activa un navegador e inténtalo de nuevo.</string>
-    <string name="contact_support">Contactar con soporte</string>
-    <string name="price_input">Entrada</string>
-    <string name="price_output">Salida</string>
-    <string name="price_cache_read">Lectura de caché</string>
-    <string name="price_cache_write">Escritura de caché</string>
     <string name="external_app_unavailable">Ninguna app puede abrir esto. Instala o activa una e inténtalo de nuevo.</string>
-    <plurals name="notes_count">
-        <item quantity="one">%1$d nota</item>
-        <item quantity="many">%1$d notas</item>
-        <item quantity="other">%1$d notas</item>
-    </plurals>
     <string name="secure_field_show">Mostrar caracteres</string>
     <string name="secure_field_hide">Ocultar caracteres</string>
-    <string name="generation_parameter_name_stop">Secuencias de parada</string>
     <string name="generation_diagnostics_section">Diagnósticos de los ajustes de generación</string>
     <string name="generation_diagnostics_empty">Aún no tienes registros de diagnóstico</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">Esta cuenta no puede enviar comentarios.</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">Herramientas</string>
     <string name="mcp_tools_chip_state_on">Servidores activados: %d</string>
     <string name="mcp_tools_chip_state_off">Desactivadas</string>
@@ -1529,6 +1567,8 @@
     <string name="mcp_detail_seconds">%s s</string>
     <string name="mcp_detail_third_party_note">Los resultados vienen de un servidor de terceros. Solo se muestran los primeros 2 KB. Oriveo no ha revisado el contenido.</string>
     <string name="mcp_detail_not_on_device">Los detalles solo se guardan en el dispositivo que ejecutó este paso.</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">Herramientas y conexiones</string>
     <string name="mcp_servers_title">Servidores MCP</string>
     <plurals name="mcp_settings_entry_count">
@@ -1674,109 +1714,163 @@
     <string name="mcp_reauth_failed_body">Se cerró la página de inicio de sesión o el servicio no aprobó la solicitud. No cambió nada.</string>
     <string name="mcp_reauth_unreachable_body">Comprueba que este dispositivo pueda acceder a él ahora mismo y vuelve a intentarlo.</string>
     <string name="mcp_reauth_token_title">Pega un nuevo token de acceso</string>
-    <string name="additional_body_attachments_filled">Los adjuntos los completa Oriveo.</string>
-    <string name="additional_body_cannot_change">No se puede cambiar</string>
-    <string name="additional_body_check">Revisa el cuerpo de solicitud adicional</string>
-    <string name="additional_body_conversation_filled">La conversación la completa Oriveo.</string>
-    <string name="additional_body_device_only">Guardado solo en este dispositivo, sin sincronizar</string>
-    <string name="additional_body_docs_link">Ver qué campos admite %1$s</string>
-    <string name="additional_body_field_filled">Este campo lo completa Oriveo.</string>
-    <string name="additional_body_field_name_invalid">Este nombre no se puede usar como nombre de campo.</string>
-    <string name="additional_body_footer">Los campos de aquí se agregan a la solicitud tal como están escritos; Oriveo no comprueba si tu servidor los acepta. Si alguno tiene el mismo nombre que un ajuste avanzado, se usa el de aquí, y el resto de tus ajustes se envía como siempre.</string>
-    <string name="additional_body_included">Incluido</string>
-    <string name="additional_body_model_chosen">El modelo es el que elegiste en Oriveo.</string>
-    <string name="additional_body_paste">Pegar</string>
-    <string name="additional_body_paste_replace_body">Al pegar, el contenido actual se reemplaza por el del portapapeles.</string>
-    <string name="additional_body_paste_replace_title">¿Reemplazar el contenido actual?</string>
-    <string name="additional_body_reason_blocked_segment">«%1$s» no se puede usar como nombre de campo en el cuerpo de solicitud adicional.</string>
-    <string name="additional_body_reason_invalid_json">El cuerpo de solicitud adicional no es un JSON válido.</string>
-    <string name="additional_body_reason_not_object">El cuerpo de solicitud adicional debe ser un objeto JSON entre { }.</string>
-    <string name="additional_body_reason_protected_field">«%1$s» lo completa Oriveo y no se puede definir en el cuerpo de solicitud adicional.</string>
-    <string name="additional_body_reason_too_deep">El cuerpo de solicitud adicional tiene más de 32 niveles de anidación.</string>
-    <string name="additional_body_reason_too_large">El cuerpo de solicitud adicional supera los 64 KB.</string>
-    <string name="additional_body_rejected_upstream">Se rechazó la solicitud que incluía el cuerpo de solicitud adicional</string>
-    <string name="additional_body_remove_line">%1$s Borra la línea %2$d para poder enviar.</string>
-    <string name="additional_body_retry_without">Reintentar sin el cuerpo de solicitud adicional</string>
-    <string name="additional_body_send_toggle">Enviar con las solicitudes</string>
-    <string name="additional_body_send_toggle_note">Si lo desactivas, el contenido se conserva pero no se envía</string>
-    <string name="additional_body_switch_blocked_invalid">El cuerpo de solicitud adicional tiene un problema, así que este interruptor no puede modificarlo. Corrígelo ahí primero.</string>
-    <string name="additional_body_switch_blocked_off">El cuerpo de solicitud adicional no se está enviando con las solicitudes. Actívalo ahí primero.</string>
-    <string name="additional_body_system_prompt_filled">El prompt del sistema lo completa Oriveo.</string>
-    <string name="additional_body_tidy">Formatear</string>
-    <string name="additional_body_tidy_invalid">Todavía no es un JSON válido, así que no se cambió nada.</string>
-    <string name="additional_body_title">Cuerpo de solicitud adicional</string>
-    <string name="additional_body_when_sending">Al enviar</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">Capacidades</string>
+    <string name="model_options_local">Local</string>
+    <string name="model_options_web_note">Busca en la web primero cuando una pregunta lo requiere</string>
+    <string name="model_options_always_thinks">Siempre razona antes de responder</string>
+    <string name="model_options_thinks_first_note">Lo piensa bien antes de responder, así que tarda un poco más</string>
+    <string name="model_options_higher_levels_note">Los niveles más altos tardan más y pueden costar más.</string>
+    <string name="model_options_template_thinking_note">Activa o desactiva el razonamiento mediante la plantilla de chat. Que funcione depende de tu servidor.</string>
+    <string name="model_options_connection_cannot">Esta conexión no lo permite</string>
+    <string name="model_options_uses_model_default">Usa el predeterminado del modelo</string>
+    <string name="model_options_reasoning_not_catalogued">Oriveo aún no tiene ajustes de razonamiento para este modelo, así que usa sus propios valores predeterminados.</string>
+    <string name="model_options_web_not_catalogued">Oriveo aún no tiene ajustes de búsqueda web para este modelo, así que no se puede activar aquí.</string>
+    <string name="model_options_see_adjustable_models">Ver qué modelos se pueden ajustar</string>
+    <string name="model_options_no_thinking_mode">Este modelo no tiene modo de razonamiento</string>
+    <string name="model_options_shows_thinking_fixed">Muestra su razonamiento · no se puede ajustar</string>
+    <string name="model_options_cannot_search">Este modelo no puede buscar en la web</string>
+    <string name="model_options_always_on">Siempre activada</string>
+    <string name="model_options_subscription_always_searches">Con esta suscripción, este modelo siempre busca en la web.</string>
+    <string name="model_options_web_when_needed">Cuando haga falta</string>
+    <string name="model_options_web_every_message">En cada mensaje</string>
+    <string name="model_options_needs_manual_setup">Requiere configuración manual</string>
+    <string name="model_options_reasoning_no_generic_switch">Este proveedor no tiene un interruptor estándar para el razonamiento. Agrega sus campos en el cuerpo de solicitud adicional.</string>
+    <string name="model_options_web_no_generic_switch">Este proveedor no tiene un interruptor estándar para la búsqueda web. Agrega sus campos en el cuerpo de solicitud adicional.</string>
+    <string name="model_options_open_additional_body">Abrir el cuerpo de solicitud adicional</string>
+    <string name="model_options_choose_protocol_first">Primero elige el protocolo de esta conexión</string>
+    <string name="model_options_protocol_auto_note">El protocolo sigue en «Automático», así que Oriveo no sabe cómo enviar los ajustes de búsqueda web y razonamiento.</string>
+    <string name="model_options_choose_protocol">Elegir protocolo</string>
+    <string name="model_options_tier_rejected_title">Se rechazó «%1$s»</string>
+    <string name="model_options_tier_rejected_body">Este modelo no acepta «%1$s» por ahora, así que volvió a «%2$s». El nivel se restablecerá solo cuando el modelo vuelva a admitirlo.</string>
+    <string name="model_options_more_count">%1$d más</string>
+    <string name="model_options_cant_switch_here">Aún no se puede cambiar aquí</string>
+    <string name="model_options_not_available_yet">Aún no disponible</string>
+    <string name="model_options_web_and_thinking_fields">Campos de búsqueda web y razonamiento</string>
+    <string name="model_options_vision_available">Disponible · selector de fotos visible</string>
+    <string name="model_options_vision_unknown">Desconocido · se recuerda tras enviar</string>
+    <string name="model_options_vision_hidden">No disponible · selector de fotos oculto</string>
+    <string name="model_options_file_pdf_native">PDF nativo · el resto como texto</string>
+    <string name="model_options_file_native_when_supported">Formatos compatibles nativos · el resto como texto</string>
+    <string name="model_options_file_text">Se envía como texto</string>
+    <string name="model_options_turn_summary">Esta vez se enviará: %1$s</string>
+    <string name="model_options_summary_web_on">Búsqueda web activada</string>
+    <string name="model_options_summary_thinking_level">Razonamiento: %1$s</string>
+    <string name="model_options_summary_thinking_on">Razonamiento activado</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="one">%d nivel</item>
+        <item quantity="many">%d niveles</item>
+        <item quantity="other">%d niveles</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">Solo esta conversación</string>
+    <string name="advanced_reset">Restablecer</string>
+    <string name="advanced_reset_conversation_title">¿Restablecer los ajustes de esta conversación?</string>
+    <string name="advanced_reset_conversation_body">Solo se borran los parámetros que cambiaste en esta conversación. Los predeterminados del modelo y el cuerpo de solicitud adicional se quedan como están.</string>
+    <string name="advanced_reset_conversation_action">Restablecer los cambios de esta conversación</string>
+    <string name="advanced_reset_model_title">¿Restablecer los predeterminados de este modelo?</string>
+    <string name="advanced_reset_model_body">Borra los parámetros predeterminados que definiste para este modelo en esta conexión. Los cambios hechos dentro de cada conversación se mantienen.</string>
+    <string name="advanced_reset_model_action">Restablecer predeterminados del modelo</string>
+    <string name="advanced_more">Más</string>
+    <string name="advanced_not_adjusted">Sin ajustar</string>
+    <string name="advanced_entries_count">Entradas: %1$d</string>
+    <string name="advanced_fields_count">Campos: %1$d</string>
+    <string name="advanced_random_each_time">Aleatoria cada vez</string>
+    <string name="advanced_plain_text">Texto sin formato</string>
+    <string name="advanced_write_your_own">Campos propios</string>
     <string name="advanced_additional_body_subtitle">Agrega en JSON los campos que no aparecen arriba</string>
+    <string name="advanced_not_in_use">Sin usar</string>
+    <string name="advanced_changed_in_conversation">Cambiado en esta conversación</string>
+    <string name="advanced_using_your_default">Usa el predeterminado que definiste</string>
+    <string name="advanced_model_defaults">Predeterminados del modelo</string>
+    <string name="advanced_your_default">Tu predeterminado</string>
+    <string name="advanced_state_set">Definido</string>
+    <string name="advanced_state_on">Activado</string>
+    <string name="advanced_use_model_default">Usar predeterminado del modelo</string>
+    <string name="advanced_dont_send">No enviar este ajuste</string>
     <string name="advanced_allowed_range">Rango permitido: %1$s</string>
     <string name="advanced_also_covers">También incluye %1$s</string>
-    <string name="advanced_changed_in_conversation">Cambiado en esta conversación</string>
-    <string name="advanced_crossed_out_legend">Los ajustes tachados los controla %1$s.</string>
-    <string name="advanced_diagnostics_delete_body">Se eliminan los registros de diagnóstico que se muestran para este modelo. Los de otros modelos se conservan.</string>
-    <string name="advanced_diagnostics_delete_title">¿Eliminar estos registros de diagnóstico?</string>
-    <string name="advanced_dont_send">No enviar este ajuste</string>
+    <string name="advanced_no_limit">Sin límite</string>
+    <string name="advanced_stop_sequences">Secuencias de parada</string>
+    <string name="advanced_new_stop_sequence">Nueva secuencia de parada</string>
+    <string name="advanced_stop_sequences_note">El modelo se detiene en cuanto escribe cualquiera de estas. Una secuencia puede tener comas, espacios y saltos de línea.</string>
+    <string name="advanced_remove_item">Quitar %1$s</string>
+    <string name="advanced_error_max_tokens">Este modelo puede escribir como máximo %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_error_number">Escribe un número. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_error_integer">Escribe un número entero. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_error_highest">El valor máximo que acepta este modelo es %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_error_lowest">El valor mínimo que acepta este modelo es %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_error_greater_than">Debe ser mayor que %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_error_less_than">Debe ser menor que %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_error_json_schema">No es un JSON Schema válido. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_error_value_rejected">Este modelo no acepta este valor. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
+    <string name="advanced_dropped_thinking">El modelo no acepta esto con el razonamiento activado, así que no se envía.</string>
     <string name="advanced_dropped_conflict">Choca con otro ajuste, así que este se omite.</string>
     <string name="advanced_dropped_conflict_with">No se puede enviar junto con %1$s, así que este ajuste se omite.</string>
     <string name="advanced_dropped_depends">Depende de otro ajuste que no está definido, así que no se envía.</string>
-    <string name="advanced_dropped_reasoning_budget">Es menor que el presupuesto de razonamiento, así que se envía el valor predeterminado.</string>
-    <string name="advanced_dropped_required_default">Este modelo requiere este campo, así que se sigue enviando el valor predeterminado.</string>
     <string name="advanced_dropped_requires">Solo se envía si también defines %1$s.</string>
-    <string name="advanced_dropped_thinking">El modelo no acepta esto con el razonamiento activado, así que no se envía.</string>
     <string name="advanced_dropped_value">Este modelo no acepta este valor, así que este ajuste no se envía.</string>
+    <string name="advanced_dropped_required_default">Este modelo requiere este campo, así que se sigue enviando el valor predeterminado.</string>
+    <string name="advanced_dropped_reasoning_budget">Es menor que el presupuesto de razonamiento, así que se envía el valor predeterminado.</string>
+    <string name="advanced_taken_over">%1$s está activado, así que este ajuste no se usa.</string>
+    <string name="advanced_crossed_out_legend">Los ajustes tachados los controla %1$s.</string>
+    <string name="advanced_grey_defaults_legend">Los números en gris son los valores predeterminados de %1$s. No se envían a menos que los cambies.</string>
+    <string name="advanced_mirostat_note">Mantiene estable la aleatoriedad de la salida en torno a un objetivo, en lugar de Top K y Top P.</string>
+    <string name="advanced_target_entropy">Entropía objetivo</string>
+    <string name="advanced_learning_rate">Tasa de aprendizaje</string>
+    <string name="advanced_repetition">Repetición</string>
     <string name="advanced_dry_note">Evita repetir pasajes enteros del texto anterior</string>
+    <string name="advanced_more_sampling">Más opciones de muestreo</string>
+    <string name="advanced_xtc_note">A veces descarta la palabra más probable para variar la redacción</string>
     <string name="advanced_dynamic_temperature">Temperatura dinámica</string>
     <string name="advanced_dynamic_temperature_note">La temperatura varía según la seguridad del modelo</string>
-    <string name="advanced_entries_count">Entradas: %1$d</string>
-    <string name="advanced_error_greater_than">Debe ser mayor que %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_error_highest">El valor máximo que acepta este modelo es %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_error_integer">Escribe un número entero. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_error_json_schema">No es un JSON Schema válido. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_error_less_than">Debe ser menor que %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_error_lowest">El valor mínimo que acepta este modelo es %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_error_max_tokens">Este modelo puede escribir como máximo %1$s. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_error_number">Escribe un número. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_error_value_rejected">Este modelo no acepta este valor. Este ajuste no se enviará hasta que lo corrijas; tus otros ajustes no se ven afectados.</string>
-    <string name="advanced_fields_count">Campos: %1$d</string>
-    <string name="advanced_grey_defaults_legend">Los números en gris son los valores predeterminados de %1$s. No se envían a menos que los cambies.</string>
-    <string name="advanced_learning_rate">Tasa de aprendizaje</string>
-    <string name="advanced_mirostat_note">Mantiene estable la aleatoriedad de la salida en torno a un objetivo, en lugar de Top K y Top P.</string>
-    <string name="advanced_model_defaults">Predeterminados del modelo</string>
-    <string name="advanced_more">Más</string>
-    <string name="advanced_more_sampling">Más opciones de muestreo</string>
-    <string name="advanced_new_stop_sequence">Nueva secuencia de parada</string>
-    <string name="advanced_no_limit">Sin límite</string>
-    <string name="advanced_not_adjusted">Sin ajustar</string>
-    <string name="advanced_not_in_use">Sin usar</string>
-    <string name="advanced_plain_text">Texto sin formato</string>
-    <string name="advanced_preset_apply">Aplicar ajuste preestablecido</string>
-    <string name="advanced_preset_apply_body">«%1$s» reemplaza todo lo que definiste para este modelo: %2$s.</string>
-    <string name="advanced_preset_apply_title">¿Aplicar este ajuste preestablecido?</string>
-    <string name="advanced_random_each_time">Aleatoria cada vez</string>
-    <string name="advanced_reasoning_set_by_thinking">En este modelo, el razonamiento se ajusta en «Opciones del modelo» › «Razonamiento». Para dejar un nivel como predeterminado, elígelo allí y toca «Fijar como predeterminado para este modelo». Esta fila no se envía.</string>
-    <string name="advanced_remove_item">Quitar %1$s</string>
-    <string name="advanced_repetition">Repetición</string>
-    <string name="advanced_reset">Restablecer</string>
-    <string name="advanced_reset_conversation_action">Restablecer los cambios de esta conversación</string>
-    <string name="advanced_reset_conversation_body">Solo se borran los parámetros que cambiaste en esta conversación. Los predeterminados del modelo y el cuerpo de solicitud adicional se quedan como están.</string>
-    <string name="advanced_reset_conversation_title">¿Restablecer los ajustes de esta conversación?</string>
-    <string name="advanced_reset_model_action">Restablecer predeterminados del modelo</string>
-    <string name="advanced_reset_model_body">Borra los parámetros predeterminados que definiste para este modelo en esta conexión. Los cambios hechos dentro de cada conversación se mantienen.</string>
-    <string name="advanced_reset_model_title">¿Restablecer los predeterminados de este modelo?</string>
-    <string name="advanced_state_on">Activado</string>
-    <string name="advanced_state_set">Definido</string>
-    <string name="advanced_stop_sequences">Secuencias de parada</string>
-    <string name="advanced_stop_sequences_note">El modelo se detiene en cuanto escribe cualquiera de estas. Una secuencia puede tener comas, espacios y saltos de línea.</string>
-    <string name="advanced_taken_over">%1$s está activado, así que este ajuste no se usa.</string>
-    <string name="advanced_target_entropy">Entropía objetivo</string>
-    <string name="advanced_this_conversation_only">Solo esta conversación</string>
-    <string name="advanced_use_model_default">Usar predeterminado del modelo</string>
-    <string name="advanced_using_your_default">Usa el predeterminado que definiste</string>
-    <string name="advanced_write_your_own">Campos propios</string>
-    <string name="advanced_xtc_note">A veces descarta la palabra más probable para variar la redacción</string>
-    <string name="advanced_your_default">Tu predeterminado</string>
+    <string name="additional_body_title">Cuerpo de solicitud adicional</string>
+    <string name="additional_body_send_toggle">Enviar con las solicitudes</string>
+    <string name="additional_body_send_toggle_note">Si lo desactivas, el contenido se conserva pero no se envía</string>
+    <string name="additional_body_device_only">Guardado solo en este dispositivo, sin sincronizar</string>
+    <string name="additional_body_paste">Pegar</string>
+    <string name="additional_body_tidy">Formatear</string>
+    <string name="additional_body_when_sending">Al enviar</string>
+    <string name="additional_body_included">Incluido</string>
+    <string name="additional_body_cannot_change">No se puede cambiar</string>
+    <string name="additional_body_footer">Los campos de aquí se agregan a la solicitud tal como están escritos; Oriveo no comprueba si tu servidor los acepta. Si alguno tiene el mismo nombre que un ajuste avanzado, se usa el de aquí, y el resto de tus ajustes se envía como siempre.</string>
+    <string name="additional_body_docs_link">Ver qué campos admite %1$s</string>
+    <string name="additional_body_remove_line">%1$s Borra la línea %2$d para poder enviar.</string>
+    <string name="additional_body_conversation_filled">La conversación la completa Oriveo.</string>
+    <string name="additional_body_attachments_filled">Los adjuntos los completa Oriveo.</string>
+    <string name="additional_body_system_prompt_filled">El prompt del sistema lo completa Oriveo.</string>
+    <string name="additional_body_tools_managed">Las herramientas las gestiona Oriveo.</string>
+    <string name="additional_body_model_chosen">El modelo es el que elegiste en Oriveo.</string>
+    <string name="additional_body_streaming_by_oriveo">Oriveo decide cómo se transmite la respuesta.</string>
+    <string name="additional_body_field_filled">Este campo lo completa Oriveo.</string>
+    <string name="additional_body_field_name_invalid">Este nombre no se puede usar como nombre de campo.</string>
+    <string name="additional_body_paste_replace_title">¿Reemplazar el contenido actual?</string>
+    <string name="additional_body_paste_replace_body">Al pegar, el contenido actual se reemplaza por el del portapapeles.</string>
+    <string name="additional_body_tidy_invalid">Todavía no es un JSON válido, así que no se cambió nada.</string>
+    <string name="additional_body_switch_blocked_invalid">El cuerpo de solicitud adicional tiene un problema, así que este interruptor no puede modificarlo. Corrígelo ahí primero.</string>
+    <string name="additional_body_switch_blocked_off">El cuerpo de solicitud adicional no se está enviando con las solicitudes. Actívalo ahí primero.</string>
+    <string name="additional_body_check">Revisa el cuerpo de solicitud adicional</string>
+    <string name="additional_body_rejected_upstream">Se rechazó la solicitud que incluía el cuerpo de solicitud adicional</string>
+    <string name="additional_body_reason_too_large">El cuerpo de solicitud adicional supera los 64 KB.</string>
+    <string name="additional_body_reason_invalid_json">El cuerpo de solicitud adicional no es un JSON válido.</string>
+    <string name="additional_body_reason_not_object">El cuerpo de solicitud adicional debe ser un objeto JSON entre { }.</string>
+    <string name="additional_body_reason_too_deep">El cuerpo de solicitud adicional tiene más de 32 niveles de anidación.</string>
+    <string name="additional_body_reason_blocked_segment">«%1$s» no se puede usar como nombre de campo en el cuerpo de solicitud adicional.</string>
+    <string name="additional_body_reason_protected_field">«%1$s» lo completa Oriveo y no se puede definir en el cuerpo de solicitud adicional.</string>
+    <string name="additional_body_retry_without">Reintentar sin el cuerpo de solicitud adicional</string>
+    <string name="local_request_line_format">Línea %1$d: %2$s</string>
+    <string name="local_request_custom_line_format">Campos de «%1$s», línea %2$d: %3$s</string>
+    <string name="local_request_custom_format">Campos de «%1$s»: %2$s</string>
+    <string name="local_request_not_sent">Este mensaje no se envió.</string>
     <string name="generation_parameter_name_grammar">Gramática (GBNF)</string>
     <string name="generation_parameter_name_min_tokens">Mínimo de tokens de salida</string>
     <string name="generation_parameter_name_skip_special_tokens">Ocultar tokens especiales en la salida</string>
     <string name="generation_parameter_omitted_value">Omitir</string>
+    <string name="advanced_reasoning_set_by_thinking">En este modelo, el razonamiento se ajusta en «Opciones del modelo» › «Razonamiento». Para dejar un nivel como predeterminado, elígelo allí y toca «Fijar como predeterminado para este modelo». Esta fila no se envía.</string>
+    <string name="advanced_preset_apply">Aplicar ajuste preestablecido</string>
+    <string name="advanced_preset_apply_title">¿Aplicar este ajuste preestablecido?</string>
+    <string name="advanced_preset_apply_body">«%1$s» reemplaza todo lo que definiste para este modelo: %2$s.</string>
+    <string name="advanced_diagnostics_delete_title">¿Eliminar estos registros de diagnóstico?</string>
+    <string name="advanced_diagnostics_delete_body">Se eliminan los registros de diagnóstico que se muestran para este modelo. Los de otros modelos se conservan.</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">LLM personalizado · Retransmisión personalizada</string>
     <string name="relay_setup_hero_title">Conecta una retransmisión personalizada</string>
@@ -1853,6 +1947,7 @@
     <string name="relay_relative_minutes_ago">Hace %d min</string>
     <string name="relay_relative_hours_ago">Hace %d h</string>
     <string name="relay_detail_default_model">Modelo predeterminado</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">Introduce la dirección y la clave, y elige los modelos en el siguiente paso. El protocolo y las capacidades se detectan para cada modelo.</string>
     <string name="relay_setup_will_request">Se enviará a %1$s</string>
     <string name="relay_setup_key_name">Nombre (opcional)</string>
@@ -1952,6 +2047,15 @@
     <string name="relay_catalog_status_denied">La clave actual no tiene acceso</string>
     <string name="relay_catalog_unreachable_title">Por qué no hay conexión</string>
     <string name="relay_catalog_enable_hint">Al activar, se envía 1 solicitud mínima para confirmar que el modelo funciona. Toca un modelo del catálogo para ver primero «Avanzado»; no se envía ninguna solicitud.</string>
+    <string name="relay_catalog_add_all">Agregar todo</string>
+    <string name="relay_catalog_enable_hint_explicit">Toca un modelo del catálogo para ver primero «Avanzado»; no se envía ninguna solicitud.</string>
+    <string name="relay_catalog_remove_last_reason">Esta conexión necesita al menos un modelo.</string>
+    <string name="relay_model_advanced_auto_equals_connection">Automático = protocolo predeterminado de esta conexión (%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">Los cambios se aplican al instante y solo se guardan en este dispositivo.</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="one">Se agregó %1$d modelo</item>
+        <item quantity="other">Se agregaron %1$d modelos</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">No se pudo obtener la lista de modelos</string>
     <string name="relay_catalog_group_other">Otros</string>
     <string name="relay_advanced_key_section">Clave</string>
@@ -2044,6 +2148,7 @@
     <string name="relay_web_chat_note">Chat Completions no tiene un campo estándar para la búsqueda web. La plantilla solo funciona con modelos de búsqueda; consulta la documentación del servicio.</string>
     <string name="relay_web_other_protocols">Otros protocolos</string>
     <string name="relay_web_template_replace_body">La plantilla reemplaza lo que escribiste para este protocolo.</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">Autenticación, headers y parámetros de consulta</string>
     <string name="relay_manual_connection_name">Nombre de la conexión</string>
     <string name="relay_manual_model_footnote">Introduce el ID del modelo exactamente como lo muestra tu retransmisión personalizada. Más adelante puedes agregar otros desde la biblioteca de modelos.</string>
@@ -2057,67 +2162,6 @@
     <string name="relay_manual_model_entry_note_exact">Introduce el ID del modelo exactamente como lo muestra tu retransmisión personalizada.</string>
     <string name="relay_manual_model_entry_note_capabilities">Lo que puede hacer se recuerda después de enviar un mensaje. También puedes probarlo en «Avanzado».</string>
     <string name="relay_connection_not_verified">La conexión no ha sido verificada.</string>
-    <string name="local_request_custom_format">Campos de «%1$s»: %2$s</string>
-    <string name="local_request_custom_line_format">Campos de «%1$s», línea %2$d: %3$s</string>
-    <string name="local_request_line_format">Línea %1$d: %2$s</string>
-    <string name="local_request_not_sent">Este mensaje no se envió.</string>
-    <string name="model_options_always_thinks">Siempre razona antes de responder</string>
-    <string name="model_options_cannot_search">Este modelo no puede buscar en la web</string>
-    <string name="model_options_always_on">Siempre activada</string>
-    <string name="model_options_subscription_always_searches">Con esta suscripción, este modelo siempre busca en la web.</string>
-    <string name="model_options_cant_switch_here">Aún no se puede cambiar aquí</string>
-    <string name="model_options_capabilities">Capacidades</string>
-    <string name="model_options_choose_protocol">Elegir protocolo</string>
-    <string name="model_options_choose_protocol_first">Primero elige el protocolo de esta conexión</string>
-    <string name="model_options_connection_cannot">Esta conexión no lo permite</string>
-    <string name="model_options_higher_levels_note">Los niveles más altos tardan más y pueden costar más.</string>
-    <string name="model_options_local">Local</string>
-    <string name="model_options_more_count">%1$d más</string>
-    <string name="model_options_needs_manual_setup">Requiere configuración manual</string>
-    <string name="model_options_no_thinking_mode">Este modelo no tiene modo de razonamiento</string>
-    <string name="model_options_not_available_yet">Aún no disponible</string>
-    <string name="model_options_open_additional_body">Abrir el cuerpo de solicitud adicional</string>
-    <string name="model_options_protocol_auto_note">El protocolo sigue en «Automático», así que Oriveo no sabe cómo enviar los ajustes de búsqueda web y razonamiento.</string>
-    <string name="model_options_reasoning_no_generic_switch">Este proveedor no tiene un interruptor estándar para el razonamiento. Agrega sus campos en el cuerpo de solicitud adicional.</string>
-    <string name="model_options_reasoning_not_catalogued">Oriveo aún no tiene ajustes de razonamiento para este modelo, así que usa sus propios valores predeterminados.</string>
-    <string name="model_options_see_adjustable_models">Ver qué modelos se pueden ajustar</string>
-    <string name="model_options_template_thinking_note">Activa o desactiva el razonamiento mediante la plantilla de chat. Que funcione depende de tu servidor.</string>
-    <string name="model_options_thinks_first_note">Lo piensa bien antes de responder, así que tarda un poco más</string>
-    <string name="model_options_tier_rejected_body">Este modelo no acepta «%1$s» por ahora, así que volvió a «%2$s». El nivel se restablecerá solo cuando el modelo vuelva a admitirlo.</string>
-    <string name="model_options_tier_rejected_title">Se rechazó «%1$s»</string>
-    <string name="model_options_uses_model_default">Usa el predeterminado del modelo</string>
-    <string name="model_options_web_and_thinking_fields">Campos de búsqueda web y razonamiento</string>
-    <string name="model_options_vision_available">Disponible · selector de fotos visible</string>
-    <string name="model_options_vision_unknown">Desconocido · se recuerda tras enviar</string>
-    <string name="model_options_vision_hidden">No disponible · selector de fotos oculto</string>
-    <string name="model_options_file_pdf_native">PDF nativo · el resto como texto</string>
-    <string name="model_options_file_native_when_supported">Formatos compatibles nativos · el resto como texto</string>
-    <string name="model_options_file_text">Se envía como texto</string>
-    <string name="model_options_turn_summary">Esta vez se enviará: %1$s</string>
-    <string name="model_options_summary_web_on">Búsqueda web activada</string>
-    <string name="model_options_summary_thinking_level">Razonamiento: %1$s</string>
-    <string name="model_options_summary_thinking_on">Razonamiento activado</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="one">%d nivel</item>
-        <item quantity="many">%d niveles</item>
-        <item quantity="other">%d niveles</item>
-    </plurals>
-    <string name="model_options_web_every_message">En cada mensaje</string>
-    <string name="model_options_web_no_generic_switch">Este proveedor no tiene un interruptor estándar para la búsqueda web. Agrega sus campos en el cuerpo de solicitud adicional.</string>
-    <string name="model_options_web_not_catalogued">Oriveo aún no tiene ajustes de búsqueda web para este modelo, así que no se puede activar aquí.</string>
-    <string name="model_options_web_note">Busca en la web primero cuando una pregunta lo requiere</string>
-    <string name="model_options_web_when_needed">Cuando haga falta</string>
-    <string name="additional_body_tools_managed">Las herramientas las gestiona Oriveo.</string>
-    <string name="additional_body_streaming_by_oriveo">Oriveo decide cómo se transmite la respuesta.</string>
-    <string name="relay_catalog_add_all">Agregar todo</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="one">Se agregó %1$d modelo</item>
-        <item quantity="other">Se agregaron %1$d modelos</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">Esta conexión necesita al menos un modelo.</string>
-    <string name="relay_catalog_enable_hint_explicit">Toca un modelo del catálogo para ver primero «Avanzado»; no se envía ninguna solicitud.</string>
-    <string name="relay_model_advanced_changes_apply">Los cambios se aplican al instante y solo se guardan en este dispositivo.</string>
-    <string name="relay_model_advanced_auto_equals_connection">Automático = protocolo predeterminado de esta conexión (%1$s)</string>
     <string name="relay_avatar_change_icon">Cambiar icono</string>
     <string name="relay_avatar_letter">Inicial</string>
     <string name="relay_avatar_icon_paper_plane">Avión de papel</string>
@@ -2345,7 +2389,7 @@
     <string name="memory_editor_category">Categoría</string>
     <string name="memory_editor_too_long">Máximo 2000 caracteres</string>
     <string name="memory_delete_confirm_title">¿Eliminar este recuerdo?</string>
-    <string name="memory_delete_confirm_body">Se eliminará de forma permanente de este dispositivo.</string>
+    <string name="memory_delete_confirm_body">Se eliminará de todos tus dispositivos.</string>
     <string name="memory_action_organize">Dividir en entradas</string>
     <string name="memory_raw_view">Texto sin formato</string>
     <string name="memory_raw_view_hint">Separa las entradas con una línea que solo contenga ---.</string>
@@ -2375,8 +2419,165 @@
     <string name="context_confirm_also_price_line">Además, supera el umbral de precio de %1$s, fijado en %2$s, así que toda la solicitud se cobra al precio de contexto largo.</string>
     <string name="context_confirm_dont_ask">No volver a preguntar en este chat</string>
     <string name="context_confirm_send">Enviar de todos modos</string>
-    <string name="chat_last_used_model_retired_hint">El último modelo que usaste fue retirado. Ahora se usa %1$s.</string>
-    <string name="model_options_shows_thinking_fixed">Muestra su razonamiento · no se puede ajustar</string>
     <string name="settings_section_general">General</string>
     <string name="settings_section_help_about">Ayuda e información</string>
+    <string name="settings_footer_poem">Entre miles de modelos, la respuesta hecha para ti.</string>
+    <string name="skills_home_autoCount">Automáticas · %1$d</string>
+    <string name="skills_home_slashHint">Escribe / para usarlas</string>
+    <string name="skills_home_empty">Guarda tu forma de hacer las cosas</string>
+    <string name="skills_list_subtitle">Guarda cómo te gusta que se hagan las cosas y la IA lo usará cuando venga al caso.</string>
+    <string name="skills_create_describePlaceholder">Describe una rutina y la IA la escribirá</string>
+    <string name="skills_create_fromChat">Desde un chat</string>
+    <string name="skills_create_manual">Crear manualmente</string>
+    <string name="skills_segment_mine">Mis habilidades</string>
+    <string name="skills_segment_templates">Plantillas</string>
+    <string name="skills_group_auto">Automáticas</string>
+    <string name="skills_group_manual">Solo manuales</string>
+    <string name="skills_card_usageCount">Usos: %1$d</string>
+    <string name="skills_row_slashHint">Se usa al escribir %1$s</string>
+    <string name="skills_auto_needWhenTitle">Primero, di cuándo usarla</string>
+    <string name="skills_auto_suggest">Sugerir</string>
+    <string name="skills_auto_limitReached">El uso automático llegó al límite (%1$d). Desactiva una primero.</string>
+    <string name="skills_search_placeholder">Buscar habilidades</string>
+    <string name="skills_empty_title">Aún no hay habilidades</string>
+    <string name="skills_empty_body">Guarda cómo te gusta que se hagan las cosas y no tendrás que explicarlo cada vez.</string>
+    <string name="skills_empty_browseTemplates">Ver plantillas</string>
+    <string name="skills_migrate_banner">Habilidades sin «Cuándo usarla»: %1$d. Agrega una frase y podrán usarse automáticamente.</string>
+    <string name="skills_migrate_review">Completar una a una</string>
+    <string name="skills_templates_note">Las plantillas solo se usan automáticamente después de agregarlas a «Mis habilidades».</string>
+    <string name="skills_templates_featured">Destacadas</string>
+    <string name="skills_templates_addToMine">Agregar a mis habilidades</string>
+    <string name="skills_templates_add">Agregar</string>
+    <string name="skills_templates_added">Agregada</string>
+    <string name="skills_templates_tryOnce">Probar una vez</string>
+    <string name="skills_detail_useInNewChat">Usar en un chat nuevo</string>
+    <string name="skills_detail_orSlash">O escribe %1$s en el cuadro de mensaje</string>
+    <string name="skills_detail_usage">Usos: %1$d · Último uso %2$s</string>
+    <string name="skills_detail_neverUsed">Aún sin usar</string>
+    <string name="skills_detail_autoInvoke">Usar automáticamente</string>
+    <string name="skills_detail_whenToUse">Cuándo usarla</string>
+    <string name="skills_detail_whenToUseNote">La IA lo usa para decidir</string>
+    <string name="skills_detail_instructions">Instrucciones</string>
+    <string name="skills_detail_showAll">Ver todo</string>
+    <string name="skills_detail_references">Archivos de referencia</string>
+    <string name="skills_detail_starters">Mensajes para empezar</string>
+    <string name="skills_detail_recentChats">Chats recientes</string>
+    <string name="skills_detail_try">Probar</string>
+    <string name="skills_edit_changeIcon">Cambiar icono</string>
+    <string name="skills_edit_name">Nombre</string>
+    <string name="skills_edit_whenBadge">Controla el uso automático</string>
+    <string name="skills_edit_whenPlaceholder">p. ej., Cuando pido convertir notas en un informe semanal. No para resúmenes diarios.</string>
+    <string name="skills_edit_keywordsCaption">Se activa con estas palabras · basta con describir la situación</string>
+    <string name="skills_edit_whenTip">Di qué hace, cuándo usarla y cómo sueles pedirlo. Agrega «No para…» para evitar usos equivocados. Las palabras entre comillas se resaltan.</string>
+    <string name="skills_edit_polish">Mejorar con IA</string>
+    <string name="skills_edit_addStarter">Agregar mensaje</string>
+    <string name="skills_edit_modelAndFeatures">Modelo y funciones</string>
+    <string name="skills_edit_followChat">Igual que el chat</string>
+    <string name="skills_edit_needWhenForAuto">Completa «Cuándo usarla» o desactiva el uso automático.</string>
+    <string name="skills_draft_askScenarios">Da uno o dos ejemplos de cuándo la usarías</string>
+    <string name="skills_draft_askQuality">¿Cómo sería un buen resultado?</string>
+    <string name="skills_draft_skip">Omitir</string>
+    <string name="skills_draft_generating">Escribiendo un borrador…</string>
+    <string name="skills_draft_title">Borrador</string>
+    <string name="skills_draft_editFirst">Editar primero</string>
+    <string name="skills_draft_suggestedIcon">Icono sugerido</string>
+    <string name="skills_draft_failed">No se pudo terminar el borrador. Ya completamos lo que estaba listo.</string>
+    <string name="skills_fromChat_menuConversation">Guardar como habilidad</string>
+    <string name="skills_fromChat_menuMessage">Guardar este enfoque como habilidad</string>
+    <string name="skills_fromChat_messages">Mensajes: %1$d</string>
+    <string name="skills_fromChat_extracting">Resumiendo…</string>
+    <string name="skills_limit_upgrade">Mejora tu plan</string>
+    <string name="skills_limit_draftKept">Tu borrador se guarda en este dispositivo.</string>
+    <string name="skills_composer_placeholder">Escribe / para usar una habilidad</string>
+    <string name="skills_picker_title">Mis habilidades</string>
+    <string name="skills_picker_multi">Puedes elegir varias</string>
+    <string name="skills_picker_auto">Automática</string>
+    <string name="skills_picker_manual">Manual</string>
+    <string name="skills_picker_manage">Administrar habilidades</string>
+    <string name="skills_picker_maxReached">Hasta %1$d a la vez</string>
+    <string name="skills_chip_deleted">Eliminada</string>
+    <string name="skills_message_attached">Con %1$s</string>
+    <string name="skills_used_chip">Usó %1$s</string>
+    <string name="skills_used_loading">Usando %1$s…</string>
+    <string name="skills_used_byChoice">Se usó porque la elegiste</string>
+    <string name="skills_used_why">Por qué se usó</string>
+    <string name="skills_used_disableHere">No usar automáticamente en este chat</string>
+    <string name="skills_used_view">Ver habilidad</string>
+    <string name="skills_settings_autoToggle">Usar habilidades automáticamente</string>
+    <string name="skills_settings_autoToggleFooter">Si está desactivado, el modelo no elegirá habilidades por su cuenta. Aún puedes escribir / para usar una.</string>
+    <string name="skills_try_banner">Probando · No se guarda en el historial</string>
+    <string name="skills_try_saveToSkill">Guardar en la habilidad</string>
+    <string name="skills_try_adjust">Editar instrucciones</string>
+    <string name="skills_try_saved">Guardado en «%1$s»</string>
+    <string name="skills_try_savedToDraft">Copiado al editor. Guárdalo allí para conservarlo.</string>
+    <string name="skills_improve_prompt">¿Agregar esto a «%1$s»?</string>
+    <string name="skills_improve_review">Ver el cambio</string>
+    <string name="skills_improve_accept">Agregar a la habilidad</string>
+    <string name="skills_improve_dismiss">Ahora no</string>
+    <string name="skills_improve_addedLine">Agregado</string>
+    <string name="skills_improve_removedLine">Eliminado</string>
+    <string name="skills_improve_saved">Agregado a «%1$s»</string>
+    <string name="skills_saveFailed">No se pudieron guardar los cambios. Vuelve a intentarlo.</string>
+    <string name="skills_usage_manifestRow">Costo de la lista de habilidades</string>
+    <string name="skills_glyph_writing">Escritura</string>
+    <string name="skills_glyph_report">Informe</string>
+    <string name="skills_glyph_code">Código</string>
+    <string name="skills_glyph_study">Estudio</string>
+    <string name="skills_glyph_travel">Viajes</string>
+    <string name="skills_glyph_health">Salud</string>
+    <string name="skills_glyph_meeting">Reunión</string>
+    <string name="skills_glyph_idea">Idea</string>
+    <string name="skills_glyph_translate">Traducción</string>
+    <string name="skills_glyph_email">Correo</string>
+    <string name="skills_glyph_data">Datos</string>
+    <string name="skills_glyph_design">Diseño</string>
+    <string name="skills_glyph_legal">Jurídico</string>
+    <string name="skills_glyph_finance">Finanzas</string>
+    <string name="skills_glyph_marketing">Marketing</string>
+    <string name="skills_glyph_support">Soporte</string>
+    <string name="skills_glyph_teaching">Enseñanza</string>
+    <string name="skills_glyph_research">Investigación</string>
+    <string name="skills_glyph_life">Vida diaria</string>
+    <string name="skills_glyph_food">Comida</string>
+    <string name="skills_glyph_music">Música</string>
+    <string name="skills_glyph_photo">Fotografía</string>
+    <string name="skills_glyph_product">Producto</string>
+    <string name="skills_glyph_general">General</string>
+    <string name="skills_home_notesRecent">Última edición</string>
+    <string name="skills_search_noResults">Sin resultados</string>
+    <string name="generic_error_try_again">Algo salió mal. Inténtalo de nuevo.</string>
+    <string name="loading_usage_trends">Cargando tendencias de uso…</string>
+    <string name="usage_vs_last_month">vs. el mes pasado</string>
+    <string name="usage_section_insights">ESTADÍSTICAS</string>
+    <string name="usage_section_budgets">PRESUPUESTOS</string>
+    <string name="usage_sample_report">Informe de muestra</string>
+    <string name="usage_clear">Borrar</string>
+    <string name="usage_monthly_budget_eyebrow">Presupuesto mensual</string>
+    <string name="skills_knowledgeErrorOpenAI">La base de conocimientos requiere una clave API oficial de OpenAI.</string>
+    <string name="skills_knowledgeErrorEndpoint">La base de conocimientos solo funciona con el punto final oficial de OpenAI.</string>
+    <string name="skills_knowledgeErrorModelDisabled">Primero agrega y habilita %1$s en tu proveedor de OpenAI.</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">La base de conocimientos no está disponible en este momento.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">Los archivos de la base de conocimientos deben tener 20 MB o menos.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">Una habilidad puede tener hasta 5 archivos de base de conocimientos y 100 MB en total.</string>
+    <string name="skills_knowledgeErrorExtractFailed">No se pudo extraer el texto de este archivo.</string>
+    <string name="skills_knowledgeErrorUploadFailed">No se pudo cargar este archivo.</string>
+    <string name="skills_knowledgeErrorIndexFailed">No se pudo indexar este archivo.</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">La recuperación de conocimientos falló para este mensaje.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">No se pudo limpiar el archivo remoto. Vuelve a intentarlo más tarde.</string>
+    <string name="custom_llm_connection_method">Método de conexión</string>
+    <string name="local_compute_pairing_code">Código de vinculación</string>
+    <string name="local_compute_scan_qr">Escanear código QR</string>
+    <string name="api_endpoint_not_configured">Sin configurar</string>
+    <string name="contact_support">Contactar con soporte</string>
+    <string name="error_attachment_not_accepted_title">Adjunto no admitido</string>
+    <string name="generation_empty_runtime_locked">Los parámetros de ejecución no se pueden ajustar en esta conexión.</string>
+    <string name="legal_consent_notice">Al continuar, aceptas los términos legales a continuación.</string>
+    <string name="price_cache_read">Lectura de caché</string>
+    <string name="price_cache_write">Escritura de caché</string>
+    <string name="price_input">Entrada</string>
+    <string name="price_output">Salida</string>
+    <string name="settings_report_issue">Reportar un problema</string>
+    <string name="settings_source_code">Código fuente</string>
+    <string name="skills_pinToHome">Fijar en inicio</string>
+    <string name="skills_unpin">Desfijar</string>
 </resources>

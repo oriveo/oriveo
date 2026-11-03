@@ -2776,5 +2776,4692 @@
         }
       }
     ]
+  },
+  "imageRequests": {
+    "$comment": "Image studio request shapes. Additive to v2 and independent of the recipe surface above: every route of image_profile.v2.json has a generate case (when it supports generate) and one edit case per edit transport. Profiles come from image_param_normalization.v1.json#profiles; params are the raw request: hosts run image_param_normalization first and build from its wire. Dotted bodyIncludes keys address nested fields, numeric segments are array indices, \"*\" means any non-empty value, \"data:image/png;base64,*\" means a data URI of that mime. bodyExcludes lists keys that must be absent. Edit shapes are the ones that passed in the P0 golden samples (image_response_samples.v1). Each client runs these against its production request builder in P5.",
+    "clientCasesComment": "clientCases pin builder edges the vendor cases leave open (P5·U6a and later). Host conventions: image bytes = UTF-8 of images[].data (default \"image-<slot>\"); apiKey defaults to \"test-key\"; baseUrl defaults to expect.baseUrlExample, then https://api.example.com/v1; profileOverride is shallow-merged into the profile before validation; wireOverride (string values, dotted keys) is merged over the normalized wire before building. expect is either {error: invalid_request | invalid_profile} or a request shape; url, auth null (no Authorization and no x-goog-api-key header), auth \"x-goog-api-key\" (that header equals the ASCII-trimmed key and no Authorization header) and multipart files[].filename / data are exact when present; multipart field names are unique and multipartParts.fieldOrder, when present, is the exact field order. \"*\" means present and not empty (empty string, array or object fail). Advanced fields are sent only when profile.params[field] is true and the route has a body key for it. profile.params.promptExtend is sent as parameters.prompt_extend on dashscope_multimodal only when it is a literal boolean (null / missing / non-boolean = not sent). A non-boolean params entry counts as absent on its own and never disables the other entries.",
+    "profilesFrom": "image_param_normalization.v1.json#profiles",
+    "cases": [
+      {
+        "caseId": "openai_images.generate",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2",
+            "prompt": "*",
+            "size": "1024x1024",
+            "quality": "medium",
+            "n": 1
+          },
+          "bodyExcludes": [
+            "messages",
+            "stream",
+            "response_format",
+            "image",
+            "mask"
+          ]
+        },
+        "$comment": "gpt-image models reject response_format (request_shape_contract.v1 openai.images.route)."
+      },
+      {
+        "caseId": "openai_images.edit.multipart",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/jpeg"
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/edits",
+          "contentType": "multipart/form-data",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {},
+          "bodyExcludes": [],
+          "multipartParts": {
+            "fields": {
+              "model": "gpt-image-2",
+              "prompt": "*",
+              "size": "1024x1024",
+              "quality": "medium",
+              "n": "1"
+            },
+            "files": [
+              {
+                "name": "image[]",
+                "order": 1,
+                "mime": "image/png"
+              },
+              {
+                "name": "image[]",
+                "order": 2,
+                "mime": "image/jpeg"
+              }
+            ],
+            "excludes": [
+              "mask",
+              "response_format"
+            ],
+            "fieldOrder": [
+              "model",
+              "prompt",
+              "n",
+              "quality",
+              "size"
+            ]
+          }
+        },
+        "$comment": "Golden sample openai_images.openai.gpt-image-2.edit. Base first, then references in slot order. mask is never sent (E-02)."
+      },
+      {
+        "caseId": "openai_images.edit.json_image",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "siliconflow_qwen_edit",
+          "modelId": "Qwen/Qwen-Image-Edit",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "json_image"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.siliconflow.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "Qwen/Qwen-Image-Edit",
+            "prompt": "*",
+            "image": "data:image/png;base64,*",
+            "size": "1024x1024"
+          },
+          "bodyExcludes": [
+            "n",
+            "image_url",
+            "response_format",
+            "messages"
+          ]
+        },
+        "$comment": "Golden sample openai_images.siliconFlow.Qwen-Image-Edit.edit (image as data URI on /images/generations)."
+      },
+      {
+        "caseId": "openai_images.edit.json_image_url",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "together_flux_kontext",
+          "modelId": "black-forest-labs/FLUX.1-kontext-pro",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "json_image_url"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.together.xyz/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "black-forest-labs/FLUX.1-kontext-pro",
+            "prompt": "*",
+            "image_url": "data:image/png;base64,*",
+            "size": "1024x1024",
+            "n": 1
+          },
+          "bodyExcludes": [
+            "image",
+            "response_format",
+            "messages"
+          ]
+        },
+        "$comment": "Golden sample openai_images.togetherAI.FLUX.1-kontext-pro.edit (image_url as data URI)."
+      },
+      {
+        "caseId": "xai_images.generate",
+        "intent": {
+          "route": "xai_images",
+          "operation": "generate",
+          "profileRef": "xai_grok_imagine",
+          "modelId": "grok-imagine-image",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.x.ai/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "grok-imagine-image",
+            "prompt": "*",
+            "aspect_ratio": "1:1",
+            "resolution": "1k",
+            "n": 1,
+            "response_format": "b64_json"
+          },
+          "bodyExcludes": [
+            "size",
+            "quality",
+            "messages",
+            "image",
+            "images"
+          ]
+        },
+        "$comment": "xAI rejects size (request_shape_contract.v1 grok.images.route). aspect_ratio is always explicit: without it xAI returns 3:2 (golden sample)."
+      },
+      {
+        "caseId": "xai_images.edit.single",
+        "intent": {
+          "route": "xai_images",
+          "operation": "edit",
+          "profileRef": "xai_grok_imagine",
+          "modelId": "grok-imagine-image",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "json_image_object"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.x.ai/v1",
+          "endpointPath": "/images/edits",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "grok-imagine-image",
+            "prompt": "*",
+            "image.url": "data:image/png;base64,*",
+            "aspect_ratio": "1:1",
+            "resolution": "1k",
+            "n": 1,
+            "response_format": "b64_json"
+          },
+          "bodyExcludes": [
+            "images",
+            "size",
+            "quality"
+          ]
+        },
+        "$comment": "Golden sample xai_images.grok.grok-imagine-image.edit. image and images are mutually exclusive."
+      },
+      {
+        "caseId": "xai_images.edit.multi",
+        "intent": {
+          "route": "xai_images",
+          "operation": "edit",
+          "profileRef": "xai_grok_imagine",
+          "modelId": "grok-imagine-image",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/jpeg"
+            }
+          ],
+          "editTransport": "json_image_object"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.x.ai/v1",
+          "endpointPath": "/images/edits",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "grok-imagine-image",
+            "prompt": "*",
+            "images.0.url": "data:image/png;base64,*",
+            "images.1.url": "data:image/jpeg;base64,*",
+            "aspect_ratio": "1:1",
+            "resolution": "1k",
+            "n": 1,
+            "response_format": "b64_json"
+          },
+          "bodyExcludes": [
+            "image",
+            "size",
+            "quality"
+          ]
+        },
+        "$comment": "Two or more images use images[] (max 5), per the xAI REST reference."
+      },
+      {
+        "caseId": "gemini_generate_content.generate",
+        "intent": {
+          "route": "gemini_generate_content",
+          "operation": "generate",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "contents.0.role": "user",
+            "contents.0.parts.0.text": "*",
+            "generationConfig.responseModalities.0": "TEXT",
+            "generationConfig.responseModalities.1": "IMAGE",
+            "generationConfig.imageConfig.aspectRatio": "1:1",
+            "generationConfig.imageConfig.imageSize": "1K"
+          },
+          "bodyExcludes": [
+            "tools",
+            "generationConfig.thinkingConfig",
+            "generationConfig.candidateCount"
+          ]
+        },
+        "$comment": "Studio uses non-streaming generateContent (E-11)."
+      },
+      {
+        "caseId": "gemini_generate_content.edit.inline",
+        "intent": {
+          "route": "gemini_generate_content",
+          "operation": "edit",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/jpeg"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "contents.0.parts.0.text": "*",
+            "contents.0.parts.1.inline_data.mime_type": "image/png",
+            "contents.0.parts.1.inline_data.data": "*",
+            "contents.0.parts.2.inline_data.mime_type": "image/jpeg",
+            "contents.0.parts.2.inline_data.data": "*",
+            "generationConfig.responseModalities.1": "IMAGE",
+            "generationConfig.imageConfig.aspectRatio": "1:1"
+          },
+          "bodyExcludes": [
+            "tools"
+          ]
+        },
+        "$comment": "Golden sample gemini_generate_content.gemini.gemini-3.1-flash-lite-image.edit. Text part first, images after it in slot order."
+      },
+      {
+        "caseId": "chat_modalities.generate",
+        "intent": {
+          "route": "chat_modalities",
+          "operation": "generate",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/chat/completions",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "google/gemini-3.1-flash-lite-image",
+            "messages.0.role": "user",
+            "messages.0.content": "*",
+            "modalities.0": "image",
+            "modalities.1": "text",
+            "image_config.aspect_ratio": "1:1",
+            "stream": false
+          },
+          "bodyExcludes": [
+            "tools",
+            "reasoning",
+            "reasoning_effort",
+            "n",
+            "image_config.image_size"
+          ]
+        },
+        "$comment": "aspect_ratio is always explicit: without it OpenRouter returned 1408x768 (golden sample). image_config.image_size is not documented, so it is not sent."
+      },
+      {
+        "caseId": "chat_modalities.edit.inline",
+        "intent": {
+          "route": "chat_modalities",
+          "operation": "edit",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/chat/completions",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "messages.0.role": "user",
+            "messages.0.content.0.type": "text",
+            "messages.0.content.0.text": "*",
+            "messages.0.content.1.type": "image_url",
+            "messages.0.content.1.image_url.url": "data:image/png;base64,*",
+            "modalities.0": "image",
+            "image_config.aspect_ratio": "1:1",
+            "stream": false
+          },
+          "bodyExcludes": [
+            "tools",
+            "n"
+          ]
+        },
+        "$comment": "Golden sample chat_modalities.openRouter.gemini-3.1-flash-lite-image.edit."
+      },
+      {
+        "caseId": "openrouter_images.generate",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "generate",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/images",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "openai/gpt-image-2",
+            "prompt": "*",
+            "size": "1024x1024",
+            "quality": "medium",
+            "n": 1
+          },
+          "bodyExcludes": [
+            "messages",
+            "modalities",
+            "input_references",
+            "aspect_ratio",
+            "resolution"
+          ]
+        },
+        "$comment": "size takes precedence; sending aspect_ratio / resolution alongside a mismatching size is a 400 (OpenRouter Image API guide), so only size is sent."
+      },
+      {
+        "caseId": "openrouter_images.edit.input_references",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "edit",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/jpeg"
+            }
+          ],
+          "editTransport": "input_references"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/images",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "openai/gpt-image-2",
+            "prompt": "*",
+            "input_references.0.type": "image_url",
+            "input_references.0.image_url.url": "data:image/png;base64,*",
+            "input_references.1.type": "image_url",
+            "input_references.1.image_url.url": "data:image/jpeg;base64,*",
+            "size": "1024x1024",
+            "quality": "medium",
+            "n": 1
+          },
+          "bodyExcludes": [
+            "messages",
+            "image"
+          ]
+        },
+        "$comment": "Golden sample openrouter_images.openRouter.gpt-image-2.edit."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "operation": "generate",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "qwen-image-2.0",
+            "input.messages.0.role": "user",
+            "input.messages.0.content.0.text": "*",
+            "parameters.size": "1024*1024",
+            "parameters.n": 1
+          },
+          "bodyExcludes": [
+            "messages",
+            "stream",
+            "parameters.prompt_extend"
+          ]
+        },
+        "$comment": "prompt_extend is only sent when the profile declares params.promptExtend (E-13); this profile does not."
+      },
+      {
+        "caseId": "dashscope_multimodal.edit.inline",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "operation": "edit",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "qwen-image-2.0",
+            "input.messages.0.content.0.image": "data:image/png;base64,*",
+            "input.messages.0.content.1.text": "*",
+            "parameters.size": "1024*1024"
+          },
+          "bodyExcludes": [
+            "messages",
+            "stream"
+          ]
+        },
+        "$comment": "Golden sample dashscope_multimodal.qwen.qwen-image-2.0.edit (images first, then text). Single-turn only: never send earlier rounds (E-05)."
+      },
+      {
+        "caseId": "minimax_image_generation.generate",
+        "intent": {
+          "route": "minimax_image_generation",
+          "operation": "generate",
+          "profileRef": "minimax_image01",
+          "modelId": "image-01",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.minimax.io/v1",
+          "endpointPath": "/image_generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "image-01",
+            "prompt": "*",
+            "aspect_ratio": "1:1",
+            "n": 1,
+            "response_format": "base64"
+          },
+          "bodyExcludes": [
+            "size",
+            "width",
+            "height",
+            "messages",
+            "stream"
+          ]
+        },
+        "$comment": "No edit: MiniMax only has subject (character) reference, not instruction editing."
+      }
+    ],
+    "clientCases": [
+      {
+        "caseId": "openai_images.generate.n_three",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": " gpt-image-2 ",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 3
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2",
+            "prompt": "a red fox in the snow",
+            "size": "1024x1024",
+            "quality": "medium",
+            "n": 3
+          },
+          "bodyExcludes": [
+            "response_format",
+            "image"
+          ]
+        },
+        "$comment": "n comes from the normalized wire; the model id goes out trimmed, the prompt verbatim."
+      },
+      {
+        "caseId": "openai_images.generate.base_url_trailing_slash",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "baseUrl": "https://relay.example.com/v1//"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          },
+          "url": "https://relay.example.com/v1/images/generations"
+        },
+        "$comment": "Trailing slashes of the base URL are dropped before the endpoint path is appended."
+      },
+      {
+        "caseId": "openai_images.generate.base_url_padded",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "baseUrl": " https://relay.example.com/v1 \n"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          },
+          "url": "https://relay.example.com/v1/images/generations"
+        },
+        "$comment": "The base URL is ASCII-trimmed before it is checked and joined."
+      },
+      {
+        "caseId": "openai_images.generate.base_url_underscore_host",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "baseUrl": "http://my_relay:8080/v1"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          },
+          "url": "http://my_relay:8080/v1/images/generations"
+        },
+        "$comment": "Hosts are matched textually: underscores (LAN relay names) and a port are fine."
+      },
+      {
+        "caseId": "openai_images.generate.base_url_non_ascii_space_kept",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "baseUrl": "https://relay.example.com/v\u00a01"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          },
+          "url": "https://relay.example.com/v\u00a01/images/generations"
+        },
+        "$comment": "Only ASCII whitespace is trimmed or rejected inside the base URL; U+00A0 is an ordinary path character and is kept as is."
+      },
+      {
+        "caseId": "openai_images.generate.base_url_no_host",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "baseUrl": "http:///v1"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Base URL rule: http(s)://host[:port][/path] with a non-empty host."
+      },
+      {
+        "caseId": "openai_images.generate.base_url_no_slashes",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "baseUrl": "http:relay.example.com/v1"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "The scheme must be followed by //."
+      },
+      {
+        "caseId": "openai_images.generate.base_url_query",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "baseUrl": "https://relay.example.com/v1?key=abc"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "A query or fragment in the base URL is rejected; the path would land after it."
+      },
+      {
+        "caseId": "openai_images.generate.prompt_verbatim",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "  a red fox \n",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "prompt": "  a red fox \n"
+          }
+        },
+        "$comment": "The prompt is checked for blankness but sent byte for byte."
+      },
+      {
+        "caseId": "openai_images.generate.non_ascii_space_not_blank",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": " ",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "prompt": " "
+          }
+        },
+        "$comment": "Only ASCII whitespace counts as blank; U+00A0 is a real prompt."
+      },
+      {
+        "caseId": "openai_images.edit.max_reference_default_one",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "A missing maxReferenceImages allows one image.",
+        "profileOverride": {
+          "maxReferenceImages": null
+        }
+      },
+      {
+        "caseId": "openai_images.generate.bad_base_url",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "baseUrl": "ftp://relay.example.com/v1"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Only http(s) URLs with a host are accepted."
+      },
+      {
+        "caseId": "openai_images.generate.blank_api_key",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "apiKey": "   "
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": null,
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          }
+        },
+        "$comment": "A blank key sends no Authorization header (keyless local relays); the upstream answers 401 if it needs one."
+      },
+      {
+        "caseId": "openai_images.generate.blank_model",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "  ",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Model id must be non-blank."
+      },
+      {
+        "caseId": "openai_images.generate.blank_prompt",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": " \n ",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Prompt must be non-blank."
+      },
+      {
+        "caseId": "openai_images.generate.with_images",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ]
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "generate never carries images."
+      },
+      {
+        "caseId": "openai_images.generate.edit_only_profile",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "siliconflow_qwen_edit",
+          "modelId": "Qwen/Qwen-Image-Edit",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "The operation must be listed in profile.operations."
+      },
+      {
+        "caseId": "openai_images.edit.no_images",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "  a red fox \n",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "edit needs at least one image."
+      },
+      {
+        "caseId": "openai_images.edit.multipart.order_and_filenames",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 3,
+              "role": "style",
+              "mime": "image/webp"
+            },
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/jpeg"
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/edits",
+          "contentType": "multipart/form-data",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {},
+          "bodyExcludes": [],
+          "multipartParts": {
+            "fields": {
+              "model": "gpt-image-2",
+              "prompt": "a red fox in the snow",
+              "size": "1024x1024",
+              "quality": "medium",
+              "n": "1"
+            },
+            "files": [
+              {
+                "name": "image[]",
+                "order": 1,
+                "mime": "image/png",
+                "filename": "image-1.png",
+                "data": "image-1"
+              },
+              {
+                "name": "image[]",
+                "order": 2,
+                "mime": "image/jpeg",
+                "filename": "image-2.jpg",
+                "data": "image-2"
+              },
+              {
+                "name": "image[]",
+                "order": 3,
+                "mime": "image/webp",
+                "filename": "image-3.webp",
+                "data": "image-3"
+              }
+            ],
+            "excludes": [
+              "mask",
+              "response_format"
+            ]
+          }
+        },
+        "$comment": "Base first, then references by ascending slot whatever the input order; filename image-<order>.<png|jpg|webp>."
+      },
+      {
+        "caseId": "openai_images.edit.multipart.references_only",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/jpeg"
+            },
+            {
+              "slot": 1,
+              "role": "subject",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/edits",
+          "contentType": "multipart/form-data",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {},
+          "bodyExcludes": [],
+          "multipartParts": {
+            "fields": {
+              "model": "gpt-image-2",
+              "prompt": "  a red fox \n"
+            },
+            "files": [
+              {
+                "name": "image[]",
+                "order": 1,
+                "mime": "image/png",
+                "filename": "image-1.png",
+                "data": "image-1"
+              },
+              {
+                "name": "image[]",
+                "order": 2,
+                "mime": "image/jpeg",
+                "filename": "image-2.jpg",
+                "data": "image-2"
+              }
+            ],
+            "excludes": [
+              "mask"
+            ]
+          }
+        },
+        "$comment": "An edit may carry references without a base; they go in slot order. The multipart prompt is sent verbatim too."
+      },
+      {
+        "caseId": "openai_images.edit.duplicate_slot",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 1,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Slots are unique positive integers."
+      },
+      {
+        "caseId": "openai_images.edit.two_bases",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "At most one base image."
+      },
+      {
+        "caseId": "openai_images.edit.unsupported_mime",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/gif"
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Only image/png, image/jpeg and image/webp are sent; conversion happens at import."
+      },
+      {
+        "caseId": "openai_images.edit.empty_image_data",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png",
+              "data": ""
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Image bytes must be non-empty."
+      },
+      {
+        "caseId": "openai_images.edit.over_max_reference",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "style",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "multipart"
+        },
+        "profileOverride": {
+          "maxReferenceImages": 2
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "maxReferenceImages counts every image of the request, base included."
+      },
+      {
+        "caseId": "openai_images.edit.json_image.two_images",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "siliconflow_qwen_edit",
+          "modelId": "Qwen/Qwen-Image-Edit",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "json_image"
+        },
+        "profileOverride": {
+          "maxReferenceImages": 3
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "json_image and json_image_url carry exactly one image even when the profile allows more."
+      },
+      {
+        "caseId": "openai_images.edit.json_image.exact_data_uri",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "siliconflow_qwen_edit",
+          "modelId": "Qwen/Qwen-Image-Edit",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png",
+              "data": "abc"
+            }
+          ],
+          "editTransport": "json_image"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.siliconflow.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "image": "data:image/png;base64,YWJj",
+            "size": "1024x1024"
+          },
+          "bodyExcludes": [
+            "n",
+            "image_url"
+          ]
+        },
+        "$comment": "The data URI is standard base64 of the exact bytes."
+      },
+      {
+        "caseId": "openai_images.generate.advanced_supported",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 0,
+            "transparentBackground": true,
+            "outputFormat": "webp"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": false,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "negative_prompt": "blurry",
+            "seed": 0,
+            "output_format": "webp"
+          },
+          "bodyExcludes": [
+            "background"
+          ]
+        },
+        "$comment": "profile.params true → negative_prompt / seed / output_format; seed 0 is a value, not unset. Transparency the profile does not support sends no background and does not lock the format."
+      },
+      {
+        "caseId": "openai_images.generate.advanced_without_params",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 7,
+            "transparentBackground": true,
+            "outputFormat": "webp"
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          },
+          "bodyExcludes": [
+            "negative_prompt",
+            "seed",
+            "background",
+            "output_format"
+          ]
+        },
+        "$comment": "No profile.params → nothing advanced is sent, silently."
+      },
+      {
+        "caseId": "openai_images.generate.advanced_false_or_null",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 7,
+            "transparentBackground": true,
+            "outputFormat": "webp"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": false,
+            "seed": null,
+            "transparentBackground": false,
+            "outputFormat": null
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          },
+          "bodyExcludes": [
+            "negative_prompt",
+            "seed",
+            "background",
+            "output_format"
+          ]
+        },
+        "$comment": "false and null both mean unsupported."
+      },
+      {
+        "caseId": "openai_images.generate.transparent_locks_png",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "transparentBackground": true,
+            "outputFormat": "jpeg"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "background": "transparent",
+            "output_format": "png"
+          }
+        },
+        "$comment": "Transparent background forces output_format png (jpeg cannot be transparent)."
+      },
+      {
+        "caseId": "openai_images.generate.transparent_without_format_param",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "transparentBackground": true
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "transparentBackground": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "background": "transparent"
+          },
+          "bodyExcludes": [
+            "output_format"
+          ]
+        },
+        "$comment": "Without params.outputFormat no output_format is sent (OpenAI defaults to png)."
+      },
+      {
+        "caseId": "openai_images.generate.opaque_not_sent",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "transparentBackground": false,
+            "negativePrompt": "  "
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "transparentBackground": true,
+            "negativePrompt": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          },
+          "bodyExcludes": [
+            "background",
+            "negative_prompt"
+          ]
+        },
+        "$comment": "Transparent off sends no background (upstream default); a blank negative prompt is not sent."
+      },
+      {
+        "caseId": "openai_images.generate.seed_negative",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "seed": -1
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "seed": true
+          }
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "seed is an integer in 0...2147483647."
+      },
+      {
+        "caseId": "openai_images.generate.seed_too_large",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "seed": 2147483648
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "seed": true
+          }
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "seed is an integer in 0...2147483647."
+      },
+      {
+        "caseId": "openai_images.generate.bad_output_format",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "outputFormat": "gif"
+          }
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "outputFormat is png | jpeg | webp; values are checked even when the profile would not send them."
+      },
+      {
+        "caseId": "openai_images.edit.multipart.advanced",
+        "intent": {
+          "route": "openai_images",
+          "operation": "edit",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "multipart",
+          "advanced": {
+            "transparentBackground": true,
+            "seed": 5
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/edits",
+          "contentType": "multipart/form-data",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {},
+          "bodyExcludes": [],
+          "multipartParts": {
+            "fields": {
+              "background": "transparent",
+              "output_format": "png",
+              "n": "1"
+            },
+            "files": [
+              {
+                "name": "image[]",
+                "order": 1,
+                "mime": "image/png",
+                "filename": "image-1.png",
+                "data": "image-1"
+              }
+            ],
+            "excludes": [
+              "seed",
+              "mask"
+            ],
+            "fieldOrder": [
+              "model",
+              "prompt",
+              "n",
+              "quality",
+              "size",
+              "background",
+              "output_format"
+            ]
+          }
+        },
+        "$comment": "Multipart advanced fields are strings; seed stays out because params.seed is absent."
+      },
+      {
+        "caseId": "xai_images.edit.five_images",
+        "intent": {
+          "route": "xai_images",
+          "operation": "edit",
+          "profileRef": "xai_grok_imagine",
+          "modelId": "grok-imagine-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 4,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 5,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "json_image_object"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.x.ai/v1",
+          "endpointPath": "/images/edits",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "images.0.url": "data:image/png;base64,aW1hZ2UtMQ==",
+            "images.4.url": "data:image/png;base64,aW1hZ2UtNQ==",
+            "response_format": "b64_json"
+          },
+          "bodyExcludes": [
+            "image",
+            "images.5"
+          ]
+        },
+        "$comment": "Up to 5 images go in images[]."
+      },
+      {
+        "caseId": "xai_images.edit.six_images",
+        "intent": {
+          "route": "xai_images",
+          "operation": "edit",
+          "profileRef": "xai_grok_imagine",
+          "modelId": "grok-imagine-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 4,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 5,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 6,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "json_image_object"
+        },
+        "profileOverride": {
+          "maxReferenceImages": 8
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "json_image_object carries at most 5 images even when the profile allows more."
+      },
+      {
+        "caseId": "xai_images.generate.advanced_never_sent",
+        "intent": {
+          "route": "xai_images",
+          "operation": "generate",
+          "profileRef": "xai_grok_imagine",
+          "modelId": "grok-imagine-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 7,
+            "transparentBackground": true,
+            "outputFormat": "webp"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.x.ai/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "response_format": "b64_json",
+            "aspect_ratio": "1:1"
+          },
+          "bodyExcludes": [
+            "negative_prompt",
+            "seed",
+            "background",
+            "output_format"
+          ]
+        },
+        "$comment": "xAI documents none of the four advanced fields; they are never sent on this route."
+      },
+      {
+        "caseId": "openrouter_images.generate.exact_url_no_response_format",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "generate",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/images",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "openai/gpt-image-2",
+            "prompt": "a red fox in the snow",
+            "size": "1024x1024",
+            "quality": "medium",
+            "n": 1
+          },
+          "bodyExcludes": [
+            "response_format",
+            "image",
+            "images",
+            "input_references"
+          ],
+          "url": "https://openrouter.ai/api/v1/images"
+        },
+        "$comment": "Generate and edit share /images; the endpoint has no response_format field and always answers data[].b64_json."
+      },
+      {
+        "caseId": "openrouter_images.edit.single_reference_is_array",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "edit",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png",
+              "data": "abc"
+            }
+          ],
+          "editTransport": "input_references"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/images",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "input_references.0.type": "image_url",
+            "input_references.0.image_url.url": "data:image/png;base64,YWJj"
+          },
+          "bodyExcludes": [
+            "input_references.1",
+            "image",
+            "images",
+            "image_url",
+            "response_format"
+          ],
+          "url": "https://openrouter.ai/api/v1/images"
+        },
+        "$comment": "One image is still an input_references array, never image / images."
+      },
+      {
+        "caseId": "openrouter_images.edit.order_base_then_slots",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "edit",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/webp",
+              "data": "ccc"
+            },
+            {
+              "slot": 2,
+              "role": "base",
+              "mime": "image/png",
+              "data": "bbb"
+            },
+            {
+              "slot": 1,
+              "role": "element",
+              "mime": "image/jpeg",
+              "data": "aaa"
+            }
+          ],
+          "editTransport": "input_references"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/images",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "input_references.0.image_url.url": "data:image/png;base64,YmJi",
+            "input_references.1.image_url.url": "data:image/jpeg;base64,YWFh",
+            "input_references.2.image_url.url": "data:image/webp;base64,Y2Nj"
+          },
+          "bodyExcludes": [
+            "input_references.3"
+          ]
+        },
+        "$comment": "Base first, then references by ascending slot."
+      },
+      {
+        "caseId": "openrouter_images.edit.sixteen_images",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "edit",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 4,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 5,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 6,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 7,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 8,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 9,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 10,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 11,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 12,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 13,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 14,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 15,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 16,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "input_references"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/images",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "input_references.15.type": "image_url",
+            "input_references.15.image_url.url": "data:image/png;base64,*"
+          },
+          "bodyExcludes": [
+            "input_references.16"
+          ]
+        },
+        "$comment": "input_references has no transport-level cap; profile.maxReferenceImages (16 for gpt-image) is the only bound."
+      },
+      {
+        "caseId": "openrouter_images.edit.seventeen_images",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "edit",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 4,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 5,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 6,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 7,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 8,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 9,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 10,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 11,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 12,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 13,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 14,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 15,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 16,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 17,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "input_references"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "One more than maxReferenceImages."
+      },
+      {
+        "caseId": "openrouter_images.generate.advanced_supported",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "generate",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 42,
+            "transparentBackground": true,
+            "outputFormat": "jpeg"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/images",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "seed": 42,
+            "background": "transparent",
+            "output_format": "png"
+          },
+          "bodyExcludes": [
+            "negative_prompt"
+          ]
+        },
+        "$comment": "OpenRouter documents seed / background / output_format but no negative_prompt; transparency locks png."
+      },
+      {
+        "caseId": "openrouter_images.generate.opaque_keeps_format",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "generate",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "transparentBackground": false,
+            "outputFormat": "webp"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/images",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "output_format": "webp"
+          },
+          "bodyExcludes": [
+            "background",
+            "seed",
+            "negative_prompt"
+          ]
+        },
+        "$comment": "Transparency off sends no background; the chosen format goes out as is."
+      },
+      {
+        "caseId": "minimax_image_generation.generate.exact_url_base64",
+        "intent": {
+          "route": "minimax_image_generation",
+          "operation": "generate",
+          "profileRef": "minimax_image01",
+          "modelId": "image-01",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.minimax.io/v1",
+          "endpointPath": "/image_generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "image-01",
+            "prompt": "a red fox in the snow",
+            "aspect_ratio": "1:1",
+            "n": 1,
+            "response_format": "base64"
+          },
+          "bodyExcludes": [
+            "quality",
+            "size",
+            "image",
+            "images",
+            "input_references",
+            "subject_reference",
+            "prompt_optimizer"
+          ],
+          "url": "https://api.minimax.io/v1/image_generation"
+        },
+        "$comment": "MiniMax defaults to a URL that expires after 24 h; the pipeline always asks for base64. No quality key on this route."
+      },
+      {
+        "caseId": "minimax_image_generation.edit.not_supported",
+        "intent": {
+          "route": "minimax_image_generation",
+          "operation": "edit",
+          "profileRef": "minimax_image01",
+          "modelId": "image-01",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ]
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "The profile has no edit operation (subject_reference is character reference, not instruction editing)."
+      },
+      {
+        "caseId": "minimax_image_generation.generate.advanced_seed_only",
+        "intent": {
+          "route": "minimax_image_generation",
+          "operation": "generate",
+          "profileRef": "minimax_image01",
+          "modelId": "image-01",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 2147483647,
+            "transparentBackground": true,
+            "outputFormat": "webp"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.minimax.io/v1",
+          "endpointPath": "/image_generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "seed": 2147483647,
+            "response_format": "base64"
+          },
+          "bodyExcludes": [
+            "negative_prompt",
+            "background",
+            "output_format"
+          ]
+        },
+        "$comment": "MiniMax documents seed only; the other advanced fields are never sent on this route."
+      },
+      {
+        "caseId": "minimax_image_generation.generate.bad_output_format",
+        "intent": {
+          "route": "minimax_image_generation",
+          "operation": "generate",
+          "profileRef": "minimax_image01",
+          "modelId": "image-01",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "outputFormat": "gif"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "A format outside png / jpeg / webp is rejected even on a route that never sends it."
+      },
+      {
+        "caseId": "minimax_image_generation.generate.seed_too_large",
+        "intent": {
+          "route": "minimax_image_generation",
+          "operation": "generate",
+          "profileRef": "minimax_image01",
+          "modelId": "image-01",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [],
+          "advanced": {
+            "seed": 2147483648
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Seed range is 0...2147483647 on every route."
+      },
+      {
+        "caseId": "openrouter_images.edit.max_reference_non_positive_is_one",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "edit",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/jpeg"
+            }
+          ],
+          "editTransport": "input_references"
+        },
+        "profileOverride": {
+          "maxReferenceImages": 0
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "A non-positive maxReferenceImages counts as 1, so two images are one too many."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.exact_url_and_header",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent",
+          "bodyIncludes": {
+            "contents.0.role": "user",
+            "contents.0.parts.0.text": "a red fox in the snow",
+            "generationConfig.responseModalities.0": "TEXT",
+            "generationConfig.responseModalities.1": "IMAGE",
+            "generationConfig.imageConfig.aspectRatio": "1:1",
+            "generationConfig.imageConfig.imageSize": "1K"
+          },
+          "bodyExcludes": [
+            "model",
+            "prompt",
+            "contents.1",
+            "contents.0.parts.1",
+            "generationConfig.responseModalities.2",
+            "response_format",
+            "n",
+            "generationConfig.candidateCount",
+            "generationConfig.seed"
+          ]
+        },
+        "$comment": "Model goes in the path only; the key goes in x-goog-api-key, never Authorization or ?key=."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.blank_api_key",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": [],
+          "apiKey": " \t"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": null,
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent"
+        },
+        "$comment": "A blank key sends no auth header at all (keyless local relays), same as E-88 for Bearer routes."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.models_prefix_stripped",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "models/gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent"
+        },
+        "$comment": "A pasted resource name loses one leading models/ so the path is not models/models/..."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.model_path_escaped",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "my model/é:x~1.0_a-b",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/my%20model%2F%C3%A9%3Ax~1.0_a-b:generateContent"
+        },
+        "$comment": "Every UTF-8 byte outside RFC 3986 unreserved (A-Z a-z 0-9 - . _ ~) is percent-encoded with upper-case hex."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.models_prefix_only",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "models/",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "Nothing is left after the prefix: blank model."
+      },
+      {
+        "caseId": "gemini_generate_content.edit.text_first_raw_base64",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "edit",
+          "images": [
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/webp",
+              "data": "ccc"
+            },
+            {
+              "slot": 2,
+              "role": "base",
+              "mime": "image/png",
+              "data": "abc"
+            },
+            {
+              "slot": 1,
+              "role": "element",
+              "mime": "image/jpeg",
+              "data": "x"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent",
+          "bodyIncludes": {
+            "contents.0.role": "user",
+            "contents.0.parts.0.text": "a red fox in the snow",
+            "contents.0.parts.1.inline_data.mime_type": "image/png",
+            "contents.0.parts.1.inline_data.data": "YWJj",
+            "contents.0.parts.2.inline_data.mime_type": "image/jpeg",
+            "contents.0.parts.2.inline_data.data": "eA==",
+            "contents.0.parts.3.inline_data.mime_type": "image/webp",
+            "contents.0.parts.3.inline_data.data": "Y2Nj",
+            "generationConfig.responseModalities.1": "IMAGE"
+          },
+          "bodyExcludes": [
+            "contents.0.parts.4",
+            "contents.1",
+            "model",
+            "prompt"
+          ]
+        },
+        "$comment": "Text part first, then base, then references by slot; inline_data.data is plain base64 without a data URI prefix."
+      },
+      {
+        "caseId": "gemini_generate_content.edit.fourteen_images",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "edit",
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 4,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 5,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 6,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 7,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 8,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 9,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 10,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 11,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 12,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 13,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 14,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent",
+          "bodyIncludes": {
+            "contents.0.parts.14.inline_data.mime_type": "image/png"
+          },
+          "bodyExcludes": [
+            "contents.0.parts.15"
+          ]
+        },
+        "$comment": "inline has no transport cap: maxReferenceImages (14) bounds it."
+      },
+      {
+        "caseId": "gemini_generate_content.edit.fifteen_images",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "edit",
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 4,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 5,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 6,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 7,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 8,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 9,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 10,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 11,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 12,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 13,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 14,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 15,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "One over maxReferenceImages."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.advanced_seed_only",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 42,
+            "transparentBackground": true,
+            "outputFormat": "webp"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-image:generateContent",
+          "bodyIncludes": {
+            "generationConfig.seed": 42
+          },
+          "bodyExcludes": [
+            "seed",
+            "negative_prompt",
+            "background",
+            "output_format",
+            "generationConfig.negativePrompt",
+            "generationConfig.imageConfig.imageOutputOptions",
+            "generationConfig.imageConfig.mimeType"
+          ]
+        },
+        "$comment": "Gemini documents generationConfig.seed only; no negative prompt, format or transparency field on the Developer API."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.wire_collides_fixed_field",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "wireOverride": {
+          "generationConfig.responseModalities": "IMAGE"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        },
+        "$comment": "A wire key that would overwrite a fixed field is invalid_profile, never a silent overwrite."
+      },
+      {
+        "caseId": "chat_modalities.generate.exact_body",
+        "intent": {
+          "route": "chat_modalities",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/chat/completions",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://openrouter.ai/api/v1/chat/completions",
+          "bodyIncludes": {
+            "model": "google/gemini-3.1-flash-lite-image",
+            "messages.0.role": "user",
+            "messages.0.content": "a red fox in the snow",
+            "modalities.0": "image",
+            "modalities.1": "text",
+            "image_config.aspect_ratio": "1:1",
+            "stream": false
+          },
+          "bodyExcludes": [
+            "messages.1",
+            "modalities.2",
+            "prompt",
+            "n",
+            "response_format",
+            "image_config.image_size",
+            "seed"
+          ]
+        },
+        "$comment": "A text-only message is a plain string; no top-level prompt."
+      },
+      {
+        "caseId": "chat_modalities.edit.text_first_then_ordered_images",
+        "intent": {
+          "route": "chat_modalities",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "edit",
+          "images": [
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/webp",
+              "data": "ccc"
+            },
+            {
+              "slot": 2,
+              "role": "base",
+              "mime": "image/png",
+              "data": "abc"
+            },
+            {
+              "slot": 1,
+              "role": "element",
+              "mime": "image/jpeg",
+              "data": "x"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/chat/completions",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "messages.0.role": "user",
+            "messages.0.content.0.type": "text",
+            "messages.0.content.0.text": "a red fox in the snow",
+            "messages.0.content.1.type": "image_url",
+            "messages.0.content.1.image_url.url": "data:image/png;base64,YWJj",
+            "messages.0.content.2.image_url.url": "data:image/jpeg;base64,eA==",
+            "messages.0.content.3.image_url.url": "data:image/webp;base64,Y2Nj",
+            "modalities.0": "image",
+            "stream": false
+          },
+          "bodyExcludes": [
+            "messages.0.content.4",
+            "messages.1",
+            "prompt",
+            "image",
+            "images",
+            "input_references"
+          ]
+        },
+        "$comment": "Text part first, then base, then references by slot (OpenRouter recommends text before images)."
+      },
+      {
+        "caseId": "chat_modalities.edit.four_images",
+        "intent": {
+          "route": "chat_modalities",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "edit",
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 4,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "One over maxReferenceImages (3)."
+      },
+      {
+        "caseId": "chat_modalities.generate.blank_api_key",
+        "intent": {
+          "route": "chat_modalities",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": [],
+          "apiKey": "  "
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/chat/completions",
+          "contentType": "application/json",
+          "auth": null,
+          "queryExcludes": [
+            "key"
+          ]
+        }
+      },
+      {
+        "caseId": "chat_modalities.generate.advanced_seed_only",
+        "intent": {
+          "route": "chat_modalities",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 7,
+            "transparentBackground": true,
+            "outputFormat": "webp"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://openrouter.ai/api/v1",
+          "endpointPath": "/chat/completions",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "seed": 7
+          },
+          "bodyExcludes": [
+            "negative_prompt",
+            "background",
+            "output_format",
+            "image_config.background",
+            "image_config.output_format"
+          ]
+        },
+        "$comment": "OpenRouter chat documents seed; background / output_format belong to /images only."
+      },
+      {
+        "caseId": "chat_modalities.generate.wire_collides_fixed_field",
+        "intent": {
+          "route": "chat_modalities",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "wireOverride": {
+          "stream": "true"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        }
+      },
+      {
+        "caseId": "xai_images.generate.wire_collides_fixed_field",
+        "intent": {
+          "route": "xai_images",
+          "operation": "generate",
+          "profileRef": "xai_grok_imagine",
+          "modelId": "grok-imagine-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "wireOverride": {
+          "response_format": "url"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        },
+        "$comment": "Fixed fields are written before the wire on every route, so the collision check covers them."
+      },
+      {
+        "caseId": "minimax_image_generation.generate.wire_collides_fixed_field",
+        "intent": {
+          "route": "minimax_image_generation",
+          "operation": "generate",
+          "profileRef": "minimax_image01",
+          "modelId": "image-01",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "wireOverride": {
+          "response_format": "url"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        }
+      },
+      {
+        "caseId": "openrouter_images.edit.wire_collides_fixed_field",
+        "intent": {
+          "route": "openrouter_images",
+          "operation": "edit",
+          "profileRef": "openrouter_gpt_images",
+          "modelId": "openai/gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "input_references"
+        },
+        "wireOverride": {
+          "input_references": "x"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        }
+      },
+      {
+        "caseId": "openai_images.generate.wire_collides_model",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "wireOverride": {
+          "model": "other"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        }
+      },
+      {
+        "caseId": "gemini_generate_content.generate.wire_through_array",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "wireOverride": {
+          "contents.0.x": "1"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        },
+        "$comment": "An array is not an object: a dotted key may not descend into it."
+      },
+      {
+        "caseId": "chat_modalities.generate.wire_through_array",
+        "intent": {
+          "route": "chat_modalities",
+          "profileRef": "openrouter_gemini_chat",
+          "modelId": "google/gemini-3.1-flash-lite-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "wireOverride": {
+          "messages.x": "1"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        }
+      },
+      {
+        "caseId": "openai_images.generate.wire_proto_segment",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "wireOverride": {
+          "__proto__.x": "1"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        },
+        "$comment": "A __proto__ segment is invalid_profile on every end (JS would otherwise write to the prototype)."
+      },
+      {
+        "caseId": "openai_images.generate.wire_proto_leaf",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "wireOverride": {
+          "__proto__": "1"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        }
+      },
+      {
+        "caseId": "openai_images.generate.wire_object_builtin_names",
+        "intent": {
+          "route": "openai_images",
+          "operation": "generate",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": []
+        },
+        "wireOverride": {
+          "toString": "1",
+          "constructor.x": "1"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "toString": "1",
+            "constructor.x": "1"
+          }
+        },
+        "$comment": "Collision checks look at own keys only: Object.prototype names are ordinary keys."
+      },
+      {
+        "caseId": "xai_images.edit.wire_into_fixed_object",
+        "intent": {
+          "route": "xai_images",
+          "operation": "edit",
+          "profileRef": "xai_grok_imagine",
+          "modelId": "grok-imagine-image",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png",
+              "data": "abc"
+            }
+          ],
+          "editTransport": "json_image_object"
+        },
+        "wireOverride": {
+          "image.detail": "high"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.x.ai/v1",
+          "endpointPath": "/images/edits",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "image.url": "data:image/png;base64,YWJj",
+            "image.detail": "high",
+            "response_format": "b64_json"
+          }
+        },
+        "$comment": "A dotted key may add a new key inside a fixed object; only an existing key is a collision."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.models_prefix_once",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "models/models/x",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/models%2Fx:generateContent"
+        },
+        "$comment": "Only one leading models/ is removed."
+      },
+      {
+        "caseId": "gemini_generate_content.generate.percent_reencoded",
+        "intent": {
+          "route": "gemini_generate_content",
+          "profileRef": "gemini_flash_image",
+          "modelId": "a%20b",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://generativelanguage.googleapis.com/v1beta",
+          "endpointPath": "/models/gemini-3.1-flash-lite-image:generateContent",
+          "contentType": "application/json",
+          "auth": "x-goog-api-key",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://generativelanguage.googleapis.com/v1beta/models/a%2520b:generateContent"
+        },
+        "$comment": "The model id is raw text: an existing % is encoded again, never decoded."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.exact_body",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "url": "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+          "bodyIncludes": {
+            "model": "qwen-image-2.0",
+            "input.messages.0.role": "user",
+            "input.messages.0.content.0.text": "a cup of coffee and a book on a wooden table by the window",
+            "parameters.size": "1024*1024",
+            "parameters.n": 1
+          },
+          "bodyExcludes": [
+            "input.messages.1",
+            "input.messages.0.content.1",
+            "input.messages.0.content.0.image",
+            "prompt",
+            "messages",
+            "stream",
+            "response_format",
+            "size",
+            "n",
+            "parameters.prompt_extend",
+            "parameters.watermark",
+            "parameters.seed",
+            "parameters.negative_prompt",
+            "parameters.response_format"
+          ]
+        },
+        "$comment": "Generate sends exactly one text item; watermark is never sent (documented default off); no response_format (DashScope always answers a URL)."
+      },
+      {
+        "caseId": "dashscope_multimodal.edit.images_first_then_text",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "edit",
+          "images": [
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/webp"
+            },
+            {
+              "slot": 2,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 1,
+              "role": "style",
+              "mime": "image/jpeg"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "input.messages.0.content.0.image": "data:image/png;base64,aW1hZ2UtMg==",
+            "input.messages.0.content.1.image": "data:image/jpeg;base64,aW1hZ2UtMQ==",
+            "input.messages.0.content.2.image": "data:image/webp;base64,aW1hZ2UtMw==",
+            "input.messages.0.content.3.text": "a cup of coffee and a book on a wooden table by the window"
+          },
+          "bodyExcludes": [
+            "input.messages.0.content.4",
+            "input.messages.0.content.0.text",
+            "input.messages.0.content.3.image",
+            "input.messages.1"
+          ]
+        },
+        "$comment": "Images first in E-88 order (base, then ascending slot) as data URIs, then the one text item."
+      },
+      {
+        "caseId": "dashscope_multimodal.edit.four_images",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "edit",
+          "images": [
+            {
+              "slot": 1,
+              "role": "base",
+              "mime": "image/png"
+            },
+            {
+              "slot": 2,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 3,
+              "role": "element",
+              "mime": "image/png"
+            },
+            {
+              "slot": 4,
+              "role": "element",
+              "mime": "image/png"
+            }
+          ],
+          "editTransport": "inline"
+        },
+        "expect": {
+          "error": "invalid_request"
+        },
+        "$comment": "One over maxReferenceImages (3); inline has no transport cap."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.advanced_supported",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 7,
+            "transparentBackground": true,
+            "outputFormat": "webp"
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "negativePrompt": true,
+            "seed": true,
+            "transparentBackground": true,
+            "outputFormat": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "parameters.negative_prompt": "blurry",
+            "parameters.seed": 7
+          },
+          "bodyExcludes": [
+            "negative_prompt",
+            "seed",
+            "background",
+            "output_format",
+            "parameters.background",
+            "parameters.output_format",
+            "parameters.prompt_extend"
+          ]
+        },
+        "$comment": "DashScope documents parameters.negative_prompt / parameters.seed only."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.prompt_extend_true",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "profileOverride": {
+          "params": {
+            "promptExtend": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "parameters.prompt_extend": true,
+            "parameters.size": "1024*1024"
+          },
+          "bodyExcludes": [
+            "prompt_extend"
+          ]
+        },
+        "$comment": "params.promptExtend is the recipe's call (E-13): a literal boolean is sent as parameters.prompt_extend."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.prompt_extend_false",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "profileOverride": {
+          "params": {
+            "promptExtend": false
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "parameters.prompt_extend": false
+          },
+          "bodyExcludes": [
+            "prompt_extend"
+          ]
+        },
+        "$comment": "false must go out explicitly: the vendor default is true."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.prompt_extend_null",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "profileOverride": {
+          "params": {
+            "promptExtend": null
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "parameters.size": "1024*1024"
+          },
+          "bodyExcludes": [
+            "parameters.prompt_extend",
+            "prompt_extend"
+          ]
+        },
+        "$comment": "null (unknown) is not sent; the vendor default applies."
+      },
+      {
+        "caseId": "openai_images.generate.prompt_extend_ignored",
+        "intent": {
+          "route": "openai_images",
+          "profileRef": "openai_gpt_image",
+          "modelId": "gpt-image-2",
+          "prompt": "a red fox in the snow",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "profileOverride": {
+          "params": {
+            "promptExtend": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://api.openai.com/v1",
+          "endpointPath": "/images/generations",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "model": "gpt-image-2"
+          },
+          "bodyExcludes": [
+            "prompt_extend",
+            "parameters"
+          ]
+        },
+        "$comment": "promptExtend only has a body key on dashscope_multimodal."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.wire_collides_fixed_field",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "wireOverride": {
+          "input.messages": "x"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        }
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.wire_collides_prompt_extend",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "profileOverride": {
+          "params": {
+            "promptExtend": true
+          }
+        },
+        "wireOverride": {
+          "parameters.prompt_extend": "false"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        },
+        "$comment": "parameters.prompt_extend is a fixed field once the recipe sets it."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.wire_through_array",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "wireOverride": {
+          "input.messages.x": "1"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        }
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.wire_into_parameters",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "wireOverride": {
+          "parameters.watermark": "false"
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "parameters.watermark": "false",
+            "parameters.size": "1024*1024",
+            "parameters.n": 1
+          },
+          "bodyExcludes": []
+        },
+        "$comment": "New keys may go inside the fixed parameters object; only an existing key collides."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.blank_api_key",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": [],
+          "apiKey": "  "
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": null,
+          "queryExcludes": [
+            "key"
+          ]
+        }
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.prompt_extend_string_keeps_advanced",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 7
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "promptExtend": "true",
+            "negativePrompt": true,
+            "seed": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "parameters.negative_prompt": "blurry",
+            "parameters.seed": 7
+          },
+          "bodyExcludes": [
+            "parameters.prompt_extend"
+          ]
+        },
+        "$comment": "A non-boolean params entry counts as absent on its own; the other params entries still apply."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.prompt_extend_number_keeps_advanced",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": [],
+          "advanced": {
+            "negativePrompt": "blurry",
+            "seed": 7
+          }
+        },
+        "profileOverride": {
+          "params": {
+            "promptExtend": 1,
+            "negativePrompt": true,
+            "seed": true
+          }
+        },
+        "expect": {
+          "method": "POST",
+          "baseUrlExample": "https://dashscope-intl.aliyuncs.com/api/v1",
+          "endpointPath": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "auth": "Authorization: Bearer",
+          "queryExcludes": [
+            "key"
+          ],
+          "bodyIncludes": {
+            "parameters.negative_prompt": "blurry",
+            "parameters.seed": 7
+          },
+          "bodyExcludes": [
+            "parameters.prompt_extend"
+          ]
+        },
+        "$comment": "1 is not a boolean: prompt_extend is not sent, the other params entries still apply."
+      },
+      {
+        "caseId": "dashscope_multimodal.generate.wire_collides_parameters_object",
+        "intent": {
+          "route": "dashscope_multimodal",
+          "profileRef": "dashscope_qwen_image",
+          "modelId": "qwen-image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "params": {
+            "aspect": "1:1",
+            "resolution": "1K",
+            "quality": "standard",
+            "n": 1
+          },
+          "operation": "generate",
+          "images": []
+        },
+        "wireOverride": {
+          "parameters": "x"
+        },
+        "expect": {
+          "error": "invalid_profile"
+        },
+        "$comment": "parameters is a fixed object."
+      }
+    ]
   }
 }

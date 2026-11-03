@@ -308,14 +308,31 @@
 .notesEntryBtnActive,
 .notesEntryBtnActive:hover {
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   transform: none;
 }
 
 .notesEntryBtnActive svg,
 .notesEntryBtnActive:hover svg {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   opacity: 1;
+}
+
+/* Trailing count on a secondary entry (Skills): quiet tabular number after the label. */
+.navItemCount {
+  min-width: 18px;
+  padding: 0 6px;
+  border-radius: var(--o-radius-full);
+  background: var(--o-surface);
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  text-align: center;
+}
+
+.notesEntryBtnActive .navItemCount {
+  color: var(--o-primary-text-on-surface);
 }
 
 /* ── Conversation List ── */
@@ -421,7 +438,7 @@
 .navItemActive,
 .navItemActive:hover {
   background: var(--o-shell-nav-active-bg);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-weight: var(--o-weight-semibold);
   box-shadow: var(--o-shell-nav-active-shadow);
 }
@@ -429,7 +446,7 @@
 .navItemActive svg,
 .navItemActive:hover svg {
   opacity: 1;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   transform: none;
 }
 
@@ -483,7 +500,7 @@
 }
 
 .sidebarOpenBtn:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   color: var(--o-text);
 }
 
@@ -514,8 +531,11 @@
     box-shadow: var(--o-elevation-modal);
   }
 
+  /* Collapsed drawer sits just off-screen; drop the modal elevation so its blur
+     does not bleed a grey band along the inline-start edge of every page. */
   .shell[data-overlay-sidebar-open='false'] .sidebar {
     transform: translateX(-100%);
+    box-shadow: none;
   }
 
   .shell[data-overlay-sidebar-open='false'] .sidebar:dir(rtl) {
@@ -527,8 +547,8 @@
 @media (max-width: 767px) {
   .shell {
     min-height: 100dvh;
-    /* Floating pill: roughly 64 tall plus a 10 bottom offset plus slack, reserving safe space under the content */
-    --o-mobile-tabbar-height: calc(86px + env(safe-area-inset-bottom, 0px));
+    /* Floating pill 66px + bottom offset 10px + 16px gap above the last content row. */
+    --o-mobile-tabbar-height: calc(92px + env(safe-area-inset-bottom, 0px));
   }
 
   .content {
@@ -619,14 +639,14 @@
 
   .mobileTabItem[aria-current='page'] {
     background: var(--o-shell-nav-active-bg);
-    color: var(--o-primary);
+    color: var(--o-primary-text-on-surface);
     font-weight: var(--o-weight-semibold);
     box-shadow: var(--o-shell-nav-active-shadow);
     transform: none;
   }
 
   .mobileTabItem[aria-current='page'] svg {
-    color: var(--o-primary);
+    color: var(--o-primary-text-on-surface);
   }
 
   /* Per-tab selected color by route: primary purple for home, teal for providers, orange for settings.

@@ -135,6 +135,11 @@ export interface LibraryAgentLoopOptions {
    */
   searchEntry?: ToolRegistryEntry;
   /**
+   * The turn's `oriveo_use_skill` entry: registered after additionalEntries (so after
+   * web_search) and before the host memory tools; it shares the loop and its step limit.
+   */
+  skillEntry?: ToolRegistryEntry;
+  /**
    * When external web search is also on: new library sources share one number allocator with web results. Arguments = library source key
    * (`<source>:<docId>`) and this loop's own sequence number; returns the actual number. Omitted = 1..n as before.
    */
@@ -144,6 +149,11 @@ export interface LibraryAgentLoopOptions {
    * without tools (not the "resend without tools" path, no tool-capability observation recorded); returning null = proceed as before.
    */
   onWebSearchToolsRejected?: (status: number, error: ToolLoopError) => Promise<readonly ProxyMessage[] | null>;
+  /**
+   * Before the D5 resend without tools: returns the messages of that resend (the skill
+   * manifest rebuilt for the marker channel); null = the first leg's messages as before.
+   */
+  onToolsUnsupportedResend?: () => Promise<readonly ProxyMessage[] | null>;
 }
 
 /** First leg called only propose_memory and the fallback produced evidence: interrupt the loop and switch to the fallback re-answer (an internal sentinel of the loop, never leaked). */
@@ -325,6 +335,7 @@ export async function runLibraryAgentLoop(
       ),
     ),
     ...additionalEntries,
+    ...(options.skillEntry ? [options.skillEntry] : []),
     ...(proposeEntry ? [proposeEntry] : []),
     ...(searchEntry ? [searchEntry] : []),
   ]);
@@ -471,7 +482,10 @@ export async function runLibraryAgentLoop(
     if (!eligible) throw toLibraryAgentError(error);
     // The resend is deliberately depth 1: a resend that fails is rethrown as is, with no recursion and no negative capability observation.
     options.onText?.("");
-    result = await resendWithoutTools(options, limits, onProgress);
+    const resendMessages = await options.onToolsUnsupportedResend?.();
+    result = resendMessages
+      ? await answerWithoutTools(options, limits, onProgress, resendMessages)
+      : await resendWithoutTools(options, limits, onProgress);
     toolFallbackApplied = true;
     toolFallbackRejection = toolError?.toolCallRejectionContext as ToolCallRejectionContext | undefined;
   }

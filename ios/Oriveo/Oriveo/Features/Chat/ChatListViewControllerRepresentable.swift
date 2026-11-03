@@ -19,7 +19,11 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
 
     @Binding var isAtBottom: Bool
     @Binding var autoScrollEnabled: Bool
+    /// Write-back of whether the list can still scroll forward (drives the "Back to bottom" button visibility).
+    var onCanScrollForwardChanged: (Bool) -> Void = { _ in }
 
+    /// When a realtime model is selected in the session, the "Regenerate / Retry / Edit" actions get no cell.
+    var realtimeSelected = false
     var onRetryMessage: (ChatMessage) -> Void
     var onContinueMessage: (ChatMessage) -> Void
     var onSaveNoteMessage: (ChatMessage) -> Void = { _ in }
@@ -105,6 +109,7 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
             streamingReasoningSnapshotProvider: streamingReasoningSnapshotProvider,
             streamingActivityPublisher: streamingActivityPublisher,
             streamingActivityProvider: streamingActivityProvider,
+            realtimeSelected: realtimeSelected,
             onRetry: onRetryMessage,
             onContinue: onContinueMessage,
             onSaveNote: onSaveNoteMessage,
@@ -134,6 +139,7 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
             scrollToBottomRequest: scrollToBottomRequest,
             onIsAtBottomChanged: { isAtBottom = $0 },
             onAutoScrollEnabledChanged: { autoScrollEnabled = $0 },
+            onCanScrollForwardChanged: onCanScrollForwardChanged,
             hasMoreAbove: hasMoreAbove,
             hasMoreBelow: hasMoreBelow,
             onRequestExtendUpward: onRequestExtendUpward,

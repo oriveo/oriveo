@@ -174,7 +174,8 @@ func localizedMessageRecoveryTitle(
 
 func localizedMessageRecoveryBody(
     for state: ChatMessageState,
-    localPrimaryAction: String? = nil
+    localPrimaryAction: String? = nil,
+    errorTitle: String? = nil
 ) -> String {
     switch state {
     case .failed:
@@ -184,12 +185,33 @@ func localizedMessageRecoveryBody(
         if localPrimaryAction == relayFileUnsupportedRecoveryAction {
             return L10n.tr("This model doesn't support these files. Switch to another model to send them.", table: .chat)
         }
+        if errorTitle == emptyReplyErrorTitleKey {
+            // The empty-reply card states the prescribed sentence itself; the bubble no longer repeats it.
+            return L10n.tr("The provider returned no assistant content for this message.")
+        }
         return L10n.tr("The request did not finish cleanly. Retry it now or edit the last user message before sending again.", table: .chat)
     case .interrupted:
         return L10n.tr("The partial reply has been kept. Regenerate to request a fresh full answer.", table: .chat)
     case .delivered, .generating:
         return ""
     }
+}
+
+/// Title key persisted on a message whose reply settled with no assistant content.
+let emptyReplyErrorTitleKey = ProviderServiceError.emptyResponse.titleKey
+
+/// Whether the assistant bubble of an empty-reply failure is hidden because its recovery card already
+/// carries the same sentence. Only rendering changes; the persisted message text stays as is.
+func suppressesEmptyReplyBubbleText(
+    for model: ChatCollectionProjectionBuilder.MessageRenderModel
+) -> Bool {
+    model.message.state == .failed
+        && model.message.errorTitle == emptyReplyErrorTitleKey
+        && shouldOfferMessageRecovery(
+            state: model.message.state,
+            role: model.message.role,
+            isLastInConversation: model.isLastInConversation
+        )
 }
 
 func localizedMessageRecoveryActionTitle(
@@ -252,10 +274,10 @@ enum AssistantMessageRecoveryBuilder {
         isSendingMessage: Bool,
         isDismissed: Bool,
         isTechnicalDetailExpanded: Bool,
-        onRetry: @escaping () -> Void,
+        onRetry: (() -> Void)?,
         onContinue: @escaping () -> Void,
         onRegenerate: @escaping () -> Void,
-        onEditMessage: @escaping () -> Void,
+        onEditMessage: (() -> Void)?,
         onSwitchModelRequested: @escaping () -> Void,
         offersSwitchKey: Bool = false,
         onSwitchKeyRequested: @escaping () -> Void = {},
@@ -275,21 +297,25 @@ enum AssistantMessageRecoveryBuilder {
             bodyText: model.message.text
         )
 
-        let actionLayout = resolveMessageRecoveryCardActionLayout(
-            for: state,
-            shouldOfferModelSwitch: shouldOfferModelSwitch,
-            isAttachmentOverLimit: model.message.errorDetail.map(ProviderServiceError.attachmentOverLimitCodes.contains) == true,
-            offersSwitchKey: offersSwitchKey,
-            recoveryPrimaryAction: recoveryPrimaryAction(for: model.message)
+        let actionLayout = hidingUnavailableRecoveryActions(
+            resolveMessageRecoveryCardActionLayout(
+                for: state,
+                shouldOfferModelSwitch: shouldOfferModelSwitch,
+                isAttachmentOverLimit: model.message.errorDetail.map(ProviderServiceError.attachmentOverLimitCodes.contains) == true,
+                offersSwitchKey: offersSwitchKey,
+                recoveryPrimaryAction: recoveryPrimaryAction(for: model.message)
+            ),
+            retryAvailable: onRetry != nil,
+            editAvailable: onEditMessage != nil
         )
 
         let actionRouter: (MessageRecoveryActionKind) -> Void = { action in
             switch action {
-            case .retry: onRetry()
-            case .resendWithoutImages, .resendWithoutFiles, .resendWithoutVideos, .resendWithoutParameter: onRetry()
-            case .editMessage: onEditMessage()
+            case .retry: onRetry?()
+            case .editMessage: onEditMessage?()
             case .regenerate: onRegenerate()
             case .switchModel: onSwitchModelRequested()
+            case .resendWithoutImages, .resendWithoutFiles, .resendWithoutVideos, .resendWithoutParameter: onRetry?()
             case .switchKey: onSwitchKeyRequested()
             case .showTechnicalDetails: onTechnicalDetailVisibilityChanged(true)
             }
@@ -300,7 +326,8 @@ enum AssistantMessageRecoveryBuilder {
             title: localizedMessageRecoveryTitle(for: state, errorTitle: model.message.errorTitle),
             message: localizedMessageRecoveryBody(
                 for: state,
-                localPrimaryAction: recoveryPrimaryAction(for: model.message)
+                localPrimaryAction: recoveryPrimaryAction(for: model.message),
+                errorTitle: model.message.errorTitle
             ),
             primaryTitle: actionLayout.primary == .retry
                 && model.message.errorDetail == "model_control_setting_rejected"
@@ -330,6 +357,18 @@ enum AssistantMessageRecoveryBuilder {
             onTechnicalDetailVisibilityChanged: onTechnicalDetailVisibilityChanged
         )
     }
+}
+
+/// With no retry / edit callback (a realtime model is selected), the recovery card keeps only the primary
+/// "Switch model" action: regenerate / switch key and the other actions go through the current model or the
+/// text API, which a realtime model cannot serve. They return once a text model is selected again.
+func hidingUnavailableRecoveryActions(
+    _ layout: MessageRecoveryCardActionLayout,
+    retryAvailable: Bool,
+    editAvailable: Bool
+) -> MessageRecoveryCardActionLayout {
+    guard !retryAvailable || !editAvailable else { return layout }
+    return .init(primary: .switchModel, secondary: nil, tertiary: nil)
 }
 
 private func localizedErrorTitle(_ key: String) -> String {

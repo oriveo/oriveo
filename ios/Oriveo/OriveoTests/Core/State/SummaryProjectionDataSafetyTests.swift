@@ -38,8 +38,8 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("replacing everything deletes conversations outside the set together with their messages")
-    func replaceAllRemovesAbsentConversations() throws {
-        try withIsolatedUIDSync("summary-replace-remove") { uid in
+    func replaceAllRemovesAbsentConversations() async throws {
+        try await withIsolatedUIDSync("summary-replace-remove") { uid in
             let bridge = ConversationRuntimeBridge()
             let kept = TestFactories.makeConversation(title: "Kept", messages: [TestFactories.makeMessage(text: "k")])
             let removed = TestFactories.makeConversation(title: "Removed", messages: [TestFactories.makeMessage(text: "r")])
@@ -55,8 +55,8 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("truncating to zero messages deletes rows only when ids are passed; an empty array alone deletes nothing")
-    func explicitDeletionIsRequiredToEmptyThread() throws {
-        try withIsolatedUIDSync("summary-explicit-delete") { uid in
+    func explicitDeletionIsRequiredToEmptyThread() async throws {
+        try await withIsolatedUIDSync("summary-explicit-delete") { uid in
             let bridge = ConversationRuntimeBridge()
             let user = TestFactories.makeMessage(role: .user, text: "q")
             let assistant = TestFactories.makeMessage(role: .assistant, text: "a")
@@ -79,8 +79,8 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("writing an unloaded conversation that carries messages only adds and updates, other stored messages stay")
-    func unloadedConversationWriteIsAdditive() throws {
-        try withIsolatedUIDSync("summary-additive") { uid in
+    func unloadedConversationWriteIsAdditive() async throws {
+        try await withIsolatedUIDSync("summary-additive") { uid in
             let bridge = ConversationRuntimeBridge()
             let base = Date(timeIntervalSince1970: 1_780_000_000)
             let old = TestFactories.makeMessage(role: .user, text: "old", createdAt: base)
@@ -118,16 +118,18 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("merging hydrated message rows keeps the local messageCount column in step")
-    func hydratedMessagesUpdateLocalCount() throws {
-        try withIsolatedUIDSync("summary-backfill-count") { uid in
+    func hydratedMessagesUpdateLocalCount() async throws {
+        try await withIsolatedUID("summary-backfill-count") { uid in
             let bridge = ConversationRuntimeBridge()
             let conversation = TestFactories.makeConversation(messages: [TestFactories.makeMessage(text: "one")])
             _ = try bridge.replaceAllConversations([conversation], uid: uid)
             let store = try makeStore(uid: uid)
-            try store.upsertHydratedMessages(
-                [TestFactories.makeMessage(role: .assistant, text: "two")],
-                conversationID: conversation.id
-            )
+            let hydrated = [TestFactories.makeMessage(role: .assistant, text: "two")]
+            let conversationID = conversation.id
+            // Backfill pages land on a background write queue in production; keep this synchronous write off the main thread.
+            try await Task.detached {
+                try store.upsertHydratedMessages(hydrated, conversationID: conversationID)
+            }.value
             #expect(try store.fetchConversationSummary(id: conversation.id)?.messageCount == 2)
         }
     }
@@ -135,8 +137,8 @@ struct SummaryProjectionDataSafetyTests {
     // MARK: - Cold-start merge
 
     @Test("cold start keeps messages when updatedAt ties")
-    func tiedUpdatedAtColdStartKeepsMessages() throws {
-        try withIsolatedUIDSync("summary-tie") { uid in
+    func tiedUpdatedAtColdStartKeepsMessages() async throws {
+        try await withIsolatedUIDSync("summary-tie") { uid in
             let base = Date(timeIntervalSince1970: 1_780_000_000)
             var low = TestFactories.makeConversation(
                 id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
@@ -168,8 +170,8 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("a recovery snapshot holding a conversation missing from the database does not wipe other messages on cold start")
-    func recoverySnapshotWithExtraConversationKeepsOthers() throws {
-        try withIsolatedUIDSync("summary-extra-recovered") { uid in
+    func recoverySnapshotWithExtraConversationKeepsOthers() async throws {
+        try await withIsolatedUIDSync("summary-extra-recovered") { uid in
             let bridge = ConversationRuntimeBridge()
             let kept = TestFactories.makeConversation(
                 title: "Kept",
@@ -192,8 +194,8 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("replacing the projection with summaries keeps the stored messages")
-    func replaceProjectionWithSummariesKeepsDatabaseMessages() throws {
-        try withIsolatedUIDSync("summary-projection-replace") { uid in
+    func replaceProjectionWithSummariesKeepsDatabaseMessages() async throws {
+        try await withIsolatedUIDSync("summary-listener-replace") { uid in
             let bridge = ConversationRuntimeBridge()
             let first = TestFactories.makeConversation(title: "First", messages: [TestFactories.makeMessage(text: "f")])
             let second = TestFactories.makeConversation(title: "Second", messages: [TestFactories.makeMessage(text: "s")])
@@ -231,8 +233,8 @@ struct SummaryProjectionDataSafetyTests {
     // MARK: - Editing and hydration
 
     @Test("editing the first user message after a summary load deletes the stored messages, and sending still works")
-    func editingFirstMessageAfterSummaryLoadDeletesRows() throws {
-        try withIsolatedUIDSync("summary-edit-first") { uid in
+    func editingFirstMessageAfterSummaryLoadDeletesRows() async throws {
+        try await withIsolatedUIDSync("summary-edit-first") { uid in
             let bridge = ConversationRuntimeBridge()
             let user = TestFactories.makeMessage(role: .user, text: "please edit me")
             let assistant = TestFactories.makeMessage(role: .assistant, text: "ok")
@@ -258,8 +260,8 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("hydration fills in messages only and keeps newer in-memory metadata")
-    func hydrateKeepsInMemoryMetadata() throws {
-        try withIsolatedUIDSync("summary-hydrate-metadata") { uid in
+    func hydrateKeepsInMemoryMetadata() async throws {
+        try await withIsolatedUIDSync("summary-hydrate-metadata") { uid in
             let bridge = ConversationRuntimeBridge()
             let conversation = TestFactories.makeConversation(title: "Stored", messages: [TestFactories.makeMessage(text: "m")])
             _ = try bridge.replaceAllConversations([conversation], uid: uid)
@@ -304,8 +306,8 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("the recovery snapshot refuses summary projections")
-    func recoverySnapshotRefusesSummaries() throws {
-        try withIsolatedUIDSync("summary-snapshot-refuse") { uid in
+    func recoverySnapshotRefusesSummaries() async throws {
+        try await withIsolatedUIDSync("summary-snapshot-refuse") { uid in
             let bridge = ConversationRuntimeBridge()
             let conversation = TestFactories.makeConversation(messages: [TestFactories.makeMessage(text: "full")])
             _ = try bridge.replaceAllConversations([conversation], uid: uid)
@@ -320,8 +322,8 @@ struct SummaryProjectionDataSafetyTests {
     }
 
     @Test("entering the background skips the full snapshot dump when nothing was written, and dumps after a write")
-    func lifecycleDumpSkipsWhenUnchanged() throws {
-        try withIsolatedUIDSync("summary-dump-skip") { uid in
+    func lifecycleDumpSkipsWhenUnchanged() async throws {
+        try await withIsolatedUIDSync("summary-dump-skip") { uid in
             let bridge = ConversationRuntimeBridge()
             let conversation = TestFactories.makeConversation(messages: [TestFactories.makeMessage(text: "v1")])
             _ = try bridge.replaceAllConversations([conversation], uid: uid)
@@ -344,14 +346,13 @@ struct SummaryProjectionDataSafetyTests {
 
     // MARK: - Helpers
 
-    private func withIsolatedUIDSync(_ prefix: String, _ body: (String) throws -> Void) throws {
+    private func withIsolatedUIDSync(_ prefix: String, _ body: (String) throws -> Void) async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "\(prefix)-\(UUID().uuidString)"
         DatabaseManager.shared.close()
         defer {
-            DatabaseManager.shared.close()
+            await TestPartitionCleanup.remove(uid)
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
         }
         try body(uid)
     }
@@ -361,9 +362,8 @@ struct SummaryProjectionDataSafetyTests {
         let uid = "\(prefix)-\(UUID().uuidString)"
         DatabaseManager.shared.close()
         defer {
-            DatabaseManager.shared.close()
+            await TestPartitionCleanup.remove(uid)
             AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
         }
         try await body(uid)
     }

@@ -48,7 +48,7 @@ private struct ToastCapsule: View {
                 Button(action: onAction) {
                     Text(actionTitle)
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .contentShape(Rectangle())
                         .contentShape(.hoverEffect, Capsule(style: .continuous))
                         .hoverEffect(.highlight)

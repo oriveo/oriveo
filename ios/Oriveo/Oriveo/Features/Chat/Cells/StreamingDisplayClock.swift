@@ -10,6 +10,11 @@ final class StreamingDisplayClock {
 
     var isRunning: Bool { displayLink != nil }
 
+    #if DEBUG
+    /// Test seam: live subscriber count (read-only).
+    var subscriberCountForTesting: Int { subscribers.count }
+    #endif
+
     func addSubscriber(_ tick: @escaping Tick) -> SubscriberToken {
         let token = SubscriberToken()
         subscribers[token] = tick
@@ -42,6 +47,10 @@ final class StreamingDisplayClock {
         let ts = link.timestamp
         for tick in Array(subscribers.values) {
             tick(ts)
+        }
+        // No subscribers left (e.g. every tick unsubscribed itself this frame) -> stop the per-frame link.
+        if subscribers.isEmpty {
+            pause()
         }
     }
 }

@@ -333,7 +333,7 @@ struct WebSearchTestFailure: View {
                 Button(action: { onAction(action) }) {
                     Text(WebSearchCopy.tr("action.\(WebSearchCopy.camel(action))"))
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .padding(.horizontal, 14)
                         .padding(.vertical, 7)
                         .background(Capsule().fill(OriveoTheme.Palette.primarySoft))
@@ -384,7 +384,7 @@ struct WebSearchTag: View {
     var body: some View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(neutral ? OriveoTheme.Palette.textSecondary : OriveoTheme.Palette.primaryTextSafe)
+            .foregroundStyle(neutral ? OriveoTheme.Palette.textSecondary : OriveoTheme.Palette.primaryTextOnSurface)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(

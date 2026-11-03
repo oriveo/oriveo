@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="studio_tab_title">Tạo ảnh</string>
+    <plurals name="studio_generating_title">
+        <item quantity="other">Đang tạo %1$d ảnh</item>
+    </plurals>
+</resources>

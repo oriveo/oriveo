@@ -140,23 +140,81 @@ enum ProviderTints {
     /// ProviderTints.tint(for: item.providerKind, fallbackId: item.providerId)
     /// ```
     static func tint(for providerKind: String, fallbackId: String) -> Color {
+        guard let hex = brandHex(for: providerKind, fallbackId: fallbackId) else {
+            return OriveoTheme.Palette.textSecondary
+        }
+        return brandColor(hex: hex)
+    }
+
+    /// Text variant of `tint(for:fallbackId:)`: same kind / relay / fallback resolution, but the
+    /// raw brand hex is lightness-stepped until it reads at 4.5:1 on every page background of the
+    /// mode. Use it only when the brand colour is drawn as text; fills, slices and icons keep `tint`.
+    /// Without a resolvable kind it returns `textSecondary`.
+    static func textTint(for providerKind: String, fallbackId: String) -> Color {
+        guard let hex = brandHex(for: providerKind, fallbackId: fallbackId) else {
+            return OriveoTheme.Palette.textSecondary
+        }
+        return textColor(hex: UInt(hex))
+    }
+
+    /// Raw brand hex resolution shared by `tint` and `textTint`: relay hashes the providerId into the
+    /// relay palette, known kinds use the brand table, unknown kinds hash into the fallback palette.
+    private static func brandHex(for providerKind: String, fallbackId: String) -> UInt32? {
         let key = providerKind.lowercased()
 
+        // Relay: each providerId hashes into the 8-colour palette so several relays stay distinguishable.
         if key == "relay" {
             let hashKey = fallbackId.isEmpty ? key : fallbackId
             let idx = OriveoColorTokens.djb2Index(forId: hashKey, count: OriveoColorTokens.relayPaletteHexes.count)
-            return brandColor(hex: OriveoColorTokens.relayPaletteHexes[idx])
+            return OriveoColorTokens.relayPaletteHexes[idx]
         }
 
         if let hex = OriveoColorTokens.providerBrandHexes[key] {
-            return brandColor(hex: hex)
+            return hex
         }
         let hashKey = fallbackId.isEmpty ? key : fallbackId
         if hashKey.isEmpty {
-            return OriveoTheme.Palette.textSecondary
+            return nil
         }
         let idx = OriveoColorTokens.djb2Index(forId: hashKey, count: OriveoColorTokens.fallbackPaletteHexes.count)
-        return brandColor(hex: OriveoColorTokens.fallbackPaletteHexes[idx])
+        return OriveoColorTokens.fallbackPaletteHexes[idx]
+    }
+
+    /// Text-tint rule, mirrored by `shared/test-fixtures/provider-tint/provider-text-tint.v1.json` `rule`.
+    nonisolated enum TextTintRule {
+        static let minContrast = 4.5
+        static let step = 0.01
+        static let lightBackgrounds: [UInt] = [0xFFFFFF, 0xF2EEF7]
+        static let darkBackgrounds: [UInt] = [0x1C1C1F, 0x27272A, 0x30343B]
+    }
+
+    /// Provider text tint (reference: `scripts/provider-text-tint.mjs`). Returns `hex` unchanged when it
+    /// already reaches `minContrast` against every background of the mode; otherwise keeps OKLCH hue and
+    /// chroma and moves lightness by `n * step` (light: darker, dark: lighter) until it passes or hits 0 / 1.
+    nonisolated static func textTintHex(_ hex: UInt, isDark: Bool) -> UInt {
+        let backgrounds = isDark ? TextTintRule.darkBackgrounds : TextTintRule.lightBackgrounds
+        func passes(_ color: UInt) -> Bool {
+            backgrounds.allSatisfy { OriveoCustomPalette.contrast(color, $0) >= TextTintRule.minContrast }
+        }
+        if passes(hex) { return hex }
+        let (l0, c, h) = OriveoCustomPalette.oklch(hex)
+        let direction = isDark ? 1.0 : -1.0
+        var n = 1
+        while true {
+            let lightness = max(0, min(1, l0 + direction * TextTintRule.step * Double(n)))
+            let candidate = OriveoCustomPalette.fromOklch(lightness, c, h)
+            if passes(candidate) || lightness == 0 || lightness == 1 { return candidate }
+            n += 1
+        }
+    }
+
+    /// Dynamic text colour from a raw brand hex; both variants are computed once here, not per trait resolve.
+    private static func textColor(hex: UInt) -> Color {
+        let light = UIColor(brandHex: UInt32(textTintHex(hex, isDark: false)))
+        let dark = UIColor(brandHex: UInt32(textTintHex(hex, isDark: true)))
+        return Color(uiColor: UIColor { trait in
+            trait.userInterfaceStyle == .dark ? dark : light
+        })
     }
 
     static func softTint(for providerKind: String) -> Color {

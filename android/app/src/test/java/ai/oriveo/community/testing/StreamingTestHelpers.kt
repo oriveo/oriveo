@@ -26,6 +26,7 @@ internal fun installChatStreamingManagerForwardingStub(
                 modelID = req.modelID,
                 existingMessages = req.existingMessages,
                 attachments = req.attachments,
+                quoteContext = req.quoteContext,
                 reasoningMode = req.reasoningMode,
                 webSearchEnabled = req.webSearchEnabled,
                 requestOptions = req.requestOptions,
@@ -33,6 +34,8 @@ internal fun installChatStreamingManagerForwardingStub(
                 persistUserMessage = req.persistUserMessage,
                 userMessageAlreadyInHistory = req.userMessageAlreadyInHistory,
                 appendToAssistant = req.appendToAssistant,
+                // Other fields (knowledge base, attemptKind, onUserMessageCreated, memory, external search) are not forwarded:
+                // some tests stub or verify sendMessage with defaults, so forwarding them would not match; assert on StreamRequest directly instead.
             )
         }
     }

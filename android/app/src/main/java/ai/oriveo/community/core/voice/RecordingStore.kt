@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.voice
 
 import android.content.Context
+import ai.oriveo.community.core.storage.AppStoragePaths
 import java.io.File
 import java.security.MessageDigest
 import kotlinx.serialization.SerialName
@@ -307,8 +308,9 @@ class RecordingStore(
         private const val MILLIS_PER_SECOND = 1000.0
         private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
-        /** Production root directory `filesDir/voice/pending/`. */
-        fun production(context: Context): RecordingStore = RecordingStore(File(context.filesDir, "voice/pending"))
+        /** Production root `filesDir/voice/pending/`; only builds the path and touches no disk; the directory is created before the first write in [open]. */
+        fun production(context: Context): RecordingStore =
+            RecordingStore(File(AppStoragePaths.filesDir(context), "voice/pending"))
 
         fun fileStem(slotKey: String): String =
             MessageDigest.getInstance("SHA-256").digest(slotKey.toByteArray(Charsets.UTF_8))

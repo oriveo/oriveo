@@ -1,0 +1,936 @@
+{
+  "$comment": "Error normalization (方案 §6.4 + E-41). classify({http, body, nRequested}) → one closed kind. provenance captured = real response from P0 (see image_response_samples.v1); doc_shape = shape from the provider docs or from a P0 observation whose raw body was not archived — replace with a captured body when one shows up, never edit the expected kind to make a parser pass. Order: HTTP class first (401/403 auth, 402 balance, 404 model gone, 429 rate limit unless the body carries balance text, >=500 / <200 / 3xx upstream_error), then every other 4xx (400, 408, 409, 413, 422 ...) by string error.code (numeric codes ignored) / balance text (else invalid_param), then 2xx bodies (MiniMax numeric base_resp.status_code, Gemini non-empty promptFeedback.blockReason, zero images → candidates[0].finishReason (candidates must be an array) block reasons or failed_count > 0 → refused, else decode_failed; fewer than requested → partial; more than requested → ok). Balance text = /insufficient[_ ](?:quota|balance)|余额不足|额度不足/i matched ASCII-case-insensitively (no Unicode case folding) against every string value of the parsed body, recursing into objects and arrays, keys excluded; a body that is not JSON is passed as its raw text string. failed_count counts only as a JSON number or an all-digit string. A single failure never delists a model. timeout / network / storage_full are decided by the transport and storage layers, not by a body, and have no body cases. Executable reference: scripts/lib/studio-image-reference.mjs classifyResult.",
+  "contractId": "image_error_samples.v1",
+  "version": 1,
+  "kinds": {
+    "refused": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "rewrite_prompt_or_switch_model"
+    },
+    "auth": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "check_key"
+    },
+    "insufficient_balance": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "top_up_or_switch_model"
+    },
+    "rate_limited": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "retry_later"
+    },
+    "invalid_param": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "show_raw_and_switch_model",
+      "report": true
+    },
+    "model_unavailable": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "switch_model"
+    },
+    "upstream_error": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "retry"
+    },
+    "timeout": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "retry"
+    },
+    "network": {
+      "consumesFreeQuota": false,
+      "autoRetry": "once_before_body_sent",
+      "ui": "retry"
+    },
+    "partial": {
+      "consumesFreeQuota": "by_delivered_count",
+      "autoRetry": false,
+      "ui": "fill_missing"
+    },
+    "decode_failed": {
+      "consumesFreeQuota": false,
+      "autoRetry": false,
+      "ui": "retry",
+      "report": true
+    },
+    "storage_full": {
+      "consumesFreeQuota": "already_settled",
+      "autoRetry": false,
+      "ui": "free_space_then_retry_save"
+    }
+  },
+  "cases": [
+    {
+      "caseId": "together.model_not_available.400",
+      "provenance": "captured",
+      "source": "image_response_samples.v1/openai_images.togetherAI.FLUX.1-schnell.generate.json",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "id": "p6yYfix-2kFHot-a516198d38e6fd7d-PDX",
+        "error": {
+          "message": "Unable to access non-serverless model black-forest-labs/FLUX.1-schnell. Please visit https://api.together.ai/models/black-forest-labs/FLUX.1-schnell to create and start a new dedicated endpoint for the model.",
+          "type": "invalid_request_error",
+          "param": null,
+          "code": "model_not_available"
+        }
+      },
+      "expectKind": "model_unavailable"
+    },
+    {
+      "caseId": "relay.model_not_found.400",
+      "provenance": "doc_shape",
+      "source": "调研 D: lmuai 未开放模型 400 model_not_found（中英双语报文，原文未存档）",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "该令牌无权访问模型 gpt-image-x (No access to model gpt-image-x)",
+          "type": "invalid_request_error",
+          "code": "model_not_found"
+        }
+      },
+      "expectKind": "model_unavailable"
+    },
+    {
+      "caseId": "relay.upstream_throttled.529",
+      "provenance": "doc_shape",
+      "source": "调研 E: micu `-openai` 后缀模型回 529「upstream throttled (no usable account)」，不扣费",
+      "route": "openai_images",
+      "http": 529,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "upstream throttled (no usable account)",
+          "type": "upstream_error"
+        }
+      },
+      "expectKind": "upstream_error",
+      "$comment": "5xx and 529 had no kind in 方案 §6.4; E-41 adds upstream_error (retry, never consumes quota)."
+    },
+    {
+      "caseId": "openai.moderation_blocked.400",
+      "provenance": "doc_shape",
+      "source": "方案 §6.4 识别规则; OpenAI image API error code moderation_blocked",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Your request was rejected by the safety system.",
+          "type": "image_generation_user_error",
+          "param": null,
+          "code": "moderation_blocked"
+        }
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "openai.invalid_size.400",
+      "provenance": "doc_shape",
+      "source": "OpenAI images: unsupported size",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Invalid value: '999x333'. Supported values are ...",
+          "type": "invalid_request_error",
+          "param": "size",
+          "code": "invalid_value"
+        }
+      },
+      "expectKind": "invalid_param"
+    },
+    {
+      "caseId": "openai.auth.401",
+      "provenance": "doc_shape",
+      "source": "OpenAI invalid_api_key",
+      "route": "openai_images",
+      "http": 401,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Incorrect API key provided.",
+          "type": "invalid_request_error",
+          "code": "invalid_api_key"
+        }
+      },
+      "expectKind": "auth"
+    },
+    {
+      "caseId": "openai.quota.429",
+      "provenance": "doc_shape",
+      "source": "OpenAI rate limit",
+      "route": "openai_images",
+      "http": 429,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Rate limit reached for images per minute.",
+          "type": "requests",
+          "code": "rate_limit_exceeded"
+        }
+      },
+      "expectKind": "rate_limited"
+    },
+    {
+      "caseId": "relay.balance.400",
+      "provenance": "doc_shape",
+      "source": "new-api 系中转站余额不足报文",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "用户额度不足, 剩余额度: ¥0.01",
+          "type": "new_api_error",
+          "code": "insufficient_user_quota"
+        }
+      },
+      "expectKind": "insufficient_balance"
+    },
+    {
+      "caseId": "generic.payment_required.402",
+      "provenance": "doc_shape",
+      "source": "HTTP 402",
+      "route": "openrouter_images",
+      "http": 402,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Insufficient credits",
+          "code": 402
+        }
+      },
+      "expectKind": "insufficient_balance"
+    },
+    {
+      "caseId": "generic.not_found.404",
+      "provenance": "doc_shape",
+      "source": "HTTP 404",
+      "route": "gemini_generate_content",
+      "http": 404,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "code": 404,
+          "message": "models/gemini-x is not found for API version v1beta",
+          "status": "NOT_FOUND"
+        }
+      },
+      "expectKind": "model_unavailable"
+    },
+    {
+      "caseId": "gemini.image_safety.200",
+      "provenance": "doc_shape",
+      "source": "方案 §6.4: Gemini finishReason IMAGE_SAFETY",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [],
+              "role": "model"
+            },
+            "finishReason": "IMAGE_SAFETY",
+            "index": 0
+          }
+        ],
+        "modelVersion": "gemini-3.1-flash-lite-image"
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "gemini.prompt_blocked.200",
+      "provenance": "doc_shape",
+      "source": "方案 §6.4: Gemini promptFeedback.blockReason",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "promptFeedback": {
+          "blockReason": "PROHIBITED_CONTENT"
+        }
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "gemini.text_only.200",
+      "provenance": "doc_shape",
+      "source": "Model answered with text and no image",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "I can't draw that, but here is a description..."
+                }
+              ],
+              "role": "model"
+            },
+            "finishReason": "STOP",
+            "index": 0
+          }
+        ]
+      },
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "minimax.all_failed.200",
+      "provenance": "doc_shape",
+      "source": "方案 §6.4: MiniMax failed_count == n",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "data": {
+          "image_base64": []
+        },
+        "metadata": {
+          "failed_count": "1",
+          "success_count": "0"
+        },
+        "base_resp": {
+          "status_code": 0,
+          "status_msg": "success"
+        }
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "minimax.sensitive.1026",
+      "provenance": "doc_shape",
+      "source": "MiniMax base_resp.status_code 1026 (input sensitive)",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "base_resp": {
+          "status_code": 1026,
+          "status_msg": "input new_sensitive"
+        }
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "minimax.balance.1008",
+      "provenance": "doc_shape",
+      "source": "MiniMax base_resp.status_code 1008 (insufficient balance)",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "base_resp": {
+          "status_code": 1008,
+          "status_msg": "insufficient balance"
+        }
+      },
+      "expectKind": "insufficient_balance"
+    },
+    {
+      "caseId": "openai.partial.200",
+      "provenance": "doc_shape",
+      "source": "n=2 requested, one image delivered",
+      "route": "openai_images",
+      "http": 200,
+      "nRequested": 2,
+      "body": {
+        "created": 1,
+        "data": [
+          {
+            "b64_json": "<base64 bytes=1000 sha256=0000>"
+          }
+        ]
+      },
+      "expectKind": "partial"
+    },
+    {
+      "caseId": "relay.empty_body_stream.200",
+      "provenance": "doc_shape",
+      "source": "调研 D: lmuai stream 返回 200 空包体",
+      "route": "openai_images",
+      "http": 200,
+      "nRequested": 1,
+      "body": {},
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "siliconflow.duplicate_is_not_two.200",
+      "provenance": "captured",
+      "source": "image_response_samples.v1/openai_images.siliconFlow.Qwen-Image.generate.json",
+      "route": "openai_images",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "images": [
+          {
+            "url": "https://s3.siliconflow.cn/a.png"
+          }
+        ],
+        "data": [
+          {
+            "url": "https://s3.siliconflow.cn/a.png"
+          }
+        ]
+      },
+      "expectKind": "ok",
+      "$comment": "images[] + data[] duplicate counts as one delivered image; with n=1 the result is ok, not over-delivery."
+    },
+    {
+      "caseId": "generic.forbidden.403",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 403,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Forbidden",
+          "code": "permission_denied"
+        }
+      },
+      "expectKind": "auth"
+    },
+    {
+      "caseId": "generic.server_error.500",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 500,
+      "nRequested": 1,
+      "body": null,
+      "expectKind": "upstream_error"
+    },
+    {
+      "caseId": "relay.bad_gateway_html.502",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 502,
+      "nRequested": 1,
+      "body": "<html><body>502 Bad Gateway</body></html>",
+      "expectKind": "upstream_error"
+    },
+    {
+      "caseId": "generic.redirect.302",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 302,
+      "nRequested": 1,
+      "body": null,
+      "expectKind": "upstream_error"
+    },
+    {
+      "caseId": "openai.content_policy_violation.400",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Your request was rejected as a result of our safety system.",
+          "type": "invalid_request_error",
+          "code": "content_policy_violation"
+        }
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "generic.unprocessable.422",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 422,
+      "nRequested": 1,
+      "body": {
+        "detail": [
+          {
+            "loc": [
+              "body",
+              "size"
+            ],
+            "msg": "invalid size",
+            "type": "value_error"
+          }
+        ]
+      },
+      "expectKind": "invalid_param"
+    },
+    {
+      "caseId": "generic.numeric_code_ignored.400",
+      "provenance": "doc_shape",
+      "route": "gemini_generate_content",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "code": 400,
+          "message": "model_not_found",
+          "status": "INVALID_ARGUMENT"
+        }
+      },
+      "expectKind": "invalid_param"
+    },
+    {
+      "caseId": "relay.balance_en.400",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Insufficient balance",
+          "type": "error",
+          "code": "insufficient_balance"
+        }
+      },
+      "expectKind": "insufficient_balance"
+    },
+    {
+      "caseId": "relay.balance_raw_text.400",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": "余额不足，请充值",
+      "expectKind": "insufficient_balance"
+    },
+    {
+      "caseId": "relay.balance_nested_array.400",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "errors": [
+          {
+            "detail": "账户余额不足"
+          }
+        ]
+      },
+      "expectKind": "insufficient_balance"
+    },
+    {
+      "caseId": "relay.balance_key_only.400",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "bad request",
+          "insufficient_balance": true
+        }
+      },
+      "expectKind": "invalid_param"
+    },
+    {
+      "caseId": "openai.insufficient_quota.429",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 429,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "You exceeded your current quota, please check your plan and billing details.",
+          "type": "insufficient_quota",
+          "param": null,
+          "code": "insufficient_quota"
+        }
+      },
+      "expectKind": "insufficient_balance"
+    },
+    {
+      "caseId": "gemini.quota_per_minute.429",
+      "provenance": "doc_shape",
+      "route": "gemini_generate_content",
+      "http": 429,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "code": 429,
+          "message": "Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests",
+          "status": "RESOURCE_EXHAUSTED"
+        }
+      },
+      "expectKind": "rate_limited"
+    },
+    {
+      "caseId": "generic.payload_too_large.413",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 413,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "Request entity too large"
+        }
+      },
+      "expectKind": "invalid_param"
+    },
+    {
+      "caseId": "generic.model_gone.409",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 409,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "model is being retired",
+          "code": "model_not_found"
+        }
+      },
+      "expectKind": "model_unavailable"
+    },
+    {
+      "caseId": "minimax.rate.1002",
+      "provenance": "doc_shape",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "base_resp": {
+          "status_code": 1002,
+          "status_msg": "rate limit"
+        }
+      },
+      "expectKind": "rate_limited"
+    },
+    {
+      "caseId": "minimax.auth.1004",
+      "provenance": "doc_shape",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "base_resp": {
+          "status_code": 1004,
+          "status_msg": "authorized error"
+        }
+      },
+      "expectKind": "auth"
+    },
+    {
+      "caseId": "minimax.output_sensitive.1027",
+      "provenance": "doc_shape",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "base_resp": {
+          "status_code": 1027,
+          "status_msg": "output new_sensitive"
+        }
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "minimax.unknown.2013",
+      "provenance": "doc_shape",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "base_resp": {
+          "status_code": 2013,
+          "status_msg": "invalid params"
+        }
+      },
+      "expectKind": "invalid_param"
+    },
+    {
+      "caseId": "minimax.string_status_ignored.200",
+      "provenance": "doc_shape",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "data": {
+          "image_base64": []
+        },
+        "base_resp": {
+          "status_code": "1026",
+          "status_msg": "input new_sensitive"
+        }
+      },
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "minimax.failed_count_number.200",
+      "provenance": "doc_shape",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 2,
+      "body": {
+        "id": "x",
+        "data": {
+          "image_base64": []
+        },
+        "metadata": {
+          "failed_count": 2,
+          "success_count": 0
+        },
+        "base_resp": {
+          "status_code": 0,
+          "status_msg": "success"
+        }
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "minimax.failed_count_not_numeric.200",
+      "provenance": "doc_shape",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "id": "x",
+        "data": {
+          "image_base64": []
+        },
+        "metadata": {
+          "failed_count": "one"
+        },
+        "base_resp": {
+          "status_code": 0,
+          "status_msg": "success"
+        }
+      },
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "minimax.partial_failed.200",
+      "provenance": "doc_shape",
+      "route": "minimax_image_generation",
+      "http": 200,
+      "nRequested": 2,
+      "body": {
+        "id": "x",
+        "data": {
+          "image_base64": [
+            "<base64 bytes=1000 sha256=0000>"
+          ]
+        },
+        "metadata": {
+          "failed_count": "1",
+          "success_count": "1"
+        },
+        "base_resp": {
+          "status_code": 0,
+          "status_msg": "success"
+        }
+      },
+      "expectKind": "partial"
+    },
+    {
+      "caseId": "gemini.safety_finish.200",
+      "provenance": "doc_shape",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [],
+              "role": "model"
+            },
+            "finishReason": "SAFETY",
+            "index": 0
+          }
+        ]
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "gemini.prohibited_finish.200",
+      "provenance": "doc_shape",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "candidates": [
+          {
+            "finishReason": "PROHIBITED_CONTENT",
+            "index": 0
+          }
+        ]
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "gemini.image_prohibited_finish.200",
+      "provenance": "doc_shape",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "text": "x"
+                }
+              ]
+            },
+            "finishReason": "IMAGE_PROHIBITED_CONTENT",
+            "index": 0
+          }
+        ]
+      },
+      "expectKind": "refused"
+    },
+    {
+      "caseId": "gemini.block_finish_with_image.200",
+      "provenance": "doc_shape",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "candidates": [
+          {
+            "content": {
+              "parts": [
+                {
+                  "inlineData": {
+                    "mimeType": "image/png",
+                    "data": "<base64 bytes=1000 sha256=0000>"
+                  }
+                }
+              ]
+            },
+            "finishReason": "IMAGE_SAFETY",
+            "index": 0
+          }
+        ]
+      },
+      "expectKind": "ok"
+    },
+    {
+      "caseId": "gemini.empty_block_reason.200",
+      "provenance": "doc_shape",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "promptFeedback": {
+          "blockReason": ""
+        }
+      },
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "openai.over_delivered.200",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "created": 1,
+        "data": [
+          {
+            "b64_json": "<base64 bytes=1000 sha256=0000>"
+          },
+          {
+            "b64_json": "<base64 bytes=1000 sha256=0000>"
+          }
+        ]
+      },
+      "expectKind": "ok"
+    },
+    {
+      "caseId": "generic.null_body.200",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 200,
+      "nRequested": 1,
+      "body": null,
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "generic.array_body.200",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 200,
+      "nRequested": 1,
+      "body": [],
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "relay.error_envelope.200",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "x",
+          "code": "model_not_found"
+        }
+      },
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "gemini.candidates_not_array.200",
+      "provenance": "doc_shape",
+      "route": "gemini_generate_content",
+      "http": 200,
+      "nRequested": 1,
+      "body": {
+        "candidates": {
+          "0": {
+            "finishReason": "SAFETY"
+          }
+        }
+      },
+      "expectKind": "decode_failed"
+    },
+    {
+      "caseId": "relay.balance_non_ascii_fold.400",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 400,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "inſufficient quota"
+        }
+      },
+      "expectKind": "invalid_param"
+    },
+    {
+      "caseId": "relay.balance_upper_case.429",
+      "provenance": "doc_shape",
+      "route": "openai_images",
+      "http": 429,
+      "nRequested": 1,
+      "body": {
+        "error": {
+          "message": "INSUFFICIENT BALANCE"
+        }
+      },
+      "expectKind": "insufficient_balance"
+    }
+  ]
+}

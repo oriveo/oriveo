@@ -110,4 +110,32 @@ struct MultiWindowNavigationTests {
         #expect(navC !== navB)
         #expect(state.allWindowNavigations.count == 2)
     }
+
+    @Test("A newly created window manager gets a path observer, and observers installed later also sync to every window")
+    func newManagersCarryPathObserver() {
+        let state = makeState()
+        var observed: [[AppRoute]] = []
+        state.navigationPathObserver = { _, new in observed.append(new) }
+
+        _ = state.windowNavigation(for: UUID())
+        let navB = state.windowNavigation(for: UUID())
+        navB.attemptNavigate(to: .memory)
+        #expect(observed.last == [.memory])
+
+        var reinstalled = 0
+        state.navigationPathObserver = { _, _ in reinstalled += 1 }
+        navB.pop()
+        state.primaryNavigation.attemptNavigate(to: .backup)
+        #expect(reinstalled == 2)
+    }
+
+    @Test("Observers installed by AuthPartitionManager.bind also cover windows created afterwards")
+    func boundObserverReachesNewWindows() {
+        let state = makeState()
+        _ = state.windowNavigation(for: UUID())
+        let navB = state.windowNavigation(for: UUID())
+        #expect(state.navigationPathObserver != nil)
+        #expect(navB.onPathChange != nil)
+        #expect(state.primaryNavigation.onPathChange != nil)
+    }
 }

@@ -2,6 +2,7 @@ package ai.oriveo.community.core.voice.realtime
 
 import ai.oriveo.community.core.context.RealtimeHistoryItem
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveEventMapper
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveWire
 import java.io.File
@@ -10,6 +11,7 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -36,20 +38,58 @@ class GeminiLiveWireTest {
     @Test
     fun `gemini_map_cases_match_fixture`() {
         val cases = geminiCases("mapCases")
-        assertEquals(7, cases.size)
-        for (case in cases) {
-            val mapper = GeminiLiveEventMapper()
-            val actual = case["input"]!!.jsonObject["messages"]!!.jsonArray
+        assertEquals(11, cases.size)
+        for (case in cases) assertEquals(case.str("id"), case["expected"]!!, replay(case))
+    }
+
+    private fun replay(case: JsonObject): JsonArray {
+        val mapper = GeminiLiveEventMapper()
+        return JsonArray(
+            case["input"]!!.jsonObject["messages"]!!.jsonArray
                 .flatMap { mapper.map(it.jsonObject) }
-                .map { it.toJson() }
-            assertEquals(case.str("id"), case["expected"]!!, JsonArray(actual))
+                .map { it.toJson() },
+        )
+    }
+
+    private fun mapCase(id: String): JsonObject = geminiCases("mapCases").single { it.str("id") == id }
+
+    private fun userTranscripts(events: JsonArray): List<JsonObject> =
+        events.map { it.jsonObject }.filter { it.str("type") == "userTranscript" }
+
+    @Test
+    fun `duplicate_input_transcription_after_final_dropped`() {
+        // Same-sentence transcription arriving after final, with no ACTIVITY_START (including after turnComplete), is dropped: exactly one final and no non-final tail
+        for (id in listOf(
+            "gemini_duplicate_input_transcription_after_final_dropped",
+            "gemini_duplicate_input_after_turn_complete_dropped",
+        )) {
+            val case = mapCase(id)
+            val actual = replay(case)
+            assertEquals(id, case["expected"]!!, actual)
+            val users = userTranscripts(actual)
+            assertEquals(id, 1, users.count { it.str("final") == "true" })
+            assertEquals(id, "true", users.last().str("final"))
         }
+        // Prefix held back, new text arrives: the whole held segment goes to the next turn together with this chunk
+        val whole = mapCase("gemini_duplicate_prefix_then_new_text_kept_whole")
+        val actual = replay(whole)
+        assertEquals(whole["expected"]!!, actual)
+        assertEquals("\u4eca\u5929\u660e\u5929\u5462?", userTranscripts(actual).last { it.str("final") == "true" }.str("text"))
+    }
+
+    @Test
+    fun `same_text_after_activity_start_kept`() {
+        // Same sentence with ACTIVITY_START is kept as the next turn as usual
+        val case = mapCase("gemini_same_text_after_activity_start_kept")
+        val actual = replay(case)
+        assertEquals(case["expected"]!!, actual)
+        assertEquals(2, userTranscripts(actual).count { it.str("final") == "true" })
     }
 
     @Test
     fun `gemini_open_cases_match_fixture`() {
         val cases = geminiCases("openCases")
-        assertEquals(3, cases.size)
+        assertEquals(6, cases.size)
         for (case in cases) {
             val input = case["input"]!!.jsonObject
             val plan = input["plan"]!!.jsonObject
@@ -64,6 +104,8 @@ class GeminiLiveWireTest {
                 model = input["entry"]!!.jsonObject.str("model"),
                 voice = input.str("voice"),
                 resumeHandle = input["resumeHandle"]?.jsonPrimitive?.content,
+                route = ConversationRoute.from(input["route"]?.jsonPrimitive?.content),
+                language = input["language"]?.jsonPrimitive?.contentOrNull,
             )
             val expected = case["expected"]!!.jsonObject
             val id = case.str("id")

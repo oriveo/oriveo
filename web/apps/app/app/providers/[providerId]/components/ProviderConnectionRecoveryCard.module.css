@@ -27,7 +27,7 @@
   width: 30px;
   height: 30px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--o-surface-raised, var(--o-surface)) 82%, transparent);
+  background: color-mix(in srgb, var(--o-fill-muted, var(--o-surface)) 82%, transparent);
   color: var(--o-warning);
 }
 
@@ -123,13 +123,13 @@
 
 .secondaryAction {
   border: 1px solid color-mix(in srgb, var(--o-warning) 28%, transparent);
-  background: color-mix(in srgb, var(--o-surface-raised, var(--o-surface)) 82%, transparent);
-  /* In light mode #f5a524 on white is about 2.4:1, below 4.5; blending 50% black brings it to about 4.9:1, which meets WCAG AA */
+  background: color-mix(in srgb, var(--o-fill-muted, var(--o-surface)) 82%, transparent);
+  /* light mode #f5a524 on white is about 2.4:1 < 4.5; with 50% black mixed in it is about 4.9:1, which meets WCAG AA */
   color: color-mix(in srgb, var(--o-warning) 50%, black 50%);
 }
 
 .secondaryAction:hover {
-  background: color-mix(in srgb, var(--o-warning) 10%, var(--o-surface-raised, var(--o-surface)));
+  background: color-mix(in srgb, var(--o-warning) 10%, var(--o-surface-hover, var(--o-surface)));
   border-color: color-mix(in srgb, var(--o-warning) 42%, transparent);
 }
 

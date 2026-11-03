@@ -357,6 +357,7 @@ enum RelayFamilyDebugShots {
 
     private static func report(_ message: String) {
         print("[RelayFamilyDebugShots] \(message)")
+        ShotsLayoutProbe.fail(message)
     }
 
     // MARK: - Shared manifest

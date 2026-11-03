@@ -309,7 +309,7 @@ struct ContextSettingsView: View {
                 Text(ContextDefaultCapSetting.title(selection))
                     .font(.system(size: 11, weight: .semibold))
                     .tracking(0.6)
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .padding(.horizontal, 9)
                     .padding(.vertical, 4)
                     .background(Capsule().fill(OriveoTheme.Palette.primarySoft))
@@ -429,7 +429,7 @@ struct ContextSettingsView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
         }
-        .foregroundStyle(selected ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textSecondary)
+        .foregroundStyle(selected ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textSecondary)
         .frame(maxWidth: .infinity, minHeight: 68)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)

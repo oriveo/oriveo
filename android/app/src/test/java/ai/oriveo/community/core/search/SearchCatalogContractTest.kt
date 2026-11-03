@@ -1,6 +1,10 @@
 package ai.oriveo.community.core.search
 
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
 import ai.oriveo.community.core.search.SearchContractFixtures.Mismatches
+import ai.oriveo.community.testing.TestSharedPreferences
 import ai.oriveo.community.core.search.SearchContractFixtures.bool
 import ai.oriveo.community.core.search.SearchContractFixtures.cases
 import ai.oriveo.community.core.search.SearchContractFixtures.catalogEntry
@@ -14,6 +18,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -25,6 +30,37 @@ class SearchCatalogContractTest {
     private val catalog = doc.getValue("catalog").jsonObject
     private val testKeys: Map<String, String> = doc.getValue("testKeys").jsonObject.let {
         mapOf(str(it["keyId"])!! to str(it["publicKeyB64"])!!)
+    }
+
+    /** Counts getSharedPreferences / getCacheDir / getFilesDir calls; this class does not use Robolectric, so prefs is an in-memory fake. */
+    private class DiskCountingContext(private val prefs: SharedPreferences) : ContextWrapper(null) {
+        var diskTouches = 0
+        override fun getApplicationContext(): Context = this
+        override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences {
+            diskTouches += 1
+            return prefs
+        }
+        override fun getCacheDir(): File {
+            diskTouches += 1
+            return File("unused")
+        }
+        override fun getFilesDir(): File {
+            diskTouches += 1
+            return File("unused")
+        }
+    }
+
+    /** Koin singletons resolve on the main thread at first use: production construction does not fetch SharedPreferences; it fetches on first read, and that read gets the same prefs. */
+    @Test
+    fun repositoryInit_doesNotTouchDiskUntilFirstRead() {
+        val prefs = TestSharedPreferences().apply { edit().putLong("catalog.maxSeenRevision", 7L).apply() }
+        val counting = DiskCountingContext(prefs)
+
+        val repo = SearchCatalogRepository(counting)
+        assertEquals(0, counting.diskTouches)
+
+        assertEquals(7L, repo.maxSeenRevision())
+        assertTrue(counting.diskTouches > 0)
     }
 
     @Test

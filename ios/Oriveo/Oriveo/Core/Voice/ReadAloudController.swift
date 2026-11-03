@@ -76,7 +76,9 @@ protocol SpeechEngine: AnyObject {
 
 /// Audio session, strings, toasts and clock (the screen stays awake through ScreenAwakeHolds): the system in production, fakes in tests.
 protocol ReadAloudPlatform: AnyObject {
-    func activateAudioSession() throws
+    /// Configures and activates on the session queue; the main thread only awaits.
+    func activateAudioSession() async throws
+    /// Queued on the same session queue; does not wait for completion.
     func deactivateAudioSession()
     var uiLanguage: String { get }
     func localizedVoiceString(_ key: String, locale: String) -> String
@@ -193,9 +195,8 @@ struct ReadAloudEngineSource {
     }
 }
 
-/// Reading starts synchronously but VoiceCatalogClient is an actor: this snapshot subscribes to the client's state pushes
-/// (written on the main thread), so a catalog refreshed from settings applies to reading immediately. A read that finds
-/// no verdict yet, or the last refresh at least 10 minutes old, also kicks off an ETag refresh for next time.
+/// Starting a read-aloud is synchronous, and VoiceCatalogClient is an actor: the snapshot subscribes to the client's state pushes (written on the main thread),
+/// and a catalog refreshed on the settings page takes effect for read-aloud right away. Construction does not read the disk: the snapshot starts empty, and the client publishes only after it has read the cold-start cache on the actor. A read with no conclusion yet, or 10 minutes or more since the last refresh, also triggers one ETag-conditional refresh for the next read.
 final class ReadAloudCatalogSnapshot {
     static let shared = ReadAloudCatalogSnapshot()
     static let refreshInterval: TimeInterval = 10 * 60
@@ -217,7 +218,7 @@ final class ReadAloudCatalogSnapshot {
             }
             // A push may land before this point and already hold newer state; don't overwrite it with the stale value from subscribing.
             if let self, self.state == nil {
-                self.state = initial
+                self.state = initial.state
             }
         }
     }
@@ -237,6 +238,13 @@ final class ReadAloudCatalogSnapshot {
         state = latest
         lastRefreshAt = now()
     }
+
+    #if DEBUG
+    /// Test only: sets the catalog state directly (does not record the refresh time); the caller restores it afterwards.
+    func setStateForTesting(_ state: VoiceCatalogState?) {
+        self.state = state
+    }
+    #endif
 
     private func refreshIfStale() {
         guard refreshing == nil else { return }
@@ -275,11 +283,15 @@ final class ReadAloudController: ObservableObject {
     private struct Session {
         /// Tells readings apart: a late fallback callback from the previous reading's cloud engine must not count toward this one.
         let token: UUID
+        /// The session lease of this read-aloud; it deactivates only while it is still the current lease.
+        let lease: VoiceAudioSessionOwner.Lease
         let messageID: UUID
         let total: Int
         var index: Int
         /// The mid-reading fallback notice has already been shown for this reading.
         var fallbackNotified = false
+        /// Session activation has settled; one stopped before that is deactivated by the activation task when it returns (see activationDidLapse).
+        var activated = false
     }
 
     private let engines: ReadAloudEngineSource
@@ -289,6 +301,9 @@ final class ReadAloudController: ObservableObject {
     /// Holder that keeps the screen awake while reading; shares one hold count with dictation.
     private let screenAwake: ScreenAwakeHolds
     private let detectLanguage: (String) -> String?
+    /// The session lease shared by dictation / voice conversation / read-aloud: read-aloud and audition take.readAloud before activating,
+    /// Ending deactivates only while its own lease is still the current holder; once dictation or conversation has taken over, it does not deactivate.
+    private let sessionOwner: VoiceAudioSessionOwner
     private var session: Session?
     private var hasObservedChat = false
     private var observedConversationID: UUID?
@@ -298,6 +313,12 @@ final class ReadAloudController: ObservableObject {
     private let makePreview: (CloudSpeechSetup) -> SpeechEngine
     private var previewEngine: SpeechEngine?
     private var previewRelay: PreviewRelay?
+    /// The most recent read-aloud / audition session activation; tests await it for the activation to settle.
+    private(set) var pendingActivation: Task<Void, Never>?
+    /// This audition's session activation has settled.
+    private var previewActivated = false
+    /// This audition's session lease.
+    private var previewLease: VoiceAudioSessionOwner.Lease?
 
     init(
         engines: ReadAloudEngineSource,
@@ -305,9 +326,11 @@ final class ReadAloudController: ObservableObject {
         screenAwake: ScreenAwakeHolds? = nil,
         notificationCenter: NotificationCenter = .default,
         detectLanguage: @escaping (String) -> String? = ReadAloudController.dominantLanguage,
-        makePreview: @escaping (CloudSpeechSetup) -> SpeechEngine = ReadAloudController.makePreviewEngine
+        makePreview: @escaping (CloudSpeechSetup) -> SpeechEngine = ReadAloudController.makePreviewEngine,
+        sessionOwner: VoiceAudioSessionOwner = .shared
     ) {
         self.engines = engines
+        self.sessionOwner = sessionOwner
         self.platform = platform
         self.screenAwake = screenAwake ?? .shared
         self.detectLanguage = detectLanguage
@@ -401,12 +424,6 @@ final class ReadAloudController: ObservableObject {
             platform.showToast(.couldNotPreview)
             return
         }
-        do {
-            try platform.activateAudioSession()
-        } catch {
-            platform.showToast(.couldNotPreview)
-            return
-        }
         let setup = CloudSpeechSetup(
             entry: entry,
             providerKind: provider.kind,
@@ -421,9 +438,33 @@ final class ReadAloudController: ObservableObject {
         previewEngine = engine
         previewRelay = relay
         previewingVoice = voice
+        previewActivated = false
+        let lease = sessionOwner.claim(.readAloud)
+        previewLease = lease
         engine.delegate = relay
         let sample = platform.localizedVoiceString(Self.previewSampleKey, locale: language)
-        engine.speak([SpeechUtterance(text: sample, language: language)])
+        pendingActivation = Task { [weak self, platform] in
+            let activated: Bool
+            do {
+                try await platform.activateAudioSession()
+                activated = true
+            } catch {
+                activated = false
+            }
+            guard let self else { return }
+            guard self.previewRelay === relay else {
+                self.activationDidLapse(lease)
+                return
+            }
+            guard activated else {
+                // As before: an activation failure only shows a message and does not deactivate; the lease is still returned
+                self.sessionOwner.release(lease)
+                self.endPreview(failed: true)
+                return
+            }
+            self.previewActivated = true
+            engine.speak([SpeechUtterance(text: sample, language: language)])
+        }
     }
 
     /// Stops the preview (tapping preview again, leaving settings); does nothing when no preview is playing.
@@ -440,10 +481,14 @@ final class ReadAloudController: ObservableObject {
     }
 
     private func endPreview(failed: Bool) {
+        let lease = previewLease
         previewEngine = nil
         previewRelay = nil
         previewingVoice = nil
-        platform.deactivateAudioSession()
+        previewLease = nil
+        // While activation has not settled, neither deactivate nor return the lease: deactivating would queue ahead of activation, so the activation task fills it in when it returns (activationDidLapse)
+        if previewActivated, let lease, sessionOwner.release(lease) { platform.deactivateAudioSession() }
+        previewActivated = false
         if failed { platform.showToast(.couldNotPreview) }
     }
 
@@ -474,26 +519,60 @@ final class ReadAloudController: ObservableObject {
             platform.showToast(.noVoice)
             return
         }
-        do {
-            try platform.activateAudioSession()
-        } catch {
-            state = .failed(messageID: messageID)
-            platform.showToast(.couldNotRead)
-            return
-        }
-
+        // Session and button state are set first: tapping again during activation = stop, consistent with the reading state
         screenAwake.acquire(.readAloud)
+        let lease = sessionOwner.claim(.readAloud)
         session = Session(
             token: token,
+            lease: lease,
             messageID: messageID,
             total: utterances.count,
             index: 0
         )
         state = .speaking(messageID: messageID, index: 0, total: utterances.count)
+        pendingActivation = Task { [weak self, platform] in
+            let activated: Bool
+            do {
+                try await platform.activateAudioSession()
+                activated = true
+            } catch {
+                activated = false
+            }
+            self?.activationDidFinish(
+                token: token, lease: lease, activated: activated, engine: engine, utterances: utterances
+            )
+        }
+    }
+
+    /// Activation settled: if this read-aloud has already been stopped or replaced, nothing is voiced; an activation failure ends the read as failed (+ "cannot read aloud").
+    private func activationDidFinish(
+        token: UUID, lease: VoiceAudioSessionOwner.Lease, activated: Bool,
+        engine: SpeechEngine, utterances: [SpeechUtterance]
+    ) {
+        guard var current = session, current.token == token else {
+            activationDidLapse(lease)
+            return
+        }
+        guard activated else {
+            // Activation failure: returns the lease, does not deactivate
+            sessionOwner.release(lease)
+            finish(.failed)
+            return
+        }
+        current.activated = true
+        session = current
         engine.speak(utterances)
     }
 
-    /// The cloud engine switched to the system engine mid-reading: the notice is shown at most once per reading; state and settings are unchanged.
+    /// Activation settled for an attempt that was already stopped: the stop came before activation was queued on the session queue, so the lease and deactivation are filled in here;
+    /// deactivation happens only if that attempt's lease is still the current holder; if a new read-aloud / audition, dictation or voice conversation has taken it, nothing is deactivated,
+    /// So as not to stop someone else's playback or capture.
+    private func activationDidLapse(_ lease: VoiceAudioSessionOwner.Lease) {
+        guard sessionOwner.release(lease) else { return }
+        platform.deactivateAudioSession()
+    }
+
+    /// When the cloud engine switches to the system engine mid-read to continue: prompt at most once per read; state and settings stay the same.
     private func cloudDidFallBack(token: UUID, providerName: String) {
         guard var current = session, current.token == token, !current.fallbackNotified else { return }
         current.fallbackNotified = true
@@ -504,7 +583,9 @@ final class ReadAloudController: ObservableObject {
     private func finish(_ reason: ReadAloudEndReason) {
         guard let current = session else { return }
         session = nil
-        platform.deactivateAudioSession()
+        // While activation has not settled, neither deactivate nor return the lease: deactivating would queue ahead of activation, so the activation task fills it in when it returns (activationDidLapse);
+        // if dictation / conversation has already taken over the lease, do not deactivate
+        if current.activated, sessionOwner.release(current.lease) { platform.deactivateAudioSession() }
         screenAwake.release(.readAloud)
         state = reason == .failed ? .failed(messageID: current.messageID) : .idle
         if reason == .failed { platform.showToast(.couldNotRead) }
@@ -795,23 +876,27 @@ final class SystemReadAloudPlatform: ReadAloudPlatform {
     static let sessionConfiguration: (category: AVAudioSession.Category, mode: AVAudioSession.Mode) =
         (.playback, .spokenAudio)
 
-    func activateAudioSession() throws {
-        let session = AVAudioSession.sharedInstance()
+    private let coordinator: AudioSessionCoordinator
+
+    init(coordinator: AudioSessionCoordinator = .shared) {
+        self.coordinator = coordinator
+    }
+
+    func activateAudioSession() async throws {
         let config = Self.sessionConfiguration
-        try session.setCategory(config.category, mode: config.mode)
-        try session.setActive(true)
+        try await coordinator.activate(.init(category: config.category, mode: config.mode))
     }
 
     func deactivateAudioSession() {
-        // Failure only means other audio still holds the session; reading has already stopped, so no toast
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        // A failure only means other audio still holds the session and read-aloud has already stopped, so no prompt is needed (the coordinator only logs).
+        coordinator.deactivate(notifyOthers: true)
     }
 
     var uiLanguage: String {
         AppLocalization.currentLanguage.rawValue
     }
 
-    /// Placeholder sentences come from the Voice table of the placeholderLocale's .lproj, not the UI language.
+    /// Placeholder sentences come from the Voice table of the placeholderLocale's.lproj, not the UI language.
     func localizedVoiceString(_ key: String, locale: String) -> String {
         for candidate in [locale, "en"] {
             if let path = Bundle.main.path(forResource: candidate, ofType: "lproj"),

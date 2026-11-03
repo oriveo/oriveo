@@ -139,9 +139,12 @@ fun BackupScreen(
                         Switch(
                             checked = viewModel.includeKeys,
                             onCheckedChange = { viewModel.includeKeys = it },
-                            // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
+                            colors = SwitchDefaults.colors(
+                                checkedTrackColor = colors.primary,
+                                checkedThumbColor = colors.switchThumb,
+                            ),
+                            // The switch has no label of its own; without a contentDescription it is announced only as "switch".
                             modifier = Modifier.semantics { contentDescription = includeKeysLabel },
-                            colors = SwitchDefaults.colors(checkedTrackColor = colors.primary),
                         )
                     }
 

@@ -256,6 +256,36 @@ struct McpToolPanelModelTests {
     }
 
     @Test("Toggles for a new conversation are kept under the draft id first and move to the conversation id when the first message is sent")
+    @MainActor
+    func realtimePanelAvailability() throws {
+        let memory = try makeToolLoopMemoryStore()
+        let (relay, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
+        let text = McpToolAvailability.resolve(provider: relay, model: model, memory: memory)
+        let realtime = McpToolAvailability.panel(textModel: text, realtimeSelected: true)
+        #expect(realtime == .realtimeModel)
+        #expect(!realtime.isAvailable)
+        #expect(
+            McpToolPanelSheet.unsupportedReason(for: realtime)
+                == RealtimeCapabilityCopy.reason("voice_realtime_no_tools")
+        )
+        #expect(McpToolAvailability.panel(textModel: text, realtimeSelected: false) == .available)
+        #expect(McpToolAvailability.panel(textModel: .modelUnsupported, realtimeSelected: false) == .modelUnsupported)
+        #expect(
+            McpToolPanelSheet.unsupportedReason(for: .modelUnsupported)
+                != McpToolPanelSheet.unsupportedReason(for: realtime)
+        )
+
+        let database = try McpTestDatabase.make(); defer { database.cleanUp() }
+        let conversation = UUID()
+        try add(database, id: serverA, name: "Linear", url: "https://mcp.linear.app/mcp",
+                tools: [snapshot("search", server: serverA)], status: .connected)
+        try database.store.setServerEnabled(true, conversationId: conversation, serverId: serverA)
+        let state = try load(database, conversation: conversation, availability: realtime)
+        #expect(state.availability == .realtimeModel)
+        #expect(state.outboundToolCount == 0 && state.enabledServerCount == 0)
+    }
+
+    @Test("Toggles for a new conversation are kept under the draft id first and move to the conversation id when the first message is sent")
     func draftSwitchesMove() throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }
         try add(database, id: serverA, name: "Linear", url: "https://mcp.linear.app/mcp",

@@ -30,4 +30,22 @@ class ContextSettingsLayoutTest {
             assertFalse(name, body.contains("verticalAlignment = Alignment.Top"))
         }
     }
+
+    /** Skills master switch (P4 contract 24): its own card with the localized title and footer, centred like the reminder card. */
+    @Test
+    fun `context_skills_auto_invoke_card_has_toggle_and_footer`() {
+        val source = File("src/main/java/ai/oriveo/community/feature/settings/ContextSettingsScreen.kt").readText()
+        val screen = source.substringAfter("fun ContextSettingsScreen(").substringBefore("\n}\n")
+        assertTrue(screen.contains("SkillsAutoInvokeGroup("))
+        assertTrue(screen.indexOf("PriceLineReminderGroup(") < screen.indexOf("SkillsAutoInvokeGroup("))
+        val start = source.indexOf("private fun SkillsAutoInvokeGroup(")
+        assertTrue(start >= 0)
+        val body = source.substring(start).substringBefore("\n}\n")
+        assertTrue(body.contains("R.string.skills_settings_autoToggle)"))
+        assertTrue(body.contains("R.string.skills_settings_autoToggleFooter)"))
+        assertTrue(body.contains("Switch("))
+        assertTrue(body.contains("sentryClickTag(\"settings_skills_auto_invoke\""))
+        assertTrue(body.contains("verticalAlignment = Alignment.CenterVertically"))
+        assertFalse(body.contains("verticalAlignment = Alignment.Top"))
+    }
 }

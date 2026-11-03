@@ -105,8 +105,9 @@ class ChatModelCapabilityResolver internal constructor(
         provider: Provider?,
         model: AIModel?,
         localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null,
+        realtime: Boolean = false,
     ): ComposerAttachmentEntryModel = attachmentInputFacts(provider, model, localIdentity)
-        .let { (gate, projections) -> ComposerAttachmentEntryModel.from(projections, gate) }
+        .let { (gate, projections) -> ComposerAttachmentEntryModel.from(projections, gate, realtime) }
 
     private fun attachmentInputFacts(
         provider: Provider?,

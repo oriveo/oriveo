@@ -195,7 +195,8 @@ describe('operations guard: an abort must not overwrite a terminal state set els
     // The guard works: the completion path sees interrupted and returns instead of overwriting with delivered
     expect(assistantMsg?.state).toBe('interrupted');
     expect(assistantMsg?.text).toBe('partial');
-    expect(mocks.enqueueUsageEvent).not.toHaveBeenCalled();
+    // The stopped reply is billed once from what it showed, never from the completion.
+    expect(mocks.enqueueUsageEvent).toHaveBeenCalledTimes(1);
   });
 
   it('sendMessage keeps the citations that already arrived on the stream after the message is marked interrupted elsewhere', async () => {
@@ -256,7 +257,8 @@ describe('operations guard: an abort must not overwrite a terminal state set els
     expect(assistantMsg?.state).toBe('interrupted');
     expect(assistantMsg?.text).toBe('partial');
     expect(assistantMsg?.citations).toEqual(citations);
-    expect(mocks.enqueueUsageEvent).not.toHaveBeenCalled();
+    // The stopped reply is billed once from what it showed, never from the completion.
+    expect(mocks.enqueueUsageEvent).toHaveBeenCalledTimes(1);
   });
 
   it('continueAnswering: once the assistant is marked interrupted elsewhere, the completion path does not overwrite it', async () => {
@@ -311,7 +313,8 @@ describe('operations guard: an abort must not overwrite a terminal state set els
     const finalMsg = store.getState().conversations[0]?.messages.find((m) => m.id === 'msg-1');
     expect(finalMsg?.state).toBe('interrupted');
     expect(finalMsg?.text).toBe('partial-stopped');
-    expect(mocks.enqueueUsageEvent).not.toHaveBeenCalled();
+    // The stopped reply is billed once from what it showed, never from the completion.
+    expect(mocks.enqueueUsageEvent).toHaveBeenCalledTimes(1);
   });
 
   it('sendMessage writes the partial text and reasoning produced so far into the failed message when the stream fails midway, instead of clearing them', async () => {
@@ -484,6 +487,7 @@ describe('operations guard: an abort must not overwrite a terminal state set els
       { url: 'https://source.example/old', title: 'Old' },
       { url: 'https://source.example/new', title: 'New' },
     ]);
-    expect(mocks.enqueueUsageEvent).not.toHaveBeenCalled();
+    // The stopped reply is billed once from what it showed, never from the completion.
+    expect(mocks.enqueueUsageEvent).toHaveBeenCalledTimes(1);
   });
 });

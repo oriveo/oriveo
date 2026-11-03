@@ -39,6 +39,18 @@ final class McpServerDirectory {
         return created
     }
 
+    /// Background endpoint relocations started by `store(for:)` that have not finished writing yet.
+    private var pendingRelocations: [UUID: Task<Void, Never>] = [:]
+
+    /// Waits until every background endpoint relocation has finished writing.
+    /// Callers that delete the partition database (sign-out, test teardown) must await this first.
+    func waitForPendingRelocations() async {
+        while let entry = pendingRelocations.first {
+            await entry.value.value
+            pendingRelocations[entry.key] = nil
+        }
+    }
+
     /// Server store of one storage partition. `uid` must be the currently bound partition
     /// (`AppState.sessionPartitionUID`).
     func store(for uid: String) throws -> McpServerStore {

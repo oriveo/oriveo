@@ -111,11 +111,17 @@
   color: color-mix(in srgb, var(--o-primary-active) 75%, black);
 }
 
-/* Folded long user message: the prefix is capped at 320px and fades out over the bottom 44px. The
- * mask only changes opacity, so what shows through is the vertical gradient under the bubble; a solid
- * overlay could not match the gradient's colors. */
+/* Collapsed state for long user messages: the prefix is capped at 320px with a 44px fade at the bottom. The mask only changes opacity,
+ * since the fade reveals the vertical gradient under the bubble; a solid overlay would not match the gradient colors. */
+/* Plain message text follows its own direction and aligns to its start edge (RTL UI, English text stays left). */
+.plainText {
+  display: block;
+  text-align: start;
+}
+
 .foldedText {
   display: block;
+  text-align: start;
   max-height: 320px;
   overflow: hidden;
   -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 44px), transparent);
@@ -300,7 +306,7 @@
   border: none;
   border-radius: 16px;
   overflow: hidden;
-  background: color-mix(in srgb, var(--o-surface-raised) 92%, white 8%);
+  background: color-mix(in srgb, var(--o-fill-muted) 92%, white 8%);
   cursor: pointer;
   line-height: 0;
 }
@@ -336,6 +342,14 @@
 
 .inlineError {
   margin-top: var(--o-space-xs);
+}
+
+.relayWebReplyNotice {
+  margin: var(--o-space-xs) 0 0;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+  line-height: 1.45;
+  text-align: right;
 }
 
 .relayWebReplyNotice {
@@ -407,7 +421,7 @@
   height: 30px;
   padding: 0 var(--o-space-sm);
   font-size: 12px;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 /* Icon-only copy and more actions: neutral square ghost buttons */
@@ -440,7 +454,7 @@
 
 /* Copy succeeded: the icon button turns accent with a soft confirmation background */
 .metaIconBtn[data-copied] {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   background: var(--o-primary-subtle);
 }
 
@@ -612,7 +626,7 @@
 }
 
 .editCancel {
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   color: var(--o-text-secondary);
 }
 
@@ -639,23 +653,8 @@
     max-width: 88%;
     width: fit-content;
   }
-  /* Always show message actions on small screens (no hover) */
-  .container .actions {
-    height: 28px;
-    opacity: 0.5;
-    pointer-events: auto;
-  }
   .editWrap {
     min-width: unset;
-  }
-}
-
-/* Touch-only devices: always show message actions */
-@media (hover: none) {
-  .container .actions {
-    height: 28px;
-    opacity: 0.7;
-    pointer-events: auto;
   }
 }
 

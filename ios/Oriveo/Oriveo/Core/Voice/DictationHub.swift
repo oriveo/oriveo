@@ -45,8 +45,9 @@ final class DictationHub {
                 makeSystem: { SystemSTTEngine.makeDefault(assets: assets) }
             ),
             system: .makeDefault(assets: assets),
-            capture: capture ?? EngineAudioCapture(session: .sharedInstance(), bufferSize: 4096),
-            store: store
+            capture: capture ?? EngineAudioCapture(bufferSize: 4096),
+            store: store,
+            language: { VoiceEngineSettings().recognitionLanguage }
         )
     }
 }

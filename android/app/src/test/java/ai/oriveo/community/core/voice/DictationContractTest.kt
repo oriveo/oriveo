@@ -11,7 +11,12 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.double
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -25,7 +30,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 
-/** Compares DictationRules output item by item against the nine groups of cases in shared/voice-contracts/dictation.v1.json; entry references are decoded from the voice catalog v2 contract. */
+/** Compares DictationRules / SystemFailure / LiveDictationRules output item by item against the case groups in shared/voice-contracts/dictation.v1.json; entry references are decoded from the voice catalog v2 contract. */
 class DictationContractTest {
 
     @get:Rule
@@ -319,6 +324,150 @@ class DictationContractTest {
         assertNull(DictationRules.parseRetryAfter("-1"))
         assertNull(DictationRules.parseRetryAfter("1e1"))
         assertNull(DictationRules.parseRetryAfter("٣"))
+    }
+
+    @Test
+    fun systemFailureConstantsMatchFixture() {
+        val constants = fixture["constants"]!!.jsonObject
+        val system = constants["systemFailure"]!!.jsonObject
+        assertEquals(
+            system["kinds"]!!.jsonArray.map { it.jsonPrimitive.content },
+            SystemFailure.REPORTABLE_KINDS.map { it.rawValue },
+        )
+        val codes = system["codes"]!!.jsonObject
+        assertEquals(
+            codes["android"]!!.jsonObject.entries.associate { it.key.toInt() to it.value.jsonPrimitive.content },
+            SystemFailure.ANDROID_CODES.mapValues { it.value.rawValue },
+        )
+        assertEquals(
+            codes["conditions"]!!.jsonObject.mapValues { it.value.jsonPrimitive.content },
+            SystemFailure.CONDITIONS.entries.associate { it.key.rawValue to it.value.rawValue },
+        )
+        assertEquals(
+            system["actions"]!!.jsonObject.mapValues { it.value.jsonArray.map { a -> a.jsonPrimitive.content } },
+            SystemFailure.ACTIONS.entries.associate { it.key.rawValue to listOf(it.value.first.rawValue, it.value.second.rawValue) },
+        )
+        assertEquals(system["busyAutoRetries"]!!.jsonPrimitive.int, SystemFailure.BUSY_AUTO_RETRIES)
+        assertEquals(
+            constants["live"]!!.jsonObject["maxTextLength"]!!.jsonPrimitive.int,
+            LiveDictationRules.MAX_TEXT_LENGTH,
+        )
+    }
+
+    @Test
+    fun systemFailureCases() {
+        var checked = 0
+        for (case in cases("systemFailureCases")) {
+            val input = case.input()
+            val failure = input["failure"]!!.jsonObject
+            if (failure.str("platform") == "ios") continue
+            val parsed = failure.str("condition")?.let { raw ->
+                SystemFailureInput.Condition(SystemFailureCondition.entries.single { it.rawValue == raw })
+            } ?: SystemFailureInput.Code(failure["code"]!!.jsonPrimitive.int).also {
+                assertEquals("${case.id()} platform", "android", failure.str("platform"))
+            }
+            val actual = input["canRetry"]?.let {
+                SystemFailure.classify(parsed, input["attempt"]!!.jsonPrimitive.int, it.jsonPrimitive.boolean)
+            } ?: SystemFailure.classify(parsed, input["attempt"]!!.jsonPrimitive.int)
+            assertEquals(case.id(), case["expected"], actual.toJson())
+            checked++
+        }
+        assertTrue("android / condition cases must not be empty", checked > 0)
+    }
+
+    @Test
+    fun livePartialCases() {
+        for (case in cases("livePartialCases")) {
+            val input = case.input()
+            val actual = LiveDictationRules.livePartial(strings(input["finals"]), input.str("partial")!!)
+            val json = buildJsonObject {
+                put("final", actual.final)
+                put("volatile", actual.volatile)
+                put("text", actual.text)
+            }
+            assertEquals(case.id(), case["expected"], json)
+        }
+    }
+
+    /** Live-caption state from recognition callbacks is compared between two session kinds by SystemSTTEngineTest; here we only register that the group exists and has enough cases. */
+    @Test
+    fun liveResultCases() {
+        assertTrue("liveResultCases must have at least 10 cases", cases("liveResultCases").size >= 10)
+    }
+
+    @Test
+    fun liveInsertCases() {
+        for (case in cases("liveInsertCases")) {
+            val input = case.input()
+            val text = input.str("text")!!
+            val selectionStart = input["selectionStart"]!!.jsonPrimitive.int
+            val selectionEnd = input["selectionEnd"]!!.jsonPrimitive.int
+            val finals = strings(input["finals"])
+            val partial = input.str("partial")!!
+            val actual = input["maxLength"]?.let {
+                LiveDictationRules.liveInsert(text, selectionStart, selectionEnd, finals, partial, it.jsonPrimitive.int)
+            } ?: LiveDictationRules.liveInsert(text, selectionStart, selectionEnd, finals, partial)
+            val json = buildJsonObject {
+                put("text", actual.text)
+                put("cursor", actual.cursor)
+                putJsonArray("region") { add(actual.regionStart); add(actual.regionEnd) }
+                putJsonArray("volatile") { add(actual.volatileStart); add(actual.volatileEnd) }
+            }
+            assertEquals(case.id(), case["expected"], json)
+        }
+    }
+
+    @Test
+    fun outcomeCases() {
+        fun kind(raw: String?): SystemFailureKind? = raw?.let { r -> SystemFailureKind.entries.single { it.rawValue == r } }
+        for (case in cases("outcomeCases")) {
+            val input = case.input()
+            val live = input["live"]!!.jsonObject
+            val session = LiveSessionResult(
+                finals = strings(live["finals"]),
+                partial = live.str("partial") ?: "",
+                ended = LiveEnded.entries.single { it.rawValue == live.str("ended") },
+                failureKind = kind(live.str("failureKind")),
+                hasRecording = live["hasRecording"]!!.jsonPrimitive.boolean,
+                droppedAudio = live["droppedAudio"]?.jsonPrimitive?.boolean ?: false,
+            )
+            val file = input["file"]?.jsonObject?.let { f ->
+                kind(f.str("failureKind"))?.let { LiveFileResult.Failed(it) } ?: LiveFileResult.Text(f.str("text")!!)
+            }
+            val actual = LiveDictationRules.dictationOutcome(session, file)
+            val json = buildJsonObject {
+                put("fileAttempted", actual.fileAttempted)
+                put("result", actual.result.rawValue)
+                actual.source?.let { put("source", it.rawValue) }
+                actual.text?.let { put("text", it) }
+                actual.failureKind?.let { put("failureKind", it.rawValue) }
+            }
+            assertEquals(case.id(), case["expected"], json)
+        }
+    }
+
+    private fun strings(element: JsonElement?): List<String> = element!!.jsonArray.map { it.jsonPrimitive.content }
+
+    private fun SystemFailureDecision.toJson(): JsonObject = buildJsonObject {
+        put("kind", kind.rawValue)
+        put("autoRetry", autoRetry)
+        put("recreateRecognizer", recreateRecognizer)
+        put("primaryAction", primaryAction?.rawValue)
+        put("secondaryAction", secondaryAction?.rawValue)
+        put(
+            "telemetry",
+            telemetry?.toMap()?.let { map ->
+                JsonObject(
+                    map.mapValues { (_, v) ->
+                        when (v) {
+                            is Boolean -> JsonPrimitive(v)
+                            is Number -> JsonPrimitive(v)
+                            else -> JsonPrimitive(v.toString())
+                        }
+                    },
+                )
+            } ?: JsonNull,
+        )
     }
 
     /** Headers come from the real request CloudSTTEngine sends through MockEngine: request headers verbatim plus the body's Content-Type. */

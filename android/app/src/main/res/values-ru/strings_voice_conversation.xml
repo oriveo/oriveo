@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">Завершить</string>
     <string name="voice_conversation_start_failed_toast">Не удалось начать голосовой диалог. Попробуйте ещё раз.</string>
     <string name="voice_conversation_background_paused_toast">Пока Oriveo работает в фоне, голосовой диалог приостановлен.</string>
+    <string name="voice_conversation_status_say_again">Не разобрать, повторите</string>
+    <string name="voice_conversation_status_check_language">Не удалось расслышать</string>
+    <string name="voice_conversation_prompt_say_again">Не удалось расслышать. Повторите, пожалуйста.</string>
+    <string name="voice_conversation_prompt_check_language">Снова не удалось расслышать. Если вы говорите на другом языке, нажмите «Язык распознавания», чтобы сменить его.</string>
+    <string name="voice_conversation_prompt_echo_hint">Динамик даёт эхо. С наушниками будет лучше.</string>
+    <string name="voice_conversation_language_chip">Язык распознавания: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">Меняет язык распознавания</string>
 </resources>

@@ -1009,6 +1009,7 @@ private fun DetailPage(
                         // Already default = on and disabled. Material's disabled-checked colors are a grey track that reads as
                         // "off"; keep the on look (dimmed) so the state stays legible, like iOS / Web.
                         colors = SwitchDefaults.colors(
+                            checkedThumbColor = OriveoTheme.colors.switchThumb,
                             disabledCheckedTrackColor = OriveoTheme.colors.primary.copy(alpha = 0.55f),
                             disabledCheckedThumbColor = OriveoTheme.colors.switchThumb,
                             disabledCheckedBorderColor = Color.Transparent,

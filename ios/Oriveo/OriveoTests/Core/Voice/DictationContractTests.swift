@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+import Speech
 import Testing
 @testable import Oriveo
 
@@ -439,5 +440,301 @@ struct DictationContractTests {
             path: "/v1/audio/transcriptions"
         )
         #expect(url?.absoluteString == "http://localhost:8080/v1/audio/transcriptions")
+    }
+
+    // MARK: live dictation and system recognition failure
+
+    private static func failureKind(_ raw: Any?) throws -> SystemFailureKind? {
+        guard let raw, !(raw is NSNull) else { return nil }
+        let name = try #require(raw as? String)
+        return try #require(SystemFailureKind(rawValue: name), "unknown failureKind \(name)")
+    }
+
+    /// Fixture failure -> iOS input; Android platform codes do not go through this side (iOS looks up by (domain, code)), return nil.
+    static func systemRecognizerFailure(_ raw: Any?) throws -> SystemRecognizerFailure? {
+        let failure = try #require(raw as? [String: Any])
+        if let condition = failure["condition"] as? String {
+            return .condition(try #require(SystemFailureCondition(rawValue: condition), "unknown condition \(condition)"))
+        }
+        let platform = try #require(failure["platform"] as? String)
+        if platform == "android" { return nil }
+        #expect(platform == "ios")
+        return .error(domain: try #require(failure["domain"] as? String), code: Int(try number(failure["code"])))
+    }
+
+    @Test("constants.live and constants.systemFailure match production")
+    func liveAndSystemFailureConstants() throws {
+        let constants = try #require(try Self.dictation()["constants"] as? [String: Any])
+        let live = try #require(constants["live"] as? [String: Any])
+        #expect(try Self.number(live["stopTimeoutMs"]) == Double(DictationRules.liveStopTimeoutMs))
+        #expect(try Self.number(live["fileTimeoutFactor"]) == DictationRules.fileTimeoutFactor)
+        #expect(try Self.number(live["fileTimeoutBaseSec"]) == DictationRules.fileTimeoutBaseSec)
+        #expect(try Self.number(live["supportCacheSec"]) == DictationRules.supportCacheSec)
+        #expect(try Self.number(live["maxTextLength"]) == Double(DictationRules.maxTextLength))
+        #expect(try #require(live["sources"] as? [String]) == DictationTextSource.allCases.map(\.rawValue))
+
+        let system = try #require(constants["systemFailure"] as? [String: Any])
+        #expect(try #require(system["kinds"] as? [String]) == SystemFailureKind.allCases.map(\.rawValue))
+        let codes = try #require(system["codes"] as? [String: Any])
+        let ios = try #require(codes["ios"] as? [String: Any])
+        var table: [String: [String: String]] = [:]
+        for (domain, raw) in ios {
+            if let wildcard = raw as? String {
+                #expect(domain == DictationRules.networkErrorDomain, "\(domain)")
+                #expect(wildcard == "*network", "\(domain)")
+                continue
+            }
+            table[domain] = try #require(raw as? [String: String], "\(domain)")
+        }
+        let production = DictationRules.systemFailureIOSCodes.mapValues { codes in
+            Dictionary(uniqueKeysWithValues: codes.map { (String($0.key), $0.value.rawValue) })
+        }
+        #expect(table == production)
+        let conditions = try #require(codes["conditions"] as? [String: String])
+        #expect(conditions == Dictionary(uniqueKeysWithValues: DictationRules.systemFailureConditions.map {
+            ($0.key.rawValue, $0.value.rawValue)
+        }))
+        let actions = try #require(system["actions"] as? [String: [String]])
+        #expect(actions == Dictionary(uniqueKeysWithValues: DictationRules.systemFailureActions.map {
+            ($0.key.rawValue, $0.value.map(\.rawValue))
+        }))
+        #expect(try Self.number(system["busyAutoRetries"]) == Double(DictationRules.busyAutoRetries))
+    }
+
+    @Test("SFSpeechError.Code raw values match the SDK; the production table classifies by these raw values")
+    func sfSpeechErrorRawValues() throws {
+        // timeout is an ObjC enum value since iOS 17, a compile-time constant; the other four are static properties of the iOS 26 Swift layer,
+        // only available at runtime on iOS 26+ (when the test simulator is iOS 18, only check timeout and the table's key set).
+        var pairs: [(SFSpeechError.Code, Int)] = [(.timeout, 12)]
+        if #available(iOS 26, *) {
+            pairs += [
+                (.noModel, 4),
+                (.assetLocaleNotAllocated, 10),
+                (.cannotAllocateUnsupportedLocale, 15),
+                (.insufficientResources, 16),
+            ]
+        }
+        #expect(SFSpeechError.errorDomain == "SFSpeechErrorDomain")
+        let table = try #require(DictationRules.systemFailureIOSCodes[SFSpeechError.errorDomain])
+        for (code, raw) in pairs {
+            #expect(code.rawValue == raw, "\(code)")
+            #expect(table[code.rawValue] != nil, "\(code) is not in the production table")
+        }
+        #expect(Set(table.keys) == [4, 10, 12, 15, 16])
+    }
+
+    @Test("livePartialCases match case by case")
+    func livePartialCases() throws {
+        for item in try Self.cases("livePartialCases") {
+            let id = item["id"] as? String ?? "?"
+            let input = try #require(item["input"] as? [String: Any])
+            let expected = try #require(item["expected"] as? [String: Any])
+            let actual = DictationRules.livePartial(
+                finals: try #require(input["finals"] as? [String]),
+                partial: try #require(input["partial"] as? String)
+            )
+            for (key, value) in [("final", actual.final), ("volatile", actual.volatile), ("text", actual.text)] {
+                let want = try #require(expected[key] as? String, "\(id).\(key)")
+                #expect(Array(value.unicodeScalars) == Array(want.unicodeScalars), "\(id).\(key): \(value.debugDescription)")
+            }
+        }
+    }
+
+    @Test("liveResultCases match case by case (production SystemSTTSnapshotTracker)")
+    func liveResultCases() async throws {
+        for item in try Self.cases("liveResultCases") {
+            let id = item["id"] as? String ?? "?"
+            let input = try #require(item["input"] as? [String: Any])
+            let expected = try #require(item["expected"] as? [String: Any])
+            let events = try #require(input["events"] as? [[String: Any]], "\(id).events")
+            let (stream, continuation) = AsyncStream.makeStream(of: SystemSTTLiveSnapshot.self)
+            let tracker = SystemSTTSnapshotTracker(output: continuation)
+            for event in events {
+                // null text is fed as an empty string: the callback layer receives an empty final / empty partial
+                tracker.receive(SystemSTTResult(
+                    text: event["text"] as? String ?? "",
+                    isFinal: try #require(event["isFinal"] as? Bool, "\(id).isFinal")
+                ))
+            }
+            tracker.close()
+            var last = SystemSTTLiveSnapshot()
+            for await snapshot in stream { last = snapshot }
+            let wantFinals = try #require(expected["finals"] as? [String], "\(id).finals")
+            let wantPartial = try #require(expected["partial"] as? String, "\(id).partial")
+            #expect(last.finals.map { Array($0.unicodeScalars) } == wantFinals.map { Array($0.unicodeScalars) }, "\(id) finals: \(last.finals)")
+            #expect(Array(last.partial.unicodeScalars) == Array(wantPartial.unicodeScalars), "\(id) partial: \(last.partial.debugDescription)")
+        }
+    }
+
+    @Test("liveInsertCases match case by case")
+    func liveInsertCases() throws {
+        for item in try Self.cases("liveInsertCases") {
+            let id = item["id"] as? String ?? "?"
+            let input = try #require(item["input"] as? [String: Any])
+            let expected = try #require(item["expected"] as? [String: Any])
+            let actual = DictationRules.liveInsert(
+                finals: try #require(input["finals"] as? [String]),
+                partial: try #require(input["partial"] as? String),
+                into: try #require(input["text"] as? String),
+                selectionStart: Int(try Self.number(input["selectionStart"])),
+                selectionEnd: Int(try Self.number(input["selectionEnd"])),
+                maxLength: (input["maxLength"] as? NSNumber)?.intValue ?? DictationRules.maxTextLength
+            )
+            let expectedText = try #require(expected["text"] as? String)
+            #expect(Array(actual.text.unicodeScalars) == Array(expectedText.unicodeScalars), "\(id): \(actual.text.debugDescription)")
+            #expect(actual.cursor == (try #require(expected["cursor"] as? Int)), "\(id) cursor \(actual.cursor)")
+            let region = try #require(expected["region"] as? [Int])
+            #expect([actual.region.lowerBound, actual.region.upperBound] == region, "\(id) region \(actual.region)")
+            let volatile = try #require(expected["volatile"] as? [Int])
+            #expect([actual.volatile.lowerBound, actual.volatile.upperBound] == volatile, "\(id) volatile \(actual.volatile)")
+        }
+    }
+
+    /// Reference implementation: on overflow, delete one code point at a time from the end of the live text, re-trim, and recompute (delete volatile before final).
+    private static func perScalarLiveInsert(
+        finals: [String], partial: String, into text: String, selectionStart: Int, selectionEnd: Int, maxLength: Int
+    ) -> LiveDictationInsertion {
+        func string(_ scalars: [Unicode.Scalar]) -> String {
+            var view = String.UnicodeScalarView()
+            view.append(contentsOf: scalars)
+            return String(view)
+        }
+        let units = Array(text.utf16)
+        let offset = min(max(max(selectionStart, selectionEnd), 0), units.count)
+        let before = String(decoding: units[..<offset], as: UTF16.self).unicodeScalars.last
+        let after = String(decoding: units[offset...], as: UTF16.self).unicodeScalars.first
+        var final = Array(DictationRules.livePartial(finals: finals, partial: "").final.unicodeScalars)
+        var volatile = DictationRules.trimmedScalars(partial)
+        while true {
+            var live = final
+            if let head = volatile.first {
+                if DictationRules.needsSpace(final.last, head) { live.append(" ") }
+                live += volatile
+            }
+            var inserted: [UInt16] = []
+            var cursor = offset
+            if let head = live.first, let tail = live.last {
+                if DictationRules.needsSpace(before, head) { inserted.append(0x20) }
+                inserted.append(contentsOf: string(live).utf16)
+                cursor = offset + inserted.count
+                if DictationRules.needsSpace(tail, after) { inserted.append(0x20) }
+            }
+            if units.count + inserted.count > maxLength, !live.isEmpty {
+                if !volatile.isEmpty {
+                    volatile.removeLast()
+                    volatile = DictationRules.trimmedScalars(string(volatile))
+                } else {
+                    final.removeLast()
+                    final = DictationRules.trimmedScalars(string(final))
+                }
+                continue
+            }
+            let result = Array(units[..<offset]) + inserted + Array(units[offset...])
+            let volatileLength = string(volatile).utf16.count
+            return LiveDictationInsertion(
+                text: String(decoding: result, as: UTF16.self),
+                cursor: cursor,
+                region: offset..<(offset + inserted.count),
+                volatile: (cursor - volatileLength)..<cursor
+            )
+        }
+    }
+
+    @Test("liveInsert overflow: 49,990-character original + long live text matches the per-code-point truncation result (including surrogate pairs, whitespace, no-space text, selection in the middle)")
+    func liveInsertLongMatchesPerScalarTruncation() {
+        let mixed = String(repeating: "ab cd 😀 \u{4E2D}\u{6587}\u{3002}  e\u{301}f\t", count: 60)
+        let latin = String(repeating: "word ", count: 200)
+        let original = String(repeating: "x", count: 49_989) + "y"
+        let middle = String(repeating: "x", count: 24_995) + "y" + String(repeating: "z", count: 24_994)
+        let cases: [(finals: [String], partial: String, text: String, at: Int)] = [
+            (["Hello world"], mixed, original, 49_990),
+            ([mixed], latin, original, 49_990),
+            ([latin, mixed], "", original, 49_990),
+            (["\u{4E2D}\u{6587}"], mixed, middle, 24_996),
+            ([mixed], "😀😀😀", middle, 24_996),
+            (["Hi"], "there", original, 49_990),
+            ([latin], mixed, original + "abcdefghij", 50_000),
+        ]
+        for (index, item) in cases.enumerated() {
+            for maxLength in [DictationRules.maxTextLength, DictationRules.maxTextLength + 1, DictationRules.maxTextLength + 2] {
+                let actual = DictationRules.liveInsert(
+                    finals: item.finals, partial: item.partial, into: item.text,
+                    selectionStart: item.at, selectionEnd: item.at, maxLength: maxLength
+                )
+                let expected = Self.perScalarLiveInsert(
+                    finals: item.finals, partial: item.partial, into: item.text,
+                    selectionStart: item.at, selectionEnd: item.at, maxLength: maxLength
+                )
+                #expect(Array(actual.text.unicodeScalars) == Array(expected.text.unicodeScalars), "case \(index) max \(maxLength)")
+                #expect(actual.cursor == expected.cursor, "case \(index) max \(maxLength)")
+                #expect(actual.region == expected.region, "case \(index) max \(maxLength)")
+                #expect(actual.volatile == expected.volatile, "case \(index) max \(maxLength)")
+                #expect(actual.text.utf16.count <= max(maxLength, item.text.utf16.count), "case \(index) max \(maxLength)")
+            }
+        }
+    }
+
+    @Test("outcomeCases match case by case")
+    func outcomeCases() throws {
+        for item in try Self.cases("outcomeCases") {
+            let id = item["id"] as? String ?? "?"
+            let input = try #require(item["input"] as? [String: Any])
+            let expected = try #require(item["expected"] as? [String: Any])
+            let rawLive = try #require(input["live"] as? [String: Any])
+            let rawEnded = try #require(rawLive["ended"] as? String)
+            let live = LiveDictationEnd(
+                finals: try #require(rawLive["finals"] as? [String]),
+                partial: rawLive["partial"] as? String ?? "",
+                hasRecording: try #require(rawLive["hasRecording"] as? Bool, "\(id): missing hasRecording"),
+                ended: try #require(LiveDictationEnded(rawValue: rawEnded), "\(id): unknown ended \(rawEnded)"),
+                failureKind: try Self.failureKind(rawLive["failureKind"]),
+                droppedAudio: rawLive["droppedAudio"] as? Bool ?? false
+            )
+            let fileAttempted = DictationRules.needsFileRecognition(live)
+            #expect(fileAttempted == (try #require(expected["fileAttempted"] as? Bool)), "\(id) fileAttempted")
+            var file: DictationFileResult?
+            if fileAttempted, let rawFile = input["file"] as? [String: Any] {
+                if let text = rawFile["text"] as? String {
+                    file = .text(text)
+                } else {
+                    file = .failed(try #require(try Self.failureKind(rawFile["failureKind"]), "\(id): file is missing text and failureKind"))
+                }
+            }
+            let result = try #require(expected["result"] as? String)
+            switch DictationRules.dictationOutcome(live: live, file: file) {
+            case .text(let text, let source):
+                #expect(result == "text", "\(id): got text \(text.debugDescription)")
+                #expect(source.rawValue == expected["source"] as? String, "\(id) source \(source.rawValue)")
+                #expect(text == expected["text"] as? String, "\(id) text \(text.debugDescription)")
+            case .noTranscript:
+                #expect(result == "no_transcript", "\(id): got no_transcript")
+            case .failed(let kind):
+                #expect(result == "failed", "\(id): got failed \(kind.rawValue)")
+                #expect(kind.rawValue == expected["failureKind"] as? String, "\(id) failureKind \(kind.rawValue)")
+            }
+        }
+    }
+
+    @Test("systemFailureCases match case by case (iOS and condition cases; Android platform codes are not in this side's table)")
+    func systemFailureCases() throws {
+        var checked = 0
+        for item in try Self.cases("systemFailureCases") {
+            let id = item["id"] as? String ?? "?"
+            let input = try #require(item["input"] as? [String: Any])
+            guard let failure = try Self.systemRecognizerFailure(input["failure"]) else { continue }
+            checked += 1
+            let expected = try #require(item["expected"] as? [String: Any])
+            let decision = DictationRules.systemFailure(
+                failure,
+                attempt: Int(try Self.number(input["attempt"])),
+                canRetry: input["canRetry"] as? Bool ?? true
+            )
+            #expect(decision.kind.rawValue == expected["kind"] as? String, "\(id) kind \(decision.kind.rawValue)")
+            #expect(decision.autoRetry == (try #require(expected["autoRetry"] as? Bool)), "\(id) autoRetry")
+            #expect(decision.recreateRecognizer == (try #require(expected["recreateRecognizer"] as? Bool)), "\(id) recreate")
+            #expect(decision.primaryAction?.rawValue == expected["primaryAction"] as? String, "\(id) primary")
+            #expect(decision.secondaryAction?.rawValue == expected["secondaryAction"] as? String, "\(id) secondary")
+        }
+        #expect(checked > 0)
     }
 }

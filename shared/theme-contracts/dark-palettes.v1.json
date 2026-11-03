@@ -1,5 +1,5 @@
 {
-  "$comment": "Dark palette presets shared by every client. Each client asserts its palette instances equal `palettes`, derives tokens with `derived`, and resolves the stored preference with `resolveCases`. Light mode is out of scope and unchanged. `custom` is the 8th dark palette, derived from a user seed color by the derivation steps in `custom.derivationCases`; every client must reproduce `custom.derivationCases` (each channel may differ by at most 1 because of libm rounding). It is not in `order` so ends that do not know it yet keep treating \"custom\" as an unknown id.",
+  "$comment": "Dark palette presets. Authority for the values: 文档/产品/设计/设计Token与暗色模式.md (after P0) and the work package 方案.md §二. Every end asserts its palette instances equal `palettes`, derives tokens with `derived`, and resolves the stored preference with `resolveCases`. Light-appearance roles (neutral, status, and the default-palette brand roles) are single-sourced in light-roles.v1.json; the `light` section below stays the source of per-palette brand colors. `custom` is the 8th dark palette, derived from a user seed color by the steps in 文档/产品/设计/设计Token与暗色模式.md §9.9; scripts/dark-palette-contrast.mjs deriveCustom is the reference implementation, and every end must reproduce `custom.derivationCases` (each channel may differ by at most 1 because of libm rounding). It is not in `order` so ends that do not know it yet keep treating \"custom\" as an unknown id.",
   "schema": "oriveo.theme.dark-palettes/v1",
   "defaultId": "dark",
   "order": [
@@ -13,7 +13,7 @@
   ],
   "palettes": {
     "dark": {
-      "name": "Dark",
+      "name": "暗色",
       "bg": "#111113",
       "bgSubtle": "#151517",
       "bgInset": "#19191C",
@@ -212,7 +212,7 @@
       "scaleBy": "glowK"
     },
     "userBubble": {
-      "$comment": "User message bubble: the gradient is anchored to the visible chat viewport and runs vertically from top to bottom, so each bubble shows only its own slice and the colors flow as it scrolls. Stops are precomputed with OKLCH interpolation (userBubbleStops / custom.derivationCases[].bubble); every client copies them and interpolates between adjacent stops in sRGB. Standalone elements outside the chat list (the preview card mini bubble, palette cards) anchor to their own container. The top inner highlight is a white line of `width` pixels at `alpha`; the drop shadow uses the bottom stop color at `alpha`, with `blur` and a downward offset `y`. Text color is onPrimary.",
+      "$comment": "用户气泡（§9.2，2026-10-27 改）：渐变锚定在聊天可视区（视口），竖向上 top → 下 bottom，只变深浅不变色相（2026-10-30 改：top 端取原色的 L、C 与 bottom 端的 H，跨色相调色板不再出现两种颜色），每个气泡只露出自己所在那一段，滚动时随位置流动；色标按 OKLCH 插值预先算好（userBubbleStops / custom.derivationCases[].bubble），三端照抄、平台按 sRGB 在相邻色标间插值即可。气泡外的独立元素（预览卡迷你气泡、配色卡）锚定在各自的容器上。顶部内高光 width 像素白色 @ alpha；外阴影取 bottom 端色 @ alpha，模糊 blur、下移 y。字色 onPrimary。",
       "fill": "gradientBrand",
       "text": "onPrimary",
       "anchor": "viewport",
@@ -272,7 +272,15 @@
     ],
     "statusSurfaces": [
       "surface"
-    ]
+    ],
+    "cardSheen": {
+      "$comment": "iOS / Android card sheen (token `cardSheen`, separate from the decorative `cardHighlight` used for strokes / icon plates): white at `alpha` fading from the top-leading corner, drawn on every card fill except surface-elevated / surface-raised. `over` lists the brightest neutral fill that gets it (inset / chrome / bg are darker). On the brightest corner every secondary token, every status colour and primary text on a mobile primary-soft chip (primary at `chipAlpha`, = iOS / Android dark primarySoft) must still pass; selected cards fill primary-soft at a lower alpha, so the chip case bounds them. Web cards have no sheen.",
+      "alpha": 0.0275,
+      "chipAlpha": 0.12,
+      "over": [
+        "surface"
+      ]
+    }
   },
   "resolveCases": [
     {
@@ -314,9 +322,9 @@
   ],
   "custom": {
     "id": "custom",
-    "name": "Custom",
+    "name": "自定义",
     "storageField": "darkPaletteCustom",
-    "$storageField": "preference field holding the user's seed color as #RRGGBB (uppercase); presence = the user picked a color",
+    "$storageField": "preference field holding the user's seed color as #RRGGBB (uppercase); presence = the user picked a color; see 文档/工程/契约/云同步/偏好字段同步范围.md",
     "defaultSeed": "#60A5FA",
     "presets": [
       "#FF8A65",
@@ -434,20 +442,20 @@
         },
         "bubble": {
           "dark": [
-            "#F4B050",
-            "#F7AA50",
-            "#FAA351",
-            "#FC9D54",
-            "#FE9659",
-            "#FF905F",
+            "#FEA589",
+            "#FEA183",
+            "#FF9C7D",
+            "#FF9877",
+            "#FF9371",
+            "#FF8F6B",
             "#FF8A65"
           ],
           "light": [
-            "#A83401",
-            "#AE3602",
-            "#B43903",
-            "#B93B04",
-            "#BF3D05",
+            "#A83402",
+            "#AE3603",
+            "#B43904",
+            "#B93B05",
+            "#BF3D06",
             "#C54007",
             "#CB4208"
           ]
@@ -491,12 +499,12 @@
         },
         "bubble": {
           "dark": [
-            "#E3BC40",
-            "#E8B539",
-            "#EDAE34",
-            "#F2A732",
-            "#F5A033",
-            "#F99936",
+            "#FFAA6B",
+            "#FEA664",
+            "#FEA25D",
+            "#FD9E55",
+            "#FC9A4D",
+            "#FC9645",
             "#FB923C"
           ],
           "light": [
@@ -548,18 +556,18 @@
         },
         "bubble": {
           "dark": [
-            "#CEE870",
-            "#D6E262",
-            "#DFDB55",
-            "#E6D547",
-            "#EECE3A",
-            "#F5C62E",
+            "#FED47C",
+            "#FED171",
+            "#FDCD66",
+            "#FDCA59",
+            "#FCC64B",
+            "#FCC33A",
             "#FBBF24"
           ],
           "light": [
-            "#D6A214",
-            "#DAA513",
-            "#DEA813",
+            "#D7A214",
+            "#DBA513",
+            "#DFA813",
             "#E2AA12",
             "#E6AD11",
             "#EAB010",
@@ -605,21 +613,21 @@
         },
         "bubble": {
           "dark": [
-            "#62FEC1",
-            "#67FCB0",
-            "#70F99E",
-            "#7BF58A",
-            "#87F173",
-            "#95EC59",
+            "#BDF27B",
+            "#B9F072",
+            "#B4EE68",
+            "#B0EC5D",
+            "#ACEA52",
+            "#A7E845",
             "#A3E635"
           ],
           "light": [
-            "#85C012",
-            "#87C411",
-            "#8AC710",
-            "#8CCB0F",
-            "#8ECF0D",
-            "#91D20C",
+            "#84C014",
+            "#86C413",
+            "#89C712",
+            "#8BCB10",
+            "#8ECF0E",
+            "#90D20C",
             "#93D60A"
           ]
         }
@@ -662,20 +670,20 @@
         },
         "bubble": {
           "dark": [
-            "#0AECDD",
-            "#17EAD0",
-            "#13E8C2",
-            "#1DE6B4",
-            "#20E5A4",
-            "#37E292",
+            "#7CE99C",
+            "#75E797",
+            "#6DE593",
+            "#65E48E",
+            "#5DE289",
+            "#54E085",
             "#4ADE80"
           ],
           "light": [
-            "#15CB69",
-            "#14CF6B",
-            "#13D36D",
+            "#16CB69",
+            "#15CF6B",
+            "#14D36D",
             "#12D66E",
-            "#10DA70",
+            "#11DA70",
             "#0FDE72",
             "#0DE274"
           ]
@@ -719,20 +727,20 @@
         },
         "bubble": {
           "dark": [
-            "#5CDCFB",
-            "#50DBF3",
-            "#44DAE9",
-            "#3AD9E0",
-            "#32D8D5",
-            "#2DD6CA",
+            "#5EE2CF",
+            "#57E0CC",
+            "#50DDCA",
+            "#49DBC7",
+            "#41D9C4",
+            "#38D6C2",
             "#2DD4BF"
           ],
           "light": [
-            "#06C5B1",
-            "#07C9B4",
-            "#09CCB7",
-            "#0AD0BA",
-            "#0CD4BE",
+            "#0AC5B0",
+            "#0BC9B3",
+            "#0CCCB7",
+            "#0DD0BA",
+            "#0DD4BD",
             "#0ED7C1",
             "#0FDBC4"
           ]
@@ -776,18 +784,18 @@
         },
         "bubble": {
           "dark": [
-            "#A4D2FD",
-            "#96D2FE",
-            "#87D2FD",
-            "#76D2FB",
-            "#62D2F8",
-            "#49D3F4",
+            "#8FDBEA",
+            "#83DAEB",
+            "#76D9EB",
+            "#67D7EC",
+            "#56D6ED",
+            "#42D4ED",
             "#22D3EE"
           ],
           "light": [
-            "#07C0D9",
-            "#08C3DD",
-            "#09C7E1",
+            "#06C0D9",
+            "#07C3DD",
+            "#08C7E1",
             "#09CAE4",
             "#0ACEE8",
             "#0BD1EC",
@@ -833,12 +841,12 @@
         },
         "bubble": {
           "dark": [
-            "#B3A6FF",
-            "#A8A6FE",
-            "#9CA6FF",
-            "#90A6FF",
-            "#83A6FE",
-            "#73A7FF",
+            "#7FB8FE",
+            "#7AB5FE",
+            "#75B2FD",
+            "#71B0FD",
+            "#6CADFD",
+            "#67AAFC",
             "#62A7FC"
           ],
           "light": [
@@ -890,12 +898,12 @@
         },
         "bubble": {
           "dark": [
-            "#D298F6",
-            "#C898F9",
-            "#BD98FC",
-            "#B298FE",
-            "#A799FD",
-            "#9B9AFD",
+            "#A1ADFD",
+            "#9EAAFD",
+            "#9BA7FE",
+            "#97A4FE",
+            "#94A0FE",
+            "#919DFF",
             "#8E9AFF"
           ],
           "light": [
@@ -947,12 +955,12 @@
         },
         "bubble": {
           "dark": [
-            "#F789D4",
-            "#F087DC",
-            "#E786E3",
-            "#DF85EA",
-            "#D584F1",
-            "#CB84F7",
+            "#CB9CFE",
+            "#C998FE",
+            "#C794FD",
+            "#C590FD",
+            "#C48CFD",
+            "#C288FC",
             "#C084FC"
           ],
           "light": [
@@ -1004,20 +1012,20 @@
         },
         "bubble": {
           "dark": [
-            "#FE938C",
-            "#FE8D91",
-            "#FE8796",
-            "#FD819D",
-            "#FB7CA5",
-            "#F877AD",
+            "#F392C2",
+            "#F38DC0",
+            "#F488BE",
+            "#F482BC",
+            "#F47DBA",
+            "#F478B8",
             "#F472B6"
           ],
           "light": [
-            "#AC0472",
-            "#B20476",
+            "#AC0471",
+            "#B20475",
             "#B9037A",
             "#BF027E",
-            "#C50283",
+            "#C50282",
             "#CC0187",
             "#D2008B"
           ]
@@ -1061,12 +1069,12 @@
         },
         "bubble": {
           "dark": [
-            "#FF955A",
-            "#FE9062",
-            "#FF8968",
-            "#FF836E",
-            "#FE7D76",
-            "#FE767C",
+            "#FE8E9B",
+            "#FE8997",
+            "#FD8594",
+            "#FD8090",
+            "#FC7B8C",
+            "#FC7689",
             "#FB7185"
           ],
           "light": [
@@ -1118,18 +1126,18 @@
         },
         "bubble": {
           "dark": [
-            "#C1A1F7",
-            "#B7A1F9",
-            "#ACA0FB",
-            "#A1A0FC",
-            "#95A0FD",
-            "#89A1FC",
+            "#91B2FF",
+            "#8DAFFE",
+            "#8AACFE",
+            "#86AAFD",
+            "#82A7FC",
+            "#7FA4FC",
             "#7BA1FB"
           ],
           "light": [
-            "#2951D3",
-            "#2B54DA",
-            "#2D58E1",
+            "#2851D3",
+            "#2A54DA",
+            "#2C58E1",
             "#2E5BE8",
             "#305EF0",
             "#3262F7",
@@ -1175,21 +1183,21 @@
         },
         "bubble": {
           "dark": [
-            "#ECA261",
-            "#ED9C63",
-            "#EE9665",
-            "#EF9169",
-            "#EE8B6D",
-            "#EE8672",
+            "#F8968C",
+            "#F69389",
+            "#F48F85",
+            "#F28C82",
+            "#F0887F",
+            "#EE857B",
             "#EC8178"
           ],
           "light": [
-            "#B80118",
-            "#BE0219",
-            "#C5021B",
-            "#CB031C",
+            "#B80119",
+            "#BE021A",
+            "#C5021C",
+            "#CB031D",
             "#D2031E",
-            "#D8041F",
+            "#D80420",
             "#DF0521"
           ]
         }
@@ -1232,12 +1240,12 @@
         },
         "bubble": {
           "dark": [
-            "#84FE8A",
-            "#97FA79",
-            "#A8F668",
-            "#B8F156",
-            "#C7EC43",
-            "#D4E72D",
+            "#E7E722",
+            "#E6E61F",
+            "#E5E51B",
+            "#E4E418",
+            "#E3E313",
+            "#E2E20E",
             "#E1E107"
           ],
           "light": [
@@ -1289,18 +1297,18 @@
         },
         "bubble": {
           "dark": [
-            "#AFB9A0",
-            "#AFB69C",
-            "#AFB297",
-            "#AFAF93",
-            "#AEAB90",
-            "#AEA88C",
+            "#BDB49B",
+            "#BAB198",
+            "#B8AF95",
+            "#B5AC92",
+            "#B3A98F",
+            "#B0A78C",
             "#AEA489"
           ],
           "light": [
-            "#CFA512",
-            "#D3A811",
-            "#D7AB10",
+            "#CEA512",
+            "#D2A811",
+            "#D6AB10",
             "#DAAE0F",
             "#DEB20E",
             "#E2B50D",
@@ -1359,7 +1367,7 @@
     ]
   },
   "light": {
-    "$comment": "Light-appearance brand colors per palette. Every palette, preset or custom, applies in both appearances: dark uses `palettes`, light uses these brand colors on the existing white light surfaces. `ink` = text/icons/strokes on the light page; `textSafe` = body-size text; `fill*` / `grad*` = filled shapes that carry `onPrimary` text; `soft` = tinted chip background; `bgTop` / `bgBottom` = page background gradient; `pill` = model pill background; `accent` = second brand color (name gradient end, glows). The default palette keeps the hand-tuned light values below; every other entry is generated by the light-brand derivation that each client reproduces from `lightBrand` cases. Tabs: the default palette keeps per-tab light colors, other palettes use `ink` for all tabs.",
+    "$comment": "Light-appearance brand colors per palette (D10, 文档/产品/设计/设计Token与暗色模式.md §9.11). Every palette, preset or custom, applies in both appearances: dark uses `palettes`, light uses these brand colors on the existing white light surfaces. `ink` = text/icons/strokes on the light page; `textSafe` = body-size text; `fill*` / `grad*` = filled shapes that carry `onPrimary` text; `soft` = tinted chip background; `bgTop` / `bgBottom` = page background gradient; `pill` = model pill background; `accent` = second brand color (name gradient end, glows). The default palette keeps the hand-tuned light values below; every other entry is generated by scripts/dark-palette-contrast.mjs deriveLight (--write-cases) and checked against it. Tabs: the default palette keeps per-tab light colors, other palettes use `ink` for all tabs.",
     "derivation": {
       "$steps": [
         "1. H = OKLCH hue of the dark palette primary; AH = hue of its accent.",
@@ -1703,10 +1711,10 @@
         "#A78BFA"
       ],
       "light": [
-        "#6B3BC7",
-        "#6F3DCF",
-        "#733FD6",
-        "#7741DE",
+        "#6A3BC7",
+        "#6E3DCF",
+        "#723FD6",
+        "#7641DE",
         "#7B43E5",
         "#7F45ED",
         "#8347F5"
@@ -1714,12 +1722,12 @@
     },
     "dark-purple": {
       "dark": [
-        "#F0ABFC",
-        "#E5A5FC",
-        "#DA9FFC",
-        "#CE9AFC",
-        "#C195FC",
-        "#B490FB",
+        "#CABEFD",
+        "#C4B6FD",
+        "#BEADFC",
+        "#B8A5FC",
+        "#B29CFB",
+        "#AD94FB",
         "#A78BFA"
       ],
       "light": [
@@ -1734,32 +1742,32 @@
     },
     "dark-graphite": {
       "dark": [
-        "#7DE3FF",
-        "#77DAFE",
-        "#6FD0FF",
-        "#6EC6FD",
-        "#6BBCFD",
-        "#69B1FE",
+        "#B8D4FF",
+        "#ADCCFD",
+        "#A0C5FD",
+        "#93BDFD",
+        "#86B6FD",
+        "#79AEFD",
         "#6AA6FF"
       ],
       "light": [
-        "#055BC4",
-        "#055ECB",
-        "#0562D2",
+        "#045BC4",
+        "#045ECB",
+        "#0462D2",
         "#0465D9",
-        "#0469E0",
+        "#0369E0",
         "#036CE8",
         "#0370EF"
       ]
     },
     "dark-black": {
       "dark": [
-        "#7DD3FC",
-        "#94C5FD",
-        "#A7B7FD",
-        "#BDA4FE",
-        "#D98EF1",
-        "#F07BCD",
+        "#FEABC2",
+        "#FFA1BC",
+        "#FD98B6",
+        "#FE8EB0",
+        "#FE83A9",
+        "#FE78A3",
         "#FF6B9D"
       ],
       "light": [
@@ -1774,60 +1782,60 @@
     },
     "dark-ocean": {
       "dark": [
-        "#67B7FF",
-        "#51BEFA",
-        "#3AC4F2",
-        "#1FC9E8",
-        "#03CEDC",
-        "#0FD1CE",
+        "#21CBB7",
+        "#23CCB8",
+        "#25CEBA",
+        "#27CFBB",
+        "#29D1BC",
+        "#2BD2BE",
         "#2DD4BF"
       ],
       "light": [
-        "#06C5B1",
-        "#07C9B4",
-        "#09CCB7",
-        "#0AD0BA",
-        "#0CD4BE",
+        "#0AC5B0",
+        "#0BC9B3",
+        "#0CCCB7",
+        "#0DD0BA",
+        "#0DD4BD",
         "#0ED7C1",
         "#0FDBC4"
       ]
     },
     "dark-forest": {
       "dark": [
-        "#D9F99D",
-        "#C4F398",
-        "#AEED96",
-        "#96E794",
-        "#7CE195",
-        "#5EDA96",
+        "#B0FFD9",
+        "#9FF8CE",
+        "#8EF0C3",
+        "#7CE9B9",
+        "#68E2AE",
+        "#51DAA3",
         "#34D399"
       ],
       "light": [
-        "#16C98E",
-        "#16CD91",
-        "#15D093",
-        "#15D496",
-        "#14D899",
-        "#14DB9B",
+        "#14C98E",
+        "#14CD91",
+        "#14D093",
+        "#14D496",
+        "#13D899",
+        "#13DB9B",
         "#13DF9E"
       ]
     },
     "dark-sunset": {
       "dark": [
-        "#FF7E79",
-        "#FF8971",
-        "#FD956D",
-        "#FE9E66",
-        "#FFA75D",
-        "#FEB057",
+        "#E19B07",
+        "#E6A01C",
+        "#EAA529",
+        "#EFAA33",
+        "#F4B03C",
+        "#F8B545",
         "#FDBA4D"
       ],
       "light": [
-        "#E09B12",
-        "#E49E11",
-        "#E8A111",
-        "#ECA410",
-        "#F1A70F",
+        "#DF9B11",
+        "#E39E10",
+        "#E8A110",
+        "#ECA40F",
+        "#F0A70F",
         "#F5AA0E",
         "#F9AD0D"
       ]

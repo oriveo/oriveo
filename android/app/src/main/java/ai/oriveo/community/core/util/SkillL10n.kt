@@ -221,6 +221,26 @@ object SkillL10n {
         else -> null
     }
 
+    /** Copy for a Skill knowledge base error code from a failed write; null for any other code. */
+    @StringRes
+    fun knowledgeErrorRes(code: String): Int? = when (code.trim()) {
+        "openai_not_configured" -> R.string.skills_knowledgeErrorOpenAI
+        "openai_endpoint_not_official" -> R.string.skills_knowledgeErrorEndpoint
+        // Takes the required retrieval model as its only format argument.
+        "retrieval_model_not_enabled" -> R.string.skills_knowledgeErrorModelDisabled
+        "knowledge_service_unavailable" -> R.string.skills_knowledgeErrorServiceUnavailable
+        "unsupported_file_type" -> R.string.skills_knowledgeErrorUnsupportedType
+        "reference_file_too_large" -> R.string.skills_fileTooLarge
+        "knowledge_file_too_large" -> R.string.skills_knowledgeErrorFileTooLarge
+        "knowledge_total_size_exceeded" -> R.string.skills_knowledgeErrorQuotaExceeded
+        "knowledge_extract_failed" -> R.string.skills_knowledgeErrorExtractFailed
+        "knowledge_upload_failed" -> R.string.skills_knowledgeErrorUploadFailed
+        "knowledge_index_failed" -> R.string.skills_knowledgeErrorIndexFailed
+        "knowledge_retrieve_failed" -> R.string.skills_knowledgeErrorRetrieveFailed
+        "knowledge_cleanup_failed" -> R.string.skills_knowledgeErrorCleanupFailed
+        else -> null
+    }
+
     @StringRes
     fun categoryNameRes(categoryId: String?): Int? = when (categoryId) {
         "coding" -> R.string.skill_category_coding

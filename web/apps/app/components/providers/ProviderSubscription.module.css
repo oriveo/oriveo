@@ -55,7 +55,7 @@
 }
 
 .modeOptionSelected .modeIcon {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .modeCopy {
@@ -90,7 +90,7 @@
 }
 
 .modeOptionSelected .modeRadio {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .connectPanel {
@@ -113,7 +113,7 @@
   padding: var(--o-space-md);
   border: 1px solid var(--o-border);
   border-radius: var(--o-radius-md);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   font-size: var(--o-text-xs);
   color: var(--o-text-secondary);
   line-height: 1.5;
@@ -153,7 +153,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .dialogTitle {
@@ -182,7 +182,7 @@
   gap: 6px;
   padding: 14px var(--o-space-md);
   border-radius: 14px;
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
 }
 
 .codeLabel {

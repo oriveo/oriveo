@@ -80,10 +80,8 @@ const { mockGetSyncAdapter, mockLoadSyncCore } = vi.hoisted(() => ({
 
 const {
   mockGetSkillById,
-  mockStartConversationWithSkill,
 } = vi.hoisted(() => ({
   mockGetSkillById: vi.fn(),
-  mockStartConversationWithSkill: vi.fn(),
 }));
 
 type MockState = {
@@ -91,6 +89,7 @@ type MockState = {
   account: { email: string } | null;
   activeConversationId: string | null;
   draftConversationInstructions: string;
+  draftConversationSkillIds: string[];
   streamingTexts: Record<string, string>;
   streamingMessageIds: Record<string, string>;
   streamingConversationIds: string[];
@@ -178,6 +177,9 @@ vi.mock('../../providers/StoreProvider', () => ({
       ...mockState,
       updateConversation: mockUpdateConversation,
       addConversation: mockAddConversation,
+      setDraftConversationSkillIds: (ids: string[]) => {
+        mockState.draftConversationSkillIds = ids;
+      },
     }),
   }),
   tryGetVanillaStore: () => ({
@@ -477,26 +479,8 @@ vi.mock('./LibraryConfirmationDialog', () => ({
 }));
 
 vi.mock('./SkillsLanding', () => ({
-  SkillsLanding: ({
-    onSkillSelect,
-    layout = 'default',
-  }: {
-    onSkillSelect: (skill: any) => void;
-    layout?: 'default' | 'compact';
-  }) => (
-    <button
-      type="button"
-      data-testid="skills-landing"
-      data-layout={layout}
-      onClick={() => onSkillSelect({
-        id: 'skill-1',
-        name: 'Skill 1',
-        color: '#111111',
-        icon: 'S',
-        source: 'builtin',
-        modelCapabilityHint: 'any',
-      })}
-    />
+  SkillsLanding: ({ layout = 'default' }: { layout?: 'default' | 'compact' }) => (
+    <div data-testid="skills-landing" data-layout={layout} />
   ),
 }));
 
@@ -579,9 +563,6 @@ vi.mock('../../lib/core/skills/query', () => ({
   getSkillById: (...args: unknown[]) => mockGetSkillById(...args),
 }));
 
-vi.mock('../../lib/core/skills/start-conversation', () => ({
-  startConversationWithSkill: (...args: unknown[]) => mockStartConversationWithSkill(...args),
-}));
 
 vi.mock('../../lib/core/metadata/metadata-client', async (importOriginal) => (await import('../../lib/__tests__/mocks/metadata-client')).metadataClientMock(importOriginal, {
   getProviderRetiredModels: () => [],
@@ -674,6 +655,7 @@ beforeEach(async () => {
       // Normal runtime: the connection list has loaded.
       providersHydrated: true,
       draftConversationInstructions: '',
+      draftConversationSkillIds: [],
       streamingTexts: {},
       streamingMessageIds: {},
       streamingConversationIds: [],
@@ -723,7 +705,6 @@ beforeEach(async () => {
     mockGetSyncAdapter.mockReset();
     mockLoadSyncCore.mockReset();
     mockGetSkillById.mockReset();
-    mockStartConversationWithSkill.mockReset();
     mockUpdateConversation.mockReset();
     mockAddConversation.mockReset();
     mockPinNoteToConversation.mockReset();
@@ -761,7 +742,6 @@ beforeEach(async () => {
       getSyncAdapter: mockGetSyncAdapter,
     });
     mockGetSkillById.mockReturnValue(undefined);
-    mockStartConversationWithSkill.mockReturnValue({ kind: 'no-provider' });
     mockCreateProviderSelectionSnapshot.mockImplementation((provider: any) => (
       provider ? {
         provider,
@@ -2028,43 +2008,6 @@ beforeEach(async () => {
     unmount();
 
     expect(stopMessagesListener).toHaveBeenCalledTimes(1);
-  });
-
-  it('starts a draft conversation and navigates when selecting a skill from the landing state', async () => {
-    mockStartConversationWithSkill.mockReturnValue({ kind: 'ok', conversationId: 'new-conv-id' });
-
-    await renderChatView();
-
-    fireEvent.click(screen.getByTestId('skills-landing'));
-
-    await waitFor(() => {
-      expect(mockStartConversationWithSkill).toHaveBeenCalledWith(
-        expect.any(Object),
-        expect.objectContaining({ id: 'skill-1' }),
-        expect.objectContaining({ title: expect.any(String) }),
-      );
-    });
-    expect(routerReplace).toHaveBeenCalledWith('/chat/new-conv-id');
-    expect(sessionStorage.getItem('pendingSkillId')).toBeNull();
-  });
-
-  it('shows an in-app provider prompt instead of routing immediately when no provider can resolve the skill', async () => {
-    mockStartConversationWithSkill.mockReturnValue({ kind: 'no-provider' });
-
-    await renderChatView();
-
-    fireEvent.click(screen.getByTestId('skills-landing'));
-
-    await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeTruthy();
-    });
-    expect(screen.getByText('Add provider to use this Skill')).toBeTruthy();
-    expect(routerPush).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Add Provider' }));
-
-    expect(routerPush).toHaveBeenCalledWith('/providers/new');
-    expect(routerReplace).not.toHaveBeenCalled();
   });
 
   it('renders SkillIntro instead of SkillsLanding when the active conversation already has a skillId', async () => {

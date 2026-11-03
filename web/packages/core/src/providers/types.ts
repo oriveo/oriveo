@@ -27,13 +27,6 @@ export interface StreamUsage {
   total_tokens?: number;
   breakdown?: UsageBreakdown;
   /**
-   * Only present after a multi-leg message is merged (tool loop / first leg plus re-answer / re-sent tail leg; contract section 5.7):
-   * the usage of each leg that reported it; pricing estimates per leg and then adds them up. Absent for a single-leg message.
-   */
-  legs?: readonly StreamUsage[];
-  /** False when a leg did not report usage at merge time: the whole cost is unknown. Absent = every leg reported. */
-  allLegsReported?: false;
-  /**
    * Normalised usage snapshot that can be stored directly on a single message. Managed billing
    * settles on this field, so its generic cache-write bucket is not disguised as an Anthropic
    * 5m/1h pricing field.
@@ -50,6 +43,18 @@ export interface StreamUsage {
     cachedInputTokens?: number;
     cacheCreationInputTokens?: number;
   };
+  /**
+   * Multi-leg messages (tool loops / knowledge-base first leg + re-answer / resend tail leg) only have this after merging (contract §5.7):
+   * each leg that reports usage contributes its own usage; pricing is estimated per leg and then summed. Single-leg messages omit it.
+   */
+  legs?: readonly StreamUsage[];
+  /** When merging, false if any leg did not report usage: the total cost is unknown; default = every leg reported. */
+  allLegsReported?: false;
+  /**
+   * Set on a merge where some leg's input is unknown: the message input stays empty (never 0) while the
+   * breakdown still carries the reported legs' cache reads / writes and the output.
+   */
+  inputUnknown?: true;
 }
 
 /** One streamed delta fragment of an OpenAI-compatible `tool_calls`. */

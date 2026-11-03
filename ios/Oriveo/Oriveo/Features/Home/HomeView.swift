@@ -1,3 +1,4 @@
+import Combine
 import OriveoProviderKit
 import SwiftUI
 
@@ -184,8 +185,61 @@ extension EnvironmentValues {
 }
 #endif
 
-/// A send the hero gate held back, snapshotted together with the model in use at that moment, so the
-/// confirmation sheet can decide afterwards whether it may go straight out.
+/// Held-back hero content caught by the gate, snapshotted with the model at that time; after the confirmation sheet returns, it decides whether the send can resume directly
+/// Home realtime typed send: like the home ≋ button, opens a realtime session with session id nil and hands this sentence over (cold start only plays, no microphone request),
+/// no conversation is pre-created: after ready this sentence is actually sent, and the sink creates the conversation on the first persisted row and enters the chat page; the home selection follows the conversation.
+@MainActor
+enum HomeRealtimeTypedSend {
+    enum Outcome: Equatable {
+        /// Realtime session already handed over to the home page (the conversation is created when the first row is persisted).
+        case sent
+        /// Home selection not yet acknowledged for disclosure: no conversation created; the page shows the disclosure first.
+        case needsDisclosure(RealtimeModelSelection)
+        /// Not handed over (no realtime selection on home, already conversing elsewhere, or no realtime session could be opened).
+        case notSent
+    }
+
+    static func send(
+        _ text: String,
+        host: AppState,
+        session: VoiceConversationSession = .shared,
+        disclosures: VoiceDisclosureStore = VoiceDisclosureStore()
+    ) async -> Outcome {
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty, !session.isActive, let selection = host.realtimeModelSelection(for: nil) else {
+            return .notSent
+        }
+        // Decide the disclosure before opening the connection: do not jump pages first.
+        guard disclosures.hasAccepted(selection.providerKind, direction: .realtime) else {
+            return .needsDisclosure(selection)
+        }
+        // origin .home: the home voice dock observes this session (connecting / failed); handed over when the first persisted row creates the conversation.
+        let sent = await session.sendRealtimeTyped(typed, conversationID: nil, host: host, origin: .home)
+        return sent ? .sent : .notSent
+    }
+
+    /// Whether home can hand over another sentence: not while sending; also not before the handed-over sentence is settled (persisted or ended), so an in-flight sentence is not overwritten by a new one;
+    /// the send key and dictation "transcribe and send" share this gate.
+    static func canHandOff(isSending: Bool, inFlight: String?) -> Bool {
+        !isSending && inFlight == nil
+    }
+
+    /// Outcome of the handed-over sentence when this session ends: if the conversation was created (the sentence is persisted) it is persisted; if it ends before the conversation is created
+    /// (catalog timeout, model_gone, connection failure, etc.) it is endedBeforePersist.
+    static func outcome(after end: VoiceConversationSession.EndDelivery) -> RealtimeModelPolicy.TypedSendOutcomeKind {
+        end.conversationID == nil ? .endedBeforePersist : .persisted
+    }
+
+    /// Home input text after the handed-over sentence has an outcome: not cleared on send, the original text stays in the box;
+    /// cleared only when persisted, and only if the box still holds this sentence (edits made while waiting are left alone); if it ends before persisting, it is kept as is and not concatenated.
+    static func inputText(
+        _ current: String, sent: String, outcome: RealtimeModelPolicy.TypedSendOutcomeKind
+    ) -> String {
+        guard !RealtimeModelPolicy.typedSendOutcome(context: .home, outcome: outcome).inputKeepsText else { return current }
+        return current.trimmingCharacters(in: .whitespacesAndNewlines) == sent ? "" : current
+    }
+}
+
 struct HeroPendingSend {
     let text: String
     let providerID: UUID
@@ -203,6 +257,8 @@ struct HomeView: View {
     @Environment(\.homeDebugSnapshotSeed) private var debugSnapshotSeed
     #endif
 
+    /// Data source for the home voice dock: after handover it freezes at the home state from before the handover and no longer subscribes to the controller.
+    @State private var heroVoiceFeeds = HomeVoiceBarFeedCache()
     @State private var isSearching = false
     @State private var searchText = ""
     /// Search field focus (after ⌘F expands it, typing works right away).
@@ -216,6 +272,18 @@ struct HomeView: View {
     @State private var searchInFlight = false
     @State private var modelPickerPresentation: ModelPickerPresentationSnapshot?
     @State private var pendingModelSelection: ModelPickerSelection?
+    /// Realtime-model disclosure being shown; `realtimeDisclosurePending` keeps it (with its single origin)
+    /// until answered, so a swipe-down (which clears the item first) still resolves as a decline.
+    @State private var realtimeDisclosure: RealtimeModelDisclosureRequest?
+    @State private var realtimeDisclosurePending = RealtimeDisclosurePending()
+    /// Migration sheet on the first ≋ tap for existing users (card G2b); before answering, ≋ does not enter; if interrupted by the system without an answer, the old key is kept and it shows again next time.
+    @State private var realtimeMigrationPrompt: RealtimeMigrationPrompt?
+    /// Home realtime typed state (switched from the idle voice dock to the input card): memory only; any change to the home realtime selection (model change / cancel / moved away with the conversation) resets it.
+    @State private var heroRealtimeTyping = false
+    /// Voice catalog state: distinguishes "loading" from "failed" (failure does not push the catalog revision number), same as the chat page's voiceCatalogState.
+    @State private var heroVoiceCatalogState: VoiceCatalogState? = ReadAloudCatalogSnapshot.shared.state
+    /// The answerer changed mid-voice-session and the previous session was ended with ✕: after collapsing, the same conversation reopens with the new engine.
+    @State private var heroVoiceEngineRestartPending = false
     @State private var conversationToDelete: Conversation?
     @State private var conversationToRename: Conversation?
     @State private var renameText = ""
@@ -239,13 +307,18 @@ struct HomeView: View {
     /// The input is a UIKit view (ComposerTextView) that bridges focus to first responder by hand, not through FocusState.
     @State private var heroFocused = false
     @State private var isSendingFromHero = false
+    /// Realtime typed has been handed over, and the sentence from that session's end has not been seen yet: if the session ends before the conversation is created, backfill the input box.
+    @State private var heroRealtimeTypedInFlight: String?
+    // Hero managed-send gate: shares the same judgement as the ChatView composer (sign-in + server privacy ack)
     @State private var heroDisclosureProvider: ProviderKind?
     @State private var pendingHeroSend: HeroPendingSend?
     @State private var showsHeroMissingProviderKeyPrompt = false
     @State private var isPreparingHeroSend = false
-    @State private var heroVoiceFeeds = HomeVoiceBarFeedCache()
     @State private var pendingHeroVoiceStart = PendingVoiceEntry()
     @Namespace private var voiceOrbNamespace
+    /// Recognition language sheet inside the voice stage.
+    @State private var showsRecognitionLanguageSheet = false
+    @State private var isAcknowledgingHeroPrivacy = false
     @State private var dictationProbe = ComposerSelectionProbe()
 
 
@@ -271,7 +344,77 @@ struct HomeView: View {
     private func commitPendingModelSelection() {
         guard let selection = pendingModelSelection else { return }
         pendingModelSelection = nil
+        if selection.modelKind == .realtime {
+            commitRealtimeModelSelection(selection, conversationID: nil)
+            return
+        }
         appState.setActiveModel(providerID: selection.providerID, modelID: selection.modelID)
+        appState.clearRealtimeModelSelection(for: nil)
+    }
+
+    private func presentModelPicker() {
+        let active = appState.activeModel
+        modelPickerPresentation = ModelPickerPresentationSnapshot(
+            context: .home,
+            providers: appState.providers,
+            providersVersion: appState.providersVersion,
+            currentProviderID: active?.provider.id,
+            currentModel: active?.model,
+            // Read the voice catalog already cached in memory (no disk read, no request) so realtime rows show on the first frame
+            realtimeCatalog: AppState.realtimeVoiceCatalog(from: ReadAloudCatalogSnapshot.shared.state),
+            realtimeSelection: appState.realtimeModelSelection(for: nil)
+        )
+    }
+
+    /// Realtime row picked: takes effect only once the provider's realtime disclosure is accepted.
+    private func commitRealtimeModelSelection(_ selection: ModelPickerSelection, conversationID: UUID?) {
+        switch appState.selectRealtimeModel(providerID: selection.providerID, model: selection.modelID, for: conversationID) {
+        case .applied, .pending:
+            return
+        case .unavailable:
+            showRealtimeModelGoneToast(selection.modelID)
+        case .needsDisclosure(let realtime):
+            let request = RealtimeModelDisclosureRequest(selection: realtime, conversationID: conversationID)
+            presentRealtimeDisclosure(request, origin: .picker)
+        }
+    }
+
+    /// Realtime selection the catalog does not recognize (or no longer has): the copy matches the realtime model_gone failure.
+    private func showRealtimeModelGoneToast(_ model: String) {
+        ToastManager.shared.show(
+            L10n.format(L10n.tr("%1$@ is no longer available.", table: .voice), model),
+            style: .warning
+        )
+    }
+
+    /// Show disclosure: the single writer overrides the previous source (the old source is void); consumed by answerRealtimeDisclosure when answered.
+    private func presentRealtimeDisclosure(_ request: RealtimeModelDisclosureRequest, origin: RealtimeDisclosureOrigin) {
+        realtimeDisclosurePending.present(request, origin: origin)
+        realtimeDisclosure = request
+    }
+
+    private func answerRealtimeDisclosure(accepted: Bool) {
+        guard let (request, action) = realtimeDisclosurePending.take(accepted: accepted) else { return }
+        switch action {
+        case .resolve(let accepted):
+            appState.resolveRealtimeModelDisclosure(request.selection, for: request.conversationID, accepted: accepted)
+        case .resolveThenSendTyped(let typed):
+            if appState.resolveRealtimeModelDisclosure(request.selection, for: request.conversationID, accepted: true) {
+                Task { await performHeroSend(typed) }
+            }
+        case .resolveThenStartVoice:
+            if appState.resolveRealtimeModelDisclosure(request.selection, for: request.conversationID, accepted: true) {
+                Task { await openHeroVoiceConversation() }
+            }
+        case .resolveMigration(let accepted, _):
+            if !RealtimeMigration.resolveDisclosure(request, accepted: accepted, appState: appState) {
+                Task { await openHeroVoiceConversation() }
+            }
+        }
+    }
+
+    private func realtimeDisclosureDismissed() {
+        answerRealtimeDisclosure(accepted: false)
     }
 
     @discardableResult
@@ -335,7 +478,7 @@ struct HomeView: View {
                         appState.openNotes()
                     }
                     .padding(.horizontal, OriveoTheme.V2.Sp.s20)
-                    .padding(.top, 14)
+                    .padding(.top, HomeEntryCardStyle.spacing)
                 }
                 // The list sits 26 below Notes; while editing, the hero and Notes collapse and the list follows the greeting.
                 // ForEach must be a direct LazyVStack child — wrapping it in a VStack then padding would force
@@ -353,17 +496,28 @@ struct HomeView: View {
         // can finish transcribing after the user returns home, and the text must land in the home draft.
         .modifier(HomeDictationHost(
             controller: DictationHub.shared.controller,
-            canSend: { !isSendingFromHero },
+            canSend: { canHandOffFromHero },
             onInsert: { transcript in
                 heroText = dictationProbe.insert(transcript: transcript, currentText: heroText)
             },
-            onSend: { Task { await sendFromHero() } }
+            onSend: { Task { await sendFromHero() } },
+            live: .probe(dictationProbe, text: $heroText)
         ))
         // Voice conversation host: ending with zero turns leaves no trace; the first send creates the conversation
         // and hands over to the chat page.
         .onAppear { VoiceConversationSession.shared.hostAppeared(nil) }
         .onDisappear { VoiceConversationSession.shared.hostDisappeared(nil) }
+        // Clear the input box at the same moment the handed-over sentence's first persisted row creates the conversation (handed to the chat page).
+        .onChange(of: VoiceConversationSession.shared.homeHandedOff) { _, handedOff in
+            guard handedOff, let typed = heroRealtimeTypedInFlight else { return }
+            heroRealtimeTypedInFlight = nil
+            heroText = HomeRealtimeTypedSend.inputText(heroText, sent: typed, outcome: .persisted)
+        }
         .onChange(of: VoiceConversationSession.shared.lastEnd) { _, end in
+            if let end, let typed = heroRealtimeTypedInFlight {
+                heroRealtimeTypedInFlight = nil
+                heroText = HomeRealtimeTypedSend.inputText(heroText, sent: typed, outcome: HomeRealtimeTypedSend.outcome(after: end))
+            }
             guard let end, let draft = VoiceConversationSession.shared.consumeEndDraft(end, host: nil) else { return }
             heroText = heroText.isEmpty ? draft : heroText + " " + draft
         }
@@ -441,6 +595,45 @@ struct HomeView: View {
             )
                 .presentationDragIndicator(.visible)
                 .environment(appState)
+        }
+        .sheet(item: $realtimeDisclosure, onDismiss: realtimeDisclosureDismissed) { request in
+            VoiceDisclosureSheet(
+                provider: request.selection.providerKind,
+                direction: .realtime,
+                onAnswer: { accepted in answerRealtimeDisclosure(accepted: accepted) }
+            )
+                .environment(appState)
+        }
+        .realtimeMigrationAlert($realtimeMigrationPrompt, onAnswer: answerRealtimeMigration)
+        // Re-read when the catalog revision changes (catalog arrives / content changes); on the first page entry the refresh that is in flight with the snapshot draws the conclusion (same as the chat page).
+        .task(id: appState.realtimeVoiceCatalogRevision) {
+            let snapshot = ReadAloudCatalogSnapshot.shared
+            _ = snapshot.current()
+            await snapshot.settle()
+            heroVoiceCatalogState = snapshot.state
+        }
+        // When the home realtime selection changes (model change, cancel, moved away with a new conversation), the typed state resets; the next realtime selection returns to the voice dock; catalog arrival does not reset it.
+        .onChange(of: appState.realtimeModelSelections[nil]) { before, after in
+            if HomeHeroStage.resetsRealtimeTyping(storedBefore: before, storedAfter: after) { heroRealtimeTyping = false }
+        }
+        .onChange(of: appState.realtimeModelSelection(for: nil)) { _, selection in
+            // The home answerer changed during a voice session: end the old session, and after collapsing reopen with the new engine.
+            if VoiceConversationSession.shared.endForEngineChange(
+                in: nil, newSelection: selection, newModelName: selection?.model ?? pillModelName
+            ) {
+                heroVoiceEngineRestartPending = true
+            }
+        }
+        // The staged realtime selection is re-judged after the catalog arrives: the page shows a toast, not AppState.
+        .onChange(of: appState.realtimeSelectionGoneNotice) { _, notice in
+            guard let notice, notice.conversationID == nil else { return }
+            appState.consumeRealtimeSelectionGoneNotice(notice)
+            showRealtimeModelGoneToast(notice.model)
+        }
+        .onChange(of: VoiceConversationSession.shared.isActive) { _, active in
+            guard !active, heroVoiceEngineRestartPending else { return }
+            heroVoiceEngineRestartPending = false
+            Task { await openHeroVoiceConversation() }
         }
         .conversationDeleteConfirmation($conversationToDelete, animation: preferredAnimation)
         .alert(
@@ -822,7 +1015,8 @@ struct HomeView: View {
             if let dictationController = DictationHub.shared.controller {
                 DictationPromptSlot(
                     controller: dictationController,
-                    onCheckConnection: openDictationCheckConnection
+                    onCheckConnection: openDictationCheckConnection,
+                    onOpenVoiceSettings: openDictationVoiceSettings
                 )
             }
 
@@ -831,7 +1025,12 @@ struct HomeView: View {
         .padding(.horizontal, OriveoTheme.V2.Sp.s20)
     }
 
-    /// Check Connection on the dictation card: open that connection's details when there is one, otherwise provider setup.
+    /// Dictation card Change Language / Change Dictation Engine: opens the voice settings page.
+    private func openDictationVoiceSettings() {
+        navigation.attemptNavigate(to: .voiceSettings)
+    }
+
+    /// Dictation card Check Connection: with a connection ID opens that connection's detail, otherwise opens provider setup.
     private func openDictationCheckConnection(_ providerID: UUID?) {
         if let providerID {
             appState.openProviderDetail(providerID: providerID)
@@ -846,20 +1045,35 @@ struct HomeView: View {
         L10n.tr(AuroraGreeting.placeholderKey())
     }
 
-    /// The composer card: purely flat while idle (no aurora ring, no divider), the ring lights up on focus;
-    /// model pill plus a solid send button
+    /// Composer card: flat when idle (no aurora ring, no divider); the aurora ring lights up only when focused; model pill + solid send button.
+    @ViewBuilder
     private var auroraComposerCard: some View {
-        auroraComposerCardContent
-            // The design is a 1px border plus padding 18/18/14 (border-box), so content sits 1pt further from each edge
-            .padding(.horizontal, 19)
-            .padding(.top, 19)
-            .padding(.bottom, 15)
-            .auroraGlassCard(cornerRadius: 26, focused: heroFocused)
-            // One transition when entering or leaving a voice conversation (spring, or a short fade under Reduce Motion).
-            .animation(
-                VoiceConversationBar.transitionAnimation(reduceMotion: reduceMotion),
-                value: heroVoiceConversationController != nil
-            )
+        // Do not wrap the voice stage in a glass card: the panel takes the original card's position and the full screen width (cancels the page margin; the fog bleeds to both sides).
+        let showsVoiceStage = heroVoiceConversationController != nil || VoiceConversationDemo.status != nil
+        Group {
+            if showsVoiceStage {
+                auroraComposerCardContent
+                    .padding(.horizontal, -OriveoTheme.V2.Sp.s20)
+            } else {
+                auroraComposerCardContent
+                    // The draft box is a 1px stroke with padding 18/18/14 (border-box), so content sits 1pt further from each outer edge.
+                    .padding(.horizontal, 19)
+                    .padding(.top, 19)
+                    .padding(.bottom, 15)
+                    .auroraGlassCard(cornerRadius: 26, focused: heroFocused)
+                    // While dictation records, the glass card's outer edge draws a flowing light border (the phase is reported upward by the switching container).
+                    .overlayPreferenceValue(DictationInputPhaseKey.self) { phase in
+                        if phase == .recording {
+                            DictationFlowBorder(cornerRadius: 26)
+                        }
+                    }
+            }
+        }
+        // Transition for entering / exiting a voice conversation (spring 0.35 / 0.85; under Reduce Motion, a 200 ms fade in and out).
+        .animation(
+            VoiceConversationBar.transitionAnimation(reduceMotion: reduceMotion),
+            value: heroVoiceConversationController != nil
+        )
     }
 
     /// Card content: while dictating the whole block becomes the recording bar; during a voice conversation it
@@ -867,15 +1081,35 @@ struct HomeView: View {
     @ViewBuilder
     private var auroraComposerCardContent: some View {
         if let voiceSurface = heroVoiceConversationController {
-            VoiceConversationBar(surface: voiceSurface, page: .home, orbNamespace: voiceOrbNamespace) {
-                VoiceConversationSession.shared.end(.user)
+            VStack(spacing: HomeHeroStageLayout.pillSpacing) {
+                // When realtime is selected, the voice dock shows the home model pill centered at the top (with the cyan dot, tap to open the picker); the chat page top bar already shows the model, so none is added.
+                if heroRealtimeStage.showsModelPill {
+                    heroStageModelPill
+                        // Negative spacing lets the pill's hit area reach into the whitespace above the orb: the pill is on the upper layer, so tapping it does not fall through to the orb.
+                        .zIndex(1)
+                        .transition(.opacity)
+                }
+                // In a voice conversation: the input box, the mic and the model row are replaced by the voice bar.
+                VoiceConversationBar(
+                    surface: voiceSurface,
+                    page: .home,
+                    orbNamespace: voiceOrbNamespace,
+                    languageChip: .recognitionLanguage { showsRecognitionLanguageSheet = true }
+                ) {
+                    // The idle dock shows no ✕ (the "Switch to typing" capsule at the bottom center switches to typing); ✕ only ends an ongoing conversation.
+                    VoiceConversationSession.shared.end(.user)
+                }
+                .recognitionLanguageSheet(isPresented: $showsRecognitionLanguageSheet)
             }
             .transition(.opacity)
         } else if VoiceConversationDemo.status != nil {
-            VoiceConversationDemo.bar
+            VoiceConversationDemo.bar(page: .home)
         } else if let controller = DictationHub.shared.controller {
-            DictationInputSwitcher(controller: controller, canSend: !isSendingFromHero) {
-                auroraComposerIdleContent
+            // While dictating, the input box stays on screen (not editable); the button row below is replaced by the recording bar.
+            DictationInputSwitcher(controller: controller, canSend: canHandOffFromHero) { phase in
+                heroComposerInput(editable: !phase.isDictating, phase: phase)
+            } buttons: {
+                heroComposerButtonRow
             }
         } else {
             auroraComposerIdleContent
@@ -885,37 +1119,38 @@ struct HomeView: View {
     private var auroraComposerIdleContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             // The real input plus the decorative blinking cursor (shown while unfocused and empty)
-            heroComposerInput
-
-            // Model pill (tonal, no stroke), the voice button and the send button (solid violet circle); no attachment button
-            let actions = heroComposerActions
-            HStack(alignment: .center, spacing: 10) {
-                Button {
-                    let active = appState.activeModel
-                    modelPickerPresentation = ModelPickerPresentationSnapshot(
-                        context: .home,
-                        providers: appState.providers,
-                        providersVersion: appState.providersVersion,
-                        currentProviderID: active?.provider.id,
-                        currentModel: active?.model
-                    )
-                } label: {
-                    modelSelectorPill
-                }
-                .buttonStyle(.plain)
-
-                Spacer(minLength: 0)
-
-                if actions.showsVoice {
-                    heroVoiceButton
-                        .transition(.opacity)
-                }
-
-                auroraSendButton
-                    .disabled(!actions.sendEnabled)
-            }
-            .animation(.easeInOut(duration: 0.18), value: actions.showsVoice)
+            heroComposerInput(editable: true)
+            heroComposerButtonRow
         }
+    }
+
+    /// Model pill (no stroke, tonal) + ≋ secondary button + send key (solid purple circle), no attachment button, no microphone.
+    private var heroComposerButtonRow: some View {
+        let actions = heroComposerActions
+        return HStack(alignment: .center, spacing: 10) {
+            Button {
+                presentModelPicker()
+            } label: {
+                modelSelectorPill
+            }
+            .buttonStyle(.plain)
+
+            Spacer(minLength: 0)
+
+            if actions.showsBackToStage {
+                heroBackToStageButton
+                    .transition(.opacity)
+            } else if actions.showsVoice {
+                heroVoiceButton
+                    .transition(.opacity)
+            }
+
+            // A sentence in flight is unsettled: the send key is grayed out in the sending style.
+            auroraSendButton
+                .disabled(!actions.sendEnabled || heroRealtimeTypedInFlight != nil)
+        }
+        .animation(.easeInOut(duration: 0.18), value: actions.showsVoice)
+        .animation(.easeInOut(duration: 0.18), value: actions.showsBackToStage)
     }
 
     // Same values as the old TextField's font(composerPlaceholder) / foregroundStyle(textPrimary) / tint(accentGlow),
@@ -924,10 +1159,18 @@ struct HomeView: View {
     private static let heroInputTextColor = UIColor(AuroraTheme.Colors.textPrimary)
     private static let heroInputTint = UIColor(AuroraTheme.Colors.accentGlow)
 
-    private var heroComposerInput: some View {
-        ZStack(alignment: .leading) {
-            // The same component as the chat composer: a SwiftUI TextField re-lays out a long single paragraph on
-            // every layout pass.
+    /// Hero input box: multi-line input; an undecorated blinking cursor overlays it when unfocused; while dictating editable = false (not editable, keyboard dismissed).
+    /// While recording, the empty-draft placeholder becomes "Listening…" (same approach as the chat input box).
+    private func heroComposerInput(editable: Bool, phase: DictationInputPhase = .normal) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            heroComposerTextField(editable: editable, phase: phase)
+        }
+    }
+
+    private func heroComposerTextField(editable: Bool, phase: DictationInputPhase) -> some View {
+        let placeholder = ChatComposerBar.listeningPlaceholder(phase: phase) ?? composerPlaceholder
+        return ZStack(alignment: .leading) {
+            // Same component as the chat input bar: SwiftUI TextField re-lays out the whole text on every layout when a very long single-paragraph paste happens.
             ComposerTextView(
                 text: $heroText,
                 isFocused: $heroFocused,
@@ -935,8 +1178,9 @@ struct HomeView: View {
                 textColor: Self.heroInputTextColor,
                 // The system caret uses the same colour as the decorative cursor (AuroraTheme.Colors.accentGlow: the current palette's light ink in light mode, the current palette accent in dark mode)
                 tintColor: Self.heroInputTint,
-                // The placeholder is drawn by the decorative layer below, so VoiceOver needs an explicit name
-                accessibilityLabel: composerPlaceholder,
+                isEnabled: editable,
+                // The placeholder is drawn by the decorative layer below; VoiceOver needs an explicit name.
+                accessibilityLabel: placeholder,
                 maxLength: ChatInputLimit.maxUTF16,
                 onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast,
                 selectionProbe: dictationProbe
@@ -946,7 +1190,7 @@ struct HomeView: View {
 
             if !heroFocused && heroText.isEmpty {
                 HStack(spacing: 4) {
-                    Text(composerPlaceholder)
+                    Text(placeholder)
                         .font(AuroraTheme.Typography.composerPlaceholder)
                         .tracking(-0.2)
                         .foregroundStyle(AuroraTheme.Colors.heroTextTertiary)
@@ -979,18 +1223,27 @@ struct HomeView: View {
         HomeHeroBlinkingCursor(reduceMotion: reduceMotion)
     }
 
-    /// The model selector chip: the provider's colour logo plus model name and provider name, in a tonal
-    /// capsule without a stroke (dark 6% white / light #F3F0FA), 40 tall, at most 230 wide (the model name
-    /// truncates to one line).
-    private var modelSelectorPill: some View {
-        let active = appState.activeModel
+    /// Model selection chip: provider colored brand logo + model name + provider name,
+    /// borderless tonal capsule (6% white in dark / #F3F0FA in light), 40 high, widest 230 (model name truncated to one line).
+    private var modelSelectorPill: some View { modelSelectorPill(alignment: .leading) }
+
+    /// Alignment: which side of the widest-230 frame the capsule sits on (the input area sits left, the voice dock top centers).
+    private func modelSelectorPill(alignment: Alignment) -> some View {
+        // The connection shown by the pill: the voice dock takes the connection of the realtime selection, the typed card takes the text model's connection.
+        let active = HomeHeroStage.pillProvider(
+            stage: heroRealtimeStage,
+            storedSelection: appState.realtimeModelSelections[nil],
+            provider: appState.provider(for:),
+            textProvider: appState.activeModel?.provider
+        )
+        let realtimeSelected = appState.realtimeModelSelection(for: nil) != nil || heroRealtimeStage.showsRealtimeDot
         return HStack(spacing: 9) {
             Group {
                 if let active {
                     ConnectionAvatarIcon(
-                        provider: active.provider,
-                        kind: active.provider.kind,
-                        relayKind: active.provider.relayKind,
+                        provider: active,
+                        kind: active.kind,
+                        relayKind: active.relayKind,
                         size: 24
                     )
                 } else {
@@ -1002,13 +1255,19 @@ struct HomeView: View {
             }
 
             VStack(alignment: .leading, spacing: 1) {
-                Text(pillModelName)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(AuroraTheme.Colors.textPrimary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                HStack(spacing: 5) {
+                    if realtimeSelected {
+                        RealtimeModelDot()
+                    }
+                    Text(pillModelName)
+                        .accessibilityValue(ChatToolbar.modelNameAccessibilityValue(realtime: realtimeSelected))
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(AuroraTheme.Colors.textPrimary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
                 if let active {
-                    Text(active.provider.displayName)
+                    Text(active.displayName)
                         .font(.system(size: 11, weight: .medium))
                         .foregroundStyle(AuroraTheme.Colors.heroTextTertiary)
                         .lineLimit(1)
@@ -1031,14 +1290,93 @@ struct HomeView: View {
         // layout is unchanged)
         .frame(height: 44)
         .contentShape(Rectangle())
-        .frame(maxWidth: 230, alignment: .leading)
+        .frame(maxWidth: 230, alignment: alignment)
     }
 
-    /// The send button: a 44pt solid violet circle with a white arrow.up, no gradient, no shadow, no highlight
-    /// A voice conversation started from home that has not been handed over yet. The home bar gets a feed that
-    /// freezes on handover; the chat page's bar owns the controller exclusively.
+    /// Model pill at the top of the voice dock: the same modelSelectorPill as the input area; tapping opens the home model picker.
+    private var heroStageModelPill: some View {
+        Button {
+            presentModelPicker()
+        } label: {
+            modelSelectorPill(alignment: .center)
+        }
+        .buttonStyle(.plain)
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    /// Voice conversation started on home but not yet handed over; the home dock gets the frozen feed at handover, while the chat page dock owns the controller exclusively.
+    /// Home voice dock: a conversation started on home and not yet handed over uses the feed; otherwise, when home has a realtime selection, the idle dock is shown (a tap uses the same entry path as ≋).
     private var heroVoiceConversationController: (any VoiceConversationSurface)? {
-        heroVoiceFeeds.feed(for: VoiceConversationSession.shared)
+        if let feed = heroVoiceFeeds.feed(for: VoiceConversationSession.shared) { return feed }
+        guard showsHeroRealtimeStage else { return nil }
+        switch heroRealtimeStage {
+        case .preparing:
+            return HomeRealtimePreparingStageSurface(onSwitchToTyping: { heroRealtimeTyping = true })
+        case .catalogFailed:
+            return RealtimeIdleStageSurface(
+                failure: .catalogUnavailable,
+                onTap: retryHeroRealtimeCatalog,
+                onSwitchToTyping: { heroRealtimeTyping = true }
+            )
+        case .composer, .ready:
+            break
+        }
+        // The previous session failed on home: the idle dock carries the failure copy and recovery options (retry = tap the orb; go to connection page / switch model uses heroRealtimeFailureNavigation).
+        let selection = appState.realtimeModelSelection(for: nil)
+        let failure = VoiceConversationSession.shared.realtimeFailure(in: nil, selection: selection)
+        let navigation = heroRealtimeFailureNavigation
+        return RealtimeIdleStageSurface(
+            failure: failure,
+            onTap: { Task { await startVoiceFromHero() } },
+            onFailureAction: { navigation.perform($0, failure: failure, selection: selection) },
+            onSwitchToTyping: { heroRealtimeTyping = true }
+        )
+    }
+
+    /// Home input area surface: in-memory selection + judged selection + catalog state .
+    private var heroRealtimeStage: HomeHeroStage {
+        HomeHeroStage.resolve(appState, catalogState: heroVoiceCatalogState)
+    }
+
+    /// Catalog failure card "Retry": re-fetches the voice catalog (same as the chat page's retryRealtimeCatalog); returns to preparing during the re-fetch.
+    private func retryHeroRealtimeCatalog() {
+        heroVoiceCatalogState = nil
+        Task { @MainActor in
+            heroVoiceCatalogState = await VoiceCatalogClient.shared.refresh()
+        }
+    }
+
+    /// Navigation for home voice dock failure recovery: going to the connection page is the same as the dictation card's Check Connection; switching model opens the home model picker.
+    private var heroRealtimeFailureNavigation: RealtimeFailureNavigation {
+        RealtimeFailureNavigation(
+            openConnection: openDictationCheckConnection,
+            openModelPicker: presentModelPicker,
+            clearRealtimeSelection: { [appState] in appState.clearRealtimeModelSelection(for: nil) }
+        )
+    }
+
+    /// Home has a realtime selection and the primary button is judged as the voice dock (not in sending / privacy confirmation; home has no read-only state, realtime does not look at the dictation pipeline).
+    private var showsHeroRealtimeStage: Bool {
+        VoiceConversationEntry.primaryAction(
+            isSending: isSendingFromHero || isAcknowledgingHeroPrivacy,
+            hasContent: !heroText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+            sendEnabled: true,
+            voiceAvailable: DictationHub.shared.controller != nil,
+            modelProducesText: appState.activeModel.map { VoiceConversationEntry.modelProducesText($0.model) } ?? true,
+            realtimeSelected: heroRealtimeStage != .composer,
+            realtimeTyping: heroRealtimeTyping,
+            realtimeReadOnly: false
+        ) == .voiceStage
+    }
+
+    /// Home can hand over a sentence now: not sending, and no handed-over realtime typed sentence is unsettled.
+    private var canHandOffFromHero: Bool {
+        HomeRealtimeTypedSend.canHandOff(isSending: isSendingFromHero, inFlight: heroRealtimeTypedInFlight)
+    }
+
+    /// Home is in the realtime typed state: has a realtime selection and the user switched from the voice dock to the input card.
+    private var isHeroRealtimeTyping: Bool {
+        heroRealtimeTyping && appState.realtimeModelSelection(for: nil) != nil
     }
 
     /// State of the two keys on the home card: with no active model the voice button still shows (entering it
@@ -1048,8 +1386,23 @@ struct HomeView: View {
             isSending: isSendingFromHero || isPreparingHeroSend,
             hasContent: !heroText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
             voiceAvailable: DictationHub.shared.controller != nil,
-            modelProducesText: appState.activeModel.map { VoiceConversationEntry.modelProducesText($0.model) } ?? true
+            modelProducesText: appState.activeModel.map { VoiceConversationEntry.modelProducesText($0.model) } ?? true,
+            realtimeSelected: heroRealtimeStage != .composer,
+            realtimeTyping: heroRealtimeTyping,
+            realtimeReadOnly: false
         )
+    }
+
+    /// Back-to-stage button in the ≋ slot while realtime typing with an empty draft (shared with the chat page): a tap only returns to the idle voice stage, with no connect and no mic.
+    private var heroBackToStageButton: some View {
+        RealtimeBackToStageButton(
+            accessibilityID: "home_voice_back_to_stage_button",
+            hitSize: HeroVoiceButtonStyle.hitSize,
+            namespace: voiceOrbNamespace,
+            reduceMotion: reduceMotion
+        ) {
+            heroRealtimeTyping = false
+        }
     }
 
     /// Style of the home voice button: accent waveform, no fill or stroke, 44x44 hit area.
@@ -1092,6 +1445,7 @@ struct HomeView: View {
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(L10n.tr("Send", table: .chat))
         .accessibilityIdentifier("home_send_button")
     }
 
@@ -1129,10 +1483,47 @@ struct HomeView: View {
     /// open the chat page only on the first persisted message or first send.
     @MainActor
     private func beginHeroVoiceConversation() async {
+        switch RealtimeMigration.evaluate(
+            conversationID: nil,
+            providers: appState.providers,
+            catalog: ReadAloudCatalogSnapshot.shared.state?.catalog
+        ) {
+        case .enterCascade:
+            await openHeroVoiceConversation()
+        case .prompt(let prompt):
+            realtimeMigrationPrompt = prompt
+        }
+    }
+
+    @MainActor
+    private func answerRealtimeMigration(_ prompt: RealtimeMigrationPrompt, switchModel: Bool) {
+        realtimeMigrationPrompt = nil
+        guard switchModel else {
+            RealtimeMigration.keep(prompt)
+            Task { await openHeroVoiceConversation() }
+            return
+        }
+        switch RealtimeMigration.switchModel(prompt, appState: appState) {
+        case .selected:
+            return
+        case .needsDisclosure(let request):
+            presentRealtimeDisclosure(request, origin: .migration(nil))
+        case .enterCascade:
+            Task { await openHeroVoiceConversation() }
+        }
+    }
+
+    @MainActor
+    private func openHeroVoiceConversation() async {
         await VoiceConversationSession.shared.start(
             origin: .home,
             conversationID: nil,
-            host: appState
+            host: appState,
+            onNeedsRealtimeDisclosure: { selection in
+                // The realtime selection has not yet acknowledged the disclosure: show it first, and start this session after agreement.
+                let request = RealtimeModelDisclosureRequest(selection: selection, conversationID: nil)
+                presentRealtimeDisclosure(request, origin: .voiceStart(nil))
+            }
         ) { [appState] text, conversationID in
             await appState.sendMessageOutcome(text, in: conversationID, delivery: .voice)
         }
@@ -1178,6 +1569,12 @@ struct HomeView: View {
     @MainActor
     private func performHeroSend(_ trimmed: String) async {
         guard !isSendingFromHero else { return }
+        // Realtime typed state with the catalog not ready: wait for the catalog and do not change to the text model (the chat page rejects without a toast).
+        if heroRealtimeTyping, heroRealtimeStage == .preparing || heroRealtimeStage == .catalogFailed { return }
+        if isHeroRealtimeTyping {
+            await performHeroRealtimeTypedSend(trimmed)
+            return
+        }
         isSendingFromHero = true
         let convID = await appState.sendMessage(trimmed, in: nil)
         isSendingFromHero = false
@@ -1186,6 +1583,27 @@ struct HomeView: View {
         }
     }
 
+    /// Realtime typed send: does not use the text API; hands this sentence over by opening a realtime session with home (nil); the conversation is created and enters the chat page on the first persisted row.
+    /// For an unacknowledged realtime selection: show the disclosure, do not open the connection, and continue sending this sentence after agreement; if it was not handed over, the draft stays on home,
+    /// after handover this sentence stays in the input box and is cleared only when the first persisted row creates the conversation; if it fails and ends before the conversation is created, the original text stays in the box (no empty conversation).
+    @MainActor
+    private func performHeroRealtimeTypedSend(_ trimmed: String) async {
+        isSendingFromHero = true
+        let outcome = await HomeRealtimeTypedSend.send(trimmed, host: appState)
+        isSendingFromHero = false
+        switch outcome {
+        case .sent:
+            // Not cleared on send: the original text stays until the first persisted row creates the conversation; if it ends before persisting, it stays in the box.
+            heroRealtimeTypedInFlight = trimmed
+        case .needsDisclosure(let selection):
+            let request = RealtimeModelDisclosureRequest(selection: selection, conversationID: nil)
+            presentRealtimeDisclosure(request, origin: .typedSend(trimmed))
+        case .notSent:
+            return
+        }
+    }
+
+    /// Hero managed privacy confirmation: the payload snapshotted before the sheet re-presents after the Server records agreement
     @MainActor
     private func acknowledgeHeroPrivacyAndSend() async {
         guard !isPreparingHeroSend, let pending = pendingHeroSend else { return }
@@ -1212,6 +1630,15 @@ struct HomeView: View {
     }
 
     private var pillModelName: String {
+        HomeHeroStage.pillModelName(
+            stage: heroRealtimeStage,
+            storedSelection: appState.realtimeModelSelections[nil],
+            textModelName: textPillModelName
+        )
+    }
+
+    /// Text model's pill name.
+    private var textPillModelName: String {
         var name = currentModelDisplayName
         if let r = name.range(of: ": ") {
             let tail = name[r.upperBound...]
@@ -1537,7 +1964,7 @@ struct HomeView: View {
                 } label: {
                     Text(allSelected ? L10n.tr("Deselect All", table: .home) : L10n.tr("Select All", table: .home))
                         .font(OriveoTheme.Typography.body)
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 }
                 .buttonStyle(.plain)
 
@@ -1556,7 +1983,7 @@ struct HomeView: View {
                 } label: {
                     Label(L10n.tr("Move to", table: .home), systemImage: "folder")
                         .font(OriveoTheme.Typography.body.weight(.semibold))
-                        .foregroundStyle(selectedIDs.isEmpty ? OriveoTheme.Palette.textTertiary : OriveoTheme.Palette.primary)
+                        .foregroundStyle(selectedIDs.isEmpty ? OriveoTheme.Palette.textTertiary : OriveoTheme.Palette.primaryTextOnSurface)
                 }
                 .buttonStyle(.plain)
                 .disabled(selectedIDs.isEmpty)
@@ -1725,6 +2152,8 @@ private struct HomeDictationHost: ViewModifier {
     let canSend: () -> Bool
     let onInsert: (String) -> Void
     let onSend: () -> Void
+    /// Realtime text is written into the home input box.
+    let live: DictationLiveHooks
 
     @ViewBuilder
     func body(content: Content) -> some View {
@@ -1734,10 +2163,121 @@ private struct HomeDictationHost: ViewModifier {
                 slotKey: RecordingStore.homeDraftKey,
                 canSend: canSend,
                 onInsert: onInsert,
-                onSend: onSend
+                onSend: onSend,
+                live: live
             )
         } else {
             content
         }
     }
+}
+
+/// Vertical placement of the home voice dock's top model pill.
+enum HomeHeroStageLayout {
+    /// Distance from the pill's visual background (40-high capsule) to the orb box top.
+    static let pillToOrbGap: CGFloat = 12
+    /// Pill hit area: 44 is 2 more than the visual 40 on each side.
+    static let pillHitInset: CGFloat = 2
+    /// Gap from the pill hit frame's bottom to the top of the voice dock: the orb box already has orbTop whitespace above it, so it is negative.
+    static let pillSpacing: CGFloat = pillToOrbGap - VoiceConversationBarContent.orbTop - pillHitInset
+}
+
+/// Whether the home input area is the typed card or the voice dock : the realtime selection in judgement → ready;
+/// in-memory home realtime selection with the catalog not yet arrived → preparing; catalog load failure → failure card on the dock; otherwise the typed card.
+enum HomeHeroStage: Equatable {
+    case composer
+    case preparing
+    case ready
+    case catalogFailed
+
+    static func resolve(
+        storedSelection: RealtimeModelSelection?,
+        judgedSelection: RealtimeModelSelection?,
+        catalogReady: Bool,
+        catalogState: VoiceCatalogState?
+    ) -> HomeHeroStage {
+        if judgedSelection != nil { return .ready }
+        // No realtime selection stored, or the catalog arrived and does not recognize it (the delisting banner is handled separately): the typed card.
+        guard storedSelection != nil, !catalogReady else { return .composer }
+        if case .loadFailed = catalogState { return .catalogFailed }
+        return .preparing
+    }
+
+    @MainActor
+    static func resolve(_ appState: AppState, catalogState: VoiceCatalogState?) -> HomeHeroStage {
+        resolve(
+            storedSelection: appState.realtimeModelSelections[nil],
+            judgedSelection: appState.realtimeModelSelection(for: nil),
+            catalogReady: appState.realtimeVoiceCatalog() != nil,
+            catalogState: catalogState
+        )
+    }
+
+    /// Model name for the pill : all three dock states show the stored realtime model id (the catalog has no display name, the id is the display name),
+    /// not the text model name, to avoid "cyan dot + wrong name"; the typed card shows the text model.
+    static func pillModelName(stage: HomeHeroStage, storedSelection: RealtimeModelSelection?, textModelName: String) -> String {
+        guard stage != .composer, let storedSelection else { return textModelName }
+        return storedSelection.model
+    }
+
+    /// Which connection the pill's vendor icon and subline vendor name come from : the three voice dock states take the connection of the stored realtime selection,
+    /// the same source as the pill model name, to avoid "Gemini model name + OpenAI icon"; the typed card, or when that connection no longer exists, takes the text model's connection.
+    static func pillProvider(
+        stage: HomeHeroStage,
+        storedSelection: RealtimeModelSelection?,
+        provider: (UUID) -> Provider?,
+        textProvider: Provider?
+    ) -> Provider? {
+        guard stage != .composer, let storedSelection, let realtime = provider(storedSelection.providerID) else {
+            return textProvider
+        }
+        return realtime
+    }
+
+    /// When the home typed state resets : only when the stored home realtime selection in memory actually changes (model change / cancel / moved away with a new conversation);
+    /// catalog arrival only changes the judged selection from nil to a value, a stored one does not change, so a typed state the user switched to is not pulled back to the voice dock.
+    static func resetsRealtimeTyping(storedBefore: RealtimeModelSelection?, storedAfter: RealtimeModelSelection?) -> Bool {
+        storedBefore != storedAfter
+    }
+
+    /// The voice dock shows a model pill at the top with a cyan dot: consistent across the three surfaces; the layout does not move once the catalog arrives.
+    var showsModelPill: Bool { self != .composer }
+    var showsRealtimeDot: Bool { self != .composer }
+}
+
+/// Home voice dock preparing (voice catalog not yet arrived): the orb is not tappable, the status line shows "Loading" (voice_realtime_model_loading), "Type instead" still works.
+final class HomeRealtimePreparingStageSurface: VoiceConversationSurface {
+    let objectWillChange = ObservableObjectPublisher()
+    private let onSwitchToTyping: () -> Void
+
+    init(onSwitchToTyping: @escaping () -> Void) {
+        self.onSwitchToTyping = onSwitchToTyping
+    }
+
+    var showsTypingSwitch: Bool { true }
+    var showsEndButton: Bool { false }
+    var showsMuteButton: Bool { false }
+    var statusKey: VoiceConversationLogic.StatusKey? { nil }
+    var displayState: VoiceConversationLogic.DisplayState? { nil }
+    var level: Double { 0 }
+    var idleHint: String? { ChatModelRemovedBanner.voiceCatalogLoadingLabel }
+    /// Catalog not yet arrived: a realtime session cannot be opened.
+    func tapOrb() {}
+    func toggleMute() {}
+    func switchToTyping() { onSwitchToTyping() }
+}
+
+extension RealtimeVoiceFailure {
+    /// Failure card on the dock for a home voice catalog load failure: "Voice model temporarily unavailable" + "Retry" (re-fetches the catalog).
+    static let catalogUnavailable = RealtimeVoiceFailure(
+        classification: RealtimeModelPolicy.FailureClassification(
+            category: .network,
+            copyKey: "voice_realtime_catalog_unavailable",
+            copyArg: .none,
+            actions: [.retry],
+            actionCopyKeys: [RealtimeModelPolicy.copyKey(for: .retry)],
+            buttonCopyKeys: RealtimeModelPolicy.buttonCopyKeys(for: [.retry])
+        ),
+        copyArgValue: nil
+    )
 }

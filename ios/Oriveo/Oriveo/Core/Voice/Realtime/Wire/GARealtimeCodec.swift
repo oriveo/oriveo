@@ -115,21 +115,30 @@ nonisolated struct GARealtimeCodec: Sendable {
     // MARK: - Client messages
 
     /// session.update followed by one conversation.item.create per history turn.
+    /// language = host recognition language (BCP-47) or nil: sent only with the transcription model; OpenAI writes language, xAI writes language_hint.
     func openingMessages(
         instructions: String,
         history: [RealtimeTransportInput.Turn],
         voice: String,
-        inputTranscriptionModel: String?
+        inputTranscriptionModel: String?,
+        route: VoiceConversationLogic.Route = .speaker,
+        language: String? = nil
     ) -> OpeningMessages {
         let pcm: [String: Any] = ["type": "audio/pcm", "rate": Self.inputSampleRateHz]
         let outputFormat: [String: Any] = ["type": "audio/pcm", "rate": Self.outputSampleRateHz]
         var input: [String: Any] = ["format": pcm]
         if let model = inputTranscriptionModel, !model.isEmpty {
-            input["transcription"] = ["model": model]
+            var transcription: [String: Any] = ["model": model]
+            if let lang = RealtimeTranscriptionLanguage.transcriptionLanguage(transport: transport, tag: language) {
+                transcription[transport == .openaiRealtime ? "language" : "language_hint"] = lang
+            }
+            input["transcription"] = transcription
         }
         let session: [String: Any]
         if transport == .openaiRealtime {
             input["turn_detection"] = ["type": "semantic_vad"]
+            // Far-field noise reduction for speaker playback; headphones and Bluetooth are near-field. xAI has no such field.
+            input["noise_reduction"] = ["type": route.isSpeaker ? "far_field" : "near_field"]
             session = [
                 "type": "realtime",
                 "instructions": instructions,
@@ -164,12 +173,20 @@ nonisolated struct GARealtimeCodec: Sendable {
         return OpeningMessages(beforeReady: [["type": "session.update", "session": session]] + items, afterReady: [])
     }
 
-    func openingMessages(input: RealtimeTransportInput, voice: String, inputTranscriptionModel: String?) -> OpeningMessages {
+    func openingMessages(
+        input: RealtimeTransportInput,
+        voice: String,
+        inputTranscriptionModel: String?,
+        route: VoiceConversationLogic.Route = .speaker,
+        language: String? = nil
+    ) -> OpeningMessages {
         openingMessages(
             instructions: input.instructions,
             history: input.history,
             voice: voice,
-            inputTranscriptionModel: inputTranscriptionModel
+            inputTranscriptionModel: inputTranscriptionModel,
+            route: route,
+            language: language
         )
     }
 
@@ -180,6 +197,26 @@ nonisolated struct GARealtimeCodec: Sendable {
 
     func append(base64: String) -> [String: Any] {
         ["type": "input_audio_buffer.append", "audio": base64]
+    }
+
+    /// Typed user turn (E-514): one input_text user item, same shape as an opening history item.
+    func userTextItem(_ text: String) -> [String: Any] {
+        let item: [String: Any] = [
+            "type": "message",
+            "role": "user",
+            "content": [["type": "input_text", "text": text]],
+        ]
+        return ["type": "conversation.item.create", "item": item]
+    }
+
+    /// Asks the server for a reply to the conversation so far.
+    func responseCreate() -> [String: Any] {
+        ["type": "response.create"]
+    }
+
+    /// Cancels the in-progress response; the server answers with response.done (status cancelled).
+    func responseCancel() -> [String: Any] {
+        ["type": "response.cancel"]
     }
 
     /// Barge-in truncate; gemini_live never sends one (server already truncated), nor without an item id.

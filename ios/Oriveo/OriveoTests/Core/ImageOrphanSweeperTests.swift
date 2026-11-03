@@ -57,12 +57,14 @@ struct ImageOrphanSweeperTests {
 
     private func withFixture(_ prefix: String, _ body: (Fixture) async throws -> Void) async throws {
         let uid = "\(prefix)-\(UUID().uuidString)"
-        defer { try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid)) }
+        defer { await TestPartitionCleanup.remove(uid) }
         try FileManager.default.createDirectory(at: AppSessionStore.userDir(for: uid), withIntermediateDirectories: true)
         let pool = try DatabasePool(
             path: AppSessionStore.databasePath(for: uid).path,
             configuration: DatabaseSchema.makeConfiguration()
         )
+        // Runs before the TestPartitionCleanup defer above, so the pool is closed before the directory is unlinked.
+        defer { try? pool.close() }
         let files = AttachmentFileStore(rootDirectory: AppSessionStore.filesDir(for: uid))
         try DatabaseSchema.makeMigrator(attachmentFileStore: files).migrate(pool)
         try await body(Fixture(uid: uid, pool: pool, store: ConversationStore(dbPool: pool, attachmentFileStore: files)))
@@ -457,7 +459,7 @@ struct ImageOrphanSweeperTests {
     func orphanSweep_copiedOldMtimeProtectedByCtime() async throws {
         try await withFixture("sweep-copied-ctime") { fixture in
             let sourceUID = "\(fixture.uid)-source"
-            defer { try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: sourceUID)) }
+            defer { await TestPartitionCleanup.remove(sourceUID) }
             let key = "copied-\(UUID().uuidString)"
             let old = Date().addingTimeInterval(-30 * 24 * 3600)
             try saveImage(key, uid: sourceUID, modifiedAt: old)
@@ -563,7 +565,83 @@ struct ImageOrphanSweeperTests {
         }
     }
 
-    /// Row counts of everything cleanup-related: attachments, messages, conversations, and the deletion journal.
+    // MARK: - Studio references
+
+    /// Shared fixture `studio_data_model.v1.json#orphanSweep.case`: studio version assets (kept and candidate)
+    /// and round reference assets count as references.
+    @Test("Launch sweep keeps studio version and round-ref assets from the shared fixture")
+    func orphanSweep_keepsStudioAssetsFromSharedFixture() async throws {
+        let model = try StudioByokTasksContractTests.jsonObject(["studio_data_model.v1.json"])
+        let sweep = try #require(model["orphanSweep"] as? [String: Any])
+        let fixtureCase = try #require(sweep["case"] as? [String: Any])
+        func ids(_ key: String) throws -> [String] { try #require(fixtureCase[key] as? [String], "missing \(key)") }
+        let chatAssets = try ids("chatAssets")
+        let studioVersions = try ids("studioVersions")
+        let studioRefs = try ids("studioRefs")
+        let onDisk = try ids("onDisk")
+        let expectOrphans = try ids("expectOrphans")
+        #expect(studioVersions.count == 3)
+
+        try await withFixture("sweep-studio") { fixture in
+            let launchedAt = Date()
+            let old = launchedAt.addingTimeInterval(-25 * 3600)
+            for raw in chatAssets {
+                let attachment = TestFactories.makeImageAttachment(id: try #require(UUID(uuidString: raw)))
+                try storeConversation(with: attachment, in: fixture)
+            }
+            // Studio rows store asset ids lowercased: the sweeper must normalize them like attachment.id.
+            try await fixture.pool.write { db in
+                try db.execute(sql: "INSERT INTO studio_works (id, source) VALUES ('work-1', 'studio')")
+                try db.execute(sql: """
+                    INSERT INTO studio_rounds (id, workId, "index", operation, status)
+                    VALUES ('round-1', 'work-1', 0, 'generate', 'completed')
+                    """)
+                for (index, assetId) in studioVersions.enumerated() {
+                    // The last version stays an unkept candidate.
+                    let kept = index == studioVersions.count - 1 ? 0 : 1
+                    try db.execute(
+                        sql: """
+                            INSERT INTO studio_versions (id, roundId, workId, assetId, kept)
+                            VALUES (?, 'round-1', 'work-1', ?, ?)
+                            """,
+                        arguments: ["version-\(index)", assetId.lowercased(), kept]
+                    )
+                }
+                for (order, assetId) in studioRefs.enumerated() {
+                    try db.execute(
+                        sql: """
+                            INSERT INTO studio_round_refs (roundId, "order", assetId, role)
+                            VALUES ('round-1', ?, ?, 'subject')
+                            """,
+                        arguments: [order, assetId.lowercased()]
+                    )
+                }
+            }
+            for key in onDisk { try saveImage(key, uid: fixture.uid, modifiedAt: old) }
+
+            let deleted = await ImageOrphanSweeper.sweepOnLaunch(
+                partitionUID: fixture.uid,
+                references: fixture.references,
+                launchedAt: launchedAt,
+                currentUID: fixture.activePartition,
+                fileDate: Self.mtimeOnly
+            )
+
+            #expect(deleted == expectOrphans.count)
+            for key in onDisk {
+                let shouldBeDeleted = expectOrphans.contains(key)
+                #expect(ImageStore.imageExists(for: key, partitionUID: fixture.uid) != shouldBeDeleted, "\(key)")
+            }
+            #expect(try Set(ImageStore.allImageKeys(partitionUID: fixture.uid).keys) == Set(onDisk).subtracting(expectOrphans))
+            // An asset referenced only by a round ref (not by any version or chat attachment) must survive.
+            let refOnly = "D0000005-0000-4000-8000-000000000005"
+            #expect(studioRefs.contains(refOnly) && onDisk.contains(refOnly), "fixture must keep the ref-only asset")
+            #expect(!studioVersions.contains(refOnly) && !chatAssets.contains(refOnly), "ref-only asset must not be shared")
+            #expect(ImageStore.imageExists(for: refOnly, partitionUID: fixture.uid), "ref-only asset was deleted")
+        }
+    }
+
+    /// Row counts of everything cleanup-related: attachments, messages, conversations, the deletion journal, and the remote deletion log (the only write path to the cloud).
     private func counts(in pool: DatabasePool) throws -> [String: Int] {
         try pool.read { db in
             var result: [String: Int] = [:]

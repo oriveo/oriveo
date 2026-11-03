@@ -22,6 +22,9 @@ struct NoteStoreHarness {
     }
 
     func cleanup() {
+        // Close the pool before deleting the directory so SQLite/WAL descriptors are not
+        // left pointing at unlinked vnodes in tmp.
+        try? dbPool.close()
         try? FileManager.default.removeItem(at: rootURL)
     }
 }

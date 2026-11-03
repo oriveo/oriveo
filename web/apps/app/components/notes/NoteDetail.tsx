@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { Check, Download, FolderInput, Pencil, Pin, PinOff, Tag, Trash2, X } from 'lucide-react';
-import type { CSSProperties } from 'react';
 import type { Note } from '@oriveo/shared';
 import { BackButton, Button, EmptyState } from '@oriveo/ui';
 import { useAppStore, getVanillaStore } from '../../providers/StoreProvider';
@@ -21,7 +20,6 @@ import {
 import { buildNoteMarkdown, buildNoteMarkdownFilename, downloadMarkdown } from '../../lib/core/notes/note-export';
 import { getNoteSourceLinkState } from '../../lib/core/notes/source-link';
 import { warmConversationAnchorInStore } from '../../lib/core/chat/conversation-bootstrap';
-import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
 import { normalizeUUID, sameNormalizedID } from '../../lib/utils/id-utils';
 import { getSuggestedNoteTags } from '../../lib/utils/note-list';
 import { ProgressiveMarkdownRenderer } from '../chat/MarkdownRenderer';
@@ -30,6 +28,7 @@ import { relayIconSource } from '../relay-avatar';
 import { ConfirmDialog } from '../dialogs/ConfirmDialog';
 import { showToast } from '../Toast';
 import { MoveToNoteFolderDialog } from './MoveToNoteFolderDialog';
+import { noteSourceVars } from './NoteSourceBadge';
 import { NoteSourceCard } from './NoteSourceCard';
 import { NoteTagEditor } from './NoteTagEditor';
 import { extractCrosscheckDisplayBody } from './note-display-text';
@@ -175,9 +174,7 @@ export function NoteDetail({ noteId }: NoteDetailProps) {
 
   const title = note.title.trim() || t('untitled');
   const folderName = noteFolders.find((folder) => folder.id === note.noteFolderID)?.name ?? t('folders.uncategorized');
-  const sourceColor = note.sourceProviderKind
-    ? PROVIDER_BRAND_COLORS[note.sourceProviderKind]?.light ?? PROVIDER_BRAND_COLORS.relay.light
-    : 'var(--o-primary)';
+  const sourceVars = noteSourceVars(note.sourceProviderKind);
 
   const saveTitle = () => {
     if (titleDraft === null) return;
@@ -217,7 +214,7 @@ export function NoteDetail({ noteId }: NoteDetailProps) {
   };
 
   return (
-    <div className={styles.detailShell} style={{ '--note-source-color': sourceColor } as CSSProperties}>
+    <div className={styles.detailShell} style={sourceVars}>
       <div className={styles.detailHeader}>
         <BackButton className={styles.detailBack} label={t('actions.backToNotes')} onClick={handleBack} />
         <div className={styles.detailHeaderActions}>
@@ -246,7 +243,7 @@ export function NoteDetail({ noteId }: NoteDetailProps) {
       ) : null}
 
       <main className={styles.detailContent}>
-        <section className={styles.detailHero} style={{ '--note-source-color': sourceColor } as CSSProperties}>
+        <section className={styles.detailHero} style={sourceVars}>
           <div className={styles.detailSourceStrip}>
             {note.sourceProviderKind ? (
               <span className={styles.detailSourceModel}>

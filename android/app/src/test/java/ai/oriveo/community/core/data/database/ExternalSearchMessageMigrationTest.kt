@@ -70,8 +70,8 @@ class ExternalSearchMessageMigrationTest {
                 assertEquals("$name is nullable", 0, column.second)
                 assertTrue("$name has no default value", column.third)
             }
-            // Column set after upgrade = messages in the exported schema 7.json
-            assertEquals(schemaMessageColumns(7), columns.keys)
+            // Upgraded column set = messages of the latest exported schema
+            assertEquals(schemaMessageColumns(LATEST_SCHEMA_VERSION), columns.keys)
 
             val legacy = db.messageDao().getById(UID, MSG)!!
             assertNull(legacy.searchErrorCardJson)

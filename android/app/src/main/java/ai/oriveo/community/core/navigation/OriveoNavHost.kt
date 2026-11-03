@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -71,6 +72,13 @@ import org.koin.androidx.compose.koinViewModel
 import ai.oriveo.community.feature.providers.ProvidersScreen
 import ai.oriveo.community.feature.providers.ProvidersScreenBackground
 import ai.oriveo.community.feature.providers.detail.ProviderDetailScreen
+import ai.oriveo.community.feature.providers.detail.acceptProviderDetailRealtime
+import ai.oriveo.community.feature.providers.detail.startProviderDetailRealtime
+import ai.oriveo.community.core.voice.VoiceDirection
+import ai.oriveo.community.core.voice.VoiceEngineSettings
+import ai.oriveo.community.core.voice.realtime.HomeRealtimeSelectionStore
+import ai.oriveo.community.feature.modelpicker.RealtimePickerDisclosure
+import ai.oriveo.community.feature.settings.VoiceDisclosureSheet
 import ai.oriveo.community.feature.providers.manual.ManualModelEntryScreen
 import ai.oriveo.community.feature.providers.relay.RelaySetupCompletionTarget
 import ai.oriveo.community.feature.providers.relay.postAddedNotice
@@ -250,6 +258,8 @@ fun OriveoNavHost(
         metricsStateHolder.state?.putState("route", currentRouteLabel(currentDestination))
     }
 
+    // AppLaunch trace — ends once, only after the first destination settles. The original ran on every tab switch;
+    // PageTrace.end returns null right after starts.remove on the first call, but still went through runCatching+Log.d.
     LaunchedEffect(Unit) {
         PageTrace.end("AppLaunch", detail = currentRouteLabel(currentDestination))
     }
@@ -486,6 +496,9 @@ fun OriveoNavHost(
 
                         navController.navigate(AppRoute.SkillEdit())
                     },
+                    onNavigateToSkills = {
+                        navController.navigate(AppRoute.Skills)
+                    },
                     onNavigateToNoteDetail = { noteID ->
                         PageTrace.begin("NoteDetail")
                         navController.navigate(AppRoute.NoteDetail(noteID))
@@ -605,6 +618,34 @@ fun OriveoNavHost(
             composable<AppRoute.ProviderDetail> { backStackEntry ->
                 val route = backStackEntry.toRoute<AppRoute.ProviderDetail>()
                 LaunchedEffect(Unit) { PageTrace.end("ProviderDetail") }
+                val voiceEngineSettings: VoiceEngineSettings = koinInject()
+                var realtimeDisclosure by remember { mutableStateOf<RealtimePickerDisclosure?>(null) }
+                // After a realtime row is selected, go back to the home voice stage (mic not opened)
+                val openHomeVoice = {
+                    navController.navigate(AppRoute.Home) {
+                        popUpTo(navController.graph.findStartDestination().id) {
+                            inclusive = false
+                        }
+                        launchSingleTop = true
+                    }
+                }
+                realtimeDisclosure?.let { pending ->
+                    VoiceDisclosureSheet(
+                        direction = VoiceDirection.Realtime,
+                        providerKind = pending.providerKind,
+                        onAgree = {
+                            realtimeDisclosure = null
+                            acceptProviderDetailRealtime(
+                                pending,
+                                voiceEngineSettings.disclosure,
+                                HomeRealtimeSelectionStore.shared,
+                                openHomeVoice,
+                            )
+                        },
+                        // Decline / swipe-down dismiss: no selection, no consent recorded
+                        onDecline = { realtimeDisclosure = null },
+                    )
+                }
                 ProviderDetailScreen(
                     onBack = { navController.popBackStack() },
                     initialWebSearchLayer = route.initialLayer == AppRoute.ProviderDetail.LAYER_WEB_SEARCH,
@@ -615,6 +656,17 @@ fun OriveoNavHost(
                         appViewModel.setActiveModel(providerID, modelID)
                         PageTrace.begin("Chat")
                         navController.navigate(AppRoute.Chat())
+                    },
+                    // First pass through the cloud disclosure → write the home selection → back to the home voice stage
+                    onStartRealtime = { providerID, providerKind, modelID ->
+                        realtimeDisclosure = startProviderDetailRealtime(
+                            providerId = providerID,
+                            providerKind = providerKind,
+                            modelId = modelID,
+                            disclosure = voiceEngineSettings.disclosure,
+                            selection = HomeRealtimeSelectionStore.shared,
+                            openHome = openHomeVoice,
+                        )
                     },
                     manualEntryContext = when (route.entryPoint) {
                         ProviderSetupEntryPoint.Onboarding -> ManualModelEntryContext.Onboarding
@@ -748,6 +800,15 @@ fun OriveoNavHost(
                     onBack = { navController.popBackStack() },
                     onAddConnection = {
                         navController.navigate(AppRoute.ProviderSetup(ProviderSetupEntryPoint.Providers))
+                    },
+                    // After selecting a realtime model, go back to the home voice stage
+                    onOpenHome = {
+                        navController.navigate(AppRoute.Home) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                inclusive = false
+                            }
+                            launchSingleTop = true
+                        }
                     },
                 )
             }

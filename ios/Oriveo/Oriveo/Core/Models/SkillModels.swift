@@ -9,6 +9,16 @@ struct Skill: Codable, Identifiable, Hashable {
     var icon: String              // emoji
     var color: String
     var systemPrompt: String
+    /// Model-facing trigger line (skill_schema.v2 `whenToUse`); empty on legacy caches.
+    var whenToUse: String
+    /// Whether the model may load this skill on its own (skill_schema.v2 `autoInvoke`).
+    var autoInvoke: Bool
+    /// Glyph key from the shared glyph set; empty means resolve from `icon`.
+    var iconKey: String
+    /// Template-only localized copies keyed by locale.
+    var whenToUseTranslations: [String: String]
+    var previewUser: [String: String]
+    var previewAssistant: [String: String]
     var suggestedProviderId: String?
     var suggestedModelId: String?
     var modelCapabilityHint: String   // "any"|"reasoning"|"vision"|"fast"|"large-context"
@@ -61,6 +71,7 @@ struct Skill: Codable, Identifiable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case id, key, name, description, icon, color, systemPrompt
+        case whenToUse, autoInvoke, iconKey, whenToUseTranslations, previewUser, previewAssistant
         case suggestedProviderId, suggestedModelId, modelCapabilityHint
         case temperature, reasoningLevel, webSearchEnabled
         case starterMessages, knowledgeFiles, knowledgeBase, useMemory, isPinned, pinOrder
@@ -76,6 +87,12 @@ struct Skill: Codable, Identifiable, Hashable {
         icon: String = "🤖",
         color: String = "#6d38ff",
         systemPrompt: String = "",
+        whenToUse: String = "",
+        autoInvoke: Bool = false,
+        iconKey: String = "",
+        whenToUseTranslations: [String: String] = [:],
+        previewUser: [String: String] = [:],
+        previewAssistant: [String: String] = [:],
         suggestedProviderId: String? = nil,
         suggestedModelId: String? = nil,
         modelCapabilityHint: String = "any",
@@ -104,6 +121,12 @@ struct Skill: Codable, Identifiable, Hashable {
         self.icon = icon
         self.color = color
         self.systemPrompt = systemPrompt
+        self.whenToUse = whenToUse
+        self.autoInvoke = autoInvoke
+        self.iconKey = iconKey
+        self.whenToUseTranslations = whenToUseTranslations
+        self.previewUser = previewUser
+        self.previewAssistant = previewAssistant
         self.suggestedProviderId = suggestedProviderId
         self.suggestedModelId = suggestedModelId
         self.modelCapabilityHint = modelCapabilityHint
@@ -146,6 +169,13 @@ struct Skill: Codable, Identifiable, Hashable {
         suggestedProviderId = try c.decodeIfPresent(String.self, forKey: .suggestedProviderId)
         suggestedModelId = try c.decodeIfPresent(String.self, forKey: .suggestedModelId)
         modelCapabilityHint = try c.decodeIfPresent(String.self, forKey: .modelCapabilityHint) ?? "any"
+        // skill_schema.v2 fields: legacy caches and old responses omit them.
+        whenToUse = try c.decodeIfPresent(String.self, forKey: .whenToUse) ?? ""
+        autoInvoke = try c.decodeIfPresent(Bool.self, forKey: .autoInvoke) ?? false
+        iconKey = try c.decodeIfPresent(String.self, forKey: .iconKey) ?? ""
+        whenToUseTranslations = try c.decodeIfPresent([String: String].self, forKey: .whenToUseTranslations) ?? [:]
+        previewUser = try c.decodeIfPresent([String: String].self, forKey: .previewUser) ?? [:]
+        previewAssistant = try c.decodeIfPresent([String: String].self, forKey: .previewAssistant) ?? [:]
         temperature = try c.decodeIfPresent(Double.self, forKey: .temperature)
         reasoningLevel = try c.decodeIfPresent(String.self, forKey: .reasoningLevel)
         webSearchEnabled = try c.decodeIfPresent(Bool.self, forKey: .webSearchEnabled)

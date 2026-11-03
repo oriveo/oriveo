@@ -18,6 +18,8 @@ enum class VoiceNoticeSite(val rawValue: String) {
  * SharedPreferences is wrapped lazily via [prefsProvider], the same way as LastAuthMethodStore.
  */
 class VoiceEngineSettings(
+    // Placed first: callers all pass prefsProvider as a trailing lambda
+    private val onRealtimeDisclosureAccepted: (ProviderKind) -> Unit = {},
     prefsProvider: () -> SharedPreferences,
 ) {
     private val prefs: SharedPreferences by lazy(LazyThreadSafetyMode.PUBLICATION) {
@@ -26,7 +28,7 @@ class VoiceEngineSettings(
 
     /** Consent record for the cloud voice disclosure, sharing the same prefs file as the selection. */
     val disclosure: VoiceDisclosureStore by lazy(LazyThreadSafetyMode.PUBLICATION) {
-        VoiceDisclosureStore { prefs }
+        VoiceDisclosureStore(onRealtimeDisclosureAccepted) { prefs }
     }
 
     fun prewarm() {
@@ -123,7 +125,25 @@ class VoiceEngineSettings(
         return VoiceFallbackReason.entries.firstOrNull { it.rawValue == raw }
     }
 
-    /** null = auto. */
+    /**
+     * For migration: reads the conversation engine selection written by the old settings page (`oriveo.voice.realtime.*`).
+     * Null when the engine key was never stored; engine = system (follows the model) or the cloud fields are not all [VoiceEngineSelection.System];
+     * otherwise a cloud selection (same reading as [selection]).
+     */
+    fun legacyRealtimeChoice(): VoiceEngineSelection? {
+        if (!prefs.contains(key(VoiceDirection.Realtime, FIELD_ENGINE))) return null
+        return selection(VoiceDirection.Realtime)
+    }
+
+    /** After migration, deletes the 7 old conversation-engine keys (5 selection keys + 2 pending notices); dictation / read-aloud keys and the consent record are left untouched. */
+    fun clearLegacyRealtime() {
+        val editor = prefs.edit()
+        (listOf(FIELD_ENGINE) + CLOUD_FIELDS).forEach { editor.remove(key(VoiceDirection.Realtime, it)) }
+        VoiceNoticeSite.entries.forEach { editor.remove(pendingKey(VoiceDirection.Realtime, it)) }
+        editor.apply()
+    }
+
+    /** null = automatic. */
     fun recognitionLanguage(): String? = prefs.getString(KEY_RECOGNITION_LANGUAGE, null)
 
     fun setRecognitionLanguage(language: String?) {
@@ -153,6 +173,15 @@ class VoiceEngineSettings(
         prefs.edit().putBoolean(KEY_MIC_REQUESTED, true).apply()
     }
 
+    /** Whether this recognition language (by language tag) has already prompted that the on-device language pack can be downloaded; prompts once per language. */
+    fun languagePackOffered(languageTag: String): Boolean = prefs.getBoolean(languagePackKey(languageTag), false)
+
+    fun markLanguagePackOffered(languageTag: String) {
+        prefs.edit().putBoolean(languagePackKey(languageTag), true).apply()
+    }
+
+    private fun languagePackKey(languageTag: String) = "$KEY_LANGUAGE_PACK_OFFERED_PREFIX$languageTag"
+
     private fun key(direction: VoiceDirection, field: String) =
         "oriveo.voice.${direction.rawValue}.$field"
 
@@ -163,6 +192,7 @@ class VoiceEngineSettings(
         const val PREFS_NAME = "oriveo_voice_settings"
         const val KEY_RECOGNITION_LANGUAGE = "oriveo.voice.stt.language"
         const val KEY_MIC_REQUESTED = "oriveo.voice.mic.requested"
+        const val KEY_LANGUAGE_PACK_OFFERED_PREFIX = "oriveo.voice.stt.languagePackOffered."
         const val KEY_SPEECH_RATE = "oriveo.voice.tts.speechRate"
         const val DEFAULT_SPEECH_RATE = 1.0
         const val MIN_SPEECH_RATE = 0.5

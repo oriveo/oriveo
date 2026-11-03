@@ -8,21 +8,19 @@ import Testing
 
 extension ConversationInstructionsTests {
     @MainActor
-    private func withState(_ body: (AppState) throws -> Void) rethrows {
+    private func withState(_ body: (AppState) throws -> Void) async rethrows {
         let uid = "instructions-settings-\(UUID().uuidString)"
         let state = AppState(seedDemoData: false, sessionUID: uid)
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
         try body(state)
     }
 
     @Test("settings_draft_instructions_written_on_create")
     @MainActor
-    func settingsDraftInstructionsWrittenOnCreate() throws {
-        try withState { state in
+    func settingsDraftInstructionsWrittenOnCreate() async throws {
+        try await withState { state in
             // Saving in the draft state (no conversation id) only writes the in-memory pending instructions, normalized.
             #expect(ConversationSettingsLogic.save(" \n\t", original: "", conversationID: nil, appState: state) == false)
             #expect(ConversationSettingsLogic.save("Reply in Arabic.\n", original: "", conversationID: nil, appState: state))
@@ -45,8 +43,8 @@ extension ConversationInstructionsTests {
 
     @Test("settings_save_normalizes_on_close")
     @MainActor
-    func settingsSaveNormalizesOnClose() throws {
-        try withState { state in
+    func settingsSaveNormalizesOnClose() async throws {
+        try await withState { state in
             let conversation = TestFactories.makeConversation(hasCustomTitle: true, messages: [TestFactories.makeMessage()])
             state.replaceConversationProjection([conversation])
 
@@ -120,8 +118,8 @@ extension ConversationInstructionsTests {
 
     @Test("settings_close_without_edit_keeps_remote_change")
     @MainActor
-    func settingsCloseWithoutEditKeepsRemoteChange() throws {
-        try withState { state in
+    func settingsCloseWithoutEditKeepsRemoteChange() async throws {
+        try await withState { state in
             var conversation = TestFactories.makeConversation(hasCustomTitle: true, messages: [TestFactories.makeMessage()])
             conversation.instructions = "Old rule."
             state.replaceConversationProjection([conversation])

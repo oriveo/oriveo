@@ -156,17 +156,16 @@
     "generationParameterDormantClear": "हटाएँ",
     "generationParameterDormantRestored": "{count} पैरामीटर बहाल किए गए",
     "generationPresetName": "प्रीसेट नाम",
-    "capabilityControlFixedByConnection": "इस कनेक्शन द्वारा सेट",
     "capabilityControlReasonPending": "स्वचालित कॉन्फ़िगरेशन अभी तैयार नहीं है",
     "capabilityControlReasonUnsupported": "यह अनुरोध इस मॉडल के लिए समर्थित नहीं है",
     "capabilityControlReasonExternalConnector": "एक अलग बाहरी सेवा द्वारा दिया जाता है, इस चैट अनुरोध के बाहर",
     "capabilityControlReasonCustom": "अपने कनेक्शन में इस अनुरोध को कॉन्फ़िगर करें",
     "capabilityControlReasonUnknown": "स्वचालित कॉन्फ़िगरेशन उपलब्ध नहीं है",
     "capabilityPreferencesUnavailable": "जब तक कनेक्शन, मॉडल और रिक्वेस्ट रूट तैयार न हों, तब तक ये सेटिंग सेव नहीं की जा सकतीं।",
-    "currentConversation": "वर्तमान बातचीत",
+    "currentConversation": "मौजूदा बातचीत",
     "restoreModelBehavior": "डिफ़ॉल्ट पुनःस्थापित करें",
     "restoreModelBehaviorConfirm": "यह इस मॉडल के लिए सेट किए गए सभी मान मिटा देगा। इसे पूर्ववत नहीं किया जा सकता।",
-    "modelBehaviorScopeHint": "केवल इस बातचीत में इस मॉडल पर लागू। मॉडल बदलने पर मान कॉपी नहीं होते; वापस आने पर पुनः मिलते हैं।",
+    "modelBehaviorScopeHint": "यह केवल तब लागू होता है जब इस बातचीत में यही मॉडल इस्तेमाल हो। मॉडल बदलने पर मान कॉपी नहीं होते; वापस आने पर वे बहाल हो जाते हैं।",
     "controlledByReasoningShortcut": "“सोच” शॉर्टकट से नियंत्रित",
     "customRequestFieldsCustom": "कस्टम अनुरोध फ़ील्ड",
     "customRequestFieldsReasonSyntax": "जाँचें कि फ़्रैगमेंट बिना डुप्लिकेट कुंजियों वाला वैध JSON ऑब्जेक्ट है।",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "सबसे कठिन समस्याएँ, चाहे जितना समय लगे।",
     "capabilityControlReasoningFixedLevel": "यह मॉडल एक निश्चित सोच स्तर पर चलता है, समायोजित नहीं किया जा सकता।",
     "capabilityControlCannotAdjustYet": "अभी समायोजन उपलब्ध नहीं",
+    "capabilityControlGoToParameters": "पैरामीटर पर जाएँ",
     "customRequestFieldsNotAllowed": "यह फ़ील्ड मान्य नहीं है। इस मॉडल के मान्य फ़ील्ड: {fields}",
     "customRequestFieldsFooter": "फ़ील्ड अनुरोध में वैसे ही जोड़े जाते हैं जैसे लिखे गए हों। केवल प्रोवाइडर द्वारा आधिकारिक घोषित फ़ील्ड समर्थित हैं; गलती से अनुरोध विफल हो सकता है। ड्राफ़्ट इसी डिवाइस पर रहते हैं।",
     "customRequestFieldsScopeConnectionModel": "दायरा: इस कनेक्शन पर यह मॉडल, इसकी बातचीत के डिफ़ॉल्ट के रूप में।",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "जोड़ें",
     "advancedStopSequenceRemove": "{sequence} हटाएँ",
     "advancedMore": "अधिक",
-    "add": "जोड़ें",
-    "capabilityControlGoToParameters": "पैरामीटर पर जाएँ"
+    "add": "जोड़ें"
   },
   "pages": {
     "welcome": {
       "title": "Oriveo में आपका स्वागत है",
       "tagline": "आपके सभी मॉडल, एक ऐप।",
-      "slogan": "आपकी चाबियाँ, आपकी लागत, आपका डेटा।",
       "description": "मल्टी-मॉडल बातचीत शुरू करने के लिए अपना पहला AI प्रोवाइडर सेट अप करें।",
       "addProvider": "प्रोवाइडर जोड़ें",
       "enterHome": "ऐप पर जाएँ"
@@ -502,7 +500,6 @@
       "stop": "जवाब लिखना रोकें",
       "generating": "उत्पन्न हो रहा है",
       "activityWebSearch": "वेब पर खोज जारी है",
-      "activityMcpTool": "{server} · {tool} इस्तेमाल हो रहा है",
       "aiAnswering": "AI उत्तर दे रहा है...",
       "export": "चैट सहेजें",
       "continueAnswering": "उत्तर देना जारी रखें",
@@ -586,7 +583,9 @@
         "cacheRead": "कैश रीड",
         "cacheWrite": "कैश राइट",
         "total": "कुल",
-        "unavailable": "कोई डेटा नहीं"
+        "unavailable": "कोई डेटा नहीं",
+        "cost": "लागत",
+        "estimated": "अनुमानित"
       },
       "attachedNotesTitle": "इस चैट में लाई गई नोट्स",
       "removeNoteContext": "संदर्भ हटाएँ: {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Ollama Cloud के जरिए",
       "modelRemovedBanner": "इस चैट का मॉडल अब {connection} में नहीं है।",
       "modelRemovedChoose": "मॉडल चुनें",
+      "connectionRemovedBanner": "इस चैट का कनेक्शन हटा दिया गया है।",
+      "modelRetiredBanner": "{model} अब बंद हो चुका है।",
+      "modelRetiredSwitchTo": "{model} पर स्विच करें",
+      "lastUsedModelRetiredHint": "पिछली बार इस्तेमाल किया गया मॉडल बंद हो चुका है। अब {model} इस्तेमाल हो रहा है।",
       "copyFailed": "कॉपी विफल",
+      "activityMcpTool": "{server} · {tool} इस्तेमाल हो रहा है",
       "contextCompaction": {
         "summaryLine1": "{count, plural, one {पहले का {count} मैसेज संक्षिप्त किया गया · {before} → {after} टोकन} other {पहले के {count} मैसेज संक्षिप्त किए गए · {before} → {after} टोकन}}",
         "summaryLine2": "{model} द्वारा · सारांश देखें",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "यह अनुरोध {model} की {line} वाली ऊँची दर की रेखा से भी ऊपर जाता है, इसलिए पूरे अनुरोध का बिल लॉन्ग कॉन्टेक्स्ट की दर से बनेगा।",
         "confirmDontAsk": "इस चैट में दोबारा न पूछें",
         "confirmSend": "फिर भी भेजें"
-      },
-      "connectionRemovedBanner": "इस चैट का कनेक्शन हटा दिया गया है।",
-      "modelRetiredBanner": "{model} अब बंद हो चुका है।",
-      "modelRetiredSwitchTo": "{model} पर स्विच करें",
-      "lastUsedModelRetiredHint": "पिछली बार इस्तेमाल किया गया मॉडल बंद हो चुका है। अब {model} इस्तेमाल हो रहा है।"
+      }
     },
     "providerSetup": {
       "title": "प्रोवाइडर जोड़ें",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "API key पर स्विच करें",
         "disabledFallback": "ChatGPT सदस्यता साइन-इन अभी उपलब्ध नहीं है। आप API key पर स्विच कर सकते हैं या यह कनेक्शन हटा सकते हैं।"
       },
-      "subscription": "सब्सक्रिप्शन",
-      "tokenPrices": {
-        "input": "इनपुट {count}",
-        "cacheRead": "कैश रीड {count}",
-        "cacheWrite": "कैश राइट {count}",
-        "output": "आउटपुट {count}",
-        "unit": "टोकन"
-      }
+      "subscription": "सब्सक्रिप्शन"
     },
     "providers": {
       "title": "प्रोवाइडर",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "गोपनीयता नीति",
-      "sourceCode": "स्रोत कोड",
       "aiSection": "AI",
       "skills": "कौशल",
       "backupImportExport": "बैकअप फ़ाइल लाएँ और सहेजें",
-      "reportIssue": "समस्या की रिपोर्ट करें",
-      "documentation": "दस्तावेज़",
       "aboutTagline": "आपके सभी मॉडल. एक ऐप.",
       "context": {
         "title": "कॉन्टेक्स्ट",
@@ -1781,7 +1771,7 @@
       "editorCategory": "श्रेणी",
       "editorTooLong": "ज़्यादा से ज़्यादा 2,000 अक्षर",
       "deleteConfirmTitle": "यह मेमोरी हटाएँ?",
-      "deleteConfirmBody": "यह इस डिवाइस से हमेशा के लिए हट जाएगी।",
+      "deleteConfirmBody": "यह आपके सभी डिवाइस से हट जाएगी।",
       "actionOrganize": "अलग-अलग आइटम में बाँटें",
       "rawView": "सादा टेक्स्ट",
       "rawViewHint": "हर दो आइटम के बीच एक अलग पंक्ति में सिर्फ़ --- लिखें।",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "प्रोवाइडर त्रुटि",
       "message": "प्रोवाइडर ने इस अनुरोध के लिए एक त्रुटि लौटा दी। कृपया पुनः प्रयास करें या मॉडल बदलें।"
+    },
+    "emptyReply": {
+      "title": "प्रोवाइडर से खाली जवाब",
+      "message": "प्रोवाइडर ने इस संदेश का कोई जवाब नहीं लौटाया।"
     },
     "moderationBlocked": {
       "title": "सामग्री अवरुद्ध",
@@ -2060,14 +2054,11 @@
     "title": "कौशल",
     "mySkills": "मेरे कौशल",
     "builtinSkills": "अंतर्निहित कौशल",
-    "pinned": "पिन की गई",
     "newSkill": "नया कौशल",
     "editSkill": "कौशल संपादित करें",
     "deleteSkill": "कौशल हटाएँ",
     "forkSkill": "मेरे कौशल के रूप में कॉपी करें",
-    "useSkill": "उपयोग",
-    "pinToHome": "होम पर पिन करें",
-    "unpinFromHome": "घर से अनपिन करें",
+    "useSkill": "इस कौशल का प्रयोग करें",
     "instructions": "तत्पर",
     "instructionsPlaceholder": "जैसे आप एक वरिष्ठ कोड समीक्षक हैं. सुरक्षा, प्रदर्शन और पठनीयता के लिए कोड की समीक्षा करें। उपयोगकर्ता की भाषा में उत्तर दें.",
     "starterMessages": "बातचीत आरंभकर्ता",
@@ -2076,7 +2067,7 @@
     "referenceFiles": "संदर्भ सामग्री",
     "tipInstructions": "ऐसे निर्देश लिखें जो परिभाषित करें कि एआई कैसे व्यवहार करता है - इसका व्यक्तित्व, विशेषज्ञता और प्रतिक्रिया शैली। केवल AI इसे देखता है, उपयोगकर्ता नहीं देखेंगे।",
     "knowledgeSectionTitle": "ज्ञान",
-    "tipReferenceFiles": "AI हर जवाब देते समय इन फ़ाइलों को पूरा पढ़ता है — जैसे उसकी मेज़ पर हमेशा खुले रहने वाले नोट्स। छोटे और ज़रूरी दस्तावेज़ों (स्टाइल गाइड, शब्दावली, मुख्य नियम) के लिए सबसे अच्छा है। बड़ी फ़ाइलें हर जवाब की लागत बढ़ाएँगी।",
+    "tipReferenceFiles": "AI हर बार जवाब देते समय इन फ़ाइलों को पूरा पढ़ता है — जैसे उसकी मेज़ पर हमेशा खुले नोट्स। छोटे, ज़रूरी दस्तावेज़ों के लिए सबसे अच्छा (स्टाइल गाइड, शब्दावली, मुख्य नियम)। बड़ी फ़ाइलें प्रतिक्रिया लागत बढ़ाएँगी।",
     "noReferenceFiles": "अभी तक कोई संदर्भ सामग्री नहीं",
     "addFile": "फ़ाइल जोड़ें",
     "filesQuota": "{count} / {max}",
@@ -2103,7 +2094,7 @@
     "fileReadError": "फ़ाइल पढ़ने में विफल",
     "knowledgeBaseFiles": "नॉलेज बेस फ़ाइलें",
     "tipKnowledgeBaseFiles": "AI इन फ़ाइलों में खोजता है और केवल आपके सवाल से जुड़े हिस्से पढ़ता है — जैसे पूरी किताब पढ़ने की बजाय उसमें कुछ खोजना। लंबे या कई दस्तावेज़ों के लिए सबसे अच्छा है। OpenAI API key की ज़रूरत है।",
-    "knowledgeReadyHint": "अभी-अभी अपलोड की गई फ़ाइलों को बातचीत में इस्तेमाल होने से पहले इंडेक्स होने में कुछ मिनट लग सकते हैं। इंडेक्स की गई सामग्री केवल तभी जोड़ी जाती है जब वह मौजूदा संदेश से संबंधित हो।",
+    "knowledgeReadyHint": "नई अपलोड की गई फ़ाइलों को बातचीत में उपयोग होने से पहले इंडेक्स होने में कुछ मिनट लग सकते हैं। इंडेक्स की गई सामग्री तभी जोड़ी जाती है जब वह मौजूदा संदेश से संबंधित हो।",
     "knowledgeCtaOpenAIRequired": "कौशल ज्ञानकोष के लिए एक आधिकारिक OpenAI कुंजी की आवश्यकता होती है। आप अभी भी कौशल को सहेज सकते हैं, लेकिन आप अभी तक ज्ञान आधार फ़ाइलें नहीं जोड़ सकते हैं।",
     "knowledgeCtaOpenRouterOnly": "हमने पाया कि आप OpenRouter इस्तेमाल कर रहे हैं। कौशल नॉलेज बेस सिर्फ़ आधिकारिक OpenAI API के साथ काम करता है, OpenRouter के साथ नहीं।",
     "knowledgeCtaEndpointNotOfficial": "आपका OpenAI कॉन्फ़िगरेशन आधिकारिक समापन बिंदु का उपयोग नहीं कर रहा है, इसलिए कौशल ज्ञानकोष अनुपलब्ध है। कृपया आधिकारिक OpenAI एंडपॉइंट पर स्विच करें।",
@@ -2125,7 +2116,7 @@
     "referenceFileChars": "{count} अक्षर",
     "knowledgeStatusExtracting": "निकाला जा रहा है",
     "knowledgeStatusUploading": "अपलोड हो रहा है",
-    "knowledgeStatusIndexing": "इंडेक्स बनाया जा रहा है",
+    "knowledgeStatusIndexing": "इंडेक्स हो रहा है",
     "knowledgeStatusReady": "उपलब्ध",
     "knowledgeStatusFailed": "विफल",
     "knowledgeStatusReplacing": "बदला जा रहा है",
@@ -2134,8 +2125,8 @@
     "openai_not_configured": "कौशल नॉलेज बेस के लिए आधिकारिक OpenAI API key की आवश्यकता होती है।",
     "openai_endpoint_not_official": "नॉलेज बेस केवल आधिकारिक OpenAI एंडपॉइंट के साथ काम करता है।",
     "retrieval_model_not_enabled": "पहले अपने OpenAI प्रोवाइडर में {model} जोड़ें और सक्षम करें।",
-    "knowledge_service_unavailable": "ज्ञानकोष अस्थायी रूप से अनुपलब्ध है. आप अभी भी इस कौशल को संपादित और सहेज सकते हैं।",
-    "unsupported_file_type": "यह फ़ाइल प्रकार नॉलेज बेस के लिए समर्थित नहीं है.",
+    "knowledge_service_unavailable": "नॉलेज बेस अभी उपलब्ध नहीं है।",
+    "unsupported_file_type": "यह फ़ाइल प्रकार नॉलेज बेस के लिए समर्थित नहीं है।",
     "reference_file_too_large": "संदर्भ फ़ाइलें 3 एमबी या उससे छोटी होनी चाहिए.",
     "knowledge_file_too_large": "नॉलेज बेस फ़ाइलें 20 एमबी या उससे छोटी होनी चाहिए।",
     "knowledge_total_size_exceeded": "एक कौशल में अधिकतम 5 नॉलेज बेस फ़ाइलें हो सकती हैं, और उनका कुल आकार 100 MB से ज़्यादा नहीं हो सकता।",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "इस कौशल का उपयोग करने के लिए प्रोवाइडर जोड़ें",
     "providerRequiredMessage": "बातचीत शुरू करने से पहले इस कौशल के लिए उपलब्ध AI प्रोवाइडर चाहिए।",
     "providerRequiredAction": "प्रोवाइडर जोड़ें",
-    "promptCancel": "अभी नहीं"
+    "promptCancel": "अभी नहीं",
+    "home": {
+      "autoCount": "स्वचालित · {count}",
+      "slashHint": "इस्तेमाल के लिए / टाइप करें",
+      "empty": "अपना पसंदीदा तरीका सेव करें",
+      "notesRecent": "हाल ही में संपादित"
+    },
+    "list": {
+      "subtitle": "काम करने का अपना पसंदीदा तरीका सेव करें — सही मौके पर AI उसका इस्तेमाल करेगा।"
+    },
+    "create": {
+      "describePlaceholder": "कोई तरीका बताएं, AI उसे कौशल के रूप में लिख देगा",
+      "fromChat": "चैट से",
+      "manual": "खुद बनाएं"
+    },
+    "segment": {
+      "mine": "मेरे कौशल",
+      "templates": "टेम्पलेट"
+    },
+    "group": {
+      "auto": "स्वचालित",
+      "manual": "सिर्फ़ मैन्युअल"
+    },
+    "card": {
+      "usageCount": "उपयोग: {count}"
+    },
+    "row": {
+      "slashHint": "{slash} टाइप करने पर इस्तेमाल होता है"
+    },
+    "auto": {
+      "needWhenTitle": "पहले बताएं कि इसे कब इस्तेमाल करना है",
+      "suggest": "सुझाव लें",
+      "limitReached": "स्वचालित उपयोग की सीमा ({count}) पूरी हो गई है। पहले कोई एक बंद करें।"
+    },
+    "search": {
+      "placeholder": "कौशल खोजें"
+    },
+    "empty": {
+      "title": "अभी कोई कौशल नहीं",
+      "body": "अक्सर इस्तेमाल होने वाले तरीके सेव करें, ताकि हर बार समझाना न पड़े।",
+      "browseTemplates": "टेम्पलेट देखें"
+    },
+    "migrate": {
+      "banner": "“कब इस्तेमाल करें” के बिना कौशल: {count}। एक पंक्ति जोड़ें, फिर इनका अपने-आप इस्तेमाल हो सकेगा।",
+      "review": "एक-एक करके भरें"
+    },
+    "templates": {
+      "note": "टेम्पलेट “मेरे कौशल” में जोड़ने के बाद ही अपने-आप इस्तेमाल होते हैं।",
+      "featured": "चुनिंदा",
+      "addToMine": "मेरे कौशल में जोड़ें",
+      "add": "जोड़ें",
+      "added": "जोड़ा गया",
+      "tryOnce": "एक बार आज़माएं"
+    },
+    "detail": {
+      "useInNewChat": "नई चैट में इस्तेमाल करें",
+      "orSlash": "या मैसेज बॉक्स में {slash} टाइप करें",
+      "usage": "उपयोग: {count} · पिछली बार {time}",
+      "neverUsed": "अभी तक इस्तेमाल नहीं हुआ",
+      "autoInvoke": "अपने-आप इस्तेमाल करें",
+      "whenToUse": "कब इस्तेमाल करें",
+      "whenToUseNote": "AI इसी से तय करता है",
+      "instructions": "निर्देश",
+      "showAll": "सब देखें",
+      "references": "संदर्भ सामग्री",
+      "starters": "शुरुआती संदेश",
+      "recentChats": "हाल की चैट",
+      "try": "आज़माएं"
+    },
+    "edit": {
+      "changeIcon": "आइकन बदलें",
+      "name": "नाम",
+      "whenBadge": "स्वचालित उपयोग तय करता है",
+      "whenPlaceholder": "उदाहरण: जब मैं नोट्स को साप्ताहिक रिपोर्ट में बदलने को कहूं। रोज़ाना अपडेट के लिए नहीं।",
+      "keywordsCaption": "इन शब्दों से चलता है · स्थिति बताना काफ़ी है",
+      "whenTip": "बताएं कि यह क्या करता है, कब इस्तेमाल हो और आप आमतौर पर कैसे कहते हैं। गलत मिलान से बचने के लिए “… के लिए नहीं” जोड़ें। उद्धरण चिह्नों में लिखे शब्द हाइलाइट होंगे।",
+      "polish": "AI से निखारें",
+      "addStarter": "शुरुआती संदेश जोड़ें",
+      "modelAndFeatures": "मॉडल और फ़ीचर",
+      "followChat": "चैट के अनुसार",
+      "needWhenForAuto": "“कब इस्तेमाल करें” भरें या स्वचालित उपयोग बंद करें।"
+    },
+    "draft": {
+      "askScenarios": "एक-दो स्थितियां बताएं जब आप इसे इस्तेमाल करेंगे",
+      "askQuality": "अच्छा नतीजा कैसा होना चाहिए?",
+      "skip": "छोड़ें",
+      "generating": "ड्राफ़्ट लिखा जा रहा है…",
+      "title": "ड्राफ़्ट",
+      "editFirst": "पहले बदलाव करें",
+      "suggestedIcon": "सुझाया गया आइकन",
+      "failed": "ड्राफ़्ट पूरा नहीं हो सका। जितना काम का था, वह भर दिया गया है।"
+    },
+    "fromChat": {
+      "menuConversation": "कौशल के रूप में सेव करें",
+      "menuMessage": "इस तरीके को कौशल के रूप में सेव करें",
+      "messages": "संदेश: {count}",
+      "extracting": "सार निकाला जा रहा है…"
+    },
+    "limit": {
+      "upgrade": "ज़्यादा के लिए अपग्रेड करें",
+      "draftKept": "आपका ड्राफ़्ट इसी डिवाइस पर सेव है।"
+    },
+    "composer": {
+      "placeholder": "कौशल इस्तेमाल करने के लिए / टाइप करें"
+    },
+    "picker": {
+      "title": "मेरे कौशल",
+      "multi": "कई चुन सकते हैं",
+      "auto": "स्वचालित",
+      "manual": "मैन्युअल",
+      "manage": "कौशल प्रबंधित करें",
+      "maxReached": "एक बार में ज़्यादा से ज़्यादा {count}"
+    },
+    "chip": {
+      "deleted": "हटाया गया"
+    },
+    "message": {
+      "attached": "{names} के साथ"
+    },
+    "used": {
+      "chip": "इस्तेमाल हुआ: {names}",
+      "loading": "{names} का उपयोग जारी है…",
+      "byChoice": "आपने चुना था, इसलिए इस्तेमाल हुआ",
+      "why": "क्यों इस्तेमाल हुआ",
+      "disableHere": "इस चैट में अपने-आप इस्तेमाल न करें",
+      "view": "कौशल देखें"
+    },
+    "settings": {
+      "autoToggle": "कौशल अपने-आप इस्तेमाल करें",
+      "autoToggleFooter": "बंद होने पर मॉडल खुद कौशल नहीं चुनेगा। फिर भी / टाइप करके आप कोई कौशल इस्तेमाल कर सकते हैं।"
+    },
+    "try": {
+      "banner": "आज़माया जा रहा है · इतिहास में सेव नहीं होगा",
+      "saveToSkill": "कौशल में सेव करें",
+      "adjust": "निर्देश बदलें",
+      "saved": "“{name}” में सेव हो गया",
+      "savedToDraft": "एडिटर में कॉपी हो गया। इसे बनाए रखने के लिए वहाँ सेव करें।"
+    },
+    "improve": {
+      "prompt": "इसे “{name}” में जोड़ें?",
+      "review": "बदलाव देखें",
+      "accept": "कौशल में जोड़ें",
+      "dismiss": "अभी नहीं",
+      "addedLine": "जोड़ा गया",
+      "removedLine": "हटाया गया",
+      "saved": "“{name}” में जोड़ दिया गया"
+    },
+    "usage": {
+      "manifestRow": "कौशल सूची के अतिरिक्त टोकन"
+    },
+    "glyph": {
+      "writing": "लेखन",
+      "report": "रिपोर्ट",
+      "code": "कोड",
+      "study": "पढ़ाई",
+      "travel": "यात्रा",
+      "health": "स्वास्थ्य",
+      "meeting": "मीटिंग",
+      "idea": "विचार",
+      "translate": "अनुवाद",
+      "email": "ईमेल",
+      "data": "डेटा",
+      "design": "डिज़ाइन",
+      "legal": "क़ानून",
+      "finance": "वित्त",
+      "marketing": "मार्केटिंग",
+      "support": "सहायता",
+      "teaching": "शिक्षण",
+      "research": "शोध",
+      "life": "दिनचर्या",
+      "food": "खाना",
+      "music": "संगीत",
+      "photo": "फ़ोटोग्राफ़ी",
+      "product": "प्रोडक्ट",
+      "general": "सामान्य"
+    },
+    "capability": {
+      "title": "मॉडल प्राथमिकता",
+      "any": "कोई",
+      "reasoning": "तर्क",
+      "vision": "दृष्टि",
+      "fast": "तेज़",
+      "largeContext": "बड़ा प्रसंग"
+    },
+    "saveFailed": "बदलाव सहेजे नहीं जा सके। कृपया पुनः प्रयास करें।"
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2636,8 +2811,7 @@
       "stepLimit": "एक ही रिसर्च के लिए चुने गए दस्तावेज़ बहुत ज़्यादा या बहुत लंबे हैं। कुछ का चयन हटाकर फिर कोशिश करें।",
       "notConnected": "शोध शुरू करने से पहले लाइब्रेरी स्रोत कनेक्ट करें।",
       "sourceForbidden": "अनुमति या नीति संबंधी प्रतिबंध के कारण स्रोत ने पहुँच अस्वीकार कर दी। फिर से कनेक्ट करने से यह ठीक नहीं होगा — स्रोत की शेयरिंग या अनुपालन सेटिंग जाँचें।",
-      "unavailable": "लाइब्रेरी अभी उपलब्ध नहीं है। बाद में फिर कोशिश करें।",
-      "retry": "पुनः प्रयास करें"
+      "unavailable": "लाइब्रेरी अभी उपलब्ध नहीं है। बाद में फिर कोशिश करें।"
     }
   },
   "notes": {

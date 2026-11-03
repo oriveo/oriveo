@@ -20,6 +20,9 @@ import ai.oriveo.community.core.voice.conversation.ConversationAudioListener
 import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.feature.chat.voice.isScreenReaderOn
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
+import org.koin.mp.KoinPlatform
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.TimeUnit
@@ -70,14 +73,16 @@ class VoiceSystemEventsInstrumentedTest {
         override fun onCaptureFailed() = Unit
     }
 
-    private fun readAloudEnvironment() = AndroidReadAloudEnvironment(context, GlobalSnackbarManager())
+    private fun readAloudEnvironment() = AndroidReadAloudEnvironment(context, GlobalSnackbarManager(), sessions())
 
     /** beginSession / endSession touch ProcessLifecycleOwner, which must be used on the main thread. */
     private fun AndroidReadAloudEnvironment.beginOnMain(listener: ReadAloudEnvironment.SessionListener): Boolean {
-        var granted = false
-        instrumentation.runOnMainSync { granted = beginSession(listener) }
-        return granted
+        // beginSession suspends until the focus result arrives from the coordinator thread.
+        return runBlocking(Dispatchers.Main) { beginSession(listener) }
     }
+
+    /** The production singleton coordinator (Koin), same serial audio-session thread as the app. */
+    private fun sessions(): AndroidAudioSessionCoordinator = KoinPlatform.getKoin().get()
 
     private fun AndroidReadAloudEnvironment.endOnMain() = instrumentation.runOnMainSync { endSession() }
 
@@ -197,7 +202,7 @@ class VoiceSystemEventsInstrumentedTest {
 
     @Test
     fun conversationPermanentFocusLossEnds() {
-        val audio = AndroidConversationAudio(context, File(context.cacheDir, "voice-system-events-turns"))
+        val audio = AndroidConversationAudio(context, sessions(), File(context.cacheDir, "voice-system-events-turns"))
         val events = ConversationEvents()
         try {
             audio.open(events, capture = false)
@@ -213,7 +218,7 @@ class VoiceSystemEventsInstrumentedTest {
 
     @Test
     fun conversationBecomingNoisyStops() {
-        val audio = AndroidConversationAudio(context, File(context.cacheDir, "voice-system-events-turns"))
+        val audio = AndroidConversationAudio(context, sessions(), File(context.cacheDir, "voice-system-events-turns"))
         val events = ConversationEvents()
         try {
             audio.open(events, capture = false)

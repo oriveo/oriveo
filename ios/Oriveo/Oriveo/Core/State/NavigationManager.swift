@@ -63,8 +63,12 @@ final class NavigationManager {
             // The notes detail column belongs to the notes list on the stack: once the list leaves
             // the stack (back, a tab switch, a whole-stack replacement) the detail is gone too.
             if notesDetail != nil, !path.contains(.notesList) { notesDetail = nil }
+            onPathChange?(oldValue, path)
         }
     }
+    /// Single observation point for routes leaving the stack: the back button and the edge swipe (the
+    /// NavigationStack binding writes `path` directly) both go through here.
+    @ObservationIgnored var onPathChange: ((_ old: [AppRoute], _ new: [AppRoute]) -> Void)?
     /// What the wide-screen detail column is showing. It sits beside `path`: `path` drives
     /// push/pop of the outer routes, this drives the conversation column alone.
     ///

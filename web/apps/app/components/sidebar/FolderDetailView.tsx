@@ -158,17 +158,17 @@ export function FolderDetailView({ folderId }: FolderDetailViewProps) {
                   style={{
                     display: 'flex', flexDirection: 'column', gap: 4,
                     padding: '12px 16px', borderRadius: 'var(--o-radius-md)',
-                    border: 'none', background: 'none', cursor: 'pointer', textAlign: 'left',
+                    border: 'none', background: 'none', cursor: 'pointer', textAlign: 'start',
                     transition: 'background 150ms ease',
                   }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--o-surface-raised)')}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--o-surface-hover)')}
                   onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
                 >
-                  <span style={{ fontSize: 'var(--o-text-sm)', fontWeight: 500, color: 'var(--o-text)' }}>
+                  <span dir="auto" style={{ fontSize: 'var(--o-text-sm)', fontWeight: 500, color: 'var(--o-text)' }}>
                     {conv.title || t('untitled')}
                   </span>
                   {conv.previewText && (
-                    <span style={{
+                    <span dir="auto" style={{
                       fontSize: 'var(--o-text-xs)', color: 'var(--o-text-tertiary)',
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                     }}>

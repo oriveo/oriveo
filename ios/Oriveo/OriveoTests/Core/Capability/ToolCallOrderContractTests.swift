@@ -168,6 +168,7 @@ struct ToolCallOrderContractTests {
                 // Catalog models do not write memory in production; write one directly to verify that catalog evidence still beats it.
                 #expect(store.record(connectionID: provider.id, modelID: modelID, toolCall: remembered, reason: reason))
             }
+            try store.waitForPendingWritesForTesting()
             #expect(store.count() == 1, "\(id): memory was not written")
             if recordedRevision != item["factsRevision"] as? String {
                 try await MetadataClient.shared.loadForTesting(

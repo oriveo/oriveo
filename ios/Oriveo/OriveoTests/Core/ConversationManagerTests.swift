@@ -27,10 +27,8 @@ struct ConversationManagerTests {
     }
 
     @MainActor
-    private func cleanupIsolatedAppState(_ state: AppState, uid: String) {
-        state.flushConversationPersistQueue()
-        DatabaseManager.shared.close()
-        try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+    private func cleanupIsolatedAppState(_ state: AppState, uid: String) async {
+        await TestPartitionCleanup.remove(uid)
     }
 
     private func persistAuthoritativeConversations(
@@ -195,7 +193,7 @@ struct ConversationManagerTests {
     func filteredConversationsReadsAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState()
 
-        defer { cleanupIsolatedAppState(state, uid: uid) }
+        defer { await cleanupIsolatedAppState(state, uid: uid) }
 
         DatabaseManager.shared.close()
 
@@ -222,7 +220,7 @@ struct ConversationManagerTests {
     func filteredConversationsIncludesDraftsWithMessagesFromAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "search-draft-visible-")
 
-        defer { cleanupIsolatedAppState(state, uid: uid) }
+        defer { await cleanupIsolatedAppState(state, uid: uid) }
 
         DatabaseManager.shared.close()
 
@@ -246,10 +244,10 @@ struct ConversationManagerTests {
 
     @Test("recentConversations is built from the authoritative store, not the mirror cache")
     @MainActor
-    func recentConversationsReadAuthoritativeStore() throws {
+    func recentConversationsReadAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState()
 
-        defer { cleanupIsolatedAppState(state, uid: uid) }
+        defer { await cleanupIsolatedAppState(state, uid: uid) }
 
         DatabaseManager.shared.close()
 
@@ -270,10 +268,10 @@ struct ConversationManagerTests {
 
     @Test("recentConversations keeps draft conversations that have messages from the authoritative store")
     @MainActor
-    func recentConversationsIncludeDraftsWithMessagesFromAuthoritativeStore() throws {
+    func recentConversationsIncludeDraftsWithMessagesFromAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "recent-draft-visible-")
 
-        defer { cleanupIsolatedAppState(state, uid: uid) }
+        defer { await cleanupIsolatedAppState(state, uid: uid) }
 
         DatabaseManager.shared.close()
 
@@ -372,10 +370,10 @@ struct ConversationManagerTests {
 
     @Test("homeConversationSections keeps draft conversations that have messages on the authoritative snapshot path")
     @MainActor
-    func homeConversationSectionsIncludeDraftsWithMessagesFromAuthoritativeSnapshot() throws {
+    func homeConversationSectionsIncludeDraftsWithMessagesFromAuthoritativeSnapshot() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "home-snapshot-draft-visible-")
 
-        defer { cleanupIsolatedAppState(state, uid: uid) }
+        defer { await cleanupIsolatedAppState(state, uid: uid) }
 
         DatabaseManager.shared.close()
 
@@ -477,9 +475,9 @@ struct ConversationManagerTests {
 
     @Test("Typing and clearing a draft after a summary load does not mark an existing chat as a draft or wipe the preview")
     @MainActor
-    func updateDraftTextAfterSummaryLoadKeepsPreviewAndIsDraft() throws {
+    func updateDraftTextAfterSummaryLoadKeepsPreviewAndIsDraft() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "draft-summary-")
-        defer { cleanupIsolatedAppState(state, uid: uid) }
+        defer { await cleanupIsolatedAppState(state, uid: uid) }
         DatabaseManager.shared.close()
 
         let delivered = TestFactories.makeMessage(
@@ -498,7 +496,7 @@ struct ConversationManagerTests {
         DatabaseManager.shared.close()
         let reloaded = AppState(sessionUID: uid)
         Self.retainedStates.append(reloaded)
-        defer { cleanupIsolatedAppState(reloaded, uid: uid) }
+        defer { await cleanupIsolatedAppState(reloaded, uid: uid) }
 
         let listed = try #require(reloaded.conversations.first { $0.id == conversation.id })
         #expect(listed.messages.isEmpty)
@@ -518,10 +516,10 @@ struct ConversationManagerTests {
 
     @Test("homeConversationSections reads only the in-memory mirror while it is non-empty, even if the store row is newer")
     @MainActor
-    func homeConversationSectionsUseMemoryMirrorOverAuthoritativeSnapshot() throws {
+    func homeConversationSectionsUseMemoryMirrorOverAuthoritativeSnapshot() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "home-recent-mirror-")
 
-        defer { cleanupIsolatedAppState(state, uid: uid) }
+        defer { await cleanupIsolatedAppState(state, uid: uid) }
 
         DatabaseManager.shared.close()
 

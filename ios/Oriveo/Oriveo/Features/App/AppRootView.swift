@@ -28,15 +28,24 @@ struct WindowOpenRequest: Codable, Hashable {
 /// It does not go through `AppState.openChat`, which acts on the active window — and when the
 /// new window appears, the active one is usually still the window that asked for it.
 enum WindowOpenRequestPolicy {
-    /// Does nothing before onboarding is finished (the request stays as it is). Otherwise switches to the Home tab,
-    /// opens the conversation and clears the request, so restoring the window does not open it a second time.
+    /// Does nothing before onboarding is finished or the session is not ready (the request stays as it is and is consumed once ready); otherwise switches to the Home tab and opens the conversation,
+    /// then clears the request so restoring the window does not open it a second time.
+    /// A request is consumed only inside the partition that produced it: if `requestPartitionUID` differs from `currentPartitionUID` (the account was switched while waiting for readiness),
+    /// the request is dropped without opening or prompting, because the old request belongs to an account that has been left.
     @MainActor
     static func consume(
         _ request: inout WindowOpenRequest?,
         hasCompletedOnboarding: Bool,
+        sessionStoreReady: Bool = true,
+        requestPartitionUID: String? = nil,
+        currentPartitionUID: String? = nil,
         navigation: NavigationManager
     ) {
-        guard hasCompletedOnboarding, let id = request?.conversationID else { return }
+        if request != nil, requestPartitionUID != currentPartitionUID {
+            request = nil
+            return
+        }
+        guard hasCompletedOnboarding, sessionStoreReady, let id = request?.conversationID else { return }
         navigation.selectedTab = .home
         if navigation.isRegularWidth {
             navigation.popToRoot()
@@ -60,8 +69,9 @@ struct AppRootView: View {
     /// This window's scene value: the conversation to open in this window, consumed when the
     /// window first appears (see `WindowOpenRequestPolicy`).
     var windowOpenRequest: Binding<WindowOpenRequest?> = .constant(nil)
-    /// This window's identity: used to get and release this window's navigation state and to
-    /// tell whether it is the active window.
+    /// The partition the window request was first seen in: consumed only inside that partition (see `WindowOpenRequestPolicy.consume`).
+    @State private var windowOpenRequestPartitionUID: String?
+    /// This window's identity: used to get and release this window's navigation state from `AppState`, and to tell whether it is the active window.
     @State private var windowToken = UUID()
     /// The UIWindow this view lives in (reported by the window probe). Not observed: it only wires
     /// up UIKit and never drives a redraw.
@@ -141,8 +151,8 @@ struct AppRootView: View {
                     appState.loadSession()
                 }
             } else if !appState.sessionStoreReady {
-                // The partition database is still being prepared in the background (cold start, usually tens of milliseconds): show only
-                // the background color and no entry point, so no screen can reach the database on the main thread before it is ready.
+                // The partition database is still being pre-opened in the background (cold start or partition switch, usually a few tens of milliseconds): paint only the background colour and no entry point,
+                // so no screen can touch the database on the main thread before it is open (the main thread never opens it; see DatabaseManager.prepare).
                 Color.clear.oriveoScreenBackground()
             } else {
                 mainContent
@@ -169,13 +179,24 @@ struct AppRootView: View {
                 }
             )
         )
-        .onAppear {
+        // Consume the window request only once the session is ready (before that the session is not yet set up, so the open would be lost); after consuming, clear it so it is consumed only once.
+        .onChange(of: appState.sessionStoreReady, initial: true) { _, ready in
             var request = windowOpenRequest.wrappedValue
+            let currentPartitionUID = appState.sessionPartitionUID
+            if request != nil, windowOpenRequestPartitionUID == nil {
+                windowOpenRequestPartitionUID = currentPartitionUID
+            }
             WindowOpenRequestPolicy.consume(
                 &request,
                 hasCompletedOnboarding: appState.hasCompletedOnboarding,
+                sessionStoreReady: ready,
+                requestPartitionUID: windowOpenRequestPartitionUID,
+                currentPartitionUID: currentPartitionUID,
                 navigation: navigation
             )
+            if request == nil {
+                windowOpenRequestPartitionUID = nil
+            }
             if request != windowOpenRequest.wrappedValue {
                 windowOpenRequest.wrappedValue = request
             }
@@ -184,13 +205,19 @@ struct AppRootView: View {
         .onContinueUserActivity(ConversationWindowDrag.activityType) { activity in
             var request = ConversationWindowDrag.request(from: activity)
             guard request != nil else { return }
+            // The active payload arrives now and was produced in the current partition
+            let currentPartitionUID = appState.sessionPartitionUID
             WindowOpenRequestPolicy.consume(
                 &request,
                 hasCompletedOnboarding: appState.hasCompletedOnboarding,
+                sessionStoreReady: appState.sessionStoreReady,
+                requestPartitionUID: currentPartitionUID,
+                currentPartitionUID: currentPartitionUID,
                 navigation: navigation
             )
-            // Before onboarding is finished the request stays as this window's scene value (saved with scene restoration, like one passed to openWindow)
+            // While onboarding is unfinished the request is kept as this window's scene value (saved and restored with the scene, like the one passed to openWindow), and its partition is recorded
             if let request {
+                windowOpenRequestPartitionUID = currentPartitionUID
                 windowOpenRequest.wrappedValue = request
             }
         }

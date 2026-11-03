@@ -210,7 +210,7 @@ private fun ServerRow(
                 onCheckedChange = { enabled -> onToggle(row.id, enabled) },
                 enabled = !locked && row.canToggle,
                 colors = SwitchDefaults.colors(
-                    checkedThumbColor = Color.White,
+                    checkedThumbColor = colors.switchThumb,
                     checkedTrackColor = colors.primary,
                     uncheckedThumbColor = Color.White,
                     uncheckedTrackColor = colors.borderStrong,

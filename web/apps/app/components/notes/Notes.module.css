@@ -64,7 +64,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 8px;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   background: color-mix(in srgb, var(--o-primary) 11%, transparent);
 }
 
@@ -112,7 +112,7 @@
 }
 
 .statusChip button:hover {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .headerActions,
@@ -519,6 +519,8 @@
 
 .noteCard {
   --note-source-color: var(--o-primary);
+  --note-source-text: var(--o-primary-text-on-surface);
+  --note-source-text-dark: var(--o-primary-text-on-surface);
   position: relative;
   appearance: none;
   display: block;
@@ -808,6 +810,8 @@
 
 .sourceBadge {
   --note-source-color: var(--o-primary);
+  --note-source-text: var(--o-primary-text-on-surface);
+  --note-source-text-dark: var(--o-primary-text-on-surface);
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -816,11 +820,16 @@
   border: 1px solid color-mix(in srgb, var(--note-source-color) 9%, transparent);
   border-radius: 12px;
   background: color-mix(in srgb, var(--note-source-color) 11%, transparent);
-  color: var(--note-source-color);
+  color: var(--note-source-text);
   padding: 6px 10px;
   font-size: 11.5px;
   font-weight: 700;
   line-height: 1;
+}
+
+/* Brand colour as text uses the per-appearance text variant; fills keep --note-source-color. */
+:global([data-theme='dark']) .sourceBadge {
+  color: var(--note-source-text-dark);
 }
 
 .sourceBadge[data-compact='true'] {
@@ -960,6 +969,8 @@
 /* Hero: an editorial masthead, open and boxless, with a hairline at the bottom separating the title block from the body */
 .detailHero {
   --note-source-color: var(--o-primary);
+  --note-source-text: var(--o-primary-text-on-surface);
+  --note-source-text-dark: var(--o-primary-text-on-surface);
   padding: 14px 2px 0;
   border: 0;
   border-radius: 0;
@@ -983,13 +994,17 @@
   align-items: center;
   gap: 9px;
   min-width: 0;
-  color: var(--note-source-color);
+  color: var(--note-source-text);
   padding: 6px 10px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--note-source-color) 10%, transparent);
   font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.01em;
+}
+
+:global([data-theme='dark']) .detailSourceModel {
+  color: var(--note-source-text-dark);
 }
 
 .detailSourceModel > span {
@@ -1098,6 +1113,8 @@
 
 .sourcePanel {
   --note-source-color: var(--o-primary);
+  --note-source-text: var(--o-primary-text-on-surface);
+  --note-source-text-dark: var(--o-primary-text-on-surface);
   margin-top: 28px;
   padding: 14px 15px;
   border: 0;
@@ -1327,13 +1344,17 @@
 }
 
 .markdownPreviewEditorial h3 {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .sourcePrimaryAction {
   background: color-mix(in srgb, var(--note-source-color) 9%, transparent);
-  color: var(--note-source-color);
+  color: var(--note-source-text);
   box-shadow: none;
+}
+
+:global([data-theme='dark']) .sourcePrimaryAction {
+  color: var(--note-source-text-dark);
 }
 
 .sourcePrimaryAction:hover:not(:disabled) {

@@ -53,12 +53,9 @@ import org.koin.compose.KoinApplication
 import org.koin.dsl.module
 
 /**
- * The ≋ main key is hidden while chat dictation is recording / transcribing (matches the iOS
- * voiceDictationRecording / voiceDictationTranscribing states): while recording only the recording
- * bar and its own ↑ remain, while transcribing only the recording bar remains; the main key is
- * unchanged when idle and on the interrupted card.
- * A real [ChatViewModel], a real [ChatComposerHost] and a real `EnhancedComposer`; the dictation
- * controller is injected through Koin with controllable state.
+ * Chat page dictation recording / transcribing hides the ≋ primary key (aligned with the iOS mockups voiceDictationRecording / voiceDictationTranscribing):
+ * in the recording state only the recording bar and its own ↑ remain; in the transcribing state only the recording bar remains; the idle and card (Interrupted) states keep the primary key as before.
+ * Real [ChatViewModel], real [ChatComposerHost], real `EnhancedComposer`; the dictation controller is injected via Koin with controllable state.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -89,7 +86,7 @@ class ChatComposerDictationMainKeyUiTest {
         every { boundOwner } returns MutableStateFlow<Any?>(null)
     }
 
-    /** The conversation's active streaming message id; flipping it is what ChatRepository does. */
+    /** The current streaming message id of this conversation; tests set it directly, equivalent to ChatRepository setting / clearing it. */
     private val streamingMessageId = MutableStateFlow<String?>(null)
 
     private var provider = Provider(
@@ -142,8 +139,7 @@ class ChatComposerDictationMainKeyUiTest {
 
     @After
     fun tearDown() {
-        // KoinApplication starts a process-wide instance; leaving it running fails the next test with
-        // KoinApplicationAlreadyStartedException.
+        // KoinApplication starts a process-wide global instance; without stopping it, the next case throws KoinApplicationAlreadyStartedException.
         org.koin.core.context.stopKoin()
         Dispatchers.resetMain()
     }
@@ -209,9 +205,10 @@ class ChatComposerDictationMainKeyUiTest {
         )
         activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent {
-            // EnhancedComposer reaches Koin for ProviderRepository; the dictation host reaches Koin for DictationController.
+            // EnhancedComposer takes ProviderRepository via koinInject, the host takes AppPreferencesRepository; the dictation host takes DictationController via Koin.
             val testModule = module {
                 single<ProviderRepository> { providerRepository }
+                single<AppPreferencesRepository> { appPreferencesRepository }
                 single<DictationController> { dictationController }
             }
             KoinApplication(application = { modules(testModule) }) {
@@ -220,9 +217,9 @@ class ChatComposerDictationMainKeyUiTest {
                         viewModel = viewModel,
                         activeProvider = provider,
                         conversationId = CONVERSATION_ID,
-                        conversationSkillId = null,
+                        conversationSkillIds = emptyList(),
+                        hasActiveLibraryConnection = false,
                         sendingBlockedByLoadState = false,
-                        transparentChrome = false,
                         hazeState = HazeState(),
                         trueTransparentBlurEnabled = false,
                         onOverlayHeightChange = {},

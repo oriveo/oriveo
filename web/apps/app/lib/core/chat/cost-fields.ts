@@ -175,7 +175,8 @@ export function roundCostOf(
     { estimatedCost: costInfo.cost, nonUsdCost: costInfo.nonUsdCost },
     { estimatedCost: retrievalCost },
   );
-  const costSource = costInfo.costSource === 'unknown' && retrievalCost > COST_EPSILON
+  // A retrieval estimate on a hosted (managed) turn makes the whole message a local estimate
+  const costSource = (costInfo.costSource === 'unknown' || costInfo.costSource === 'managed') && retrievalCost > COST_EPSILON
     ? 'localEstimate'
     : costInfo.costSource;
   return { ...parts, costSource };
@@ -494,11 +495,16 @@ function deriveMessageUsageFields(usage: StreamUsage | undefined): {
     const cacheCreationInputTokens =
       breakdown.cacheCreation5mTokens + breakdown.cacheCreation1hTokens;
     return {
-      inputTokens:
-        breakdown.promptTokens +
-        breakdown.cachedInputTokens +
-        breakdown.cacheCreation5mTokens +
-        breakdown.cacheCreation1hTokens,
+      // A merge with an unknown-input leg keeps input empty, never a partial sum.
+      ...(usage.inputUnknown
+        ? {}
+        : {
+            inputTokens:
+              breakdown.promptTokens +
+              breakdown.cachedInputTokens +
+              breakdown.cacheCreation5mTokens +
+              breakdown.cacheCreation1hTokens,
+          }),
       outputTokens: breakdown.completionTokens,
       // The newer parser uses the observed flag to tell a real 0 from a missing field; a positive value still matches older breakdowns.
       ...(breakdown.cacheReadObserved || breakdown.cachedInputTokens > 0
@@ -510,7 +516,7 @@ function deriveMessageUsageFields(usage: StreamUsage | undefined): {
     };
   }
   return {
-    ...(typeof usage.prompt_tokens === 'number' ? { inputTokens: usage.prompt_tokens } : {}),
+    ...(typeof usage.prompt_tokens === 'number' && !usage.inputUnknown ? { inputTokens: usage.prompt_tokens } : {}),
     ...(typeof usage.completion_tokens === 'number'
       ? { outputTokens: usage.completion_tokens }
       : {}),
@@ -541,6 +547,7 @@ export function mergeMessageUsageFields(
     cacheCreation5mTokens?: number;
     cacheCreation1hTokens?: number;
   },
+  skillManifestTokens?: number,
 ): {
   inputTokens?: number;
   outputTokens?: number;
@@ -548,6 +555,7 @@ export function mergeMessageUsageFields(
   cacheCreationInputTokens?: number;
   cacheCreation5mTokens?: number;
   cacheCreation1hTokens?: number;
+  skillManifestTokens?: number;
 } {
   const sumOpt = (a?: number, b?: number): number | undefined => {
     if (a == null && b == null) return undefined;
@@ -560,6 +568,7 @@ export function mergeMessageUsageFields(
     cacheCreationInputTokens?: number;
     cacheCreation5mTokens?: number;
     cacheCreation1hTokens?: number;
+    skillManifestTokens?: number;
   } = {};
   const input = sumOpt(prev.inputTokens, cur.inputTokens);
   if (input != null) out.inputTokens = input;
@@ -573,5 +582,13 @@ export function mergeMessageUsageFields(
   if (c5m != null) out.cacheCreation5mTokens = c5m;
   const c1h = sumOpt(prev.cacheCreation1hTokens, cur.cacheCreation1hTokens);
   if (c1h != null) out.cacheCreation1hTokens = c1h;
+  // Skill list overhead is recorded once per turn, beside the usage written by that turn; never summed
+  // with a previous value. Any usage counts, estimated included; a turn that
+  // writes no usage at all records no overhead.
+  const curHasUsage = [cur.inputTokens, cur.outputTokens, cur.cachedInputTokens, cur.cacheCreationInputTokens]
+    .some((value) => value != null);
+  if (curHasUsage && skillManifestTokens !== undefined && Number.isInteger(skillManifestTokens) && skillManifestTokens > 0) {
+    out.skillManifestTokens = skillManifestTokens;
+  }
   return out;
 }

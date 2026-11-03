@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">โมเดลทั้งหมดของคุณในแอปเดียว</string>
-    <string name="provider_disclosure_ack_failed">ยืนยันประกาศของผู้ให้บริการไม่สำเร็จ โปรดตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
     <string name="tab_home">หน้าแรก</string>
     <string name="tab_providers">ผู้ให้บริการ</string>
     <string name="tab_settings">การตั้งค่า</string>
@@ -21,7 +20,6 @@
     <string name="copy">คัดลอก</string>
     <string name="copied">คัดลอกแล้ว</string>
     <string name="share">แบ่งปัน</string>
-    <string name="legal_consent_notice">การดำเนินการต่อแสดงว่าคุณยอมรับข้อกำหนดทางกฎหมายด้านล่าง</string>
     <string name="get_started">เริ่มต้นเลย</string>
     <string name="api_key">คีย์ API</string>
     <string name="validating">กำลังตรวจสอบ...</string>
@@ -60,6 +58,7 @@
     <string name="new_chat">แชทใหม่</string>
     <string name="send">ส่ง</string>
     <string name="stop">หยุด</string>
+    <string name="generation_parameter_name_stop">ข้อความสำหรับหยุดการสร้าง</string>
     <string name="type_a_message">พิมพ์ข้อความ...</string>
     <string name="ai_is_answering">AI กำลังตอบ…</string>
     <string name="regenerate">สร้างใหม่</string>
@@ -101,6 +100,7 @@
     <string name="chat_model_removed_choose">เลือกโมเดล</string>
     <string name="chat_model_retired_banner">%1$s ยุติการให้บริการแล้ว</string>
     <string name="chat_model_retired_switch_to">เปลี่ยนเป็น %1$s</string>
+    <string name="chat_last_used_model_retired_hint">โมเดลที่ใช้ล่าสุดยุติการให้บริการแล้ว ตอนนี้ใช้ %1$s</string>
     <string name="conversations">บทสนทนา</string>
     <string name="no_conversations">ยังไม่มีการสนทนา</string>
     <string name="search_conversation_titles_or_content">ค้นหาชื่อหรือเนื้อหาการสนทนา</string>
@@ -150,6 +150,7 @@
     <string name="provider_detail_add_model_finish_setup">เพิ่มรหัสรุ่นเพื่อตั้งค่าให้เสร็จสิ้น</string>
     <string name="provider_detail_add_model_manually">+ เพิ่มรหัสรุ่นด้วยตนเอง</string>
     <string name="provider_detail_available_models">%d รุ่นที่มีจำหน่าย</string>
+    <string name="default_model_short">ค่าเริ่มต้น</string>
     <string name="provider_detail_relay_empty_description">ยังไม่มีโมเดลเพิ่ม ใช้ปุ่มด้านล่างเพื่อเพิ่มรหัสรุ่น</string>
     <string name="provider_detail_badge_recent">ล่าสุด</string>
     <string name="provider_detail_removed_model">ลบ %s แล้ว</string>
@@ -164,7 +165,6 @@
     <string name="theme_light">สว่าง</string>
     <string name="theme_dark">มืด</string>
     <string name="theme_section_palettes">ชุดสี</string>
-    <string name="default_model_short">ค่าเริ่มต้น</string>
     <string name="theme_palette_purple">ม่วง</string>
     <string name="theme_palette_graphite">กราไฟต์</string>
     <string name="theme_palette_black">ดำ</string>
@@ -201,8 +201,6 @@
     <string name="backup_and_export">สำรองข้อมูลและส่งออก</string>
     <string name="privacy_policy">นโยบายความเป็นส่วนตัว</string>
     <string name="terms_of_service">ข้อกำหนดในการให้บริการ</string>
-    <string name="settings_source_code">ซอร์สโค้ด</string>
-    <string name="settings_report_issue">รายงานปัญหา</string>
     <string name="snackbar_provider_ready">ผู้ให้บริการพร้อมแล้ว คุณสามารถเริ่มแชทได้เลย</string>
     <string name="snackbar_model_added">เพิ่ม %1$s แล้ว</string>
     <string name="snackbar_model_enable_failed">เปิดใช้โมเดลนี้ไม่สำเร็จ โปรดลองอีกครั้ง</string>
@@ -390,7 +388,7 @@
     <string name="share_failed">ไม่สามารถแชร์รูปภาพได้</string>
     <string name="file">ไฟล์</string>
     <string name="file_unavailable">มีเฉพาะในอุปกรณ์ดั้งเดิมเท่านั้น</string>
-        <string name="error_generic_title">มีบางอย่างผิดพลาด</string>
+    <string name="error_generic_title">มีบางอย่างผิดพลาด</string>
     <string name="error_generic_message">เกิดข้อผิดพลาดที่ไม่คาดคิด</string>
     <string name="hide_details">ซ่อนรายละเอียด</string>
     <string name="manual_model_save_failed_title">บันทึกล้มเหลว</string>
@@ -459,11 +457,9 @@
     <string name="skills_newSkill">ทักษะใหม่</string>
     <string name="skills_editSkill">แก้ไขทักษะ</string>
     <string name="skills_useSkill">ใช้ทักษะนี้</string>
-    <string name="skills_pinToHome">ปักหมุดไปที่หน้าแรก</string>
     <string name="pin_conversation">เข็มหมุด</string>
     <string name="unpin_conversation">เลิกปักหมุด</string>
     <string name="pinned_section">ปักหมุดแล้ว</string>
-    <string name="skills_unpin">เลิกปักหมุดจากหน้าแรก</string>
     <string name="skills_instructions">พรอมต์</string>
     <string name="skills_knowledgeFiles">เอกสารอ้างอิง</string>
     <string name="skills_advancedSettings">การตั้งค่าขั้นสูง</string>
@@ -487,12 +483,12 @@
     <string name="skills_noKnowledgeFiles">ยังไม่มีเอกสารอ้างอิง</string>
     <string name="skills_useMemoryDescription">รวมความชอบส่วนตัวของคุณในการสนทนา</string>
     <string name="skills_tipInstructions">เขียนคำแนะนำที่กำหนดลักษณะการทำงานของ AI เช่น บุคลิกภาพ ความเชี่ยวชาญ และรูปแบบการตอบสนอง มีเพียง AI เท่านั้นที่เห็นสิ่งนี้ ผู้ใช้จะไม่เห็น</string>
-    <string name="skills_tipKnowledgeFiles">AI จะอ่านไฟล์เหล่านี้ทั้งหมดทุกครั้งที่ตอบ — เหมือนโน้ตที่เปิดอยู่บนโต๊ะเสมอ เหมาะสำหรับเอกสารสั้นและสำคัญ (คู่มือสไตล์ อภิธานศัพท์ กฎหลัก) ไฟล์ที่ใหญ่กว่าจะเพิ่มค่าใช้จ่ายในการตอบ</string>
+    <string name="skills_tipKnowledgeFiles">AI จะอ่านไฟล์เหล่านี้ทั้งหมดทุกครั้งที่ตอบ เหมือนบันทึกที่เปิดไว้บนโต๊ะเสมอ เหมาะสำหรับเอกสารสั้นที่สำคัญ (คู่มือสไตล์ อภิธานศัพท์ กฎหลัก) ไฟล์ขนาดใหญ่จะเพิ่มต้นทุนการตอบ</string>
     <string name="skills_tipAdvanced">กำหนดค่าการกำหนดลักษณะโมเดลและการแทรกความจำ</string>
     <string name="skills_filesQuota">%1$d / %2$d</string>
     <string name="skills_fileTooLarge">เนื้อหาไฟล์มีความยาวเกินขีดจำกัดอักขระ 8,000 ตัว</string>
     <string name="skills_emojiIcon">ไอคอนเอโมจิ</string>
-    <string name="skills_nChars">อักขระ %d</string>
+    <string name="skills_nChars">%1$d อักขระ</string>
     <string name="skills_skillName">ชื่อทักษะ</string>
     <string name="skills_briefDescription">คำอธิบายสั้น ๆ</string>
     <string name="skills_discardMessage">คุณมีการเปลี่ยนแปลงที่ยังไม่ได้บันทึก คุณแน่ใจหรือไม่ว่าต้องการยกเลิก</string>
@@ -705,18 +701,24 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">Query คีย์พารามิเตอร์</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">คุณกำลังจะใช้ %1$s</string>
     <string name="provider_disclosure_body_default">ข้อความของคุณจะถูกส่งไปยัง %1$s เพื่อสร้างการตอบกลับ Oriveo จะไม่จัดเก็บข้อความหรือคีย์ API ของคุณบนเซิร์ฟเวอร์ของเรา</string>
     <string name="provider_disclosure_body_relay">ข้อความของคุณจะถูกส่งไปยังบริการโมเดลที่คุณกำหนดค่าไว้ Oriveo ไม่สามารถตรวจสอบแนวทางความเป็นส่วนตัวของบริการนั้นได้</string>
     <string name="provider_disclosure_view_policy">ดู %1$s นโยบายความเป็นส่วนตัว</string>
     <string name="provider_disclosure_continue">ดำเนินการต่อ</string>
     <string name="provider_disclosure_cancel">ยกเลิก</string>
+    <string name="provider_disclosure_ack_failed">ยืนยันประกาศของผู้ให้บริการไม่สำเร็จ โปรดตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">รองรับการค้นหาเว็บ</string>
     <string name="relay_advanced_web_search_profile">โปรไฟล์การค้นหาเว็บ</string>
     <string name="relay_profile_auto">อัตโนมัติ</string>
     <string name="relay_test_connection">ทดสอบการเชื่อมต่อ</string>
     <string name="relay_test_connection_missing_fields">ใช้ URL คำขอและคีย์ API ของคุณเอง</string>
     <string name="relay_value_label">ค่า</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">ป้อน URL คำขอ HTTPS ที่ถูกต้อง</string>
     <string name="greeting_morning">อรุณสวัสดิ์</string>
     <string name="greeting_afternoon">สวัสดีตอนบ่าย</string>
@@ -726,22 +728,22 @@
     <string name="greeting_afternoon_with_name">สวัสดีตอนบ่าย คุณ %1$s</string>
     <string name="greeting_evening_with_name">สวัสดีตอนเย็น คุณ %1$s</string>
     <string name="greeting_still_up_with_name">ยังไม่นอนเหรอ คุณ %1$s</string>
-<string name="greeting_morning_2">เช้านี้เป็นไงบ้าง</string>
-<string name="greeting_morning_3">สวัสดี</string>
-<string name="greeting_morning_4">หวัดดี</string>
-<string name="greeting_morning_5">ดีใจที่ได้เจอกันนะ</string>
-<string name="greeting_afternoon_2">บ่ายนี้เป็นไงบ้าง</string>
-<string name="greeting_afternoon_3">หวัดดี</string>
-<string name="greeting_afternoon_4">ดีใจที่ได้เจอกันนะ</string>
-<string name="greeting_afternoon_5">สวัสดี</string>
-<string name="greeting_evening_2">วันนี้เป็นไงบ้าง</string>
-<string name="greeting_evening_3">ดีใจที่ได้เจอกันนะ</string>
-<string name="greeting_evening_4">สวัสดี</string>
-<string name="greeting_evening_5">หวัดดี</string>
-<string name="greeting_night_2">สวัสดียามดึก</string>
-<string name="greeting_night_3">หวัดดี</string>
-<string name="greeting_night_4">ดีใจที่ได้เจอกันนะ</string>
-<string name="greeting_night_5">สวัสดี</string>
+    <string name="greeting_morning_2">เช้านี้เป็นไงบ้าง</string>
+    <string name="greeting_morning_3">สวัสดี</string>
+    <string name="greeting_morning_4">หวัดดี</string>
+    <string name="greeting_morning_5">ดีใจที่ได้เจอกันนะ</string>
+    <string name="greeting_afternoon_2">บ่ายนี้เป็นไงบ้าง</string>
+    <string name="greeting_afternoon_3">หวัดดี</string>
+    <string name="greeting_afternoon_4">ดีใจที่ได้เจอกันนะ</string>
+    <string name="greeting_afternoon_5">สวัสดี</string>
+    <string name="greeting_evening_2">วันนี้เป็นไงบ้าง</string>
+    <string name="greeting_evening_3">ดีใจที่ได้เจอกันนะ</string>
+    <string name="greeting_evening_4">สวัสดี</string>
+    <string name="greeting_evening_5">หวัดดี</string>
+    <string name="greeting_night_2">สวัสดียามดึก</string>
+    <string name="greeting_night_3">หวัดดี</string>
+    <string name="greeting_night_4">ดีใจที่ได้เจอกันนะ</string>
+    <string name="greeting_night_5">สวัสดี</string>
     <string name="tagline_morning_1">ค่อย ๆ เป็นค่อย ๆ ไปนะ</string>
     <string name="tagline_morning_2">วันนี้ไปตามจังหวะของคุณ</string>
     <string name="tagline_morning_3">คำถามเล็กแค่ไหนก็ถามได้นะ</string>
@@ -758,23 +760,25 @@
     <string name="tagline_night_2">ถ้านอนไม่หลับ มาคุยกันนะ</string>
     <string name="tagline_night_3">ตอนนี้รอบตัวเงียบสงบแล้ว</string>
     <string name="tagline_night_4">ค่อย ๆ คิดได้เลย</string>
-<string name="tagline_morning_5">วันนี้เหมาะจะลองอะไรใหม่ ๆ</string>
-<string name="tagline_morning_6">คิดไปพิมพ์ไปได้เลยนะ</string>
-<string name="tagline_morning_7">ทำทีละอย่างก็พอ</string>
-<string name="tagline_morning_8">มาเรียบเรียงความคิดกัน</string>
-<string name="tagline_afternoon_5">ต่อจากที่ค้างไว้ได้เลย</string>
-<string name="tagline_afternoon_6">พร้อมเมื่อไหร่ค่อยถามก็ได้</string>
-<string name="tagline_afternoon_7">ลองมองอีกมุมดูนะ</string>
-<string name="tagline_afternoon_8">ไม่ต้องสมบูรณ์แบบก็ได้</string>
-<string name="tagline_evening_5">ที่เหลือไว้ต่อพรุ่งนี้ก็ได้</string>
-<string name="tagline_evening_6">แค่คุยเล่นก็ได้นะ</string>
-<string name="tagline_evening_7">ค่ำ ๆ แบบนี้ เหมาะกับการนั่งคิด</string>
-<string name="tagline_evening_8">ปิดท้ายวันอย่างสบาย ๆ</string>
-<string name="tagline_night_5">มีอะไรในใจ เขียนออกมาได้เลย</string>
-<string name="tagline_night_6">อย่าลืมพักผ่อนด้วยนะ</string>
-<string name="tagline_night_7">ยามเงียบ ๆ ความคิดมักชัดขึ้น</string>
-<string name="tagline_night_8">คืนนี้ไม่มีอะไรต้องรีบ</string>
+    <string name="tagline_morning_5">วันนี้เหมาะจะลองอะไรใหม่ ๆ</string>
+    <string name="tagline_morning_6">คิดไปพิมพ์ไปได้เลยนะ</string>
+    <string name="tagline_morning_7">ทำทีละอย่างก็พอ</string>
+    <string name="tagline_morning_8">มาเรียบเรียงความคิดกัน</string>
+    <string name="tagline_afternoon_5">ต่อจากที่ค้างไว้ได้เลย</string>
+    <string name="tagline_afternoon_6">พร้อมเมื่อไหร่ค่อยถามก็ได้</string>
+    <string name="tagline_afternoon_7">ลองมองอีกมุมดูนะ</string>
+    <string name="tagline_afternoon_8">ไม่ต้องสมบูรณ์แบบก็ได้</string>
+    <string name="tagline_evening_5">ที่เหลือไว้ต่อพรุ่งนี้ก็ได้</string>
+    <string name="tagline_evening_6">แค่คุยเล่นก็ได้นะ</string>
+    <string name="tagline_evening_7">ค่ำ ๆ แบบนี้ เหมาะกับการนั่งคิด</string>
+    <string name="tagline_evening_8">ปิดท้ายวันอย่างสบาย ๆ</string>
+    <string name="tagline_night_5">มีอะไรในใจ เขียนออกมาได้เลย</string>
+    <string name="tagline_night_6">อย่าลืมพักผ่อนด้วยนะ</string>
+    <string name="tagline_night_7">ยามเงียบ ๆ ความคิดมักชัดขึ้น</string>
+    <string name="tagline_night_8">คืนนี้ไม่มีอะไรต้องรีบ</string>
     <string name="aurora_placeholder_what_can_i_help">ให้ช่วยอะไรดี?</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">อัตโนมัติ / เว้นว่าง</string>
     <string name="relay_disable_response_storage_footnote">เฉพาะ OpenAI Responses · ตั้งค่า store: false</string>
     <string name="relay_disable_response_storage_short">ไม่เก็บการตอบกลับไว้บนคลาวด์</string>
@@ -830,10 +834,16 @@
     <string name="relay_security_mode_option_unknown_disabled">ป้อนที่อยู่ภายใน, LAN หรือ VPN ส่วนตัวก่อนเลือกประเภทการเชื่อมต่อนี้</string>
     <string name="relay_connection_no_key_required_cleartext">การเชื่อมต่อนี้ไม่ต้องใช้คีย์ · การเชื่อมต่อที่ไม่เข้ารหัสจะไม่ส่งข้อมูลรับรอง</string>
     <string name="relay_remove_api_key">นำคีย์ออก</string>
-<string name="streaming_pulse_a11y">กำลังสร้าง</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">กำลังสร้าง</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">ใช้งานเดือนนี้</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">ใช้งานเดือนนี้</string>
     <string name="providers_all_providers">ผู้ให้บริการทั้งหมด</string>
     <string name="providers_today">วันนี้</string>
     <string name="providers_all_synced">ซิงค์ทั้งหมดแล้ว</string>
@@ -842,6 +852,8 @@
     <string name="providers_delete_this_question">ลบผู้ให้บริการรายนี้ใช่ไหม</string>
     <string name="providers_delete_this_message">การลบผู้ให้บริการรายนี้จะลบการแชทที่เกี่ยวข้องและการกำหนดค่าโมเดลเริ่มต้นด้วย</string>
     <string name="manual_model_clear">ล้าง</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">ต้องการคีย์ API</string>
     <string name="tap_to_view">แตะเพื่อดู</string>
     <string name="tap_to_set">แตะเพื่อตั้งค่า</string>
@@ -857,6 +869,8 @@
     <string name="code_block_expand">ขยาย</string>
     <string name="chat_show_full_message">ดูข้อความเต็ม</string>
     <string name="code_block_lines">%d บรรทัด</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">ไม่มีการเชื่อมต่ออินเทอร์เน็ต</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -866,6 +880,7 @@
     <string name="reasoning_hide">ซ่อนการคิด</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">ไม่สามารถแยกข้อความจาก %1$s ได้ (ดูเหมือนเป็น PDF ที่สแกนมา)</string>
@@ -877,7 +892,6 @@
     <string name="file_extraction_error_generic">ไม่สามารถประมวลผล %1$s ได้ ลองอีกครั้งหรือเลือกไฟล์อื่น</string>
     <string name="file_extraction_truncated_notice">%1$s ยาวเกินไป จึงเพิ่มเฉพาะ %2$d บรรทัดแรกจากทั้งหมด %3$d บรรทัด</string>
     <string name="file_extraction_send_blocked_text_budget">ยังไม่ได้ส่ง: เมื่อรวม %1$s แล้ว เนื้อหาของไฟล์แนบเกินขีดจำกัดของโมเดลนี้ ลองนำไฟล์ออกหรือเปลี่ยนโมเดล</string>
-    <string name="error_attachment_not_accepted_title">ไฟล์แนบใช้ไม่ได้</string>
     <string name="file_extraction_text_budget_exceeded">ไม่ได้เพิ่ม %1$s เพราะจะทำให้เนื้อหาไฟล์ที่แนบกับข้อความนี้เกินขีดจำกัด</string>
     <string name="file_extraction_chip_extracted_lines">แยกได้ %1$d บรรทัด</string>
     <string name="file_attachment_count_limit_reached">คุณแนบไฟล์ได้สูงสุด %1$d ไฟล์สำหรับโมเดลนี้</string>
@@ -887,6 +901,8 @@
     <string name="empty_greeting_mind">กำลังคิดอะไรอยู่?</string>
     <string name="empty_greeting_together">มีอะไรให้ช่วยกันคิดไหม?</string>
     <string name="empty_chat_ask_anything">ถามอะไรก็ได้ พิมพ์มาได้เลย</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">โมเดล GPT เรือธง</string>
     <string name="provider_tagline_anthropic">โมเดล Claude</string>
     <string name="provider_tagline_gemini">ข้อความ รูปภาพ และวิดีโอ</string>
@@ -902,6 +918,8 @@
     <string name="provider_tagline_groq">การอนุมานเร็วสุด</string>
     <string name="provider_tagline_together">โมเดลโอเพนซอร์ส</string>
     <string name="provider_tagline_fireworks">เร็วและคุ้มค่า</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">เชื่อมต่อผู้ให้บริการ</string>
     <string name="provider_setup_hero_subtitle">เลือกผู้ให้บริการ AI ของคุณ จากนั้นป้อนคีย์ API</string>
     <string name="provider_category_all">ทั้งหมด</string>
@@ -914,12 +932,13 @@
     <string name="provider_already_connected_subtitle">จัดการการเชื่อมต่อที่มีอยู่ หรือเพิ่มบัญชีอื่นด้วยคีย์ API อื่น</string>
     <string name="provider_manage_existing">จัดการที่มีอยู่</string>
     <string name="provider_add_another_account">เพิ่มอีกบัญชี</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="capability_video">วิดีโอ</string>
     <string name="citations_section_title">แหล่งที่มา</string>
     <string name="citations_view_all">ดูแหล่งที่มาทั้งหมด %1$d รายการ</string>
     <string name="citations_collapse">แสดงน้อยลง</string>
     <string name="api_endpoint">ตำแหน่งข้อมูล API</string>
-    <string name="api_endpoint_not_configured">ยังไม่ได้ตั้งค่า</string>
     <string name="relay_guidance_codex_identity_switch_type">การเชื่อมต่อนี้ต้องใช้ข้อมูลระบุตัวตนไคลเอ็นต์ Codex เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → ห้องสมุดโมเดล → โมเดลนี้ → ขั้นสูง แล้วเปลี่ยนโปรโตคอลเป็น OpenAI Responses จากนั้นลองอีกครั้ง</string>
     <string name="relay_guidance_codex_identity_still_rejected">การเชื่อมต่อนี้ยังคงปฏิเสธข้อมูลระบุตัวตนไคลเอ็นต์ Codex ของ Oriveo เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → แก้ไขการเชื่อมต่อ → Header และพารามิเตอร์คิวรี แล้วตั้งค่า User-Agent หรือ Header แบบกำหนดเอง หรือเปลี่ยนไปใช้การเชื่อมต่ออื่น</string>
     <string name="relay_guidance_responses_only_endpoint">การเชื่อมต่อนี้เปิดให้ใช้เฉพาะ /v1/responses และปฏิเสธ /chat/completions เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → ห้องสมุดโมเดล → โมเดลนี้ → ขั้นสูง แล้วเปลี่ยนโปรโตคอลเป็น OpenAI Responses จากนั้นลองอีกครั้ง</string>
@@ -953,7 +972,7 @@
     <string name="video">วิดีโอ</string>
     <string name="skills_knowledgeImportEmpty">ไฟล์ว่างเปล่า</string>
     <string name="skills_knowledgeImportFailed">นำเข้าไฟล์ไม่สำเร็จ</string>
-    <string name="skills_knowledgeErrorUnsupportedType">ไฟล์ประเภทนี้ไม่รองรับสำหรับฐานความรู้</string>
+    <string name="skills_knowledgeErrorUnsupportedType">ไฟล์ประเภทนี้ไม่รองรับฐานความรู้</string>
     <string name="provider_balance_title">ยอดเงินในบัญชี</string>
     <string name="provider_balance_refresh">รีเฟรช</string>
     <string name="provider_balance_granted_label">ที่ได้รับ</string>
@@ -970,10 +989,16 @@
     <string name="outline_nav_label">โครงร่างการสนทนา</string>
     <string name="outline_jump_to">ไปที่: %1$s</string>
     <string name="outline_attachment_only">(ไฟล์แนบ)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">โน้ต</string>
     <string name="notes_subtitle">บันทึกเนื้อหาแชทเป็นโน้ต</string>
     <string name="notes_untitled">โน้ตไม่มีชื่อ</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="other">%1$d โน้ต</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">โน้ต</string>
     <string name="notes_tab_trash">ถังขยะ</string>
     <!-- Actions -->
@@ -1036,7 +1061,7 @@
     <string name="notes_toast_export_failed">ส่งออกไม่สำเร็จ</string>
     <string name="notes_toast_folder_created">สร้างโฟลเดอร์ \"%1$s\" แล้ว</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">บันทึกเป็นโน้ต</string>
     <string name="notes_chat_replace_current_note">อัปเดตโน้ตด้วยส่วนที่เลือก</string>
     <string name="notes_chat_return_to_note">กลับไปที่โน้ต</string>
@@ -1068,13 +1093,19 @@
     <string name="notes_detail_delete_this">ลบโน้ตนี้</string>
     <string name="notes_nothing_written">ยังไม่มีเนื้อหา</string>
     <!-- ตรวจหาการอัปเดต (เฉพาะ Android · Play In-App Updates) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">ไม่ทราบราคา</string>
     <string name="pricing_non_standard">การเรียกเก็บเงินที่ไม่ได้มาตรฐาน</string>
     <string name="pricing_free">ฟรี</string>
     <string name="enabled_models_help">โมเดลที่เพิ่มจะปรากฏในตัวเลือกโมเดลบนหน้าจอหลัก</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">โหลดการสนทนานี้ไม่สำเร็จ</string>
     <string name="chat_load_stalled_message">ข้อความของการสนทนานี้ยังไม่อยู่บนอุปกรณ์นี้ ลองใหม่เพื่อดึงจากคลาวด์</string>
     <string name="chat_bootstrap_in_progress">กำลังโหลดการสนทนา…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">ทุกโมเดลของคุณ ใน{แอปเดียว}</string>
     <string name="onboarding_title_models">ทุกคำถาม เลือก{โมเดลที่ใช่}</string>
     <string name="onboarding_title_byok">Key อยู่ในเครื่อง {บิลเป็นของคุณ}</string>
@@ -1091,6 +1122,8 @@
     <string name="onboarding_legal">เมื่อดำเนินการต่อ ถือว่าคุณยอมรับ[ข้อกำหนดในการให้บริการ](oriveo://terms)และ[นโยบายความเป็นส่วนตัว](oriveo://privacy)</string>
     <string name="developer_options">ตัวเลือกนักพัฒนา</string>
     <string name="replay_onboarding">ดูการแนะนำอีกครั้ง</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">การติดตั้งอย่างรวดเร็ว</string>
     <string name="relay_quick_subtitle">ป้อน URL คำขอและคีย์ API Oriveo จะตรวจจับการตั้งค่าการเชื่อมต่อสำหรับคุณ</string>
     <string name="relay_models_found">พบรุ่น %1$d ในแค็ตตาล็อก</string>
@@ -1158,9 +1191,8 @@
     <string name="generation_empty_not_verified">ยังไม่มีพารามิเตอร์ที่ปรับได้สำหรับโมเดลนี้</string>
     <string name="generation_empty_not_verified_detail">เราจะเปิดให้ปรับค่าได้ก็ต่อเมื่อยืนยันแล้วว่าพารามิเตอร์มีผลจริง และเรายังไม่ได้ทดสอบโมเดลนี้บนการเชื่อมต่อนี้ ความสามารถในการให้เหตุผลของโมเดลไม่ได้รับผลกระทบ</string>
     <string name="generation_empty_catalog_managed">พารามิเตอร์ของโมเดลนี้อยู่ภายใต้การจัดการของแคตตาล็อกอย่างเป็นทางการแล้ว และไม่สามารถปรับแต่งได้ที่นี่</string>
-    <string name="generation_empty_runtime_locked">ไม่สามารถปรับพารามิเตอร์รันไทม์สำหรับการเชื่อมต่อนี้</string>
     <string name="generation_empty_all_unsupported">โมเดลนี้ไม่รับพารามิเตอร์ที่ปรับได้บนการเชื่อมต่อนี้</string>
-<string name="generation_parameter_unverified_badge">ยังไม่ได้ตรวจสอบ</string>
+    <string name="generation_parameter_unverified_badge">ยังไม่ได้ตรวจสอบ</string>
     <string name="generation_parameter_unverified_group_note">พารามิเตอร์เหล่านี้อนุมานจากโปรโตคอลที่คุณเลือก Oriveo ยังไม่ได้ตรวจสอบว่ามีผลจริงบนการเชื่อมต่อนี้</string>
     <string name="generation_parameter_dormant_summary">พารามิเตอร์ %1$d รายการที่คุณตั้งไว้ถูกเก็บไว้ และตอนนี้จะไม่ถูกส่ง</string>
     <string name="generation_parameter_dormant_view">ดู</string>
@@ -1178,6 +1210,8 @@
     <string name="chat_token_usage_cache_write">เขียนแคช</string>
     <string name="chat_token_usage_total">รวม</string>
     <string name="chat_token_usage_unavailable">ไม่มีข้อมูล</string>
+    <string name="chat_token_usage_cost">ค่าใช้จ่าย</string>
+    <string name="chat_token_usage_estimated">โดยประมาณ</string>
     <string name="generation_conversation_scope_hint">ใช้ได้เฉพาะขณะที่ใช้โมเดลนี้ในการสนทนานี้ การสลับโมเดลจะไม่คัดลอกค่า และเมื่อสลับกลับค่าจะถูกกู้คืน</string>
     <string name="generation_parameter_self_healed">โมเดลนี้ปฏิเสธ %1$s จึงลองใหม่ด้วยค่าเริ่มต้น</string>
     <string name="relay_transport_llamacpp_native">completion แบบเนทีฟของ llama.cpp</string>
@@ -1377,27 +1411,22 @@
     <string name="tool_call_unhandled_multiple">โมเดลพยายามใช้เครื่องมือ (%1$s) ที่ใช้ไม่ได้กับการเชื่อมต่อนี้</string>
     <string name="tool_call_arguments_truncated">ตัดที่ 2 KB</string>
     <string name="tool_fallback_library_not_searched">การเชื่อมต่อนี้ไม่รองรับเครื่องมือ จึงไม่ได้ค้นหาในคลัง</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">พื้นที่จัดเก็บเต็ม</string>
     <string name="storage_blocked_message">อุปกรณ์ของคุณไม่มีพื้นที่ว่างเหลือ Oriveo จึงเปิดข้อมูลในเครื่องไม่ได้ กรุณาเพิ่มพื้นที่ว่างแล้วลองใหม่ — แชทของคุณยังถูกบันทึกไว้ในเครื่องนี้และจะไม่สูญหาย</string>
     <string name="storage_blocked_action_free_space">เพิ่มพื้นที่ว่าง</string>
     <string name="database_unavailable_title">เปิดข้อมูลในเครื่องไม่ได้</string>
     <string name="database_unavailable_message">Oriveo เปิดข้อมูลในเครื่องบนอุปกรณ์นี้ไม่ได้ กรุณาลองใหม่ หรือติดต่อฝ่ายสนับสนุนหากยังเกิดขึ้นซ้ำ</string>
     <string name="link_open_failed_message">เปิดลิงก์ไม่ได้ โปรดเปิดใช้งานเบราว์เซอร์แล้วลองใหม่</string>
-    <string name="contact_support">ติดต่อฝ่ายสนับสนุน</string>
-    <string name="price_input">อินพุต</string>
-    <string name="price_output">เอาต์พุต</string>
-    <string name="price_cache_read">อ่านแคช</string>
-    <string name="price_cache_write">เขียนแคช</string>
     <string name="external_app_unavailable">ไม่มีแอปที่เปิดสิ่งนี้ได้ โปรดติดตั้งหรือเปิดใช้งานแอปแล้วลองใหม่</string>
-    <plurals name="notes_count">
-        <item quantity="other">%1$d โน้ต</item>
-    </plurals>
     <string name="secure_field_show">แสดงอักขระ</string>
     <string name="secure_field_hide">ซ่อนอักขระ</string>
-    <string name="generation_parameter_name_stop">ข้อความสำหรับหยุดการสร้าง</string>
     <string name="generation_diagnostics_section">วินิจฉัยค่าการสร้าง</string>
     <string name="generation_diagnostics_empty">ยังไม่มีบันทึกวินิจฉัย</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">บัญชีนี้ไม่สามารถส่งคำติชมได้</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">เครื่องมือ</string>
     <string name="mcp_tools_chip_state_on">เปิดอยู่ %d เซิร์ฟเวอร์</string>
     <string name="mcp_tools_chip_state_off">ปิดอยู่</string>
@@ -1472,6 +1501,8 @@
     <string name="mcp_detail_seconds">%s วินาที</string>
     <string name="mcp_detail_third_party_note">ผลลัพธ์มาจากเซิร์ฟเวอร์ของบุคคลที่สาม และแสดงเพียง 2 KB แรก Oriveo ไม่ได้ตรวจสอบเนื้อหานี้</string>
     <string name="mcp_detail_not_on_device">รายละเอียดเก็บไว้เฉพาะในอุปกรณ์ที่ทำขั้นนี้เท่านั้น</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">เครื่องมือและการเชื่อมต่อ</string>
     <string name="mcp_servers_title">เซิร์ฟเวอร์ MCP</string>
     <plurals name="mcp_settings_entry_count">
@@ -1611,109 +1642,161 @@
     <string name="mcp_reauth_failed_body">หน้าลงชื่อเข้าใช้ถูกปิด หรือบริการไม่อนุมัติคำขอ ไม่มีอะไรเปลี่ยนแปลง</string>
     <string name="mcp_reauth_unreachable_body">โปรดตรวจสอบว่าอุปกรณ์นี้เข้าถึงเซิร์ฟเวอร์ได้ในตอนนี้ แล้วลองอีกครั้ง</string>
     <string name="mcp_reauth_token_title">วางโทเค็นการเข้าถึงใหม่</string>
-    <string name="additional_body_attachments_filled">Oriveo จะใส่ไฟล์แนบให้เอง</string>
-    <string name="additional_body_cannot_change">เปลี่ยนไม่ได้</string>
-    <string name="additional_body_check">โปรดตรวจสอบเนื้อหาคำขอเพิ่มเติม</string>
-    <string name="additional_body_conversation_filled">Oriveo จะใส่เนื้อหาบทสนทนาให้เอง</string>
-    <string name="additional_body_device_only">บันทึกไว้ในอุปกรณ์นี้เท่านั้น ไม่ซิงค์</string>
-    <string name="additional_body_docs_link">ดูว่า %1$s รองรับฟิลด์ใดบ้าง</string>
-    <string name="additional_body_field_filled">Oriveo จะกรอกฟิลด์นี้ให้เอง</string>
-    <string name="additional_body_field_name_invalid">ใช้ชื่อนี้เป็นชื่อฟิลด์ไม่ได้</string>
-    <string name="additional_body_footer">ฟิลด์ที่นี่จะถูกเพิ่มลงในคำขอตามที่เขียนไว้ Oriveo ไม่ได้ตรวจสอบว่าเซิร์ฟเวอร์ของคุณรับได้หรือไม่ หากมีฟิลด์ที่ชื่อตรงกับการตั้งค่าขั้นสูง จะใช้ค่าที่นี่แทน ส่วนการตั้งค่าอื่นจะส่งตามปกติ</string>
-    <string name="additional_body_included">รวมไว้</string>
-    <string name="additional_body_model_chosen">โมเดลคือโมเดลที่คุณเลือกไว้ใน Oriveo</string>
-    <string name="additional_body_paste">วาง</string>
-    <string name="additional_body_paste_replace_body">การวางจะแทนที่เนื้อหาปัจจุบันด้วยสิ่งที่อยู่ในคลิปบอร์ด</string>
-    <string name="additional_body_paste_replace_title">ต้องการแทนที่เนื้อหาปัจจุบันหรือไม่</string>
-    <string name="additional_body_reason_blocked_segment">ใช้ “%1$s” เป็นชื่อฟิลด์ในเนื้อหาคำขอเพิ่มเติมไม่ได้</string>
-    <string name="additional_body_reason_invalid_json">เนื้อหาคำขอเพิ่มเติมไม่ใช่ JSON ที่ถูกต้อง</string>
-    <string name="additional_body_reason_not_object">เนื้อหาคำขอเพิ่มเติมต้องเป็นออบเจ็กต์ JSON ที่ครอบด้วย { }</string>
-    <string name="additional_body_reason_protected_field">Oriveo เป็นผู้กรอก “%1$s” จึงตั้งค่าไว้ในเนื้อหาคำขอเพิ่มเติมไม่ได้</string>
-    <string name="additional_body_reason_too_deep">เนื้อหาคำขอเพิ่มเติมซ้อนกันลึกเกิน 32 ชั้น</string>
-    <string name="additional_body_reason_too_large">เนื้อหาคำขอเพิ่มเติมมีขนาดเกิน 64 KB</string>
-    <string name="additional_body_rejected_upstream">คำขอที่มีเนื้อหาคำขอเพิ่มเติมถูกปฏิเสธ</string>
-    <string name="additional_body_remove_line">%1$s ลบบรรทัดที่ %2$d ก่อนจึงจะส่งได้</string>
-    <string name="additional_body_retry_without">ลองอีกครั้งโดยไม่ใส่เนื้อหาคำขอเพิ่มเติม</string>
-    <string name="additional_body_send_toggle">ส่งไปพร้อมคำขอ</string>
-    <string name="additional_body_send_toggle_note">เมื่อปิด เนื้อหาจะยังอยู่แต่ไม่ถูกส่ง</string>
-    <string name="additional_body_switch_blocked_invalid">เนื้อหาคำขอเพิ่มเติมมีปัญหา สวิตช์นี้จึงเปลี่ยนไม่ได้ โปรดไปแก้ไขที่นั่นก่อน</string>
-    <string name="additional_body_switch_blocked_off">ขณะนี้เนื้อหาคำขอเพิ่มเติมไม่ได้ถูกส่งไปพร้อมคำขอ โปรดไปเปิดที่นั่นก่อน</string>
-    <string name="additional_body_system_prompt_filled">Oriveo จะใส่พรอมต์ระบบให้เอง</string>
-    <string name="additional_body_tidy">จัดรูปแบบ</string>
-    <string name="additional_body_tidy_invalid">ยังไม่ใช่ JSON ที่ถูกต้อง จึงยังไม่มีการเปลี่ยนแปลงใดๆ</string>
-    <string name="additional_body_title">เนื้อหาคำขอเพิ่มเติม</string>
-    <string name="additional_body_when_sending">เมื่อส่ง</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">ความสามารถ</string>
+    <string name="model_options_local">ในเครื่อง</string>
+    <string name="model_options_web_note">ค้นเว็บก่อนตอบเมื่อคำถามต้องใช้ข้อมูล</string>
+    <string name="model_options_always_thinks">คิดก่อนตอบทุกครั้ง</string>
+    <string name="model_options_thinks_first_note">คิดให้รอบคอบก่อน จึงตอบช้าลงเล็กน้อย</string>
+    <string name="model_options_higher_levels_note">ระดับยิ่งสูงยิ่งใช้เวลานาน และอาจมีค่าใช้จ่ายมากขึ้น</string>
+    <string name="model_options_template_thinking_note">เปิดหรือปิดการคิดผ่านเทมเพลตแชต จะได้ผลหรือไม่ขึ้นอยู่กับเซิร์ฟเวอร์ของคุณ</string>
+    <string name="model_options_connection_cannot">การเชื่อมต่อนี้ไม่รองรับ</string>
+    <string name="model_options_uses_model_default">ทำงานตามค่าเริ่มต้นของโมเดล</string>
+    <string name="model_options_reasoning_not_catalogued">Oriveo ยังไม่มีการตั้งค่าการคิดสำหรับโมเดลนี้ จึงทำงานตามค่าเริ่มต้นของโมเดลเอง</string>
+    <string name="model_options_web_not_catalogued">Oriveo ยังไม่มีการตั้งค่าค้นเว็บสำหรับโมเดลนี้ จึงยังเปิดที่นี่ไม่ได้</string>
+    <string name="model_options_see_adjustable_models">ดูว่าโมเดลใดปรับได้</string>
+    <string name="model_options_no_thinking_mode">โมเดลนี้ไม่มีโหมดการคิด</string>
+    <string name="model_options_shows_thinking_fixed">แสดงกระบวนการคิด · ปรับไม่ได้</string>
+    <string name="model_options_cannot_search">โมเดลนี้ค้นเว็บไม่ได้</string>
+    <string name="model_options_always_on">เปิดอยู่เสมอ</string>
+    <string name="model_options_subscription_always_searches">เมื่อใช้การสมัครสมาชิกนี้ โมเดลนี้จะค้นเว็บทุกครั้ง</string>
+    <string name="model_options_web_when_needed">เมื่อจำเป็น</string>
+    <string name="model_options_web_every_message">ทุกข้อความ</string>
+    <string name="model_options_needs_manual_setup">ต้องตั้งค่าเอง</string>
+    <string name="model_options_reasoning_no_generic_switch">ผู้ให้บริการรายนี้ไม่มีสวิตช์มาตรฐานสำหรับการคิด โปรดเพิ่มฟิลด์ของผู้ให้บริการรายนี้ในเนื้อหาคำขอเพิ่มเติม</string>
+    <string name="model_options_web_no_generic_switch">ผู้ให้บริการรายนี้ไม่มีสวิตช์มาตรฐานสำหรับค้นเว็บ โปรดเพิ่มฟิลด์ของผู้ให้บริการรายนี้ในเนื้อหาคำขอเพิ่มเติม</string>
+    <string name="model_options_open_additional_body">เปิดเนื้อหาคำขอเพิ่มเติม</string>
+    <string name="model_options_choose_protocol_first">เลือกโปรโตคอลของการเชื่อมต่อนี้ก่อน</string>
+    <string name="model_options_protocol_auto_note">โปรโตคอลยังตั้งเป็น “อัตโนมัติ” อยู่ Oriveo จึงไม่รู้ว่าจะส่งการตั้งค่าค้นเว็บและการคิดอย่างไร</string>
+    <string name="model_options_choose_protocol">เลือกโปรโตคอล</string>
+    <string name="model_options_tier_rejected_title">“%1$s” ถูกปฏิเสธ</string>
+    <string name="model_options_tier_rejected_body">ขณะนี้โมเดลนี้ไม่รับ “%1$s” จึงกลับไปใช้ “%2$s” ระดับเดิมจะกลับมาเองเมื่อโมเดลรองรับอีกครั้ง</string>
+    <string name="model_options_more_count">อีก %1$d รายการ</string>
+    <string name="model_options_cant_switch_here">ยังสลับที่นี่ไม่ได้</string>
+    <string name="model_options_not_available_yet">ยังใช้ไม่ได้</string>
+    <string name="model_options_web_and_thinking_fields">ฟิลด์สำหรับค้นเว็บและการคิด</string>
+    <string name="model_options_vision_available">ใช้ได้ · แสดงปุ่มเลือกรูปในช่องพิมพ์</string>
+    <string name="model_options_vision_unknown">ยังไม่ทราบ · จำไว้หลังส่ง</string>
+    <string name="model_options_vision_hidden">ใช้ไม่ได้ · ไม่แสดงปุ่มเลือกรูปในช่องพิมพ์</string>
+    <string name="model_options_file_pdf_native">PDF ส่งแบบต้นฉบับ · ที่เหลือแปลงเป็นข้อความ</string>
+    <string name="model_options_file_native_when_supported">รูปแบบที่รองรับส่งแบบต้นฉบับ · ที่เหลือแปลงเป็นข้อความ</string>
+    <string name="model_options_file_text">ส่งเป็นข้อความ</string>
+    <string name="model_options_turn_summary">รอบนี้จะส่ง: %1$s</string>
+    <string name="model_options_summary_web_on">เปิดค้นเว็บ</string>
+    <string name="model_options_summary_thinking_level">การคิด: %1$s</string>
+    <string name="model_options_summary_thinking_on">เปิดการคิด</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="other">%d ระดับ</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">เฉพาะบทสนทนานี้</string>
+    <string name="advanced_reset">รีเซ็ต</string>
+    <string name="advanced_reset_conversation_title">รีเซ็ตการตั้งค่าของบทสนทนานี้หรือไม่</string>
+    <string name="advanced_reset_conversation_body">ล้างเฉพาะพารามิเตอร์ที่คุณเปลี่ยนในบทสนทนานี้ ค่าเริ่มต้นของโมเดลและเนื้อหาคำขอเพิ่มเติมยังคงเดิม</string>
+    <string name="advanced_reset_conversation_action">รีเซ็ตการเปลี่ยนแปลงในบทสนทนานี้</string>
+    <string name="advanced_reset_model_title">รีเซ็ตค่าเริ่มต้นของโมเดลนี้หรือไม่</string>
+    <string name="advanced_reset_model_body">ล้างพารามิเตอร์เริ่มต้นที่คุณตั้งไว้ให้โมเดลนี้บนการเชื่อมต่อนี้ ส่วนที่เปลี่ยนไว้ในแต่ละบทสนทนายังคงเดิม</string>
+    <string name="advanced_reset_model_action">รีเซ็ตค่าเริ่มต้นของโมเดล</string>
+    <string name="advanced_more">เพิ่มเติม</string>
+    <string name="advanced_not_adjusted">ยังไม่ได้ปรับ</string>
+    <string name="advanced_entries_count">%1$d รายการ</string>
+    <string name="advanced_fields_count">%1$d ฟิลด์</string>
+    <string name="advanced_random_each_time">สุ่มทุกครั้ง</string>
+    <string name="advanced_plain_text">ข้อความธรรมดา</string>
+    <string name="advanced_write_your_own">เขียนเอง</string>
     <string name="advanced_additional_body_subtitle">เพิ่มฟิลด์ที่ไม่มีด้านบนในรูปแบบ JSON</string>
+    <string name="advanced_not_in_use">ยังไม่ได้ใช้</string>
+    <string name="advanced_changed_in_conversation">เปลี่ยนในบทสนทนานี้</string>
+    <string name="advanced_using_your_default">ใช้ค่าเริ่มต้นของโมเดลที่คุณตั้งไว้</string>
+    <string name="advanced_model_defaults">ค่าเริ่มต้นของโมเดล</string>
+    <string name="advanced_your_default">ค่าเริ่มต้นของโมเดล</string>
+    <string name="advanced_state_set">ตั้งค่าแล้ว</string>
+    <string name="advanced_state_on">เปิด</string>
+    <string name="advanced_use_model_default">ใช้ค่าเริ่มต้นของโมเดล</string>
+    <string name="advanced_dont_send">ไม่ส่งการตั้งค่านี้</string>
     <string name="advanced_allowed_range">ช่วงที่อนุญาต: %1$s</string>
     <string name="advanced_also_covers">รวมถึง %1$s</string>
-    <string name="advanced_changed_in_conversation">เปลี่ยนในบทสนทนานี้</string>
-    <string name="advanced_crossed_out_legend">การตั้งค่าที่ถูกขีดฆ่าอยู่ในการควบคุมของ %1$s</string>
-    <string name="advanced_diagnostics_delete_body">จะลบบันทึกการวินิจฉัยของโมเดลนี้ที่แสดงอยู่ ส่วนบันทึกของโมเดลอื่นยังคงอยู่</string>
-    <string name="advanced_diagnostics_delete_title">ลบบันทึกการวินิจฉัยเหล่านี้หรือไม่</string>
-    <string name="advanced_dont_send">ไม่ส่งการตั้งค่านี้</string>
+    <string name="advanced_no_limit">ไม่จำกัด</string>
+    <string name="advanced_stop_sequences">ข้อความสำหรับหยุดการสร้าง</string>
+    <string name="advanced_new_stop_sequence">เพิ่มข้อความสำหรับหยุดการสร้าง</string>
+    <string name="advanced_stop_sequences_note">โมเดลจะหยุดทันทีที่เขียนข้อความใดข้อความหนึ่งในนี้ ข้อความแต่ละรายการมีจุลภาค ช่องว่าง และการขึ้นบรรทัดใหม่ได้</string>
+    <string name="advanced_remove_item">ลบ %1$s</string>
+    <string name="advanced_error_max_tokens">โมเดลนี้เขียนได้สูงสุด %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_error_number">โปรดป้อนตัวเลข การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_error_integer">โปรดป้อนจำนวนเต็ม การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_error_highest">ค่าสูงสุดที่โมเดลนี้รับได้คือ %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_error_lowest">ค่าต่ำสุดที่โมเดลนี้รับได้คือ %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_error_greater_than">ค่านี้ต้องมากกว่า %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_error_less_than">ค่านี้ต้องน้อยกว่า %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_error_json_schema">นี่ไม่ใช่ JSON Schema ที่ถูกต้อง การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_error_value_rejected">โมเดลนี้ไม่รับค่านี้ การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
+    <string name="advanced_dropped_thinking">โมเดลไม่รับค่านี้ขณะเปิดการคิดอยู่ จึงไม่ส่ง</string>
     <string name="advanced_dropped_conflict">ขัดแย้งกับการตั้งค่าอื่น จึงไม่ส่งการตั้งค่านี้</string>
     <string name="advanced_dropped_conflict_with">ส่งพร้อมกับ %1$s ไม่ได้ จึงไม่ส่งการตั้งค่านี้</string>
     <string name="advanced_dropped_depends">ต้องอาศัยการตั้งค่าอื่นที่ยังไม่ได้ตั้ง จึงไม่ส่งการตั้งค่านี้</string>
-    <string name="advanced_dropped_reasoning_budget">น้อยกว่างบการใช้เหตุผล จึงส่งค่าเริ่มต้นแทน</string>
-    <string name="advanced_dropped_required_default">โมเดลนี้ต้องมีฟิลด์นี้ จึงยังส่งค่าเริ่มต้นไปตามเดิม</string>
     <string name="advanced_dropped_requires">จะส่งก็ต่อเมื่อตั้งค่า %1$s ไว้ด้วย</string>
-    <string name="advanced_dropped_thinking">โมเดลไม่รับค่านี้ขณะเปิดการคิดอยู่ จึงไม่ส่ง</string>
     <string name="advanced_dropped_value">โมเดลนี้ไม่รับค่านี้ จึงไม่ส่งการตั้งค่านี้</string>
+    <string name="advanced_dropped_required_default">โมเดลนี้ต้องมีฟิลด์นี้ จึงยังส่งค่าเริ่มต้นไปตามเดิม</string>
+    <string name="advanced_dropped_reasoning_budget">น้อยกว่างบการใช้เหตุผล จึงส่งค่าเริ่มต้นแทน</string>
+    <string name="advanced_taken_over">%1$s เปิดอยู่ จึงไม่ใช้การตั้งค่านี้</string>
+    <string name="advanced_crossed_out_legend">การตั้งค่าที่ถูกขีดฆ่าอยู่ในการควบคุมของ %1$s</string>
+    <string name="advanced_grey_defaults_legend">ตัวเลขสีเทาคือค่าเริ่มต้นของ %1$s เอง จะไม่ถูกส่งเว้นแต่คุณจะเปลี่ยน</string>
+    <string name="advanced_mirostat_note">รักษาระดับความสุ่มของผลลัพธ์ให้คงที่ใกล้ค่าเป้าหมาย ใช้แทน Top K และ Top P</string>
+    <string name="advanced_target_entropy">เอนโทรปีเป้าหมาย</string>
+    <string name="advanced_learning_rate">อัตราการเรียนรู้</string>
+    <string name="advanced_repetition">ป้องกันการซ้ำ</string>
     <string name="advanced_dry_note">ลดการซ้ำข้อความทั้งท่อนจากข้อความก่อนหน้า</string>
+    <string name="advanced_more_sampling">การสุ่มตัวอย่างเพิ่มเติม</string>
+    <string name="advanced_xtc_note">บางครั้งข้ามคำที่มีโอกาสถูกเลือกมากที่สุด เพื่อให้ใช้คำหลากหลายขึ้น</string>
     <string name="advanced_dynamic_temperature">อุณหภูมิแบบไดนามิก</string>
     <string name="advanced_dynamic_temperature_note">อุณหภูมิปรับไปตามความมั่นใจของโมเดล</string>
-    <string name="advanced_entries_count">%1$d รายการ</string>
-    <string name="advanced_error_greater_than">ค่านี้ต้องมากกว่า %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_error_highest">ค่าสูงสุดที่โมเดลนี้รับได้คือ %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_error_integer">โปรดป้อนจำนวนเต็ม การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_error_json_schema">นี่ไม่ใช่ JSON Schema ที่ถูกต้อง การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_error_less_than">ค่านี้ต้องน้อยกว่า %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_error_lowest">ค่าต่ำสุดที่โมเดลนี้รับได้คือ %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_error_max_tokens">โมเดลนี้เขียนได้สูงสุด %1$s การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_error_number">โปรดป้อนตัวเลข การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_error_value_rejected">โมเดลนี้ไม่รับค่านี้ การตั้งค่านี้จะไม่ถูกส่งจนกว่าจะแก้ไข และไม่กระทบการตั้งค่าอื่นของคุณ</string>
-    <string name="advanced_fields_count">%1$d ฟิลด์</string>
-    <string name="advanced_grey_defaults_legend">ตัวเลขสีเทาคือค่าเริ่มต้นของ %1$s เอง จะไม่ถูกส่งเว้นแต่คุณจะเปลี่ยน</string>
-    <string name="advanced_learning_rate">อัตราการเรียนรู้</string>
-    <string name="advanced_mirostat_note">รักษาระดับความสุ่มของผลลัพธ์ให้คงที่ใกล้ค่าเป้าหมาย ใช้แทน Top K และ Top P</string>
-    <string name="advanced_model_defaults">ค่าเริ่มต้นของโมเดล</string>
-    <string name="advanced_more">เพิ่มเติม</string>
-    <string name="advanced_more_sampling">การสุ่มตัวอย่างเพิ่มเติม</string>
-    <string name="advanced_new_stop_sequence">เพิ่มข้อความสำหรับหยุดการสร้าง</string>
-    <string name="advanced_no_limit">ไม่จำกัด</string>
-    <string name="advanced_not_adjusted">ยังไม่ได้ปรับ</string>
-    <string name="advanced_not_in_use">ยังไม่ได้ใช้</string>
-    <string name="advanced_plain_text">ข้อความธรรมดา</string>
-    <string name="advanced_preset_apply">ใช้ค่าที่ตั้งไว้นี้</string>
-    <string name="advanced_preset_apply_body">“%1$s” จะแทนที่ค่าทั้งหมดที่คุณกำหนดเองให้โมเดลนี้: %2$s</string>
-    <string name="advanced_preset_apply_title">ใช้ค่าที่ตั้งไว้นี้หรือไม่</string>
-    <string name="advanced_random_each_time">สุ่มทุกครั้ง</string>
-    <string name="advanced_reasoning_set_by_thinking">การคิดของโมเดลนี้ตั้งค่าได้ที่ \"ตัวเลือกโมเดล\" › \"การคิด\" หากต้องการใช้ระดับใดเป็นค่าเริ่มต้น ให้เลือกระดับนั้นที่นั่นแล้วแตะ \"ตั้งเป็นค่าเริ่มต้นของโมเดลนี้\" แถวนี้จะไม่ถูกส่งไปกับคำขอ</string>
-    <string name="advanced_remove_item">ลบ %1$s</string>
-    <string name="advanced_repetition">ป้องกันการซ้ำ</string>
-    <string name="advanced_reset">รีเซ็ต</string>
-    <string name="advanced_reset_conversation_action">รีเซ็ตการเปลี่ยนแปลงในบทสนทนานี้</string>
-    <string name="advanced_reset_conversation_body">ล้างเฉพาะพารามิเตอร์ที่คุณเปลี่ยนในบทสนทนานี้ ค่าเริ่มต้นของโมเดลและเนื้อหาคำขอเพิ่มเติมยังคงเดิม</string>
-    <string name="advanced_reset_conversation_title">รีเซ็ตการตั้งค่าของบทสนทนานี้หรือไม่</string>
-    <string name="advanced_reset_model_action">รีเซ็ตค่าเริ่มต้นของโมเดล</string>
-    <string name="advanced_reset_model_body">ล้างพารามิเตอร์เริ่มต้นที่คุณตั้งไว้ให้โมเดลนี้บนการเชื่อมต่อนี้ ส่วนที่เปลี่ยนไว้ในแต่ละบทสนทนายังคงเดิม</string>
-    <string name="advanced_reset_model_title">รีเซ็ตค่าเริ่มต้นของโมเดลนี้หรือไม่</string>
-    <string name="advanced_state_on">เปิด</string>
-    <string name="advanced_state_set">ตั้งค่าแล้ว</string>
-    <string name="advanced_stop_sequences">ข้อความสำหรับหยุดการสร้าง</string>
-    <string name="advanced_stop_sequences_note">โมเดลจะหยุดทันทีที่เขียนข้อความใดข้อความหนึ่งในนี้ ข้อความแต่ละรายการมีจุลภาค ช่องว่าง และการขึ้นบรรทัดใหม่ได้</string>
-    <string name="advanced_taken_over">%1$s เปิดอยู่ จึงไม่ใช้การตั้งค่านี้</string>
-    <string name="advanced_target_entropy">เอนโทรปีเป้าหมาย</string>
-    <string name="advanced_this_conversation_only">เฉพาะบทสนทนานี้</string>
-    <string name="advanced_use_model_default">ใช้ค่าเริ่มต้นของโมเดล</string>
-    <string name="advanced_using_your_default">ใช้ค่าเริ่มต้นของโมเดลที่คุณตั้งไว้</string>
-    <string name="advanced_write_your_own">เขียนเอง</string>
-    <string name="advanced_xtc_note">บางครั้งข้ามคำที่มีโอกาสถูกเลือกมากที่สุด เพื่อให้ใช้คำหลากหลายขึ้น</string>
-    <string name="advanced_your_default">ค่าเริ่มต้นของโมเดล</string>
+    <string name="additional_body_title">เนื้อหาคำขอเพิ่มเติม</string>
+    <string name="additional_body_send_toggle">ส่งไปพร้อมคำขอ</string>
+    <string name="additional_body_send_toggle_note">เมื่อปิด เนื้อหาจะยังอยู่แต่ไม่ถูกส่ง</string>
+    <string name="additional_body_device_only">บันทึกไว้ในอุปกรณ์นี้เท่านั้น ไม่ซิงค์</string>
+    <string name="additional_body_paste">วาง</string>
+    <string name="additional_body_tidy">จัดรูปแบบ</string>
+    <string name="additional_body_when_sending">เมื่อส่ง</string>
+    <string name="additional_body_included">รวมไว้</string>
+    <string name="additional_body_cannot_change">เปลี่ยนไม่ได้</string>
+    <string name="additional_body_footer">ฟิลด์ที่นี่จะถูกเพิ่มลงในคำขอตามที่เขียนไว้ Oriveo ไม่ได้ตรวจสอบว่าเซิร์ฟเวอร์ของคุณรับได้หรือไม่ หากมีฟิลด์ที่ชื่อตรงกับการตั้งค่าขั้นสูง จะใช้ค่าที่นี่แทน ส่วนการตั้งค่าอื่นจะส่งตามปกติ</string>
+    <string name="additional_body_docs_link">ดูว่า %1$s รองรับฟิลด์ใดบ้าง</string>
+    <string name="additional_body_remove_line">%1$s ลบบรรทัดที่ %2$d ก่อนจึงจะส่งได้</string>
+    <string name="additional_body_conversation_filled">Oriveo จะใส่เนื้อหาบทสนทนาให้เอง</string>
+    <string name="additional_body_attachments_filled">Oriveo จะใส่ไฟล์แนบให้เอง</string>
+    <string name="additional_body_system_prompt_filled">Oriveo จะใส่พรอมต์ระบบให้เอง</string>
+    <string name="additional_body_tools_managed">Oriveo เป็นผู้จัดการเครื่องมือ</string>
+    <string name="additional_body_model_chosen">โมเดลคือโมเดลที่คุณเลือกไว้ใน Oriveo</string>
+    <string name="additional_body_streaming_by_oriveo">Oriveo เป็นผู้กำหนดวิธีสตรีมคำตอบ</string>
+    <string name="additional_body_field_filled">Oriveo จะกรอกฟิลด์นี้ให้เอง</string>
+    <string name="additional_body_field_name_invalid">ใช้ชื่อนี้เป็นชื่อฟิลด์ไม่ได้</string>
+    <string name="additional_body_paste_replace_title">ต้องการแทนที่เนื้อหาปัจจุบันหรือไม่</string>
+    <string name="additional_body_paste_replace_body">การวางจะแทนที่เนื้อหาปัจจุบันด้วยสิ่งที่อยู่ในคลิปบอร์ด</string>
+    <string name="additional_body_tidy_invalid">ยังไม่ใช่ JSON ที่ถูกต้อง จึงยังไม่มีการเปลี่ยนแปลงใดๆ</string>
+    <string name="additional_body_switch_blocked_invalid">เนื้อหาคำขอเพิ่มเติมมีปัญหา สวิตช์นี้จึงเปลี่ยนไม่ได้ โปรดไปแก้ไขที่นั่นก่อน</string>
+    <string name="additional_body_switch_blocked_off">ขณะนี้เนื้อหาคำขอเพิ่มเติมไม่ได้ถูกส่งไปพร้อมคำขอ โปรดไปเปิดที่นั่นก่อน</string>
+    <string name="additional_body_check">โปรดตรวจสอบเนื้อหาคำขอเพิ่มเติม</string>
+    <string name="additional_body_rejected_upstream">คำขอที่มีเนื้อหาคำขอเพิ่มเติมถูกปฏิเสธ</string>
+    <string name="additional_body_reason_too_large">เนื้อหาคำขอเพิ่มเติมมีขนาดเกิน 64 KB</string>
+    <string name="additional_body_reason_invalid_json">เนื้อหาคำขอเพิ่มเติมไม่ใช่ JSON ที่ถูกต้อง</string>
+    <string name="additional_body_reason_not_object">เนื้อหาคำขอเพิ่มเติมต้องเป็นออบเจ็กต์ JSON ที่ครอบด้วย { }</string>
+    <string name="additional_body_reason_too_deep">เนื้อหาคำขอเพิ่มเติมซ้อนกันลึกเกิน 32 ชั้น</string>
+    <string name="additional_body_reason_blocked_segment">ใช้ “%1$s” เป็นชื่อฟิลด์ในเนื้อหาคำขอเพิ่มเติมไม่ได้</string>
+    <string name="additional_body_reason_protected_field">Oriveo เป็นผู้กรอก “%1$s” จึงตั้งค่าไว้ในเนื้อหาคำขอเพิ่มเติมไม่ได้</string>
+    <string name="additional_body_retry_without">ลองอีกครั้งโดยไม่ใส่เนื้อหาคำขอเพิ่มเติม</string>
+    <string name="local_request_line_format">บรรทัดที่ %1$d: %2$s</string>
+    <string name="local_request_custom_line_format">ฟิลด์%1$s บรรทัดที่ %2$d: %3$s</string>
+    <string name="local_request_custom_format">ฟิลด์%1$s: %2$s</string>
+    <string name="local_request_not_sent">ข้อความนี้ยังไม่ได้ส่ง</string>
     <string name="generation_parameter_name_grammar">ข้อจำกัดไวยากรณ์ (GBNF)</string>
     <string name="generation_parameter_name_min_tokens">จำนวนโทเค็นเอาต์พุตขั้นต่ำ</string>
     <string name="generation_parameter_name_skip_special_tokens">ซ่อนโทเค็นพิเศษในเอาต์พุต</string>
     <string name="generation_parameter_omitted_value">ละเว้น</string>
+    <string name="advanced_reasoning_set_by_thinking">การคิดของโมเดลนี้ตั้งค่าได้ที่ \"ตัวเลือกโมเดล\" › \"การคิด\" หากต้องการใช้ระดับใดเป็นค่าเริ่มต้น ให้เลือกระดับนั้นที่นั่นแล้วแตะ \"ตั้งเป็นค่าเริ่มต้นของโมเดลนี้\" แถวนี้จะไม่ถูกส่งไปกับคำขอ</string>
+    <string name="advanced_preset_apply">ใช้ค่าที่ตั้งไว้นี้</string>
+    <string name="advanced_preset_apply_title">ใช้ค่าที่ตั้งไว้นี้หรือไม่</string>
+    <string name="advanced_preset_apply_body">“%1$s” จะแทนที่ค่าทั้งหมดที่คุณกำหนดเองให้โมเดลนี้: %2$s</string>
+    <string name="advanced_diagnostics_delete_title">ลบบันทึกการวินิจฉัยเหล่านี้หรือไม่</string>
+    <string name="advanced_diagnostics_delete_body">จะลบบันทึกการวินิจฉัยของโมเดลนี้ที่แสดงอยู่ ส่วนบันทึกของโมเดลอื่นยังคงอยู่</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">LLM แบบกำหนดเอง · รีเลย์แบบกำหนดเอง</string>
     <string name="relay_setup_hero_title">เชื่อมต่อรีเลย์แบบกำหนดเอง</string>
@@ -1784,6 +1867,7 @@
     <string name="relay_relative_minutes_ago">%d นาทีที่แล้ว</string>
     <string name="relay_relative_hours_ago">%d ชม. ที่แล้ว</string>
     <string name="relay_detail_default_model">โมเดลเริ่มต้น</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">ใส่ที่อยู่และคีย์ แล้วเลือกโมเดลที่จะใช้ในขั้นถัดไป ระบบจะตรวจจับโปรโตคอลและความสามารถของแต่ละโมเดลให้</string>
     <string name="relay_setup_will_request">จะส่งคำขอไปที่ %1$s</string>
     <string name="relay_setup_key_name">ชื่อ (ไม่บังคับ)</string>
@@ -1873,6 +1957,14 @@
     <string name="relay_catalog_status_denied">คีย์ปัจจุบันไม่มีสิทธิ์เข้าถึง</string>
     <string name="relay_catalog_unreachable_title">สาเหตุที่เชื่อมต่อไม่ได้</string>
     <string name="relay_catalog_enable_hint">เมื่อเปิดใช้ จะส่งคำขอเล็กๆ 1 ครั้งเพื่อยืนยันว่าโมเดลใช้งานได้ แตะโมเดลในแคตตาล็อกเพื่อดู “ขั้นสูง” ก่อนได้โดยไม่ส่งคำขอ</string>
+    <string name="relay_catalog_add_all">เพิ่มทั้งหมด</string>
+    <string name="relay_catalog_enable_hint_explicit">แตะโมเดลในแคตตาล็อกเพื่อดู “ขั้นสูง” ก่อนได้โดยไม่ส่งคำขอ</string>
+    <string name="relay_catalog_remove_last_reason">การเชื่อมต่อนี้ต้องมีโมเดลอย่างน้อยหนึ่งรายการ</string>
+    <string name="relay_model_advanced_auto_equals_connection">อัตโนมัติ = โปรโตคอลเริ่มต้นของการเชื่อมต่อนี้ (%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">การเปลี่ยนแปลงมีผลทันที และบันทึกไว้ในอุปกรณ์นี้เท่านั้น</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="other">เพิ่ม %1$d โมเดลแล้ว</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">ดึงรายการโมเดลไม่ได้</string>
     <string name="relay_catalog_group_other">อื่นๆ</string>
     <string name="relay_advanced_key_section">คีย์</string>
@@ -1961,6 +2053,7 @@
     <string name="relay_web_chat_note">Chat Completions ไม่มีฟิลด์มาตรฐานสำหรับการค้นเว็บ เทมเพลตใช้ได้กับโมเดลค้นหาเท่านั้น โปรดดูเอกสารของบริการ</string>
     <string name="relay_web_other_protocols">โปรโตคอลอื่น ๆ</string>
     <string name="relay_web_template_replace_body">เทมเพลตจะแทนที่สิ่งที่คุณกรอกไว้สำหรับโปรโตคอลนี้</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">การยืนยันตัวตน, Header และพารามิเตอร์คิวรี</string>
     <string name="relay_manual_connection_name">ชื่อการเชื่อมต่อ</string>
     <string name="relay_manual_model_footnote">กรอกรหัสโมเดลให้ตรงกับที่รีเลย์แบบกำหนดเองของคุณแสดงไว้ทุกตัวอักษร ภายหลังเพิ่มโมเดลอื่นได้จากห้องสมุดโมเดล</string>
@@ -1974,64 +2067,6 @@
     <string name="relay_manual_model_entry_note_exact">กรอกรหัสโมเดลให้ตรงกับที่รีเลย์แบบกำหนดเองของคุณแสดงไว้ทุกตัวอักษร</string>
     <string name="relay_manual_model_entry_note_capabilities">ความสามารถของโมเดลจะถูกจำไว้หลังจากคุณส่งข้อความ หรือจะทดสอบใน “ขั้นสูง” ก็ได้</string>
     <string name="relay_connection_not_verified">การเชื่อมต่อยังไม่ได้รับการตรวจสอบ</string>
-    <string name="local_request_custom_format">ฟิลด์%1$s: %2$s</string>
-    <string name="local_request_custom_line_format">ฟิลด์%1$s บรรทัดที่ %2$d: %3$s</string>
-    <string name="local_request_line_format">บรรทัดที่ %1$d: %2$s</string>
-    <string name="local_request_not_sent">ข้อความนี้ยังไม่ได้ส่ง</string>
-    <string name="model_options_always_thinks">คิดก่อนตอบทุกครั้ง</string>
-    <string name="model_options_cannot_search">โมเดลนี้ค้นเว็บไม่ได้</string>
-    <string name="model_options_always_on">เปิดอยู่เสมอ</string>
-    <string name="model_options_subscription_always_searches">เมื่อใช้การสมัครสมาชิกนี้ โมเดลนี้จะค้นเว็บทุกครั้ง</string>
-    <string name="model_options_cant_switch_here">ยังสลับที่นี่ไม่ได้</string>
-    <string name="model_options_capabilities">ความสามารถ</string>
-    <string name="model_options_choose_protocol">เลือกโปรโตคอล</string>
-    <string name="model_options_choose_protocol_first">เลือกโปรโตคอลของการเชื่อมต่อนี้ก่อน</string>
-    <string name="model_options_connection_cannot">การเชื่อมต่อนี้ไม่รองรับ</string>
-    <string name="model_options_higher_levels_note">ระดับยิ่งสูงยิ่งใช้เวลานาน และอาจมีค่าใช้จ่ายมากขึ้น</string>
-    <string name="model_options_local">ในเครื่อง</string>
-    <string name="model_options_more_count">อีก %1$d รายการ</string>
-    <string name="model_options_needs_manual_setup">ต้องตั้งค่าเอง</string>
-    <string name="model_options_no_thinking_mode">โมเดลนี้ไม่มีโหมดการคิด</string>
-    <string name="model_options_not_available_yet">ยังใช้ไม่ได้</string>
-    <string name="model_options_open_additional_body">เปิดเนื้อหาคำขอเพิ่มเติม</string>
-    <string name="model_options_protocol_auto_note">โปรโตคอลยังตั้งเป็น “อัตโนมัติ” อยู่ Oriveo จึงไม่รู้ว่าจะส่งการตั้งค่าค้นเว็บและการคิดอย่างไร</string>
-    <string name="model_options_reasoning_no_generic_switch">ผู้ให้บริการรายนี้ไม่มีสวิตช์มาตรฐานสำหรับการคิด โปรดเพิ่มฟิลด์ของผู้ให้บริการรายนี้ในเนื้อหาคำขอเพิ่มเติม</string>
-    <string name="model_options_reasoning_not_catalogued">Oriveo ยังไม่มีการตั้งค่าการคิดสำหรับโมเดลนี้ จึงทำงานตามค่าเริ่มต้นของโมเดลเอง</string>
-    <string name="model_options_see_adjustable_models">ดูว่าโมเดลใดปรับได้</string>
-    <string name="model_options_template_thinking_note">เปิดหรือปิดการคิดผ่านเทมเพลตแชต จะได้ผลหรือไม่ขึ้นอยู่กับเซิร์ฟเวอร์ของคุณ</string>
-    <string name="model_options_thinks_first_note">คิดให้รอบคอบก่อน จึงตอบช้าลงเล็กน้อย</string>
-    <string name="model_options_tier_rejected_body">ขณะนี้โมเดลนี้ไม่รับ “%1$s” จึงกลับไปใช้ “%2$s” ระดับเดิมจะกลับมาเองเมื่อโมเดลรองรับอีกครั้ง</string>
-    <string name="model_options_tier_rejected_title">“%1$s” ถูกปฏิเสธ</string>
-    <string name="model_options_uses_model_default">ทำงานตามค่าเริ่มต้นของโมเดล</string>
-    <string name="model_options_web_and_thinking_fields">ฟิลด์สำหรับค้นเว็บและการคิด</string>
-    <string name="model_options_vision_available">ใช้ได้ · แสดงปุ่มเลือกรูปในช่องพิมพ์</string>
-    <string name="model_options_vision_unknown">ยังไม่ทราบ · จำไว้หลังส่ง</string>
-    <string name="model_options_vision_hidden">ใช้ไม่ได้ · ไม่แสดงปุ่มเลือกรูปในช่องพิมพ์</string>
-    <string name="model_options_file_pdf_native">PDF ส่งแบบต้นฉบับ · ที่เหลือแปลงเป็นข้อความ</string>
-    <string name="model_options_file_native_when_supported">รูปแบบที่รองรับส่งแบบต้นฉบับ · ที่เหลือแปลงเป็นข้อความ</string>
-    <string name="model_options_file_text">ส่งเป็นข้อความ</string>
-    <string name="model_options_turn_summary">รอบนี้จะส่ง: %1$s</string>
-    <string name="model_options_summary_web_on">เปิดค้นเว็บ</string>
-    <string name="model_options_summary_thinking_level">การคิด: %1$s</string>
-    <string name="model_options_summary_thinking_on">เปิดการคิด</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="other">%d ระดับ</item>
-    </plurals>
-    <string name="model_options_web_every_message">ทุกข้อความ</string>
-    <string name="model_options_web_no_generic_switch">ผู้ให้บริการรายนี้ไม่มีสวิตช์มาตรฐานสำหรับค้นเว็บ โปรดเพิ่มฟิลด์ของผู้ให้บริการรายนี้ในเนื้อหาคำขอเพิ่มเติม</string>
-    <string name="model_options_web_not_catalogued">Oriveo ยังไม่มีการตั้งค่าค้นเว็บสำหรับโมเดลนี้ จึงยังเปิดที่นี่ไม่ได้</string>
-    <string name="model_options_web_note">ค้นเว็บก่อนตอบเมื่อคำถามต้องใช้ข้อมูล</string>
-    <string name="model_options_web_when_needed">เมื่อจำเป็น</string>
-    <string name="additional_body_tools_managed">Oriveo เป็นผู้จัดการเครื่องมือ</string>
-    <string name="additional_body_streaming_by_oriveo">Oriveo เป็นผู้กำหนดวิธีสตรีมคำตอบ</string>
-    <string name="relay_catalog_add_all">เพิ่มทั้งหมด</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="other">เพิ่ม %1$d โมเดลแล้ว</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">การเชื่อมต่อนี้ต้องมีโมเดลอย่างน้อยหนึ่งรายการ</string>
-    <string name="relay_catalog_enable_hint_explicit">แตะโมเดลในแคตตาล็อกเพื่อดู “ขั้นสูง” ก่อนได้โดยไม่ส่งคำขอ</string>
-    <string name="relay_model_advanced_changes_apply">การเปลี่ยนแปลงมีผลทันที และบันทึกไว้ในอุปกรณ์นี้เท่านั้น</string>
-    <string name="relay_model_advanced_auto_equals_connection">อัตโนมัติ = โปรโตคอลเริ่มต้นของการเชื่อมต่อนี้ (%1$s)</string>
     <string name="relay_avatar_change_icon">เปลี่ยนไอคอน</string>
     <string name="relay_avatar_letter">ตัวอักษร</string>
     <string name="relay_avatar_icon_paper_plane">เครื่องบินกระดาษ</string>
@@ -2243,7 +2278,7 @@
     <string name="memory_editor_category">หมวดหมู่</string>
     <string name="memory_editor_too_long">สูงสุด 2,000 ตัวอักษร</string>
     <string name="memory_delete_confirm_title">ลบความจำนี้ไหม</string>
-    <string name="memory_delete_confirm_body">จะถูกลบออกจากเครื่องนี้อย่างถาวร</string>
+    <string name="memory_delete_confirm_body">จะถูกลบออกจากทุกเครื่องของคุณ</string>
     <string name="memory_action_organize">แยกเป็นรายการ</string>
     <string name="memory_raw_view">ข้อความธรรมดา</string>
     <string name="memory_raw_view_hint">คั่นแต่ละรายการด้วยบรรทัดที่มีแค่ ---</string>
@@ -2273,8 +2308,165 @@
     <string name="context_confirm_also_price_line">คำขอนี้ยังเกินเกณฑ์ขึ้นราคา %2$s ของ %1$s ด้วย จึงคิดราคาบริบทยาวกับทั้งคำขอ</string>
     <string name="context_confirm_dont_ask">ไม่ต้องถามอีกในแชทนี้</string>
     <string name="context_confirm_send">ส่งเลย</string>
-    <string name="chat_last_used_model_retired_hint">โมเดลที่ใช้ล่าสุดยุติการให้บริการแล้ว ตอนนี้ใช้ %1$s</string>
-    <string name="model_options_shows_thinking_fixed">แสดงกระบวนการคิด · ปรับไม่ได้</string>
     <string name="settings_section_general">ทั่วไป</string>
     <string name="settings_section_help_about">ความช่วยเหลือและข้อมูล</string>
+    <string name="settings_footer_poem">ท่ามกลางโมเดลนับไม่ถ้วน มีคำตอบหนึ่งที่เป็นของคุณ</string>
+    <string name="skills_home_autoCount">อัตโนมัติ · %1$d</string>
+    <string name="skills_home_slashHint">พิมพ์ / เพื่อใช้</string>
+    <string name="skills_home_empty">บันทึกวิธีทำแบบที่คุณชอบ</string>
+    <string name="skills_list_subtitle">บันทึกวิธีทำงานที่คุณชอบไว้ แล้ว AI จะนำไปใช้เมื่อเหมาะสม</string>
+    <string name="skills_create_describePlaceholder">อธิบายวิธีทำ แล้ว AI จะเขียนเป็นทักษะให้</string>
+    <string name="skills_create_fromChat">จากแชท</string>
+    <string name="skills_create_manual">สร้างเอง</string>
+    <string name="skills_segment_mine">ของฉัน</string>
+    <string name="skills_segment_templates">เทมเพลต</string>
+    <string name="skills_group_auto">อัตโนมัติ</string>
+    <string name="skills_group_manual">เรียกใช้เองเท่านั้น</string>
+    <string name="skills_card_usageCount">ใช้แล้ว: %1$d</string>
+    <string name="skills_row_slashHint">ใช้เมื่อคุณพิมพ์ %1$s</string>
+    <string name="skills_auto_needWhenTitle">บอกก่อนว่าจะใช้เมื่อใด</string>
+    <string name="skills_auto_suggest">ให้ AI แนะนำ</string>
+    <string name="skills_auto_limitReached">การใช้อัตโนมัติถึงขีดจำกัดแล้ว (%1$d) ปิดสักหนึ่งทักษะก่อน</string>
+    <string name="skills_search_placeholder">ค้นหาทักษะ</string>
+    <string name="skills_empty_title">ยังไม่มีทักษะ</string>
+    <string name="skills_empty_body">บันทึกวิธีทำที่ใช้บ่อยไว้ จะได้ไม่ต้องอธิบายใหม่ทุกครั้ง</string>
+    <string name="skills_empty_browseTemplates">ดูเทมเพลต</string>
+    <string name="skills_migrate_banner">ทักษะที่ยังไม่มี “ใช้เมื่อใด”: %1$d เพิ่มอีกหนึ่งประโยคเพื่อให้ใช้อัตโนมัติได้</string>
+    <string name="skills_migrate_review">เติมทีละรายการ</string>
+    <string name="skills_templates_note">เทมเพลตจะถูกใช้อัตโนมัติก็ต่อเมื่อเพิ่มไปที่ “ของฉัน” แล้ว</string>
+    <string name="skills_templates_featured">แนะนำ</string>
+    <string name="skills_templates_addToMine">เพิ่มไปที่ของฉัน</string>
+    <string name="skills_templates_add">เพิ่ม</string>
+    <string name="skills_templates_added">เพิ่มแล้ว</string>
+    <string name="skills_templates_tryOnce">ลองใช้ครั้งเดียว</string>
+    <string name="skills_detail_useInNewChat">ใช้ในแชทใหม่</string>
+    <string name="skills_detail_orSlash">หรือพิมพ์ %1$s ในช่องข้อความ</string>
+    <string name="skills_detail_usage">ใช้แล้ว: %1$d · ใช้ล่าสุด %2$s</string>
+    <string name="skills_detail_neverUsed">ยังไม่เคยใช้</string>
+    <string name="skills_detail_autoInvoke">ใช้อัตโนมัติ</string>
+    <string name="skills_detail_whenToUse">ใช้เมื่อใด</string>
+    <string name="skills_detail_whenToUseNote">AI ใช้ข้อนี้ในการตัดสินใจ</string>
+    <string name="skills_detail_instructions">วิธีทำ</string>
+    <string name="skills_detail_showAll">แสดงทั้งหมด</string>
+    <string name="skills_detail_references">เอกสารอ้างอิง</string>
+    <string name="skills_detail_starters">ข้อความเริ่มต้น</string>
+    <string name="skills_detail_recentChats">แชทล่าสุด</string>
+    <string name="skills_detail_try">ลองใช้</string>
+    <string name="skills_edit_changeIcon">เปลี่ยนไอคอน</string>
+    <string name="skills_edit_name">ชื่อ</string>
+    <string name="skills_edit_whenBadge">มีผลต่อการใช้อัตโนมัติ</string>
+    <string name="skills_edit_whenPlaceholder">เช่น เมื่อฉันขอให้สรุปโน้ตเป็นรายงานประจำสัปดาห์ ไม่ใช้กับรายงานประจำวัน</string>
+    <string name="skills_edit_keywordsCaption">เรียกใช้เมื่อเจอคำเหล่านี้ · แค่อธิบายสถานการณ์ก็พอ</string>
+    <string name="skills_edit_whenTip">เขียนให้ชัดว่าทำอะไร ใช้เมื่อไร และปกติคุณพูดว่าอย่างไร เพิ่ม “ไม่ใช้กับ …” เพื่อลดการเรียกใช้ผิด คำในเครื่องหมายคำพูดจะถูกไฮไลต์</string>
+    <string name="skills_edit_polish">ให้ AI ขัดเกลา</string>
+    <string name="skills_edit_addStarter">เพิ่มข้อความเริ่มต้น</string>
+    <string name="skills_edit_modelAndFeatures">โมเดลและฟีเจอร์</string>
+    <string name="skills_edit_followChat">ตามแชท</string>
+    <string name="skills_edit_needWhenForAuto">กรอก “ใช้เมื่อใด” หรือปิดการใช้อัตโนมัติ</string>
+    <string name="skills_draft_askScenarios">ยกตัวอย่างสถานการณ์ที่คุณจะใช้สักหนึ่งหรือสองอย่าง</string>
+    <string name="skills_draft_askQuality">ผลลัพธ์แบบไหนถือว่าดี</string>
+    <string name="skills_draft_skip">ข้าม</string>
+    <string name="skills_draft_generating">กำลังเขียนฉบับร่าง…</string>
+    <string name="skills_draft_title">ฉบับร่าง</string>
+    <string name="skills_draft_editFirst">แก้ไขก่อน</string>
+    <string name="skills_draft_suggestedIcon">ไอคอนที่แนะนำ</string>
+    <string name="skills_draft_failed">สร้างฉบับร่างไม่เสร็จ เราเติมส่วนที่ใช้ได้ไว้ให้แล้ว</string>
+    <string name="skills_fromChat_menuConversation">บันทึกเป็นทักษะ</string>
+    <string name="skills_fromChat_menuMessage">บันทึกวิธีนี้เป็นทักษะ</string>
+    <string name="skills_fromChat_messages">ข้อความ: %1$d</string>
+    <string name="skills_fromChat_extracting">กำลังสรุป…</string>
+    <string name="skills_limit_upgrade">อัปเกรดเพื่อสร้างเพิ่ม</string>
+    <string name="skills_limit_draftKept">ฉบับร่างยังเก็บไว้ในเครื่องนี้</string>
+    <string name="skills_composer_placeholder">พิมพ์ / เพื่อใช้ทักษะ</string>
+    <string name="skills_picker_title">ทักษะของฉัน</string>
+    <string name="skills_picker_multi">เลือกได้หลายรายการ</string>
+    <string name="skills_picker_auto">อัตโนมัติ</string>
+    <string name="skills_picker_manual">เรียกใช้เอง</string>
+    <string name="skills_picker_manage">จัดการทักษะ</string>
+    <string name="skills_picker_maxReached">ใช้พร้อมกันได้สูงสุด %1$d ทักษะ</string>
+    <string name="skills_chip_deleted">ถูกลบแล้ว</string>
+    <string name="skills_message_attached">ใช้ %1$s</string>
+    <string name="skills_used_chip">ใช้: %1$s</string>
+    <string name="skills_used_loading">กำลังใช้ %1$s…</string>
+    <string name="skills_used_byChoice">ใช้เพราะคุณเลือกไว้</string>
+    <string name="skills_used_why">เหตุผลที่ใช้</string>
+    <string name="skills_used_disableHere">ไม่ใช้อัตโนมัติในแชทนี้</string>
+    <string name="skills_used_view">ดูทักษะ</string>
+    <string name="skills_settings_autoToggle">ใช้ทักษะอัตโนมัติ</string>
+    <string name="skills_settings_autoToggleFooter">เมื่อปิด โมเดลจะไม่เลือกทักษะเอง แต่คุณยังพิมพ์ / เพื่อเลือกใช้ได้</string>
+    <string name="skills_try_banner">กำลังทดลอง · ไม่บันทึกในประวัติ</string>
+    <string name="skills_try_saveToSkill">บันทึกลงในทักษะ</string>
+    <string name="skills_try_adjust">ปรับวิธีทำ</string>
+    <string name="skills_try_saved">บันทึกลงใน “%1$s” แล้ว</string>
+    <string name="skills_try_savedToDraft">คัดลอกไปที่หน้าแก้ไขแล้ว บันทึกที่นั่นเพื่อเก็บไว้</string>
+    <string name="skills_improve_prompt">เพิ่มข้อนี้ลงใน “%1$s” ไหม</string>
+    <string name="skills_improve_review">ดูการเปลี่ยนแปลง</string>
+    <string name="skills_improve_accept">เพิ่มลงในทักษะ</string>
+    <string name="skills_improve_dismiss">ไว้ทีหลัง</string>
+    <string name="skills_improve_addedLine">เพิ่มใหม่</string>
+    <string name="skills_improve_removedLine">ลบออก</string>
+    <string name="skills_improve_saved">เพิ่มลงใน “%1$s” แล้ว</string>
+    <string name="skills_saveFailed">ไม่สามารถบันทึกการเปลี่ยนแปลงได้ โปรดลองอีกครั้ง</string>
+    <string name="skills_usage_manifestRow">โทเค็นส่วนเพิ่มจากรายการทักษะ</string>
+    <string name="skills_glyph_writing">การเขียน</string>
+    <string name="skills_glyph_report">รายงาน</string>
+    <string name="skills_glyph_code">โค้ด</string>
+    <string name="skills_glyph_study">การเรียน</string>
+    <string name="skills_glyph_travel">การเดินทาง</string>
+    <string name="skills_glyph_health">สุขภาพ</string>
+    <string name="skills_glyph_meeting">การประชุม</string>
+    <string name="skills_glyph_idea">ไอเดีย</string>
+    <string name="skills_glyph_translate">การแปล</string>
+    <string name="skills_glyph_email">อีเมล</string>
+    <string name="skills_glyph_data">ข้อมูล</string>
+    <string name="skills_glyph_design">การออกแบบ</string>
+    <string name="skills_glyph_legal">กฎหมาย</string>
+    <string name="skills_glyph_finance">การเงิน</string>
+    <string name="skills_glyph_marketing">การตลาด</string>
+    <string name="skills_glyph_support">บริการลูกค้า</string>
+    <string name="skills_glyph_teaching">การสอน</string>
+    <string name="skills_glyph_research">การวิจัย</string>
+    <string name="skills_glyph_life">ชีวิตประจำวัน</string>
+    <string name="skills_glyph_food">อาหาร</string>
+    <string name="skills_glyph_music">ดนตรี</string>
+    <string name="skills_glyph_photo">การถ่ายภาพ</string>
+    <string name="skills_glyph_product">ผลิตภัณฑ์</string>
+    <string name="skills_glyph_general">ทั่วไป</string>
+    <string name="skills_home_notesRecent">แก้ไขล่าสุด</string>
+    <string name="skills_search_noResults">ไม่มีผลลัพธ์</string>
+    <string name="generic_error_try_again">เกิดข้อผิดพลาด โปรดลองอีกครั้ง</string>
+    <string name="loading_usage_trends">กำลังโหลดแนวโน้มการใช้งาน...</string>
+    <string name="usage_vs_last_month">เทียบกับเดือนที่แล้ว</string>
+    <string name="usage_section_insights">ข้อมูลเชิงลึก</string>
+    <string name="usage_section_budgets">งบประมาณ</string>
+    <string name="usage_sample_report">รายงานตัวอย่าง</string>
+    <string name="usage_clear">ล้าง</string>
+    <string name="usage_monthly_budget_eyebrow">งบประมาณรายเดือน</string>
+    <string name="skills_knowledgeErrorOpenAI">โปรดเพิ่มและตั้งค่าผู้ให้บริการ OpenAI ก่อน</string>
+    <string name="skills_knowledgeErrorEndpoint">ฐานความรู้ใช้งานได้กับตำแหน่งข้อมูล OpenAI อย่างเป็นทางการเท่านั้น</string>
+    <string name="skills_knowledgeErrorModelDisabled">เพิ่มและเปิดใช้งาน %1$s ในผู้ให้บริการ OpenAI ของคุณก่อน</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">ฐานความรู้ไม่พร้อมใช้งานในขณะนี้</string>
+    <string name="skills_knowledgeErrorFileTooLarge">ไฟล์ฐานความรู้ต้องมีขนาด 20 MB หรือเล็กกว่า</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">ทักษะสามารถมีไฟล์ฐานความรู้ได้สูงสุด 5 ไฟล์และมีขนาดรวม 100 MB</string>
+    <string name="skills_knowledgeErrorExtractFailed">ไม่สามารถแยกข้อความจากไฟล์นี้</string>
+    <string name="skills_knowledgeErrorUploadFailed">ไม่สามารถอัปโหลดไฟล์นี้</string>
+    <string name="skills_knowledgeErrorIndexFailed">ไม่สามารถจัดทำดัชนีไฟล์นี้</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">การเรียกข้อมูลความรู้ล้มเหลวสำหรับข้อความนี้</string>
+    <string name="skills_knowledgeErrorCleanupFailed">ไม่สามารถล้างไฟล์ระยะไกลได้ ลองอีกครั้งในภายหลัง</string>
+    <string name="custom_llm_connection_method">วิธีการเชื่อมต่อ</string>
+    <string name="local_compute_pairing_code">รหัสจับคู่</string>
+    <string name="local_compute_scan_qr">สแกนคิวอาร์โค้ด</string>
+    <string name="api_endpoint_not_configured">ยังไม่ได้ตั้งค่า</string>
+    <string name="contact_support">ติดต่อฝ่ายสนับสนุน</string>
+    <string name="error_attachment_not_accepted_title">ไฟล์แนบใช้ไม่ได้</string>
+    <string name="generation_empty_runtime_locked">ไม่สามารถปรับพารามิเตอร์รันไทม์สำหรับการเชื่อมต่อนี้</string>
+    <string name="legal_consent_notice">การดำเนินการต่อแสดงว่าคุณยอมรับข้อกำหนดทางกฎหมายด้านล่าง</string>
+    <string name="price_cache_read">อ่านแคช</string>
+    <string name="price_cache_write">เขียนแคช</string>
+    <string name="price_input">อินพุต</string>
+    <string name="price_output">เอาต์พุต</string>
+    <string name="settings_report_issue">รายงานปัญหา</string>
+    <string name="settings_source_code">ซอร์สโค้ด</string>
+    <string name="skills_pinToHome">ปักหมุดไปที่หน้าแรก</string>
+    <string name="skills_unpin">เลิกปักหมุดจากหน้าแรก</string>
 </resources>

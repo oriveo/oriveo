@@ -395,7 +395,7 @@ struct McpServerDetailContent: View {
                         Button(action: toggle) {
                             Text(String(format: L10n.tr("Show %d more", table: .mcp), hidden))
                                 .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.horizontal, 16)
                                 .frame(minHeight: 48)
@@ -731,7 +731,7 @@ struct McpToolsChangedSheet: View {
                     } label: {
                         Text(isExpanded ? L10n.tr("Hide", table: .mcp) : L10n.tr("See what changed", table: .mcp))
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             .multilineTextAlignment(.trailing)
                             .frame(maxWidth: 84, minHeight: 44, alignment: .trailing)
                             .contentShape(Rectangle())

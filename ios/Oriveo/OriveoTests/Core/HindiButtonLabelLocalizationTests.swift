@@ -18,6 +18,7 @@ struct HindiButtonLabelLocalizationTests {
         "अपना": "own (reflexive pronoun / adjective)",
         "पुराना": "old (adjective)",
         "घटना": "event / incident (noun)",
+        "खाना": "food (noun)",
     ]
 
     @Test("hi short labels are not bare infinitives")

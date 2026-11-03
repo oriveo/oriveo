@@ -43,6 +43,8 @@ nonisolated enum CostSource: String, Codable, Sendable, Equatable {
     case localEstimate
     case unknown
     case subscription
+    /// Billed by the Oriveo server or paid by the platform; the message is not priced per token.
+    case managed
 }
 
 /// The only non-USD part of a message's cost: the original currency amount, never converted.

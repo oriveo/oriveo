@@ -114,7 +114,6 @@
   box-shadow: 0 8px 20px color-mix(in srgb, var(--o-primary) 26%, transparent);
 }
 
-.skills,
 .history {
   margin-top: 24px;
 }
@@ -131,57 +130,10 @@
   letter-spacing: 0;
 }
 
-.sectionHeader button {
-  border: none;
-  background: transparent;
-  color: var(--o-primary);
-  font-size: 13px;
-  font-weight: var(--o-weight-semibold);
-}
-
 .historyCount {
   color: var(--o-text-tertiary);
   font-size: 13px;
   font-weight: var(--o-weight-medium);
-}
-
-.skillScroller {
-  display: flex;
-  gap: 10px;
-  margin-inline: -18px;
-  padding-inline: 18px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.skillScroller::-webkit-scrollbar {
-  display: none;
-}
-
-.skillChip {
-  display: inline-flex;
-  min-width: 112px;
-  height: 42px;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  flex: 0 0 auto;
-  padding: 0 13px;
-  border: 1px solid color-mix(in srgb, var(--skill-color, var(--o-primary)) 20%, var(--o-border));
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--skill-color, var(--o-primary)) 7%, var(--o-surface));
-  color: var(--o-text-secondary);
-  font-size: 13px;
-  font-weight: var(--o-weight-medium);
-}
-
-.skillChip span {
-  max-width: 96px;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .historySurface {
@@ -195,10 +147,5 @@
 
   .title {
     font-size: 27px;
-  }
-
-  .skillScroller {
-    margin-inline: -14px;
-    padding-inline: 14px;
   }
 }

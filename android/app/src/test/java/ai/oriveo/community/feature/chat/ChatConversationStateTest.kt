@@ -7,6 +7,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.MetadataTestFixtures
+import ai.oriveo.community.core.voice.VoiceCatalog
 import ai.oriveo.community.core.provider.ModelRetirement
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -297,6 +298,8 @@ class ChatConversationStateTest {
             activeProviderId = conversation.providerID,
             activeModelId = conversation.modelID,
             providersLoaded = true,
+            // Voice catalog is ready (empty): missing still counts as delisted.
+            voiceCatalog = VoiceCatalog(),
         )
 
         assertEquals(ChatConversationIssueKind.ModelRetired, state.issue?.kind)

@@ -1,10 +1,13 @@
 package ai.oriveo.community.feature.providers
 
+import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.core.usage.CostParts
 import ai.oriveo.community.core.usage.MonthlyCostProviderEntry
 import ai.oriveo.community.core.usage.MonthlyCostSummary
+import ai.oriveo.community.ui.component.usdTextOrZero
+import java.util.Locale
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -42,6 +45,43 @@ class ProvidersCostSummaryCardShareTest {
     fun bar_shown_with_usd_rows_and_single_row_still_hidden() {
         assertTrue(shouldShowSegmentedCostBar(summary(usdRow, cnyRow)))
         assertFalse(shouldShowSegmentedCostBar(summary(usdRow)))
+    }
+
+    @Test
+    fun split_symbol_en() {
+        assertEquals(DollarSplit("12.50", DollarSymbolPosition.Prefix), splitDollarSymbol(CostFormatter.usd(12.5, 2, 2, Locale.US)))
+    }
+
+    @Test
+    fun split_symbol_de() {
+        val split = splitDollarSymbol(CostFormatter.usd(1.2, 2, 2, Locale.GERMANY))
+        assertEquals(DollarSplit("1,20", DollarSymbolPosition.Suffix), split)
+    }
+
+    @Test
+    fun split_symbol_pt_br() {
+        val full = CostFormatter.usd(1.2, 2, 2, Locale.forLanguageTag("pt-BR"))
+        assertTrue(full, full.startsWith("$"))
+        val split = splitDollarSymbol(full)
+        // No stray space may survive between the separately typeset "$" and the number.
+        assertEquals(DollarSplit("1,20", DollarSymbolPosition.Prefix), split)
+    }
+
+    @Test
+    fun cost_split_strips_bidi_marks() {
+        val split = splitDollarSymbol(CostFormatter.usd(12.5, 2, 2, Locale.forLanguageTag("ar")))
+        assertFalse(split.body, split.body.any { it == '\u200E' || it == '\u200F' || it == '\u061C' })
+        assertEquals("12.50", split.body)
+        assertTrue(split.toString(), split.position != DollarSymbolPosition.None)
+        // A mark in front of the symbol must not hide the prefix position.
+        assertEquals(DollarSplit("1.20", DollarSymbolPosition.Prefix), splitDollarSymbol("\u200F$\u00A01.20"))
+    }
+
+    @Test
+    fun zero_fallback_de() {
+        val split = splitDollarSymbol(usdTextOrZero("", Locale.GERMANY))
+        assertEquals(DollarSplit("0", DollarSymbolPosition.Suffix), split)
+        assertEquals(DollarSplit("0", DollarSymbolPosition.Prefix), splitDollarSymbol(usdTextOrZero("", Locale.US)))
     }
 
     private fun entry(id: String, vararg costs: CostPart) = MonthlyCostProviderEntry(

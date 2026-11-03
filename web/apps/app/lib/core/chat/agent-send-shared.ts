@@ -38,10 +38,10 @@ import {
   persistOpenAISubscriptionCredential,
 } from "../provider-ops";
 import type { ChatOpCtx } from "./operations";
-import { resolveModelCapabilityEvidence } from "./capability-evidence";
 import type { ProxyMessage } from "@oriveo/core/providers/request-builders/runtime";
 import type { AssembleDynamic } from "@oriveo/core/context/assemble";
 import { recallForTurn } from "../memory/memory-recall-runtime";
+import { resolveModelCapabilityEvidence } from "./capability-evidence";
 import { CONTEXT_BUDGET_CONSTANTS } from "@oriveo/core/context/budget";
 import type { ToolRegistryEntry } from "@oriveo/core/tools/tool-loop-contracts";
 import { createSearchMemoryEntry, createSearchMemoryTurn, planRecallIds, planRecallMax, type SearchMemoryTurn } from "./search-memory-runtime";
@@ -237,7 +237,7 @@ export interface ToolLoopContext {
    * and results trimmed by the current plan's recallMax / rhoHi. Used only in tool mode.
    */
   searchMemoryEntry(): ToolRegistryEntry;
-  /** The window input used by the first-leg plan (the pre-send confirmation gate decides by it). */
+  /** Window input for the first-leg plan (the pre-send confirmation gate judges by it). */
   readonly window: ChatPlanWindow;
   /** Budget basis for external search: the same context budget B as memory-recall scaling (window unknown = null) and this turn's ρ_hi. */
   readonly searchBudget: { B: number | null; rhoHi: number };

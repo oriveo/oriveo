@@ -2,7 +2,9 @@ package ai.oriveo.community.core.voice.realtime
 
 import ai.oriveo.community.core.context.RealtimeHistoryItem
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.realtime.wire.GARealtimeCodec
+import ai.oriveo.community.core.voice.realtime.wire.transcriptionLanguage
 import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -50,7 +52,10 @@ class RealtimeGACodecContractTest {
 
     @Test
     fun `open_cases`() {
-        for ((id, ki, expected) in gaCases("openCases")) {
+        val cases = gaCases("openCases")
+        // 6 openai cases + 4 xai cases (speaker / headset / Bluetooth, transcription language hint)
+        assertEquals(10, cases.size)
+        for ((id, ki, expected) in cases) {
             val (kind, input) = ki
             val plan = input["plan"]!!.jsonObject
             val entry = input["entry"]!!.jsonObject
@@ -65,10 +70,28 @@ class RealtimeGACodecContractTest {
                 history = history,
                 voice = input.str("voice")!!,
                 inputTranscriptionModel = entry.str("inputTranscriptionModel"),
+                // A missing or unknown route fails immediately; it is never silently treated as speaker
+                route = requireNotNull(ConversationRoute.entries.firstOrNull { it.rawValue == input.str("route") }) { "$id missing route" },
+                language = input.str("language"),
             )
             val exp = expected.jsonObject
             assertEquals(id, exp["beforeReady"]!!.jsonArray, JsonArray(messages))
             assertEquals(id, JsonArray(emptyList()), exp["afterReady"]!!.jsonArray)
+        }
+    }
+
+    @Test
+    fun `language_cases`() {
+        // All three providers are in this group: transcriptionLanguage is a pure function shared by the wire layer
+        val cases = fixture["languageCases"]!!.jsonArray.map { it.jsonObject }
+        assertEquals(105, cases.size)
+        for (case in cases) {
+            val id = case.str("id")!!
+            val input = case["input"]!!.jsonObject
+            val kind = requireNotNull(RealtimeTransportKind.fromRawValue(input.str("transport"))) { "$id transport" }
+            val actual = transcriptionLanguage(kind, input.str("language"))
+            val expected = case["expected"]!!
+            if (expected is JsonNull) assertNull(id, actual) else assertEquals(id, expected.jsonPrimitive.content, actual)
         }
     }
 

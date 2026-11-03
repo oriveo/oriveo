@@ -60,7 +60,7 @@ object OriveoUserBubble {
 
     /**
      * The bubble stops of a palette under an appearance (top -> bottom; cached, called at high frequency during rendering).
-     * Dark = accent -> primary; light = the light brand gradEnd -> gradStart (as `bubbleFor`).
+     * Dark = accent -> primary; light = the light brand gradEnd -> gradStart, with the top first passed through [sameHueTop] (as `bubbleFor`).
      */
     fun stops(choice: DarkPaletteChoice, isDark: Boolean): List<Color> = cache.getOrPut(choice to isDark) {
         val (top, bottom) = if (isDark) {
@@ -68,7 +68,18 @@ object OriveoUserBubble {
         } else {
             choice.lightBrand.let { it.gradEnd to it.gradStart }
         }
-        bubbleStops(top.rgb(), bottom.rgb(), STOP_COUNT).map { Color(0xFF000000.toInt() or it) }
+        bubbleStops(sameHueTop(top.rgb(), bottom.rgb()), bottom.rgb(), STOP_COUNT).map { Color(0xFF000000.toInt() or it) }
+    }
+
+    /**
+     * Step by step as `sameHueTop`: the top color keeps only the original L and C, takes its hue from the bottom color, so the gradient varies in lightness only, not in hue;
+     * when the bottom is near gray (C < 0.02) the original top color is kept.
+     */
+    internal fun sameHueTop(top: Int, bottom: Int): Int {
+        val t = OriveoCustomPalette.oklch(top)
+        val b = OriveoCustomPalette.oklch(bottom)
+        if (b[1] < ACHROMATIC_CHROMA) return top
+        return OriveoCustomPalette.fromOklch(t[0], t[1], b[2])
     }
 
     /** Step by step as `bubbleStops`: the two ends are interpolated linearly in OKLCH (hue along the short arc), returning `0xRRGGBB`. */

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import {
@@ -18,6 +20,8 @@ vi.mock('next-intl', () => ({
       'pages.chat.tokenUsage.cacheWrite': 'Cache write',
       'pages.chat.tokenUsage.total': 'Total',
       'pages.chat.tokenUsage.unavailable': 'No data',
+      'pages.chat.tokenUsage.cost': 'Cost',
+      'pages.chat.tokenUsage.estimated': 'Estimated',
       'common.close': 'Close',
     };
     return messages[`${namespace}.${key}`] ?? key;
@@ -113,5 +117,65 @@ describe('MessageTokenUsageDialog', () => {
     expect(messageTokenTotal({ inputTokens: 100 })).toBeUndefined();
     expect(messageTokenTotal({ outputTokens: 20 })).toBeUndefined();
     expect(messageTokenTotal({})).toBeUndefined();
+  });
+
+  it('costRowRendersWithEstimatedTag', () => {
+    renderDialog({
+      inputTokens: 1_000,
+      outputTokens: 20,
+      providerKind: 'anthropic',
+      estimatedCost: 0.0123,
+      costSource: 'localEstimate',
+    });
+
+    const label = screen.getByText('Cost');
+    const row = label.closest('div');
+    if (!row) throw new Error('cost row not found');
+    expect(within(row).getByText('Estimated')).not.toBeNull();
+    expect(within(row).getByText('$0.01')).not.toBeNull();
+  });
+
+  it('opening focuses the non-interactive title, not the close button', () => {
+    const raf = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((cb) => {
+      cb(0);
+      return 0;
+    });
+    renderDialog({ inputTokens: 10, outputTokens: 2 });
+    raf.mockRestore();
+    const title = screen.getByRole('heading', { name: 'Token usage' });
+    expect(title.getAttribute('tabindex')).toBe('-1');
+    expect(document.activeElement).toBe(title);
+    expect(document.activeElement).not.toBe(screen.getByRole('button', { name: 'Close' }));
+  });
+});
+
+describe('token usage sheet styles', () => {
+  const css = readFileSync(resolve(__dirname, 'MessageTokenUsageDialog.module.css'), 'utf8');
+  const rule = (selector: string) => {
+    const match = new RegExp(`(?:^|\\n)${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`).exec(css);
+    if (!match) throw new Error(`rule ${selector} not found`);
+    return match[1];
+  };
+
+  it('total number is neutral primary text, not the brand color', () => {
+    expect(rule('.total strong')).toMatch(/color:\s*var\(--o-text\);/);
+  });
+
+  it('close button uses a logical inset so it sits at the line end in RTL', () => {
+    expect(rule('.close')).toMatch(/inset-inline-end:\s*14px/);
+    expect(rule('.close')).not.toMatch(/(?:^|\s)right:/);
+  });
+
+  it('cost value uses the metric value font family with tabular numerals', () => {
+    const family = /font-family:\s*([^;]+);/.exec(rule('.metricValue'))?.[1];
+    expect(family).toBeTruthy();
+    expect(rule('.costValue')).toContain(`font-family: ${family};`);
+    expect(rule('.costValue')).toMatch(/font-variant-numeric:\s*tabular-nums;/);
+  });
+
+  it('total row shares the 16px inline padding of the metric and cost cards', () => {
+    expect(rule('.total')).toMatch(/padding:\s*18px 16px 0;/);
+    expect(rule('.metric')).toMatch(/padding:\s*16px;/);
+    expect(rule('.cost')).toMatch(/padding:\s*14px 16px;/);
   });
 });

@@ -116,7 +116,7 @@
 }
 
 .table th {
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   font-weight: 600;
   color: var(--o-text);
   letter-spacing: 0.005em;

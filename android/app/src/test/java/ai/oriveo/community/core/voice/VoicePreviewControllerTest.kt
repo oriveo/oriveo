@@ -38,7 +38,7 @@ class VoicePreviewControllerTest {
 
         override fun uiLocale(): Locale = ui
         override fun placeholderText(kind: SpeakablePlaceholder, appLocale: String): String = kind.rawValue
-        override fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean {
+        override suspend fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean {
             this.listener = listener
             active = true
             return true

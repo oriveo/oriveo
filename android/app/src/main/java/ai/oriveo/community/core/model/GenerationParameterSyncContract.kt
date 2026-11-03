@@ -16,6 +16,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import java.util.concurrent.Executor
 
 /**
  * Wire form of a preset `createdAt`: UTC with exactly three millisecond digits (contract
@@ -102,7 +103,11 @@ class GenerationParameterSyncLedger internal constructor(
         internal const val PREFS_NAME = "generation_parameter_sync"
         private const val KEY = "tombstones.v1"
         fun from(context: Context): GenerationParameterSyncLedger {
-            val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            // Construction does no disk I/O: the first getSharedPreferences call loads the XML synchronously, so defer it to the first read or write (as UpdateBadgeStore does).
+            val appContext = context.applicationContext
+            val prefs by lazy(LazyThreadSafetyMode.PUBLICATION) {
+                appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            }
             return GenerationParameterSyncLedger(
                 readPayload = { prefs.getString(KEY, null) },
                 writePayload = { payload -> prefs.edit().putString(KEY, payload).apply() },
@@ -321,7 +326,9 @@ class GenerationParameterSyncContract(
  * through [importJSON], which merges it into the local stores by revision.
  */
 class GenerationParameterSyncCoordinator(context: Context) {
-    private val contract = GenerationParameterSyncContract.from(context.applicationContext)
+    private val appContext = context.applicationContext
+    // Lazy: the settings and preset stores still read prefs synchronously in from(), so build them on first real use.
+    private val contract by lazy(LazyThreadSafetyMode.SYNCHRONIZED) { GenerationParameterSyncContract.from(appContext) }
 
     fun exportJSON(): String = contract.exportJSON()
 

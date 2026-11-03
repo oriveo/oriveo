@@ -61,6 +61,9 @@ struct HomeVoiceHandoffOwnershipTests {
         host.streaming[created] = "First sentence. Second"
         host.textSubject.send()
         await settle()
+        // Reply audio gate: sentences arriving before silence start + replyAudioGateMs stay queued; advance past it.
+        probe.clock.advance(VoiceConversationLogic.Constants.replyAudioGateMs - VoiceConversationLogic.Constants.vadEndSilenceMs)
+        await settle()
         #expect(controller.displayState == .speaking)
         // During the reply: the home bar cannot get the controller, so speaking / interrupt / pending confirmation never reach home.
         #expect(session.homeVoiceSurface == nil)

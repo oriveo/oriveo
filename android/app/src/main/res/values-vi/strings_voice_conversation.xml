@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">Kết thúc</string>
     <string name="voice_conversation_start_failed_toast">Không thể bắt đầu trò chuyện bằng giọng nói. Hãy thử lại.</string>
     <string name="voice_conversation_background_paused_toast">Trò chuyện bằng giọng nói tạm dừng khi Oriveo chạy nền.</string>
+    <string name="voice_conversation_status_say_again">Chưa nghe rõ, hãy nói lại</string>
+    <string name="voice_conversation_status_check_language">Chưa nghe rõ</string>
+    <string name="voice_conversation_prompt_say_again">Mình chưa nghe rõ. Bạn nói lại được không?</string>
+    <string name="voice_conversation_prompt_check_language">Mình vẫn chưa nghe rõ. Nếu bạn đang nói ngôn ngữ khác, hãy chạm vào “Ngôn ngữ nhận dạng” để đổi.</string>
+    <string name="voice_conversation_prompt_echo_hint">Loa ngoài đang bị vọng tiếng. Dùng tai nghe sẽ tốt hơn.</string>
+    <string name="voice_conversation_language_chip">Ngôn ngữ nhận dạng: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">Đổi ngôn ngữ nhận dạng</string>
 </resources>

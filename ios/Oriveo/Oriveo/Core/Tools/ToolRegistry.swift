@@ -6,6 +6,8 @@ nonisolated enum ToolScope: String, Sendable, Equatable {
     case mcp
     /// propose_memory: the last entry of the MCP / library loop registry.
     case memory
+    /// oriveo_use_skill (P3 contract item 12): registered after web_search.
+    case skills
 }
 
 nonisolated struct ToolCallRejection: Error, Equatable, Sendable {

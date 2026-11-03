@@ -149,7 +149,7 @@ struct WebSearchCustomFields: View {
                     Text(model.catalogName(id)).tag(id)
                 }
             }
-            .tint(OriveoTheme.Palette.primaryTextSafe)
+            .tint(OriveoTheme.Palette.primaryTextOnSurface)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -213,7 +213,7 @@ struct WebSearchCustomFields: View {
                                 Spacer(minLength: 0)
                             }
                             .font(.system(size: 16, weight: .medium))
-                            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 12)
                         }

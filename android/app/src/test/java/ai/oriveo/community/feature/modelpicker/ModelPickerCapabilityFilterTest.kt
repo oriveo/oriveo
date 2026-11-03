@@ -5,10 +5,11 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
-import ai.oriveo.community.core.model.RelayRequestedConfig
-import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.CapabilityControlResolution
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
+import ai.oriveo.community.core.voice.VoiceOption
+import ai.oriveo.community.core.voice.VoiceRealtimeEntry
+import ai.oriveo.community.core.voice.VoiceTransport
 import java.io.File
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -121,17 +122,9 @@ class ModelPickerCapabilityFilterTest {
             section.models.forEach { model ->
                 val badges = modelPickerCapabilityBadges(section.provider, model, metadata)
                 ModelPickerCapabilityFilterKind.entries.forEach { kind ->
-                    val expected = if (kind == ModelPickerCapabilityFilterKind.Tool) {
-                        CapabilityEvidenceProductionAdapter.toolCallVerdict(
-                            section.provider,
-                            model,
-                            metadataClient = metadata,
-                        ) == true
-                    } else {
-                        CapabilityControlResolution
-                            .resolve(section.provider, model, kind.owner, metadata)
-                            .state == "auto_available"
-                    }
+                    val expected = CapabilityControlResolution
+                        .resolve(section.provider, model, kind.owner, metadata)
+                        .state == "auto_available"
                     assertEquals(
                         "${section.provider.kind.rawValue}/${model.id} ${kind.owner}",
                         expected,
@@ -146,25 +139,18 @@ class ModelPickerCapabilityFilterTest {
     @Test
     fun `filter counts equal the number of rows the filter actually keeps`() {
         val metadata = client()
-        val learnedModel = AIModel(id = "learned-tool-model", name = "Learned", isManual = true)
-        val all = sections(metadata) + ModelPickerSection(
-            provider = Provider(
-                id = "relay-tool-memory",
-                kind = ProviderKind.Relay,
-                relayRequested = RelayRequestedConfig(transport = RelayTransport.OpenAIChatCompletions),
-            ),
-            models = listOf(learnedModel),
+        val all = sections(metadata)
+        val counts = modelPickerCapabilityFilterCounts(all, metadata)
+        assertEquals(
+            "filter kinds are exactly web search / reasoning",
+            setOf(ModelPickerCapabilityFilterKind.Web, ModelPickerCapabilityFilterKind.Reasoning),
+            counts.keys,
         )
-        val memoryVerdict: (Provider, AIModel) -> Boolean? = { _, model ->
-            true.takeIf { model.id == learnedModel.id }
-        }
-        val counts = modelPickerCapabilityFilterCounts(all, metadata, memoryVerdict)
         ModelPickerCapabilityFilterKind.entries.forEach { kind ->
             val kept = applyModelPickerCapabilityFilter(
                 all,
                 setOf(kind),
                 metadata,
-                memoryVerdict,
             ).sumOf { it.models.size }
             assertEquals("${kind.owner} count must match what the filter actually keeps", counts.getValue(kind), kept)
         }
@@ -185,17 +171,13 @@ class ModelPickerCapabilityFilterTest {
         val all = sections(metadata)
         assertEquals(all, applyModelPickerCapabilityFilter(all, emptySet(), metadata))
 
-        val both = applyModelPickerCapabilityFilter(
-            all,
-            ModelPickerCapabilityFilterKind.entries.toSet(),
-            metadata,
-        )
+        val webAndReasoning = setOf(ModelPickerCapabilityFilterKind.Web, ModelPickerCapabilityFilterKind.Reasoning)
+        assertEquals("filter kinds are exactly web search / reasoning", webAndReasoning, ModelPickerCapabilityFilterKind.entries.toSet())
+        val both = applyModelPickerCapabilityFilter(all, webAndReasoning, metadata)
+        assertTrue("the web + reasoning intersection in the production snapshot must be non-empty, otherwise the intersection assertion pins nothing down", both.isNotEmpty())
         both.forEach { section ->
             section.models.forEach { model ->
-                assertEquals(
-                    ModelPickerCapabilityFilterKind.entries.toSet(),
-                    modelPickerCapabilityBadges(section.provider, model, metadata),
-                )
+                assertEquals(webAndReasoning, modelPickerCapabilityBadges(section.provider, model, metadata))
             }
         }
         assertTrue("the filter must not leave behind an empty section", both.none { it.models.isEmpty() })
@@ -230,6 +212,88 @@ class ModelPickerCapabilityFilterTest {
                 metadataClient = metadata,
             ),
         )
+    }
+
+    // ---- Realtime voice filter ----
+
+    private fun withRealtime(all: List<ModelPickerSection>): List<ModelPickerSection> = all.map { section ->
+        if (section.provider.kind == ProviderKind.OpenAI) {
+            section.copy(
+                realtimeModels = listOf(
+                    VoiceRealtimeEntry(
+                        model = "gpt-realtime-2",
+                        transport = VoiceTransport.OpenAIRealtime,
+                        path = "/v1/realtime",
+                        contextWindow = 128_000,
+                        voices = listOf(VoiceOption("marin", isDefault = true)),
+                        isDefault = true,
+                    ),
+                ),
+            )
+        } else {
+            section
+        }
+    }
+
+    @Test
+    fun `realtime filter keeps only realtime rows`() {
+        val metadata = client()
+        val all = withRealtime(sections(metadata))
+        assertTrue("snapshot precondition: an OpenAI group exists", all.any { it.realtimeModels.isNotEmpty() })
+
+        val kept = applyModelPickerCapabilityFilter(all, emptySet(), metadata, realtimeSelected = true)
+        assertTrue(kept.isNotEmpty())
+        assertTrue("text rows do not match the realtime filter", kept.all { it.models.isEmpty() })
+        assertEquals(listOf("gpt-realtime-2"), kept.flatMap { it.realtimeModels }.map { it.model })
+
+        // With no realtime filter selected, realtime rows are still listed as usual
+        assertEquals(all, applyModelPickerCapabilityFilter(all, emptySet(), metadata))
+    }
+
+    @Test
+    fun `realtime filter together with web search is empty and web alone drops realtime rows`() {
+        val metadata = client()
+        val all = withRealtime(sections(metadata))
+        val both = applyModelPickerCapabilityFilter(
+            all,
+            setOf(ModelPickerCapabilityFilterKind.Web),
+            metadata,
+            realtimeSelected = true,
+        )
+        assertTrue(both.isEmpty())
+
+        val webOnly = applyModelPickerCapabilityFilter(all, setOf(ModelPickerCapabilityFilterKind.Web), metadata)
+        assertTrue(webOnly.isNotEmpty())
+        assertTrue(webOnly.all { it.realtimeModels.isEmpty() })
+    }
+
+    @Test
+    fun realtime_chip_count_is_realtime_row_total() {
+        val metadata = client()
+        val all = withRealtime(sections(metadata))
+        val total = all.sumOf { it.realtimeModels.size }
+        assertTrue("snapshot precondition: realtime rows exist", total > 0)
+        assertEquals(total, modelPickerRealtimeFilterCount(all))
+        val kept = applyModelPickerCapabilityFilter(all, emptySet(), metadata, realtimeSelected = true)
+        assertEquals("the count matches the rows the realtime filter keeps", kept.sumOf { it.realtimeModels.size }, modelPickerRealtimeFilterCount(all))
+        assertEquals(0, modelPickerRealtimeFilterCount(sections(metadata)))
+    }
+
+    @Test
+    fun `without realtime rows the realtime filter does not appear and selecting it changes nothing`() {
+        val metadata = client()
+        val all = sections(metadata)
+        assertEquals(all, applyModelPickerCapabilityFilter(all, emptySet(), metadata, realtimeSelected = true))
+        val result = buildModelPickerSectionsResult(
+            context = ModelPickerContext.Chat,
+            providers = all.map { it.provider },
+            activeProviderId = null,
+            currentModel = null,
+            searchText = "",
+            selectedCapabilityFilters = emptySet(),
+            realtimeFilterSelected = true,
+        )
+        assertFalse(result.showsRealtimeFilter)
     }
 
     private fun workspaceFile(relative: String): File {

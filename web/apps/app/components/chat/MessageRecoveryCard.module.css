@@ -86,8 +86,10 @@
   opacity: 0.55;
 }
 
+/* Retry is a regular primary action, not a destructive red fill. */
 .cardFailed .primaryBtn {
-  background: var(--o-error);
+  background: var(--o-primary-text-safe);
+  color: var(--o-on-primary);
 }
 
 .cardInterrupted .primaryBtn {
@@ -99,41 +101,31 @@
   color: color-mix(in srgb, var(--o-on-warning) 80%, transparent);
 }
 
+/* Secondary actions are neutral in every state: a plain surface chip with on-surface
+ * primary text. Red / amber stay on the icon only, so Edit / Switch / Regenerate never
+ * read as destructive, and the label keeps AA contrast on the tinted card. */
 .secondaryBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 34px;
   padding: 0 var(--o-space-md);
+  border: 1px solid var(--o-border);
   border-radius: var(--o-radius-md);
   font-size: var(--o-text-sm);
   font-weight: 500;
-  background: transparent;
+  background: var(--o-surface);
+  color: var(--o-primary-text-on-surface);
   cursor: pointer;
   transition: background var(--o-transition-fast), color var(--o-transition-fast);
 }
 
-.cardFailed .secondaryBtn {
-  border: 1px solid var(--o-error);
-  color: var(--o-error);
+.secondaryBtn:hover {
+  background: var(--o-surface-hover);
 }
 
-.cardFailed .secondaryBtn:hover {
-  background: var(--o-error-subtle);
-}
-
-.cardFailed .secondaryBtn:disabled:hover,
-.cardInterrupted .secondaryBtn:disabled:hover {
-  background: transparent;
-}
-
-.cardInterrupted .secondaryBtn {
-  border: 1px solid var(--o-warning);
-  color: var(--o-warning);
-}
-
-.cardInterrupted .secondaryBtn:hover {
-  background: var(--o-warning-subtle);
+.secondaryBtn:disabled:hover {
+  background: var(--o-surface);
 }
 
 /* ── Technical Details ── */
@@ -176,7 +168,8 @@
   margin: var(--o-space-sm) 0 0;
   padding: var(--o-space-md);
   border-radius: var(--o-radius-sm);
-  background: var(--o-surface);
+  /* Inset role: one step from the card surface in light and dark. */
+  background: var(--o-bg-inset);
   color: var(--o-text-tertiary);
   font-size: var(--o-text-xs);
   font-family: var(--o-font-mono);

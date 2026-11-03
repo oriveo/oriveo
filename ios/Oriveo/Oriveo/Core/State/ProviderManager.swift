@@ -794,7 +794,9 @@ final class ProviderManager {
         }
     }
 
+    // MARK: - Sync helpers
 
+    /// Builds a new Provider from syncResult (used on registration).
     private func buildProviderFromSync(
         syncResult: ProviderSyncResult,
         kind: ProviderKind,

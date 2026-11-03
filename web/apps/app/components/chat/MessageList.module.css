@@ -74,7 +74,8 @@
   max-width: 820px;
   width: 100%;
   margin: 0 auto;
-  padding: var(--o-space-lg) var(--o-space-lg) 140px;
+  /* Overlay composer is 142px tall on wide screens; keep the last row 16px above it. */
+  padding: var(--o-space-lg) var(--o-space-lg) 158px;
   display: flex;
   flex-direction: column;
   /* Not flex:1: pinning to the top relies on .spacer having a real height, and flex-grow would swallow the spacer in short conversations, leaving them unscrollable. */
@@ -94,12 +95,14 @@
   }
 
   .list {
+    /* Reserve the bottom tab bar too (it already includes the safe area). */
     padding: var(--o-space-md) var(--o-space-md)
-      calc(156px + env(safe-area-inset-bottom, 0px));
+      calc(156px + max(env(safe-area-inset-bottom, 0px), var(--o-mobile-tabbar-height, 0px)));
   }
 
+  /* Sits above the overlay composer (same height as the .list bottom padding) so it never overlaps the send button. */
   .jumpToBottomBtn {
-    bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(164px + env(safe-area-inset-bottom, 0px));
   }
 }
 
@@ -110,7 +113,8 @@
 .jumpToBottomBtn {
   position: absolute;
   right: var(--o-space-lg);
-  bottom: 96px;
+  /* Above the overlay composer (.list bottom padding 140px), clear of the send button. */
+  bottom: 148px;
   z-index: 5;
   display: flex;
   align-items: center;

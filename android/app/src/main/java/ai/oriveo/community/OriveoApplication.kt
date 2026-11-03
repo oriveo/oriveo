@@ -64,9 +64,6 @@ class OriveoApplication : Application() {
         ComposeFoundationFlags.isNewContextMenuEnabled = false
         PDFBoxResourceLoader.init(applicationContext)
         ai.oriveo.community.core.performance.PageTrace.begin("AppLaunch")
-        if (BuildConfig.DEBUG) {
-            DebugMainThreadDiagnostics.install()
-        }
 
         val koinApp = startKoin {
             androidContext(this@OriveoApplication)

@@ -72,7 +72,7 @@ struct ContextCapConfirmView: View {
                     onChoose(ContextCapConfirmDialogModel.dismissChoice)
                 } label: {
                     Text(L10n.tr("Cancel"))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.bordered)

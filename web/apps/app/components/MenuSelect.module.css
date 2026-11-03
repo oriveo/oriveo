@@ -96,7 +96,7 @@
 }
 
 .trigger[data-open='true'] .icon {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   transform: rotate(180deg);
 }
 

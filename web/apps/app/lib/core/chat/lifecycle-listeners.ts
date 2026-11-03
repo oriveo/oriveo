@@ -19,6 +19,7 @@ import {
   backupAllStreamsToSessionStorage,
   flushAllStreamsForLifecycle,
 } from './active-streams';
+import { flushPendingConversationWrites } from '../store/persistence-subscribers';
 
 let installed = false;
 
@@ -27,6 +28,8 @@ function handleVisibility(): void {
   if (document.visibilityState !== 'hidden') return;
   // hidden: flush every conversation partial into message.text; state stays generating because the stream may still be running
   flushAllStreamsForLifecycle();
+  // Then write the conversations it changed to IndexedDB now: a hidden tab may be discarded without pagehide.
+  flushPendingConversationWrites();
 }
 
 function handlePageHide(): void {
@@ -34,6 +37,8 @@ function handlePageHide(): void {
   // 2) write every partial into sessionStorage (an IDB commit is not guaranteed in a synchronous context)
   flushAllStreamsForLifecycle();
   backupAllStreamsToSessionStorage();
+  // 3) Write the conversations changed by step 1 to IndexedDB now, whatever the listener order (best effort).
+  flushPendingConversationWrites();
 }
 
 /**

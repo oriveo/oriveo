@@ -8,13 +8,13 @@ struct ImageAspectRatioProbeTests {
 
     @Test("init-time aspect ratio only hits the cache; an empty cache does not probe disk")
     @MainActor
-    func initialAspectRatioIsCacheOnly() throws {
+    func initialAspectRatioIsCacheOnly() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "image-aspect-\(UUID().uuidString)"
         defer {
             AppSessionStore.switchToUser(previousUID)
             ImageStore.clearAllCaches()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
         ImageStore.clearAllCaches()
 
@@ -47,11 +47,11 @@ struct ImageAspectRatioProbeTests {
 
     @Test("with no clues, fall back to the fixed placeholder ratio")
     @MainActor
-    func fallsBackToPlaceholderRatio() {
+    func fallsBackToPlaceholderRatio() async {
         let uid = "image-aspect-empty-\(UUID().uuidString)"
         defer {
             ImageStore.clearAllCaches()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
         ImageStore.clearAllCaches()
 
@@ -70,13 +70,13 @@ struct ImageAspectRatioProbeTests {
 
     @Test("a failed probe is negatively cached so layout does not repeat disk IO; saving invalidates it")
     @MainActor
-    func missingFileIsCachedThenInvalidatedOnSave() throws {
+    func missingFileIsCachedThenInvalidatedOnSave() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "image-aspect-miss-\(UUID().uuidString)"
         defer {
             AppSessionStore.switchToUser(previousUID)
             ImageStore.clearAllCaches()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
         ImageStore.clearAllCaches()
 

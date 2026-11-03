@@ -18,6 +18,11 @@ enum DatabaseSchema {
             try db.execute(sql: "PRAGMA synchronous = NORMAL")
             #if DEBUG
             MainThreadDatabaseWriteGuard.install(on: db)
+            // Each connection has only one trace slot, already taken by the write guard, so the ledger relies only on transaction observers and write tags.
+            DatabaseWriteLedger.install(on: db, tracingBegin: false)
+            #else
+            // Data source for hang attribution in release builds (see DatabaseWriteLedger).
+            DatabaseWriteLedger.install(on: db, tracingBegin: true)
             #endif
         }
         return configuration
@@ -263,6 +268,27 @@ enum DatabaseSchema {
             try db.execute(sql: "ALTER TABLE message ADD COLUMN nonUsdCostAmount REAL")
             try db.execute(sql: "ALTER TABLE message ADD COLUMN nonUsdCostSource TEXT")
             try db.execute(sql: "ALTER TABLE conversation ADD COLUMN nonUsdCostTotals TEXT")
+        }
+        migrator.registerMigration("v46_skills_revamp") { db in
+            // Skills revamp (skill_sync_fields.v1): JSON array columns, NULL = [].
+            // The legacy skillId column stays (dual write = skillIds[0]); existing rows get skillIds = [skillId].
+            try db.execute(sql: "ALTER TABLE conversation ADD COLUMN skillIds TEXT")
+            try db.execute(sql: "ALTER TABLE conversation ADD COLUMN disabledAutoSkillIds TEXT")
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN attachedSkillIds TEXT")
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN usedSkills TEXT")
+            try db.execute(sql: """
+                UPDATE conversation SET skillIds = json_array(TRIM(skillId))
+                WHERE skillId IS NOT NULL AND TRIM(skillId) != ''
+                """)
+        }
+        migrator.registerMigration("v47_message_skill_manifest_tokens") { db in
+            // Per-turn skill list overhead estimate (skill_manifest_cost.v1).
+            // Local only, never synced; nullable, no backfill: existing rows stay NULL.
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN skillManifestTokens INTEGER")
+        }
+        migrator.registerMigration("v48_studio_works") { db in
+            // Studio works: four empty local tables (studio_data_model.v1 localTables).
+            try StudioWorkSchema.createTables(in: db)
         }
         return migrator
     }

@@ -63,7 +63,7 @@
 }
 
 .titleButton:hover {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .titleButton:focus-visible {

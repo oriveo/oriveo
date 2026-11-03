@@ -1,4 +1,6 @@
+import Combine
 import Foundation
+import OriveoProviderKit
 import SwiftUI
 import Testing
 @testable import Oriveo
@@ -199,6 +201,508 @@ struct HomeViewTests {
         }
     }
 
+    @Test("Home realtime idle stage: the left keyboard button switches to typing, with no ✕ or mute; ✕ no longer exits the realtime selection")
+    func heroRealtimeIdleStageHasKeyboardNoEnd() throws {
+        var switched = 0
+        let idle = RealtimeIdleStageSurface(onTap: {}, onSwitchToTyping: { switched += 1 })
+        #expect(idle.showsTypingSwitch)
+        #expect(!idle.showsEndButton)
+        #expect(!idle.showsMuteButton)
+        idle.switchToTyping()
+        #expect(switched == 1)
+
+        let home = try source(named: "HomeView.swift")
+        let card = try #require(home.slice(from: "private var auroraComposerCardContent", to: "private func presentModelPicker"))
+        #expect(!card.contains("clearRealtimeModelSelection"))
+        let stage = try #require(home.slice(
+            from: "private var heroVoiceConversationController", to: "private var heroRealtimeFailureNavigation"
+        ))
+        #expect(stage.contains("onSwitchToTyping: { heroRealtimeTyping = true }"))
+        // Idle stage bottom row: the centered "switch to typing" capsule; no end button.
+        #expect(VoiceConversationBarContent.controlSlots(
+            showsTypingSwitch: idle.showsTypingSwitch,
+            showsMuteButton: idle.showsMuteButton,
+            showsEndButton: idle.showsEndButton
+        ).map(\.kind) == [.typingCapsule])
+    }
+
+    @Test("On the home realtime-selected stage, the model pill sits centered at the top of the voice stage (with the cyan dot); tapping the pill opens the picker; pill bottom to orb box top is 12")
+    func heroRealtimeStageShowsModelPill() throws {
+        let home = try source(named: "HomeView.swift")
+        let card = try #require(home.slice(from: "private var auroraComposerCardContent", to: "private func presentModelPicker"))
+        let stageBranch = try #require(card.slice(from: "if let voiceSurface = heroVoiceConversationController", to: "VoiceConversationBar("))
+        // The pill also shows while preparing or when the catalog fails (the home realtime selection is stored); the layout does not move once the catalog arrives.
+        #expect(stageBranch.contains("if heroRealtimeStage.showsModelPill {"))
+        #expect(stageBranch.contains("heroStageModelPill"))
+        #expect(HomeHeroStageLayout.pillToOrbGap == 12)
+        #expect(HomeHeroStageLayout.pillSpacing
+            == HomeHeroStageLayout.pillToOrbGap - VoiceConversationBarContent.orbTop - HomeHeroStageLayout.pillHitInset)
+
+        let pill = try #require(home.slice(from: "private var heroStageModelPill", to: "private var heroVoiceConversationController"))
+        #expect(pill.contains("presentModelPicker()"))
+        #expect(pill.contains("modelSelectorPill"))
+        // modelSelectorPill draws the cyan dot when realtime is selected (locked by modelPillShowsRealtimeDotWhenRealtimeSelected).
+        let selector = try #require(home.slice(from: "private var modelSelectorPill", to: "private var heroStageModelPill"))
+        #expect(selector.contains("RealtimeModelDot()"))
+    }
+
+    @Test("The home back-to-stage button and the conversation page share one view: the accessibility label matches the accessibility identifier")
+    func heroBackToStageUsesSharedButton() throws {
+        #expect(RealtimeBackToStageButton.accessibilityLabel == VoiceConversationCopy.backToStageA11y)
+        #expect(RealtimeBackToStageButton.orbSize == 36)
+
+        let home = try source(named: "HomeView.swift")
+        let heroButton = try #require(home.slice(
+            from: "private var heroBackToStageButton", to: "private enum HeroVoiceButtonStyle"
+        ))
+        #expect(heroButton.contains("RealtimeBackToStageButton(\n            accessibilityID: \"home_voice_back_to_stage_button\","))
+        #expect(!heroButton.contains("VoiceAuroraOrb("))
+
+        let chat = try String(
+            contentsOf: try sourceRoot()
+                .appendingPathComponent("Oriveo/Features/Chat/ChatComposerBar.swift"),
+            encoding: .utf8
+        )
+        let chatButton = try #require(chat.slice(
+            from: "private var backToStageButton", to: "// MARK: - Shared Surface Helper"
+        ))
+        #expect(chatButton.contains("RealtimeBackToStageButton(\n            accessibilityID: \"chat_voice_back_to_stage_button\","))
+        #expect(!chatButton.contains("VoiceAuroraOrb("))
+    }
+
+    @Test("Home has a realtime selection but the voice catalog has not arrived: show the voice stage in preparing directly (orb not tappable, status line Loading); a catalog failure shows the failure card; once the catalog arrives the same stage becomes ready")
+    func homeShowsPreparingStageWhileVoiceCatalogPending() throws {
+        let (state, catalog) = try Self.homeRealtimeState(selectRealtime: true)
+        state.realtimeVoiceCatalog = { nil }
+        // Catalog not arrived: the selection used for resolution is nil, but the stored selection is still there.
+        #expect(state.realtimeModelSelection(for: nil) == nil)
+        #expect(state.realtimeModelSelections[nil] != nil)
+        let preparing = HomeHeroStage.resolve(state, catalogState: nil)
+        #expect(preparing == .preparing)
+        #expect(preparing.showsModelPill)
+        #expect(preparing.showsRealtimeDot)
+
+        var taps = 0
+        var switched = 0
+        let surface = HomeRealtimePreparingStageSurface(onSwitchToTyping: { switched += 1 })
+        #expect(surface.idleHint == ChatModelRemovedBanner.voiceCatalogLoadingLabel)
+        #expect(surface.failure == nil)
+        #expect(surface.showsTypingSwitch)
+        #expect(!surface.showsEndButton)
+        surface.tapOrb()
+        #expect(taps == 0)
+        surface.switchToTyping()
+        #expect(switched == 1)
+
+        // Catalog load failed: the stage shows the failure card "Couldn't load realtime voice models / Retry"; retry goes through onTap.
+        let failed = HomeHeroStage.resolve(state, catalogState: .loadFailed)
+        #expect(failed == .catalogFailed)
+        #expect(failed.showsModelPill)
+        let failure = RealtimeVoiceFailure.catalogUnavailable
+        #expect(VoiceConversationCopy.failure(failure) == L10n.tr("Couldn't load realtime voice models", table: .voice))
+        #expect(VoiceConversationBarContent.failureButtons(failure) == [.retry])
+        let failedSurface = RealtimeIdleStageSurface(failure: failure, onTap: { taps += 1 })
+        failedSurface.performFailureAction(.retry)
+        #expect(taps == 1)
+
+        // Catalog arrived and still recognizes this realtime model: the same stage becomes ready (the status line switches to "Tap to start speaking").
+        state.realtimeVoiceCatalog = { catalog }
+        let ready = HomeHeroStage.resolve(state, catalogState: .available(catalog))
+        #expect(ready == .ready)
+        #expect(ready.showsModelPill)
+        #expect(RealtimeIdleStageSurface(onTap: {}).idleHint == VoiceConversationCopy.tapToStartHint)
+    }
+
+    @Test("Home has no realtime selection: catalog not arrived / failed / arrived all show the composer card")
+    func homeShowsComposerWhenNoRealtimeSelection() throws {
+        let (state, catalog) = try Self.homeRealtimeState(selectRealtime: false)
+        #expect(state.realtimeModelSelections[nil] == nil)
+        #expect(HomeHeroStage.resolve(state, catalogState: .available(catalog)) == .composer)
+        state.realtimeVoiceCatalog = { nil }
+        for catalogState in [nil, VoiceCatalogState.loadFailed] {
+            let stage = HomeHeroStage.resolve(state, catalogState: catalogState)
+            #expect(stage == .composer)
+            #expect(!stage.showsModelPill)
+            #expect(!stage.showsRealtimeDot)
+        }
+    }
+
+    @Test("Catalog arrived but does not recognize the stored realtime model: switch back to the composer card, and the stored selection is not rewritten (the unavailable-model banner is handled separately)")
+    func homeFallsBackToComposerWhenCatalogLacksSelection() throws {
+        let (state, _) = try Self.homeRealtimeState(selectRealtime: true)
+        let stored = state.realtimeModelSelections[nil]
+        #expect(stored != nil)
+        state.realtimeVoiceCatalog = { .empty }
+        #expect(state.realtimeModelSelection(for: nil) == nil)
+        #expect(HomeHeroStage.resolve(state, catalogState: .unavailable) == .composer)
+        #expect(state.realtimeModelSelections[nil] == stored)
+    }
+
+    @Test("The home pill shows the stored realtime model id in the preparing / catalog-failed / ready stages, never the text model name; the composer card shows the text model")
+    func homePillShowsStoredRealtimeModelInEveryStage() throws {
+        let (state, catalog) = try Self.homeRealtimeState(selectRealtime: true)
+        let stored = try #require(state.realtimeModelSelections[nil])
+        let textName = try #require(state.activeModel).model.name
+        #expect(textName != stored.model)
+        let ready = HomeHeroStage.resolve(state, catalogState: .available(catalog))
+        state.realtimeVoiceCatalog = { nil }
+        let preparing = HomeHeroStage.resolve(state, catalogState: nil)
+        let failed = HomeHeroStage.resolve(state, catalogState: .loadFailed)
+        #expect([preparing, failed, ready] == [.preparing, .catalogFailed, .ready])
+        for stage in [preparing, failed, ready] {
+            #expect(HomeHeroStage.pillModelName(stage: stage, storedSelection: stored, textModelName: textName) == "gpt-realtime")
+        }
+        #expect(HomeHeroStage.pillModelName(stage: .composer, storedSelection: stored, textModelName: textName) == textName)
+        #expect(HomeHeroStage.pillModelName(stage: .composer, storedSelection: nil, textModelName: textName) == textName)
+
+        let home = try source(named: "HomeView.swift")
+        let name = try #require(home.slice(from: "private var pillModelName", to: "// MARK: - Conversation Content"))
+        #expect(name.contains("HomeHeroStage.pillModelName("))
+    }
+
+    @Test("Catalog arrival does not bounce home typing back to the voice stage: it resets only when the stored realtime selection changes")
+    func homeTypingSurvivesCatalogArrival() throws {
+        let (state, catalog) = try Self.homeRealtimeState(selectRealtime: true)
+        state.realtimeVoiceCatalog = { nil }
+        let beforeArrival = state.realtimeModelSelections[nil]
+        state.realtimeVoiceCatalog = { catalog }
+        let afterArrival = state.realtimeModelSelections[nil]
+        #expect(state.realtimeModelSelection(for: nil) != nil)
+        #expect(!HomeHeroStage.resetsRealtimeTyping(storedBefore: beforeArrival, storedAfter: afterArrival))
+        // Switching back to the text model (clearing the home realtime selection): reset.
+        state.clearRealtimeModelSelection(for: nil)
+        #expect(HomeHeroStage.resetsRealtimeTyping(storedBefore: afterArrival, storedAfter: state.realtimeModelSelections[nil]))
+        // Switching to another realtime model: reset.
+        let other = try #require(afterArrival).model == "gpt-realtime"
+            ? RealtimeModelSelection(providerID: afterArrival!.providerID, providerKind: .openAI, model: "gpt-realtime-mini")
+            : afterArrival!
+        #expect(HomeHeroStage.resetsRealtimeTyping(storedBefore: afterArrival, storedAfter: other))
+
+        let home = try source(named: "HomeView.swift")
+        let reset = try #require(home.slice(from: ".onChange(of: appState.realtimeModelSelections[nil])", to: "}"))
+        #expect(reset.contains("HomeHeroStage.resetsRealtimeTyping(storedBefore: before, storedAfter: after)"))
+    }
+
+    @Test("On the voice stage, the home pill takes the icon and vendor name of the connection holding the stored realtime selection, not the text model's connection; the composer card takes the text connection")
+    func homePillShowsRealtimeSelectionConnection() throws {
+        let (state, catalog) = try Self.homeRealtimeState(selectRealtime: true)
+        let stored = try #require(state.realtimeModelSelections[nil])
+        let textProvider = TestFactories.makeProvider(
+            kind: .anthropic, models: [TestFactories.makeModel(id: "claude-text", isDefault: true)]
+        )
+        state.providers.append(textProvider)
+        state.setActiveModel(providerID: textProvider.id, modelID: "claude-text")
+        let active = try #require(state.activeModel).provider
+        #expect(active.id == textProvider.id)
+        #expect(state.realtimeModelSelections[nil] == stored)
+
+        let ready = HomeHeroStage.resolve(state, catalogState: .available(catalog))
+        state.realtimeVoiceCatalog = { nil }
+        let preparing = HomeHeroStage.resolve(state, catalogState: nil)
+        let failed = HomeHeroStage.resolve(state, catalogState: .loadFailed)
+        #expect([preparing, failed, ready] == [.preparing, .catalogFailed, .ready])
+        for stage in [preparing, failed, ready] {
+            let provider = HomeHeroStage.pillProvider(
+                stage: stage, storedSelection: stored, provider: state.provider(for:), textProvider: active
+            )
+            #expect(provider?.id == stored.providerID)
+            #expect(provider?.kind == .openAI)
+        }
+        let composer = HomeHeroStage.pillProvider(
+            stage: .composer, storedSelection: stored, provider: state.provider(for:), textProvider: active
+        )
+        #expect(composer?.id == textProvider.id)
+
+        let pill = try #require(try source(named: "HomeView.swift").slice(
+            from: "private func modelSelectorPill(alignment", to: "private var heroStageModelPill"
+        ))
+        #expect(pill.contains("HomeHeroStage.pillProvider("))
+        #expect(!pill.contains("active.provider"))
+    }
+
+    /// Home realtime-selection host: the official OpenAI connection plus a catalog listing gpt-realtime; with selectRealtime, home selects it (disclosure accepted).
+    private static func homeRealtimeState(selectRealtime: Bool) throws -> (AppState, VoiceCatalog) {
+        let state = AppState(seedDemoData: false, sessionUID: "home-stage-\(UUID().uuidString)")
+        let provider = TestFactories.makeProvider(kind: .openAI, models: [TestFactories.makeModel(id: "gpt-4o", isDefault: true)])
+        state.providers = [provider]
+        state.setActiveModel(providerID: provider.id, modelID: "gpt-4o")
+        let realtimeEntry = VoiceRealtimeEntry(
+            model: "gpt-realtime",
+            transport: .openaiRealtime,
+            path: "/v1/realtime",
+            contextWindow: 128_000,
+            voices: [VoiceCatalogVoice(id: "marin", isDefault: true)],
+            maxSessionSec: nil,
+            inputTranscriptionModel: nil,
+            isDefault: true
+        )
+        let catalog = VoiceCatalog(schemaVersion: 2, revision: "home-stage", providers: [
+            .openAI: VoiceProviderEntries(realtime: [realtimeEntry])
+        ])
+        state.realtimeVoiceCatalog = { catalog }
+        if selectRealtime {
+            let suite = "HomeViewTests-stage-\(UUID().uuidString)"
+            let defaults = try #require(UserDefaults(suiteName: suite))
+            defaults.removePersistentDomain(forName: suite)
+            state.resolveRealtimeModelDisclosure(
+                RealtimeModelSelection(providerID: provider.id, providerKind: .openAI, model: "gpt-realtime"),
+                for: nil, accepted: true, disclosures: VoiceDisclosureStore(defaults: defaults)
+            )
+            #expect(state.realtimeModelSelection(for: nil) != nil)
+        }
+        return (state, catalog)
+    }
+
+    @Test("Home realtime typed send: opening from home only plays the realtime session; after ready this sentence goes out, and the conversation is created (the selection follows it) and enters the chat page only when the first message is persisted", .timeLimit(.minutes(1)))
+    func heroRealtimeTypedSendOpensConversationAndSendsRealtime() async throws {
+        let fixture = try Self.typedSendFixture()
+        let state = fixture.state, disclosures = fixture.disclosures, provider = fixture.provider
+        let connection = fixture.connection, probe = fixture.probe, session = fixture.session
+
+        // The selection's disclosure is not accepted (revoked): report the disclosure first; no conversation, no connection.
+        let pending = RealtimeModelSelection(providerID: provider.id, providerKind: .openAI, model: "gpt-realtime")
+        #expect(await HomeRealtimeTypedSend.send("Hello", host: state, session: session, disclosures: disclosures)
+            == .needsDisclosure(pending))
+        #expect(state.conversations.isEmpty)
+        #expect(probe.openedFor.isEmpty)
+
+        disclosures.markAccepted(.openAI, direction: .realtime)
+        let homeSelection = try #require(state.realtimeModelSelection(for: nil))
+        let outcome = await HomeRealtimeTypedSend.send("  Hello  ", host: state, session: session, disclosures: disclosures)
+        #expect(outcome == .sent)
+        // Handing off does not pre-create a conversation: the realtime session opens from home (nil); the selection stays on home and the page does not jump.
+        #expect(state.conversations.isEmpty)
+        #expect(probe.openedFor == [nil])
+        #expect(state.realtimeModelSelection(for: nil) == homeSelection)
+        #expect(Self.presentedChat(state) == nil)
+        // Before ready, the home voice stage observes this session (origin .home); not handed off yet.
+        #expect(session.homeVoiceSurface != nil)
+        #expect(!session.homeHandedOff)
+        let realtime = try #require(session.realtime)
+
+        connection.continuation.yield(.ready)
+        connection.continuation.yield(.assistantAudio(itemId: "a1", contentIndex: 0, base64: "AQIDBA==", sampleRateHz: 24_000))
+        for await key in realtime.$statusKey.values where key == .speaking { break }
+        #expect(connection.texts == ["Hello"])
+        // This sentence is actually sent and the first message is persisted: only now is the conversation created and the chat page entered; the home selection follows the conversation.
+        let created = try #require(state.conversations.first?.id)
+        #expect(state.conversations.count == 1)
+        #expect(state.conversation(for: created)?.messages.map(\.text) == ["Hello"])
+        #expect(state.realtimeModelSelection(for: created) == homeSelection)
+        #expect(state.realtimeModelSelection(for: nil) == nil)
+        #expect(Self.presentedChat(state) == created)
+        #expect(session.isPresented(in: created))
+        // The first persisted message creates the conversation, which hands off: the home voice stage stops observing.
+        #expect(session.homeHandedOff)
+        #expect(session.homeVoiceSurface == nil)
+        #expect(probe.microphoneRequests == 0)
+        #expect(!fixture.audio.log.contains("startRealtimeCapture"))
+        session.end(.user)
+        for _ in 0..<30 { await Task.yield() }
+    }
+
+    @Test("Home realtime typed send fails: if the session cannot open (catalog timeout), nothing is handed off; a model_gone end before connecting returns this sentence to home; no conversation is created in either case", .timeLimit(.minutes(1)))
+    func heroRealtimeTypedSendFailureKeepsTextAndCreatesNoConversation() async throws {
+        // The realtime session cannot open (cold catalog fetch timed out → unknown): not handed off, the draft stays on home; no conversation and no page jump.
+        let failing = try Self.typedSendFixture(open: .failed(RealtimeVoiceConversationController.failure(
+            category: .unknown, context: RealtimeFailureContext(providerName: "OpenAI", model: "gpt-realtime")
+        )))
+        failing.disclosures.markAccepted(.openAI, direction: .realtime)
+        #expect(await HomeRealtimeTypedSend.send("Hello", host: failing.state, session: failing.session, disclosures: failing.disclosures)
+            == .notSent)
+        #expect(failing.state.conversations.isEmpty)
+        #expect(Self.presentedChat(failing.state) == nil)
+        #expect(failing.session.realtimeFailure(in: nil, selection: failing.state.realtimeModelSelection(for: nil))?
+            .classification.category == .unknown)
+
+        // Handed off, but the handshake returns 404 (model_gone) before ready: this session ends before a conversation is created, and the sentence is restored to home without leaving an empty conversation.
+        let fixture = try Self.typedSendFixture()
+        fixture.disclosures.markAccepted(.openAI, direction: .realtime)
+        let homeSelection = try #require(fixture.state.realtimeModelSelection(for: nil))
+        #expect(await HomeRealtimeTypedSend.send("Hello", host: fixture.state, session: fixture.session, disclosures: fixture.disclosures)
+            == .sent)
+        // The home voice stage observes this session: the failure lands on it, and after ending it stays in the home stage.
+        let surface = try #require(fixture.session.homeVoiceSurface)
+        fixture.connection.continuation.finish(throwing: RealtimeHandshakeError(httpStatus: 404))
+        while fixture.session.isActive { await Task.yield() }
+        #expect(surface.failure?.classification.category == .modelGone)
+        #expect(!fixture.session.homeHandedOff)
+        let end = try #require(fixture.session.lastEnd)
+        #expect(end.conversationID == nil)
+        // The input still holds the original text when sent; ending before a conversation is created leaves it as is, without concatenating it twice.
+        #expect(HomeRealtimeTypedSend.outcome(after: end) == .endedBeforePersist)
+        #expect(HomeRealtimeTypedSend.inputText("Hello", sent: "Hello", outcome: HomeRealtimeTypedSend.outcome(after: end)) == "Hello")
+        #expect(fixture.connection.texts.isEmpty)
+        #expect(fixture.state.conversations.isEmpty)
+        #expect(Self.presentedChat(fixture.state) == nil)
+        #expect(fixture.state.realtimeModelSelection(for: nil) == homeSelection)
+        #expect(fixture.session.realtimeFailure(in: nil, selection: homeSelection)?.classification.category == .modelGone)
+        // Ending after the conversation was created (this sentence persisted) does not restore it.
+        let delivered = VoiceConversationSession.EndDelivery(token: UUID(), conversationID: UUID(), draft: nil)
+        #expect(HomeRealtimeTypedSend.outcome(after: delivered) == .persisted)
+        #expect(HomeRealtimeTypedSend.inputText("Hello", sent: "Hello", outcome: HomeRealtimeTypedSend.outcome(after: delivered)).isEmpty)
+    }
+
+    @Test("Home realtime typed input: sending does not clear it, and it clears only when persisted (conversation created); ending before persist keeps the original text without concatenation; text edited while waiting is not cleared on persist")
+    func heroRealtimeTypedInputClearsOnlyOnPersist() throws {
+        let viewSource = try source(named: "HomeView.swift")
+        // .sent only records the in-flight sentence and does not clear the input.
+        let sentBranch = try #require(viewSource.range(of: "case .sent:"))
+        let afterSent = viewSource[sentBranch.upperBound...].prefix(200)
+        #expect(!afterSent.contains("heroText = \"\""))
+        #expect(afterSent.contains("heroRealtimeTypedInFlight = trimmed"))
+        // The first persisted message creates the conversation (homeHandedOff), which settles the in-flight sentence.
+        #expect(viewSource.contains(".onChange(of: VoiceConversationSession.shared.homeHandedOff)"))
+
+        // On persist: clear if the input still holds this sentence (including surrounding whitespace).
+        #expect(HomeRealtimeTypedSend.inputText("Hello", sent: "Hello", outcome: .persisted).isEmpty)
+        #expect(HomeRealtimeTypedSend.inputText("  Hello \n", sent: "Hello", outcome: .persisted).isEmpty)
+        // The user edited the input while waiting: persisting does not clear the new text.
+        #expect(HomeRealtimeTypedSend.inputText("Hello again", sent: "Hello", outcome: .persisted) == "Hello again")
+        #expect(HomeRealtimeTypedSend.inputText("World", sent: "Hello", outcome: .persisted) == "World")
+        // Ended before creation / could not open / disclosure declined / left: the original text stays, without being concatenated again.
+        for kind in [RealtimeModelPolicy.TypedSendOutcomeKind.endedBeforePersist, .openFailed, .disclosureDeclined, .hostLeft] {
+            #expect(HomeRealtimeTypedSend.inputText("Hello", sent: "Hello", outcome: kind) == "Hello")
+            #expect(HomeRealtimeTypedSend.inputText("Hello World", sent: "Hello", outcome: kind) == "Hello World")
+        }
+    }
+
+    @Test("Home realtime typed in-flight guard: after a hand-off and before settlement, the send key and dictation's transcribe-and-send do not hand off again, and the in-flight sentence is not overwritten; after persist or end, sending is allowed again", .timeLimit(.minutes(1)))
+    func heroRealtimeTypedInFlightBlocksResend() async throws {
+        // Gate: nothing is handed off while sending or while a sentence is in flight; sending is allowed again only after settlement (in-flight cleared).
+        #expect(HomeRealtimeTypedSend.canHandOff(isSending: false, inFlight: nil))
+        #expect(!HomeRealtimeTypedSend.canHandOff(isSending: true, inFlight: nil))
+        #expect(!HomeRealtimeTypedSend.canHandOff(isSending: false, inFlight: "Hello"))
+        #expect(!HomeRealtimeTypedSend.canHandOff(isSending: true, inFlight: "Hello"))
+
+        // The send key, dictation's "transcribe and send", and the dictation host all pass through this gate; the send key is disabled while in flight.
+        let viewSource = try source(named: "HomeView.swift")
+        let sendBody = try #require(viewSource.slice(from: "private func sendFromHero() async {", to: "pendingHeroVoiceStart.decline()"))
+        #expect(sendBody.contains("guard canHandOffFromHero"))
+        #expect(viewSource.contains("canSend: { canHandOffFromHero }"))
+        #expect(viewSource.contains("DictationInputSwitcher(controller: controller, canSend: canHandOffFromHero)"))
+        #expect(viewSource.contains(".disabled(!actions.sendEnabled || heroRealtimeTypedInFlight != nil)"))
+        #expect(viewSource.contains("HomeRealtimeTypedSend.canHandOff(isSending: isSendingFromHero, inFlight: heroRealtimeTypedInFlight)"))
+
+        // Production path: after one sentence is handed off, the session is in flight; a second sentence is not handed off and the connection carries only the first.
+        let fixture = try Self.typedSendFixture()
+        fixture.disclosures.markAccepted(.openAI, direction: .realtime)
+        #expect(await HomeRealtimeTypedSend.send("Hello", host: fixture.state, session: fixture.session, disclosures: fixture.disclosures)
+            == .sent)
+        #expect(await HomeRealtimeTypedSend.send("World", host: fixture.state, session: fixture.session, disclosures: fixture.disclosures)
+            == .notSent)
+        // This session ends before a conversation is created (settled): once in-flight is cleared, the same sentence can be sent again.
+        fixture.connection.continuation.finish(throwing: RealtimeHandshakeError(httpStatus: 404))
+        while fixture.session.isActive { await Task.yield() }
+        let end = try #require(fixture.session.lastEnd)
+        #expect(HomeRealtimeTypedSend.outcome(after: end) == .endedBeforePersist)
+        #expect(HomeRealtimeTypedSend.canHandOff(isSending: false, inFlight: nil))
+        #expect(!fixture.connection.texts.contains("World"))
+    }
+
+    private struct TypedSendFixture {
+        let state: AppState
+        let provider: Provider
+        let disclosures: VoiceDisclosureStore
+        let connection: RealtimeVoiceConversationControllerTests.FakeConnection
+        let audio: RealtimeVoiceConversationControllerTests.FakeAudio
+        let probe: TypedSendProbe
+        let session: VoiceConversationSession
+    }
+
+    /// Host for home realtime typed send: home selects gpt-realtime (disclosure not accepted); the realtime session persists through the production AppState sink.
+    /// When open is given, the opening returns it directly (failure path).
+    private static func typedSendFixture(open: RealtimeVoiceStart? = nil) throws -> TypedSendFixture {
+        let state = AppState(seedDemoData: false, sessionUID: "home-realtime-typed-\(UUID().uuidString)")
+        let provider = TestFactories.makeProvider(kind: .openAI, models: [TestFactories.makeModel(id: "gpt-4o", isDefault: true)])
+        state.providers = [provider]
+        state.setActiveModel(providerID: provider.id, modelID: "gpt-4o")
+        // The conversation's realtime selection is derived from the conversation model field plus the cached catalog: the catalog must list this realtime model.
+        let realtimeEntry = VoiceRealtimeEntry(
+            model: "gpt-realtime",
+            transport: .openaiRealtime,
+            path: "/v1/realtime",
+            contextWindow: 128_000,
+            voices: [VoiceCatalogVoice(id: "marin", isDefault: true)],
+            maxSessionSec: nil,
+            inputTranscriptionModel: nil,
+            isDefault: true
+        )
+        let catalog = VoiceCatalog(schemaVersion: 2, revision: "home", providers: [
+            .openAI: VoiceProviderEntries(realtime: [realtimeEntry])
+        ])
+        state.realtimeVoiceCatalog = { catalog }
+        let suiteName = "HomeViewTests-realtime-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        defaults.removePersistentDomain(forName: suiteName)
+        let disclosures = VoiceDisclosureStore(defaults: defaults)
+        let acceptedSuite = "HomeViewTests-realtime-accepted-\(UUID().uuidString)"
+        let acceptedDefaults = try #require(UserDefaults(suiteName: acceptedSuite))
+        acceptedDefaults.removePersistentDomain(forName: acceptedSuite)
+        let pending = RealtimeModelSelection(providerID: provider.id, providerKind: .openAI, model: "gpt-realtime")
+        state.resolveRealtimeModelDisclosure(
+            pending, for: nil, accepted: true, disclosures: VoiceDisclosureStore(defaults: acceptedDefaults)
+        )
+
+        let connection = RealtimeVoiceConversationControllerTests.FakeConnection()
+        let audio = RealtimeVoiceConversationControllerTests.FakeAudio()
+        let plan = try Self.realtimePlan()
+        let probe = TypedSendProbe()
+        var deps = SessionProbe().dependencies()
+        deps.grantMicrophone = {
+            probe.microphoneRequests += 1
+            return true
+        }
+        // Same as production: the opening's selection is read from the host, and in-stage failures use it to identify this page.
+        deps.realtimeSelection = { conversationID, host in (host as? AppState)?.realtimeModelSelection(for: conversationID) }
+        deps.makeRealtime = { [weak state] conversationID, _ in
+            probe.openedFor.append(conversationID)
+            if let open { return open }
+            let attribution = RealtimeVoiceAttribution(
+                providerID: provider.id, providerKind: .openAI, providerName: "OpenAI", model: "gpt-realtime"
+            )
+            guard let state else { return .cascade(toast: nil) }
+            return .realtime(RealtimeVoiceSessionParts(
+                connection: connection,
+                audio: RealtimeVoiceAudio(audio, route: { .speaker }),
+                plan: plan,
+                sink: AppStateRealtimeTranscriptSink.appState(state, conversationID: conversationID, attribution: attribution),
+                attribution: attribution
+            ))
+        }
+        return TypedSendFixture(
+            state: state, provider: provider, disclosures: disclosures, connection: connection, audio: audio,
+            probe: probe, session: VoiceConversationSession(dependencies: deps)
+        )
+    }
+
+    /// Records for the typed-send cases: which conversations' realtime sessions were opened, and how many microphone requests were made.
+    private final class TypedSendProbe {
+        var openedFor: [UUID?] = []
+        var microphoneRequests = 0
+    }
+
+    /// Plan produced by the production path: ChatMessage → realtimeSessionInput → assembleRealtimeSession → PlannedRealtimeSession.
+    private static func realtimePlan() throws -> PlannedRealtimeSession {
+        let snapshot = ChatRequestSnapshot(
+            conversation: ChatRequestConversationSnapshot(id: UUID(), useMemory: false, skillID: nil, instructions: "Be brief."),
+            messages: [TestFactories.makeMessage(role: .user, text: "Typed question")],
+            preferences: ChatRequestPreferencesSnapshot(),
+            skill: nil,
+            sendPath: .send(excludingMessageID: nil)
+        )
+        let sessionInput = ChatRequestBuilder.realtimeSessionInput(
+            snapshot, contextWindow: 128_000, currentSessionId: "rt-1", sessionMessageIds: [], checkpoint: nil
+        )
+        return try #require(PlannedRealtimeSession.from(ContextAssembler.assembleRealtimeSession(sessionInput)))
+    }
+
+    /// Conversation id of the chat page currently shown by navigation (top of the compact stack / regular right pane).
+    private static func presentedChat(_ state: AppState) -> UUID? {
+        if case .chat(let id) = state.navigation.path.last { return id }
+        return state.navigation.chatDetail.conversationID
+    }
+
     @Test("the focused hero shows the aurora ring and hides the 1pt rim")
     func heroFocusedShowsGlowBorder() {
         for isDark in [true, false] {
@@ -283,28 +787,84 @@ struct HomeViewTests {
         #expect(HomeNotesEntryCard.accessibilityText(count: 0, latestTitle: nil).hasSuffix(invitation))
     }
 
-    @Test("the Notes entry shares the hero material and uses the gradient notebook glyph, with no chevron, badge, watermark or icon tile")
+    @Test("Home entry row: notes card keeps its fixed size, with the paper stack hidden from VoiceOver")
     func notesEntryFollowsFinalDesign() throws {
         let cardSource = try source(named: "HomeNotesEntryCard.swift")
-        #expect(cardSource.contains("AuroraHeroSurface(cornerRadius: Self.cornerRadius, glow: .notesCorner)"))
-        #expect(cardSource.contains("Image(\"NotesNotebookLine\")"))
-        for stop in ["0xC4B5FD", "0xEC8FEA", "0x8DB4FF"] {
-            #expect(cardSource.contains(stop), "the notebook gradient is missing \(stop)")
-        }
-        #expect(!cardSource.contains("chevron.right"), "no chevron")
-        #expect(!cardSource.contains("rotationEffect"), "no watermark")
-        #expect(!cardSource.contains("Capsule().fill"), "no count badge")
-        #expect(!cardSource.contains(".fill(AuroraTheme.Colors.accent)"), "no solid icon tile")
-        // The gradient spans the notebook body's bounding box (4,2)→(20,22), so the bottom-right corner reaches #8DB4FF
-        #expect(cardSource.contains("startPoint: UnitPoint(x: 4.0 / 24, y: 2.0 / 24)"))
-        #expect(cardSource.contains("endPoint: UnitPoint(x: 20.0 / 24, y: 22.0 / 24)"))
-        // Line heights 22 / 18 plus the 1px border (border-box)
-        #expect(cardSource.contains(".frame(minHeight: 22)"))
-        #expect(cardSource.contains(".frame(minHeight: 18, alignment: .leading)"))
-        #expect(cardSource.contains(".padding(.top, 17)") && cardSource.contains(".padding(.leading, 21)"))
+        let viewSource = try source(named: "HomeView.swift")
+        #expect(HomeEntryCardStyle.height == 150)
+        #expect(HomeEntryCardStyle.cornerRadius == 22)
+        #expect(HomeEntryCardStyle.spacing == 12)
+        #expect(viewSource.contains("HStack(spacing: HomeEntryCardStyle.spacing)"))
+        #expect(cardSource.contains(".modifier(HomeEntryCardChrome("))
+        // Paper stack illustration, not the old notebook glyph on the aurora surface
+        #expect(!cardSource.contains("NotesNotebookLine"))
+        #expect(!cardSource.contains("AuroraHeroSurface"))
+        #expect(cardSource.contains("private var paperStack"))
+        #expect(cardSource.contains(".accessibilityHidden(true)"))
+        // Fixed colours: no theme palette on the card
+        #expect(!cardSource.contains("AuroraTheme.Colors"))
     }
 
-    @Test("the dark hero surface is uniform with the aurora on its top edge and outside the card; light mode is unchanged")
+    @Test("Home entry cards: no outer hairline and no pink sheet outlines; dark surface lifted to separate from the page")
+    func homeEntryCardsHaveNoOuterStroke() throws {
+        let cardSource = try source(named: "HomeNotesEntryCard.swift")
+        let chrome = try #require(cardSource.slice(from: "struct HomeEntryCardChrome", to: "/// Pushpin on the front notes sheet"))
+        let sheets = try #require(cardSource.slice(from: "private var paperStack", to: "private var previewLine"))
+        #expect(!chrome.contains("strokeBorder"))
+        #expect(chrome.contains("0x1F1D24"))
+        #expect(!sheets.contains("strokeBorder"))
+    } //
+
+    @Test("Pushpin: round head about 11pt, at least 3pt of needle showing, tilted up-left, head pokes past the sheet top")
+    func pushpinHasRoundHeadAndVisibleNeedle() {
+        #expect((9...13).contains(HomeNotesPushpin.headDiameter))
+        #expect(HomeNotesPushpin.needleLength - HomeNotesPushpin.headDiameter / 2 >= 3)
+        #expect((15...35).contains(HomeNotesPushpin.tiltDegrees))
+        #expect(HomeNotesPushpin.pierce == CGPoint(x: 61, y: 10))
+        let center = HomeNotesPushpin.headCenter(pierce: HomeNotesPushpin.pierce)
+        let radians = 24.0 * Double.pi / 180
+        let expected = CGPoint(x: 61 - 9 * sin(radians), y: 10 - 9 * cos(radians))
+        #expect(abs(center.x - expected.x) < 0.01, "head centre x \(center.x) vs \(expected.x)")
+        #expect(abs(center.y - expected.y) < 0.01, "head centre y \(center.y) vs \(expected.y)")
+        #expect(center.y - HomeNotesPushpin.headDiameter / 2 < 0, "head must rise above the sheet top edge")
+        #expect(HomeNotesPushpin.headColors.count == 3)
+        #expect(HomeNotesPushpin.headStops.count == HomeNotesPushpin.headColors.count)
+        func luminance(_ hex: UInt32) -> Double {
+            let r = Double((hex >> 16) & 0xFF), g = Double((hex >> 8) & 0xFF), b = Double(hex & 0xFF)
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b
+        }
+        if let first = HomeNotesPushpin.headColors.first, let last = HomeNotesPushpin.headColors.last {
+            #expect(luminance(first) > luminance(last), "head gradient must run light to dark")
+        }
+    } //
+
+    @Test("Pushpin casts a down-right shadow in light and dark, deeper in dark, with a visible highlight")
+    func pushpinCastsShadowInBothAppearances() {
+        for isDark in [false, true] {
+            #expect(HomeNotesPushpin.shadowOpacity(isDark) > 0, "shadow must be visible (dark: \(isDark))")
+            #expect(HomeNotesPushpin.highlightOpacity(isDark) >= 0.6, "highlight must be visible (dark: \(isDark))")
+        }
+        #expect(HomeNotesPushpin.shadowOpacity(true) > HomeNotesPushpin.shadowOpacity(false))
+        #expect(HomeNotesPushpin.shadowOffset.width > 0)
+        #expect(HomeNotesPushpin.shadowOffset.height > 0)
+    } //
+
+    @Test("Notes entry card no longer carries washi tape")
+    func notesEntryHasNoWashiTape() throws {
+        let cardSource = try source(named: "HomeNotesEntryCard.swift")
+        #expect(!cardSource.contains("WashiTape"))
+    } //
+
+    @Test("Notes entry subtitle reads recently edited only when the latest note has a title")
+    func notesEntrySubtitleOnlyWithTitledLatestNote() {
+        #expect(HomeNotesEntryCard.subtitle(count: 12, latestTitle: "Trip memo") == L10n.tr("skills.home.notesRecent", table: .skills))
+        #expect(HomeNotesEntryCard.subtitle(count: 12, latestTitle: "Trip memo") != "skills.home.notesRecent")
+        #expect(HomeNotesEntryCard.subtitle(count: 3, latestTitle: "") == nil)
+        #expect(HomeNotesEntryCard.subtitle(count: 0, latestTitle: nil) == nil)
+        #expect(HomeNotesEntryCard.subtitle(count: 0, latestTitle: "stale title") == nil)
+    }
+
+    @Test("the Notes entry shares the hero material and uses the gradient notebook glyph, with no chevron, badge, watermark or icon tile")
     func darkHeroKeepsCardFlatAndPutsAuroraOnItsTopEdge() throws {
         // A directional glow inside the card, high saturation in the dark areas and grey text whose hue
         // did not match the card made the dark card look muddy. The surface now keeps only an even
@@ -328,24 +888,13 @@ struct HomeViewTests {
         #expect(themeSource.contains("AuroraCrownRim(cornerRadius: cornerRadius)"))
         #expect(themeSource.contains("AuroraCrownHalo(cornerRadius: cornerRadius)"))
         #expect(themeSource.contains(".opacity(isDark && !focused ? 1 : 0)"))
-        // Notes: the same light one step weaker, without a hot core and without the outer halo
+        // The notes entry card no longer wears the aurora crown: home entry cards use fixed colours
         let cardSource = try source(named: "HomeNotesEntryCard.swift")
-        #expect(cardSource.contains("AuroraCrownRim(cornerRadius: Self.cornerRadius, scale: AuroraCrown.notesRimScale, hotCore: false)"))
+        #expect(!cardSource.contains("AuroraCrownRim"))
         #expect(!cardSource.contains("AuroraCrownHalo"))
     }
 
     @Test("the Notes glyph asset has no zero-height binder ticks")
-    func notesGlyphHasNoBinderTicks() throws {
-        let svgURL = try sourceRoot()
-            .appendingPathComponent("Oriveo/Assets.xcassets/NotesNotebookLine.imageset/icon.svg")
-        let svg = try String(contentsOf: svgURL, encoding: .utf8)
-        #expect(svg.contains("stroke-width=\"1.6\""))
-        for tick in ["M2 6h4", "M2 10h4", "M2 14h4", "M2 18h4"] {
-            #expect(!svg.contains(tick), "the binder tick \(tick) is invisible in the design and must not be in the asset")
-        }
-    }
-
-    @Test("one card per conversation group: date groups, search, pinned and folders draw no separators")
     func conversationGroupsHaveNoDividers() throws {
         let homeSource = try source(named: "HomeView.swift")
         let listSource = try #require(homeSource.slice(
@@ -431,13 +980,37 @@ struct HomeViewTests {
     }
 
     @Test("the hero input has an accessibility name and the decorative placeholder is hidden from VoiceOver")
+    func modelPillShowsRealtimeDotWhenRealtimeSelected() throws {
+        let pillSource = try #require(try source(named: "HomeView.swift").slice(
+            from: "private var modelSelectorPill", to: "/// Model pill at the top of the voice dock"
+        ))
+        #expect(pillSource.contains("let realtimeSelected = appState.realtimeModelSelection(for: nil) != nil"))
+        let beforeName = try #require(pillSource.slice(from: "if realtimeSelected {", to: "Text(pillModelName)"))
+        #expect(beforeName.contains("RealtimeModelDot()"))
+        #expect(pillSource.components(separatedBy: "RealtimeModelDot()").count - 1 == 1)
+    }
+
+    @Test("the hero input has an accessibility name and the decorative placeholder is hidden from VoiceOver")
+    func modelPillReadsRealtimeVoiceWhenRealtimeSelected() throws {
+        #expect(ChatToolbar.modelNameAccessibilityValue(realtime: true) == L10n.tr("Realtime Voice", table: .voice))
+        let pillSource = try #require(try source(named: "HomeView.swift").slice(
+            from: "private var modelSelectorPill", to: "/// Model pill at the top of the voice dock"
+        ))
+        let name = try #require(pillSource.slice(from: "Text(pillModelName)", to: "if let active {"))
+        #expect(name.contains(".accessibilityValue(ChatToolbar.modelNameAccessibilityValue(realtime: realtimeSelected))"))
+        #expect(!name.contains(".accessibilityLabel("))
+    }
+
+    @Test("the hero input has an accessibility name and the decorative placeholder is hidden from VoiceOver")
     func heroInputAccessibility() throws {
         let inputSource = try #require(try source(named: "HomeView.swift").slice(
-            from: "private var heroComposerInput",
+            from: "private func heroComposerInput",
             to: "/// The model selector chip"
         ))
-        // The input is ComposerTextView (UIKit): the accessibility name is passed in and set on its UITextView.
-        #expect(inputSource.contains("accessibilityLabel: composerPlaceholder"))
+        // The input is a UIKit view (ComposerTextView) that takes the accessibility name as a parameter and sets it on the UITextView.
+        // During dictation the accessibility name reads "Listening…" while the placeholder is composerPlaceholder otherwise
+        #expect(inputSource.contains("ChatComposerBar.listeningPlaceholder(phase: phase) ?? composerPlaceholder"))
+        #expect(inputSource.contains("accessibilityLabel: placeholder"))
         #expect(inputSource.contains(".accessibilityHidden(true)"))
     }
 
@@ -445,7 +1018,7 @@ struct HomeViewTests {
     func heroIdleCursorUsesOneDiscreteLayer() throws {
         let homeSource = try source(named: "HomeView.swift")
         let cursorSource = try #require(homeSource.slice(
-            from: "private var heroComposerInput",
+            from: "private func heroComposerInput",
             to: "private var modelSelectorPill"
         ))
         let blinkingCursorSource = try #require(homeSource.slice(
@@ -758,7 +1331,35 @@ struct HomeViewTests {
         #expect(last.cgPath.boundingBoxOfPath.maxY <= 80.5)
     }
 
-    /// The `Oriveo` project directory (this file lives under OriveoTests/Features/Home)
+    @Test("home_send_button_has_send_a11y_label: the home ↑ reads 'Send' to screen readers, reusing the existing Send string key")
+    func home_send_button_has_send_a11y_label() throws {
+        let buttonSource = try #require(try source(named: "HomeView.swift").slice(
+            from: "private var auroraSendButton: some View",
+            to: "/// Voice entry on home: make sure a model exists"
+        ))
+        #expect(buttonSource.contains(".accessibilityLabel(L10n.tr(\"Send\", table: .notices))"))
+
+        // This key already has 16 languages in the Notices table; the zh-Hans value is checked below
+        let catalogURL = try sourceRoot().appendingPathComponent("Oriveo").appendingPathComponent("Notices.xcstrings")
+        let catalog = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any])
+        let strings = try #require(catalog["strings"] as? [String: Any])
+        let send = try #require(strings["Send"] as? [String: Any])
+        let localizations = try #require(send["localizations"] as? [String: Any])
+        let zhHans = try #require((localizations["zh-Hans"] as? [String: Any])?["stringUnit"] as? [String: Any])
+        #expect(zhHans["value"] as? String == "\u{53D1}\u{9001}")
+        #expect(localizations.count == 16)
+    }
+
+    @Test("chat_send_button_has_send_a11y_label: the chat page primary key reads 'Send' to screen readers in the ↑ state, the same key as home")
+    func chat_send_button_has_send_a11y_label() throws {
+        let barURL = try sourceRoot().appendingPathComponent("Oriveo/Features/Chat/ChatComposerBar.swift")
+        let barSource = try String(contentsOf: barURL, encoding: .utf8)
+        // While waiting for the catalog the label reads "Loading model"; otherwise ≋ reads startA11y and ↑ reads "Send"
+        #expect(barSource.contains(": (isVoice ? Text(VoiceConversationCopy.startA11y) : Text(L10n.tr(\"Send\", table: .notices)))"))
+        #expect(barSource.contains("? Text(ChatModelRemovedBanner.voiceCatalogLoadingLabel)"))
+    }
+
+    /// `ios/Oriveo` (the test file sits under OriveoTests/Features/Home)
     private func sourceRoot() throws -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

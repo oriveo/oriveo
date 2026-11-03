@@ -53,4 +53,16 @@ data class ConversationEntity(
     val contextCap: String? = null,
     /** Since v6: JSON totals per non-USD currency ({"CNY": 3.5}); null means no non-USD cost. [estimatedCost] stays the USD total. */
     val nonUsdCostTotals: String? = null,
+    /**
+     * Since v49: local-only "thread complete" flag (E-634), never synced to the cloud. Set to true when a
+     * local conversation is created or a full backfill of the thread succeeds; set to false while messages
+     * are written piecemeal by window, fragment or backfill. Legacy rows default to false. The cost total
+     * uses it to decide between a full recompute and an incremental update.
+     */
+    @ColumnInfo(defaultValue = "0")
+    val localThreadComplete: Boolean = false,
+    /** Since v9: selected skill ids as a JSON array (at most 3, sync ids); null means none. Legacy [skillId] is the first one, dual written. */
+    val skillIdsJson: String? = null,
+    /** Since v9: skills turned off for automatic use in this conversation, as a JSON array (at most 30); null means none. */
+    val disabledAutoSkillIdsJson: String? = null,
 )

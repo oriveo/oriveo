@@ -151,7 +151,7 @@ class MetadataClientSchemaV2Test {
 
         assertNotNull(client.resolveCatalogModel(GOOD_MODEL, ProviderKind.OpenAI))
         assertNull(client.resolveCatalogModel(BAD_MODEL, ProviderKind.OpenAI))
-        assertEquals(listOf(GOOD_MODEL), client.providerModelIds(ProviderKind.OpenAI))
+        assertEquals(listOf(GOOD_MODEL, OTHER_MODEL).sorted(), client.providerModelIds(ProviderKind.OpenAI).sorted())
         assertEquals(MetadataClient.CatalogLoadState.Loaded, client.catalogLoadState(ProviderKind.OpenAI))
         val report = reports.single()
         assertEquals("model_entry_invalid", report["reason"])
@@ -185,7 +185,7 @@ class MetadataClientSchemaV2Test {
         client.refresh()
 
         assertEquals(lastGood?.displayName, client.resolveCatalogModel(BAD_MODEL, ProviderKind.OpenAI)?.displayName)
-        assertEquals(listOf(BAD_MODEL, GOOD_MODEL).sorted(), client.providerModelIds(ProviderKind.OpenAI).sorted())
+        assertEquals(listOf(BAD_MODEL, GOOD_MODEL, OTHER_MODEL).sorted(), client.providerModelIds(ProviderKind.OpenAI).sorted())
         assertEquals("catalog_decode", reports.single()["phase"])
         assertNull(reports.single()["reason"])
     }
@@ -337,7 +337,7 @@ class MetadataClientSchemaV2Test {
         client.initialize(context())
 
         assertNotNull(client.resolveCatalogModel(GOOD_MODEL, ProviderKind.OpenAI))
-        assertEquals(listOf(BAD_MODEL, GOOD_MODEL).sorted(), client.providerModelIds(ProviderKind.OpenAI).sorted())
+        assertEquals(listOf(BAD_MODEL, GOOD_MODEL, OTHER_MODEL).sorted(), client.providerModelIds(ProviderKind.OpenAI).sorted())
         assertTrue(reports.toString(), reports.isEmpty())
     }
 
@@ -353,7 +353,7 @@ class MetadataClientSchemaV2Test {
         client.initialize(context())
 
         assertNull(client.resolveCatalogModel(BAD_MODEL, ProviderKind.OpenAI))
-        assertEquals(listOf(GOOD_MODEL), client.providerModelIds(ProviderKind.OpenAI))
+        assertEquals(listOf(GOOD_MODEL, OTHER_MODEL).sorted(), client.providerModelIds(ProviderKind.OpenAI).sorted())
         val report = reports.single()
         assertEquals("model_entry_invalid", report["reason"])
         assertEquals(BAD_MODEL, report["model_id"])
@@ -401,7 +401,7 @@ class MetadataClientSchemaV2Test {
 
         assertNull(client.resolveCatalogModel(BAD_MODEL, ProviderKind.OpenAI))
         assertNotNull(client.resolveCatalogModel(GOOD_MODEL, ProviderKind.OpenAI))
-        assertEquals(listOf(GOOD_MODEL), client.providerModelIds(ProviderKind.OpenAI))
+        assertEquals(listOf(GOOD_MODEL, OTHER_MODEL).sorted(), client.providerModelIds(ProviderKind.OpenAI).sorted())
         assertEquals(MetadataClient.CatalogLoadState.Loaded, client.catalogLoadState(ProviderKind.OpenAI))
     }
 
@@ -593,9 +593,10 @@ class MetadataClientSchemaV2Test {
     }
 
     private companion object {
-        /** Two models from the corpus openAI catalog. */
+        /** The three models of the openAI catalog corpus (schema 1 section); the cases only change BAD_MODEL, the other two must be kept as-is. */
         const val GOOD_MODEL = "chat-latest"
         const val BAD_MODEL = "gpt-3.5-turbo"
+        const val OTHER_MODEL = "gpt-5.5"
     }
 
     /** Walks up from the working directory to find a path relative to the repository root (modeled on MetadataTestFixtures.workspaceFile). */

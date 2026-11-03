@@ -193,4 +193,61 @@ struct ChatComposerAttachmentCapabilityTests {
         #expect(result.rejectedCount == 1, "a .bin that is unsupported by itself is still counted as \"unsupported format\"")
         await MetadataClient.shared.resetForTesting()
     }
+
+    @Test("Realtime model selected, typing mode: all three entries are visible and disabled with the voice_realtime_no_attachments reason; no voice-stage state exists")
+    func realtimeTypingDisablesAllWithReason() throws {
+        let provider = TestFactories.makeProvider(
+            id: UUID(), kind: .qwen, models: [TestFactories.makeModel(id: "gpt-text", capabilities: [.text, .image])]
+        )
+        let model = provider.models[0]
+        let reason = L10n.tr(
+            "Realtime voice models don't take attachments. Switch to a text model to send them.", table: .voice
+        )
+        let typing = ComposerAttachmentEntries.resolve(
+            provider: provider, model: model, partitionID: Self.partitionID, realtimeMode: .typing
+        )
+        for (entry, label) in [(typing.image, "image"), (typing.video, "video"), (typing.file, "file")] {
+            #expect(entry.isVisible && !entry.isEnabled, "\(label) visible and disabled")
+            #expect(entry.disabledReason == reason, "\(label) reason")
+            #expect(!entry.hintsFirstAttach, "\(label) shows no hint while disabled")
+        }
+        let image = TestFactories.makeImageAttachment()
+        let admission = ComposerAttachmentAdmission.partition([image], entries: typing)
+        #expect(admission.accepted.isEmpty && admission.refusalReasons == [reason])
+
+        let stage = ComposerAttachmentEntries.resolve(
+            provider: provider, model: model, partitionID: Self.partitionID, realtimeMode: .stage
+        )
+        #expect(stage == .closed)
+    }
+
+    @Test("User switches from the voice stage to typing: ComposerRealtimeMode.resolve projects typing mode, and the attachment entries are visible and disabled with the reason")
+    func realtimeTypingProjectsAttachmentsDisabledWithReason() throws {
+        let provider = TestFactories.makeProvider(
+            id: UUID(), kind: .qwen, models: [TestFactories.makeModel(id: "gpt-text", capabilities: [.text, .image])]
+        )
+        let model = provider.models[0]
+        let reason = L10n.tr(
+            "Realtime voice models don't take attachments. Switch to a text model to send them.", table: .voice
+        )
+        let typingMode = ComposerRealtimeMode.resolve(
+            realtimeSelected: true, isSending: false, voiceAvailable: true, typing: true
+        )
+        #expect(typingMode == .typing)
+        let typing = ComposerAttachmentEntries.resolve(
+            provider: provider, model: model, partitionID: Self.partitionID, realtimeMode: typingMode
+        )
+        for (entry, label) in [(typing.image, "image"), (typing.video, "video"), (typing.file, "file")] {
+            #expect(entry.isVisible && !entry.isEnabled, "\(label) visible and disabled")
+            #expect(entry.disabledReason == reason, "\(label) reason")
+        }
+
+        let stageMode = ComposerRealtimeMode.resolve(
+            realtimeSelected: true, isSending: false, voiceAvailable: true, typing: false
+        )
+        #expect(stageMode == .stage)
+        #expect(ComposerAttachmentEntries.resolve(
+            provider: provider, model: model, partitionID: Self.partitionID, realtimeMode: stageMode
+        ) == .closed)
+    }
 }

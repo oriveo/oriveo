@@ -43,6 +43,9 @@ class ChatScreenEffectStructureTest {
         }
 
         assertTrue(screenSource.countOccurrences("LaunchedEffect(") <= 1)
+        // Realtime session: both the follow effect and the enter-session follow effect must receive the live in-progress signal, otherwise a new realtime session from the home screen does not follow each turn as it lands.
+        assertEquals(2, screenSource.countOccurrences("realtimeActive = realtimeLive != null,"))
+        assertTrue(effectsSource.contains("LaunchedEffect(conversationId, realtimeActive)"))
     }
 
     @Test
@@ -65,7 +68,9 @@ class ChatScreenEffectStructureTest {
         assertTrue(!messagesListSource.contains("StreamingRunway"))
         assertTrue(!messagesListSource.contains("streamingRunwayPx"))
         assertTrue(!messagesListSource.contains("animateDpAsState"))
-        assertTrue(!messagesListSource.contains("item(key ="))
+        // The only named item is the realtime temporary bubble (real content, not trailing whitespace); nothing else may be added.
+        val namedItems = Regex("""item\(key = "([^"]+)"""").findAll(messagesListSource).map { it.groupValues[1] }.toList()
+        assertEquals(listOf("realtime_live_bubbles"), namedItems)
     }
 
     @Test

@@ -2,11 +2,10 @@
 
 import type { Note } from '@oriveo/shared';
 import { ChevronRight, Pin, StickyNote, Tag, Trash2 } from 'lucide-react';
-import { useMemo, type CSSProperties } from 'react';
+import { useMemo } from 'react';
 import { useTranslations } from 'next-intl';
-import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
 import { stripMarkdownForClipboard, stripMarkdownForPreview } from '../../lib/utils/markdown-preview';
-import { NoteSourceBadge } from './NoteSourceBadge';
+import { NoteSourceBadge, noteSourceVars } from './NoteSourceBadge';
 import { noteDisplayBody } from './note-display-text';
 import styles from './Notes.module.css';
 
@@ -35,9 +34,7 @@ export function NoteCard({ note, onOpen, onDelete }: NoteCardProps) {
     return stripMarkdownForPreview(raw) || stripMarkdownForClipboard(raw).replace(/\s+/g, ' ').trim();
   }, [note.body, note.bodySnapshot, note.userNote]);
   const title = note.title.trim() || t('untitled');
-  const sourceColor = note.sourceProviderKind
-    ? PROVIDER_BRAND_COLORS[note.sourceProviderKind]?.light ?? PROVIDER_BRAND_COLORS.relay.light
-    : 'var(--o-primary)';
+  const sourceVars = noteSourceVars(note.sourceProviderKind);
   const visibleTags = note.tags.slice(0, 2);
   const hiddenTagCount = Math.max(0, note.tags.length - visibleTags.length);
   const hasSource = Boolean(note.sourceProviderKind);
@@ -47,7 +44,7 @@ export function NoteCard({ note, onOpen, onDelete }: NoteCardProps) {
       role="button"
       tabIndex={0}
       className={styles.noteCard}
-      style={{ '--note-source-color': sourceColor } as CSSProperties}
+      style={sourceVars}
       onClick={() => onOpen(note.id)}
       data-pinned={note.isPinned ? 'true' : undefined}
       onKeyDown={(event) => {

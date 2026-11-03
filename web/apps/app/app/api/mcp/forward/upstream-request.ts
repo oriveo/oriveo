@@ -35,6 +35,11 @@ export interface UpstreamRequestOptions {
   pinAddress?: boolean;
   /** Additional trusted CA (PEM). Only for self-signed certificates in tests; never passed in production. */
   ca?: string;
+  /**
+   * Whether to register the target origin in the MCP redaction table. Defaults to true;
+   * callers that are not MCP traffic (e.g. Studio image fetches) pass false.
+   */
+  registerRedaction?: boolean;
 }
 
 /**
@@ -120,14 +125,11 @@ export function requestUpstreamWithPinnedAddress(
       request.destroy(error);
     };
 
-    // The target address must not reach Sentry: an MCP server's address is often a credential in
-    // itself, and the hostname is a usage trace that should not leave the process. The SDK's http
-    // integration by default records a breadcrumb and opens a span for every outbound request, and
-    // adds `sentry-trace` / `baggage` headers to it; creating the request in a "no tracing" context
-    // prevents all three. Registering the origin is the second layer: if the first one ever stops
-    // working (an SDK upgrade changing semantics), the redaction hook still masks every address of
-    // this origin.
-    registerMcpDirectRequestURL(input.url.href);
+    // The target address is kept out of Sentry: an MCP server's address is often itself a credential, and the hostname is also a trace of usage that should not leave the device.
+    // The SDK's http integration by default records a breadcrumb and opens a span for every outbound request, and adds `sentry-trace` /
+    // `baggage` headers. Creating the request in a "no tracing" context means none of these happen. The registered source is a second layer: if the layer above fails
+    // (for example an SDK upgrade changes its semantics), the scrubbing hook still masks this source's address in full.
+    if (options.registerRedaction ?? true) registerMcpDirectRequestURL(input.url.href);
     const request = Sentry.suppressTracing(() => client.request(baseOptions, (response) => {
       responseMessage = response;
       response.once("close", () => {

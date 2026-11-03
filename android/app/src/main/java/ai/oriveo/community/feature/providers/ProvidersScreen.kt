@@ -38,6 +38,7 @@ import ai.oriveo.community.core.usage.CostParts
 import ai.oriveo.community.core.provider.BALANCE_CAPABLE_KINDS
 import ai.oriveo.community.ui.component.OriveoFadeHairline
 import ai.oriveo.community.ui.component.ProviderListCard
+import ai.oriveo.community.ui.component.liquidGlassTabBarReservedHeight
 import ai.oriveo.community.ui.component.oriveoSystemBarFadingEdges
 import ai.oriveo.community.ui.component.rootTabTopInset
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -111,7 +112,8 @@ fun ProvidersScreen(
 
                 top = statusBarInset + 8.dp,
                 end = screenH,
-                bottom = navigationBarInset + OriveoTheme.layout.tabBarOverlay,
+                // Reserved height already includes the navigation bar; +16dp keeps the last row clear of the floating tab bar.
+                bottom = liquidGlassTabBarReservedHeight() + 16.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {

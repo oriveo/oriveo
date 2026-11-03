@@ -49,11 +49,16 @@ class VoiceConversationSessionsTest {
 
     private class FakePort : VoiceConversationChatPort {
         val sent = mutableListOf<String>()
+        val amended = mutableListOf<String>()
         var cancels = 0
         val flow = MutableSharedFlow<VoiceReplyEvent>(extraBufferCapacity = 8)
         override val replies: Flow<VoiceReplyEvent> = flow
         override suspend fun send(text: String): Boolean {
             sent += text
+            return true
+        }
+        override suspend fun amend(text: String): Boolean {
+            amended += text
             return true
         }
         override fun cancel() {
@@ -200,6 +205,54 @@ class VoiceConversationSessionsTest {
         val send = async { port.send("x") }
         runCurrent()
         advanceTimeBy(VoiceConversationSessions.HANDOFF_TIMEOUT_MS + 1)
+        assertFalse(send.await())
+    }
+
+    @Test
+    fun `home amend goes to the attached chat page and is false before any turn was sent`() = runTest(timeout = 10.seconds) {
+        val sessions = VoiceConversationSessions()
+        val port = sessions.beginHome(Any(), createConversation = { "c1" }, navigate = {})
+        assertFalse("no chat page yet: nothing to amend", port.amend("\u8FD8\u6709"))
+
+        val send = async { port.send("\u7B2C\u4E00\u53E5") }
+        runCurrent()
+        val page = FakePort()
+        assertTrue(sessions.attach("c1", Any()) { page })
+        runCurrent()
+        assertTrue(send.await())
+        assertTrue(port.amend("\u8FD8\u6709"))
+        assertEquals(listOf("\u8FD8\u6709"), page.amended)
+    }
+
+    @Test
+    fun `a home barge-in before the chat page attached waits for the handoff and amends there`() = runTest(timeout = 10.seconds) {
+        val sessions = VoiceConversationSessions()
+        val port = sessions.beginHome(Any(), createConversation = { "c1" }, navigate = {})
+        val send = async { port.send("\u7B2C\u4E00\u53E5") }
+        runCurrent()
+        // Barge-in while thinking, the chat page not attached yet: not an end of the conversation.
+        val amend = async { port.amend("\u8FD8\u6709") }
+        runCurrent()
+        assertFalse(amend.isCompleted)
+        val page = FakePort()
+        assertTrue(sessions.attach("c1", Any()) { page })
+        runCurrent()
+        assertTrue(send.await())
+        assertTrue(amend.await())
+        assertEquals(listOf("\u7B2C\u4E00\u53E5"), page.sent)
+        assertEquals(listOf("\u8FD8\u6709"), page.amended)
+    }
+
+    @Test
+    fun `a home amend waiting for a page that never attaches is false after the handoff timeout`() = runTest(timeout = 10.seconds) {
+        val sessions = VoiceConversationSessions()
+        val port = sessions.beginHome(Any(), createConversation = { "c1" }, navigate = {})
+        val send = async { port.send("\u7B2C\u4E00\u53E5") }
+        runCurrent()
+        val amend = async { port.amend("\u8FD8\u6709") }
+        runCurrent()
+        advanceTimeBy(VoiceConversationSessions.HANDOFF_TIMEOUT_MS + 1)
+        assertFalse(amend.await())
         assertFalse(send.await())
     }
 

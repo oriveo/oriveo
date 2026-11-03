@@ -36,23 +36,33 @@ struct VoiceCatalogClientTests {
 
     private static let baseURL = "https://voice-catalog.test"
 
-    private static func catalogData(model: String, view: String = "voice") -> [String: Any] {
-        [
+    private static func catalogData(model: String, view: String = "voice", realtime: String? = nil) -> [String: Any] {
+        var openAI: [String: Any] = [
+            "stt": [[
+                "model": model,
+                "transport": "openai_transcriptions",
+                "path": "/v1/audio/transcriptions",
+                "maxBytes": 25_000_000,
+                "maxDurationSec": 600,
+                "isDefault": true,
+            ]],
+        ]
+        if let realtime {
+            openAI["realtime"] = [[
+                "model": realtime,
+                "transport": "openai_realtime",
+                "path": "/v1/realtime",
+                "contextWindow": 128_000,
+                "voices": [["id": "marin", "isDefault": true]],
+                "inputTranscriptionModel": "gpt-4o-mini-transcribe",
+                "isDefault": true,
+            ]]
+        }
+        return [
             "view": view,
             "schemaVersion": 2,
             "revision": "rev-\(model)",
-            "providers": [
-                "openAI": [
-                    "stt": [[
-                        "model": model,
-                        "transport": "openai_transcriptions",
-                        "path": "/v1/audio/transcriptions",
-                        "maxBytes": 25_000_000,
-                        "maxDurationSec": 600,
-                        "isDefault": true,
-                    ]],
-                ],
-            ],
+            "providers": ["openAI": openAI],
         ]
     }
 
@@ -243,7 +253,7 @@ struct VoiceCatalogClientTests {
         let client = try await Self.primedClient(directory: directory)
         let recorder = VoiceCatalogStateRecorder()
         let initial = await client.subscribe { state in await recorder.append(state) }
-        #expect(initial.map(Self.sttModels) == ["m1"])
+        #expect(initial.state.map(Self.sttModels) == ["m1"])
 
         let body = try Self.envelope(Self.catalogData(model: "m2"))
         Self.reset { _ in (Self.response(200, etag: "\"v2\""), body) }
@@ -261,6 +271,26 @@ struct VoiceCatalogClientTests {
         await client.refresh()
         #expect(await recorder.states.last == .unavailable)
         #expect(await recorder.states.count == 2)
+    }
+
+    @Test("No callbacks after unsubscribing; other subscribers still receive")
+    func unsubscribeStopsCallbacks() async throws {
+        let directory = Self.makeDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let client = try await Self.primedClient(directory: directory)
+        let dropped = VoiceCatalogStateRecorder()
+        let kept = VoiceCatalogStateRecorder()
+        let subscription = await client.subscribe { state in await dropped.append(state) }
+        _ = await client.subscribe { state in await kept.append(state) }
+
+        await subscription.cancel()
+        await subscription.cancel()
+        let body = try Self.envelope(Self.catalogData(model: "m2"))
+        Self.reset { _ in (Self.response(200, etag: "\"v2\""), body) }
+        await client.refresh()
+
+        #expect(await dropped.states.isEmpty)
+        #expect(await kept.states.map(Self.sttModels) == [["m2"]])
     }
 }
 

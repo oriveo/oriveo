@@ -16,6 +16,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -38,7 +39,7 @@ class VoiceConversationServiceInstrumentedTest {
     @After
     fun tearDown() {
         VoiceConversationService.stop(context)
-        awaitState(STOP_TIMEOUT_MS) { it != VoiceConversationService.State.Running }
+        awaitState(STOP_TIMEOUT_MS) { it !is VoiceConversationService.State.Running }
     }
 
     private fun awaitState(
@@ -60,7 +61,7 @@ class VoiceConversationServiceInstrumentedTest {
     @Test
     fun visibleStartRunsInForeground() {
         assertEquals(VoiceConversationServiceStarter.Result.Started, startFromVisibleActivity())
-        assertEquals(VoiceConversationService.State.Running, VoiceConversationService.state.value)
+        assertTrue(VoiceConversationService.state.value is VoiceConversationService.State.Running)
     }
 
     /**
@@ -106,7 +107,7 @@ class VoiceConversationServiceInstrumentedTest {
             )
         }
         assertEquals(VoiceConversationServiceStarter.Result.Started, startFromVisibleActivity())
-        assertEquals(VoiceConversationService.State.Running, VoiceConversationService.state.value)
+        assertTrue(VoiceConversationService.state.value is VoiceConversationService.State.Running)
     }
 
     private companion object {

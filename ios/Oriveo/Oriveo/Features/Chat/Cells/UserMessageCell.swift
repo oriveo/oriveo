@@ -239,7 +239,7 @@ enum UserBubbleTextLayout {
 
     static func displayText(_ text: String, attributes: [NSAttributedString.Key: Any]) -> NSAttributedString {
         let string = NSMutableAttributedString(string: SoftParagraphBreaks.normalized(text), attributes: attributes)
-        SoftParagraphBreaks.pinDirectionOfOverlongParagraphs(in: string)
+        SoftParagraphBreaks.pinParagraphDirections(in: string)
         // Don't fixAttributes up front: once the fallback font (SF Arabic and so on) is written into the attributes,
         // TextKit uses that font's line height and Arabic line spacing grows from 22.0 to 23.2 pt (the text view's
         // own storage used to handle font fallback, and still does).
@@ -326,6 +326,8 @@ final class UserMessageCell: UICollectionViewCell {
     private var bubbleStackBottomConstraint: NSLayoutConstraint!
     private var boundMessageID: UUID?
     private var currentText = ""
+    /// false = live temporary bubble: no long-press menu and no drag (configure resets it on every call, so reuse does not leak).
+    private(set) var allowsMessageActions = true
     /// Key (message id + textHash) of the display string currently in the text view; reconfiguring the same message
     /// skips resetting the whole string, which would lay the full paragraph out again.
     private var appliedDisplayKey: String?
@@ -400,9 +402,14 @@ final class UserMessageCell: UICollectionViewCell {
         onOpenCompactionDetail: (() -> Void)? = nil,
         onAcceptDirectiveSuggestion: (() -> Void)? = nil,
         onIgnoreDirectiveSuggestion: (() -> Void)? = nil,
-        visionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
+        visionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil,
+        allowsMessageActions: Bool = true
     ) {
         boundMessageID = model.messageID
+        self.allowsMessageActions = allowsMessageActions
+        for drag in bubbleView.interactions.compactMap({ $0 as? UIDragInteraction }) {
+            drag.isEnabled = allowsMessageActions
+        }
         self.parentViewController = parentViewController
         self.onSaveNote = onSaveNote
         self.onOpenNoteReferences = onOpenNoteReferences
@@ -944,6 +951,8 @@ extension UserMessageCell: UIContextMenuInteractionDelegate {
         _ interaction: UIContextMenuInteraction,
         configurationForMenuAtLocation location: CGPoint
     ) -> UIContextMenuConfiguration? {
+        // Live temporary bubble: no long-press menu (no copy, no save note).
+        guard allowsMessageActions else { return nil }
         if shouldYieldContextMenuToTextSelection(at: location) {
             return nil
         }

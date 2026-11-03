@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PHASE_DEVELOPMENT_SERVER,
   PHASE_PRODUCTION_BUILD,
@@ -7,10 +7,20 @@ import {
 import { createOriveoNextConfig } from "./next.config";
 
 describe("next.config distDir isolation", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it("uses a dedicated distDir for the development server", () => {
     expect(createOriveoNextConfig(PHASE_DEVELOPMENT_SERVER).distDir).toBe(
       ".next-dev",
     );
+  });
+
+  it("lets an isolated dev server override the development distDir via env", () => {
+    vi.stubEnv("ORIVEO_NEXT_DEV_DIST_DIR", ".next-e2e");
+    expect(createOriveoNextConfig(PHASE_DEVELOPMENT_SERVER).distDir).toBe(".next-e2e");
+    expect(createOriveoNextConfig(PHASE_PRODUCTION_BUILD).distDir).toBe(".next");
   });
 
   it("shares the default distDir between production build and start", () => {

@@ -40,6 +40,8 @@ struct ModelPickerSelection {
     let providerID: UUID
     let modelID: String
     let context: ModelPickerContext
+    /// Whether the selection is a text model or a realtime voice row (a realtime row's modelID is the catalog model); this layer only passes it through.
+    var modelKind: RealtimeModelPolicy.ModelKind = .text
 }
 
 struct ModelPickerPresentationSnapshot: Identifiable {
@@ -50,6 +52,12 @@ struct ModelPickerPresentationSnapshot: Identifiable {
     let selectedModel: AIModel?
     let initialExpandedProviderIDs: Set<UUID>
     let initialExpandedVendorGroupIDs: [UUID: Set<String>]
+    /// Voice catalog cached when the picker opened (source of the realtime rows); the first-frame sections already list realtime rows from it; nil = no catalog in this process yet.
+    let realtimeCatalog: VoiceCatalog?
+    /// Realtime selection at open time (the conclusion of `AppState.realtimeModelSelection(for:)`); nil = the current model is not a realtime one.
+    let realtimeSelection: RealtimeModelSelection?
+    /// The realtime row to check among the listed rows (selectedRow of `RealtimeModelPolicy.pickerRows`); nil if the selected item is not listed.
+    let selectedRealtimeRow: ModelPickerRowID?
 
     @MainActor
     init(
@@ -57,13 +65,21 @@ struct ModelPickerPresentationSnapshot: Identifiable {
         providers: [Provider],
         providersVersion: UInt,
         currentProviderID: UUID?,
-        currentModel: AIModel?
+        currentModel: AIModel?,
+        realtimeCatalog: VoiceCatalog? = nil,
+        realtimeSelection: RealtimeModelSelection? = nil
     ) {
+        self.realtimeCatalog = realtimeCatalog
+        self.realtimeSelection = realtimeSelection
+        selectedRealtimeRow = modelPickerRealtimeModels(
+            context: context, providers: providers, catalog: realtimeCatalog, selected: realtimeSelection
+        ).selectedRow
         let sections = buildModelPickerSections(
             context: context,
             providers: providers,
             currentProviderID: currentProviderID,
-            currentModel: currentModel
+            currentModel: currentModel,
+            realtimeCatalog: realtimeCatalog
         )
         self.providersVersion = providersVersion
         selectedProviderID = currentProviderID
@@ -134,6 +150,13 @@ struct ModelPickerSheet: View {
     /// Incremented whenever `refreshedSections` is replaced; the index's catalog generation.
     @State private var catalogGeneration = 0
     @State private var searchHaystacks: [String: String] = [:]
+    /// The voice catalog already in this process (source of the realtime rows): take the catalog cached in the open-time snapshot first, and fetch it once in `.task` only if the snapshot has none;
+    /// nil = not fetched yet, or there is no catalog.
+    @State private var realtimeCatalog: VoiceCatalog?
+    /// The selected realtime row; mutually exclusive with `selectedModel` (the text row).
+    @State private var selectedRealtimeRow: ModelPickerRowID?
+    /// Whether the current selection is a realtime model (even if that row is not listed); when true, the last-used text row is not checked.
+    @State private var isRealtimeSelected: Bool
 
     init(
         context: ModelPickerContext,
@@ -147,6 +170,9 @@ struct ModelPickerSheet: View {
         _expandedVendorGroupIDs = State(initialValue: presentation.initialExpandedVendorGroupIDs)
         _selectedProviderID = State(initialValue: presentation.selectedProviderID)
         _selectedModel = State(initialValue: presentation.selectedModel)
+        _realtimeCatalog = State(initialValue: presentation.realtimeCatalog)
+        _selectedRealtimeRow = State(initialValue: presentation.selectedRealtimeRow)
+        _isRealtimeSelected = State(initialValue: presentation.realtimeSelection != nil)
     }
 
     // MARK: - Computed properties
@@ -166,7 +192,7 @@ struct ModelPickerSheet: View {
     }
 
     private var dismissesAfterSelection: Bool {
-        isCrosscheck
+        true
     }
 
     private var currentProviderID: UUID? {
@@ -206,10 +232,13 @@ struct ModelPickerSheet: View {
                     provider.displayName.localizedCaseInsensitiveContains(query) ||
                     (model.summary?.localizedCaseInsensitiveContains(query) ?? false)
             }
-            guard shouldRenderModelPickerProviderSection(provider: provider, query: query, models: models) else {
+            let providerMatches = provider.displayName.lowercased().contains(needle)
+            let realtime = section.realtimeModels.filter { providerMatches || $0.lowercased().contains(needle) }
+            guard !realtime.isEmpty
+                || shouldRenderModelPickerProviderSection(provider: provider, query: query, models: models) else {
                 return nil
             }
-            return ModelPickerSection(provider: provider, models: models)
+            return ModelPickerSection(provider: provider, models: models, realtimeModels: realtime)
         }
     }
 
@@ -221,6 +250,11 @@ struct ModelPickerSheet: View {
             // yet, evaluate row by row instead of filtering with a stale index.
             index: intentIndexKey == currentCapabilityIndexKey ? intentIndex : [:]
         )
+    }
+
+    /// The "Realtime Voice" chip only checks whether this context has realtime rows, and does not disappear with search.
+    private var showsRealtimeFilter: Bool {
+        ModelPickerCapabilityFilter.showsRealtimeFilter(sections: baseSections)
     }
 
     private var isSingleProvider: Bool {
@@ -241,6 +275,8 @@ struct ModelPickerSheet: View {
         selectionFeedbackTick &+= 1
         selectedProviderID = providerID
         selectedModel = model
+        selectedRealtimeRow = nil
+        isRealtimeSelected = false
         onSelect(ModelPickerSelection(providerID: providerID, modelID: model.id, context: context))
         if dismissesAfterSelection {
             dismiss()
@@ -248,7 +284,40 @@ struct ModelPickerSheet: View {
     }
 
     private func isModelSelected(_ model: AIModel, providerID: UUID) -> Bool {
-        return currentProviderID == providerID && currentModel?.id == model.id
+        return modelPickerIsTextRowSelected(
+            isRealtimeSelected: isRealtimeSelected,
+            currentProviderID: currentProviderID,
+            currentModelID: currentModel?.id,
+            providerID: providerID,
+            modelID: model.id
+        )
+    }
+
+    private func selectRealtimeModel(_ model: String, providerID: UUID) {
+        selectionFeedbackTick &+= 1
+        selectedRealtimeRow = ModelPickerRowID(providerID: providerID, modelID: model)
+        isRealtimeSelected = true
+        onSelect(ModelPickerSelection(providerID: providerID, modelID: model, context: context, modelKind: .realtime))
+        if dismissesAfterSelection {
+            dismiss()
+        }
+    }
+
+    /// Takes the voice catalog already in this process (cold-start cache or the result of the last refresh); no request is made for the picker;
+    /// the actor reads the cache file on its first construction, so it runs in the background. The groups are rebuilt once from the existing catalog only when one exists, to merge in the realtime rows.
+    private func loadRealtimeCatalog() async {
+        guard !isCrosscheck, realtimeCatalog == nil else { return }
+        let catalog = await Task.detached { await VoiceCatalogClient.shared.state?.catalog }.value
+        guard let catalog, !Task.isCancelled else { return }
+        realtimeCatalog = catalog
+        refreshSectionsAfterCatalogReturn()
+        // The snapshot had no catalog at open time: once one is obtained, check the realtime row selected at open time (left alone if the user has picked another one).
+        if selectedRealtimeRow == nil, isRealtimeSelected {
+            selectedRealtimeRow = modelPickerRealtimeModels(
+                context: context, providers: appState.providers, catalog: catalog,
+                selected: presentation.realtimeSelection
+            ).selectedRow
+        }
     }
 
     // MARK: - Catalog Refresh
@@ -258,7 +327,8 @@ struct ModelPickerSheet: View {
             context: context,
             providers: appState.providers,
             currentProviderID: selectedProviderID,
-            currentModel: selectedModel
+            currentModel: selectedModel,
+            realtimeCatalog: realtimeCatalog
         )
         var remaining = Dictionary(rebuilt.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var ordered: [ModelPickerSection] = []
@@ -300,6 +370,7 @@ struct ModelPickerSheet: View {
     private func catalogSignature(_ sections: [ModelPickerSection]) -> [String] {
         sections.flatMap { section in
             [section.provider.id.uuidString] + section.models.map(\.id)
+                + section.realtimeModels.map { "realtime:\($0)" }
         }
     }
 
@@ -359,7 +430,9 @@ struct ModelPickerSheet: View {
                     }
                     capabilityCounts = ModelPickerCapabilityFilter.counts(sections: searchedSections, index: intentIndex)
                 }
-
+                .task {
+                    await loadRealtimeCatalog()
+                }
         }
         // The global ToastOverlay is mounted on AppRootView, while a .sheet is presented above it, so
         // the "added" / failure toast raised from inside the picker would be hidden and the user would
@@ -430,9 +503,11 @@ struct ModelPickerSheet: View {
     }
 
     private var homeStatsInline: some View {
-        let sections = baseSections
+        // Both counts are taken from the same group set used for rendering (after search → capability filter), so they count what the user can see.
+        let sections = providerSections
         let providerCount = sections.count
-        let modelCount = sections.reduce(0) { $0 + $1.models.count }
+        // "M models" = the sum of the group-header counts (text + realtime), using the same rule as the group headers.
+        let modelCount = ModelPickerSection.visibleRowTotal(sections)
         return HStack(spacing: 8) {
             statBadge(
                 systemName: "square.grid.2x2.fill",
@@ -564,7 +639,7 @@ struct ModelPickerSheet: View {
 
     private var capabilityFilterChips: some View {
         HStack(spacing: 8) {
-            ForEach(ModelPickerCapabilityFilter.Capability.allCases) { capability in
+            ForEach(ModelPickerCapabilityFilter.Capability.allCases.filter { $0 != .realtime || showsRealtimeFilter }) { capability in
                 let isActive = activeCapabilityFilters.contains(capability)
                 let count = capabilityCounts[capability]
                 Button {
@@ -601,6 +676,7 @@ struct ModelPickerSheet: View {
                     .contentShape(Capsule(style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .modelPickerChipAccessibilityLabel(capability.modelPickerChipAccessibilityLabel(count: count))
                 .accessibilityAddTraits(isActive ? [.isSelected, .isButton] : .isButton)
             }
             Spacer(minLength: 0)
@@ -618,8 +694,13 @@ struct ModelPickerSheet: View {
                 contents.append(.providerHeader(section: section, isExpanded: providerExpanded))
             }
             if providerExpanded {
+                // Flat list: vendor info is demoted to an inline source label; no vendor grouping.
                 contents.append(contentsOf: section.models.map {
                     .model(provider: provider, model: $0, isNestedUnderVendor: false)
+                })
+                // Realtime rows follow their connection's text row (the order is already set by RealtimeModelPolicy.pickerRows).
+                contents.append(contentsOf: section.realtimeModels.map {
+                    .realtimeModel(provider: provider, model: $0)
                 })
                 if allowsCatalogEditing, provider.canAddModelsInModelPicker, searchQuery.isEmpty {
                     contents.append(.addModels(providerID: provider.id))
@@ -656,7 +737,7 @@ struct ModelPickerSheet: View {
             case .providerHeader(let section, let isExpanded):
                 providerSectionHeader(
                     provider: section.provider,
-                    modelCount: section.models.count,
+                    modelCount: section.visibleRowCount,
                     isExpanded: isExpanded,
                     isCollapsible: true,
                     onToggle: { toggleProviderSection(section.provider.id) }
@@ -677,6 +758,13 @@ struct ModelPickerSheet: View {
                     onTap: { selectModel(model, providerID: provider.id) }
                 )
                 .id(ModelPickerRowID(providerID: provider.id, modelID: model.id))
+            case .realtimeModel(let provider, let model):
+                let rowID = ModelPickerRowID(providerID: provider.id, modelID: model)
+                ModelPickerRealtimeRow(
+                    model: model,
+                    isSelected: selectedRealtimeRow == rowID,
+                    onTap: { selectRealtimeModel(model, providerID: provider.id) }
+                )
             case .addModels(let providerID):
                 addModelsRow(providerID: providerID)
             }
@@ -846,6 +934,28 @@ struct ModelPickerSheet: View {
     }
 }
 
+extension ModelPickerCapabilityFilter.Capability {
+    /// Accessibility label of the filter chip. Visually it is a label plus a separate count; VoiceOver should read one sentence like "Realtime Voice 3",
+    /// so it uses p3-copy's voice_realtime_filter_count (same copy as Android); the count is the total number of visible realtime rows.
+    /// The web / reasoning chips return nil and keep SwiftUI's default reading of the merged child elements.
+    func modelPickerChipAccessibilityLabel(count: Int?) -> String? {
+        guard self == .realtime, let count else { return nil }
+        return String(format: L10n.tr("Realtime Voice %1$d", table: .voice), count)
+    }
+}
+
+private extension View {
+    /// Only overrides the accessibility label when one is given; with nil no modifier is added, keeping the merged child reading.
+    @ViewBuilder
+    func modelPickerChipAccessibilityLabel(_ label: String?) -> some View {
+        if let label {
+            accessibilityLabel(Text(label))
+        } else {
+            self
+        }
+    }
+}
+
 private struct ModelPickerVendorGroupHeader: View {
     let group: ModelPickerVendorGroup
     let isExpanded: Bool
@@ -929,10 +1039,16 @@ struct ModelPickerPricePresentation: Equatable {
         }
     }
 
-    private static func formatPerMillion(_ perTokenPrice: Double, currencyCode: String?) -> String? {
+    static func formatPerMillion(
+        _ perTokenPrice: Double,
+        currencyCode: String?,
+        locale: Locale = AppLocalization.currentLocale
+    ) -> String? {
         guard perTokenPrice >= 0 else { return nil }
-        if CostCalculator.normalizedCurrency(currencyCode) == CostCalculator.usd, perTokenPrice == 0 { return "$0/M" }
-        return CostFormatter.formatPerMillion(perTokenPrice, currencyCode: currencyCode, locale: AppLocalization.currentLocale)
+        if CostCalculator.normalizedCurrency(currencyCode) == CostCalculator.usd, perTokenPrice == 0 {
+            return CostFormatter.usd(0, minFraction: 0, maxFraction: 0, locale: locale) + "/M"
+        }
+        return CostFormatter.formatPerMillion(perTokenPrice, currencyCode: currencyCode, locale: locale)
     }
 }
 
@@ -1215,9 +1331,10 @@ private struct ModelPickerRow: View {
         Button(action: onTap) {
             HStack(alignment: .center, spacing: 8) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
+                    Text(ModelIdentifierBreaks.displayTitle(title))
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(OriveoTheme.V2.Colors.textPrimary)
+                        .accessibilityLabel(title)
                         .fixedSize(horizontal: false, vertical: true)
                         .layoutPriority(1)
 
@@ -1305,20 +1422,87 @@ private struct ModelPickerRowButtonStyle: ButtonStyle {
     }
 }
 
+/// Realtime voice row (design §8): minimum height 64 pt, a gradient sound-wave square on the left, the model name in the middle (at most two lines) + a "Realtime Voice" subtitle,
+/// when selected, the right side shows the same primary-colour checkmark.circle.fill tick as text rows; the row name is the catalog model, with no online / thinking / tool badges or price.
+private struct ModelPickerRealtimeRow: View {
+    let model: String
+    let isSelected: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(alignment: .center, spacing: 12) {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(OriveoTheme.V2.Colors.realtimeBadgeGradient)
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Image(systemName: "waveform")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundStyle(OriveoTheme.Palette.switchThumb)
+                    )
+                    .accessibilityHidden(true)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(ModelIdentifierBreaks.displayTitle(model))
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(OriveoTheme.V2.Colors.textPrimary)
+                        .accessibilityLabel(model)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(L10n.tr("Realtime voice · Interrupt anytime", table: .voice))
+                        .font(.system(size: 13))
+                        .foregroundStyle(OriveoTheme.V2.Colors.textSecondary)
+                        .lineLimit(1)
+                }
+                .layoutPriority(1)
+
+                Spacer(minLength: 0)
+
+                ZStack {
+                    if isSelected {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(OriveoTheme.V2.Colors.primary)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .frame(width: 18, height: 18)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, minHeight: 64)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(ModelPickerRowButtonStyle(isSelected: isSelected))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 // MARK: - Section Model
 
 struct ModelPickerSection: Identifiable {
     let provider: Provider
     let models: [AIModel]
+    /// The realtime models to list for this connection (catalog models, already ordered by `RealtimeModelPolicy.pickerRows`), placed after the text rows.
+    var realtimeModels: [String] = []
 
     var id: UUID { provider.id }
+
+    /// The count on the group header: the rows the user can see in that group (text + realtime).
+    var visibleRowCount: Int { models.count + realtimeModels.count }
+
+    /// The "M models" on the home header: the sum of the group-header counts.
+    static func visibleRowTotal(_ sections: [ModelPickerSection]) -> Int {
+        sections.reduce(0) { $0 + $1.visibleRowCount }
+    }
 }
 
 func buildModelPickerSections(
     context: ModelPickerContext,
     providers: [Provider],
     currentProviderID: UUID?,
-    currentModel: AIModel?
+    currentModel: AIModel?,
+    realtimeCatalog: VoiceCatalog? = nil
 ) -> [ModelPickerSection] {
     let isHome: Bool
     if case .home = context {
@@ -1346,6 +1530,9 @@ func buildModelPickerSections(
         }
     }
 
+    let realtimeByProvider = modelPickerRealtimeModels(
+        context: context, providers: sortedProviders, catalog: realtimeCatalog
+    ).byProvider
     return sortedProviders.compactMap { provider in
         var models = isHome ? sortedEnabledModels(for: provider) : provider.models
         if !isHome,
@@ -1359,10 +1546,115 @@ func buildModelPickerSections(
         if !isHome, !provider.kind.usesServerOrderedModels, provider.kind != .relay {
             models.sort(by: pickerModelSort)
         }
-        guard shouldRenderModelPickerProviderSection(provider: provider, query: "", models: models) else {
+        let realtime = realtimeByProvider[provider.id] ?? []
+        guard !realtime.isEmpty
+            || shouldRenderModelPickerProviderSection(provider: provider, query: "", models: models) else {
             return nil
         }
-        return ModelPickerSection(provider: provider, models: models)
+        return ModelPickerSection(provider: provider, models: models, realtimeModels: realtime)
+    }
+}
+
+/// The realtime models to list for each connection: only official apiKey connections, with each of multiple connections of the same provider listing its own; isDefault first;
+/// crosscheck lists none; all the rules live in `RealtimeModelPolicy.pickerRows`, and this only converts the shape of Provider / catalog.
+/// When `selected` carries the realtime selection, `selectedRow` is the row to check among the listed rows (decided by kind, only realtime rows count); nil if none is listed.
+func modelPickerRealtimeModels(
+    context: ModelPickerContext,
+    providers: [Provider],
+    catalog: VoiceCatalog?,
+    selected: RealtimeModelSelection? = nil
+) -> ModelPickerRealtimeRows {
+    guard let realtimeCatalog = catalog?.realtimePolicyCatalog, !realtimeCatalog.isEmpty else {
+        return ModelPickerRealtimeRows(byProvider: [:], selectedRow: nil)
+    }
+    let result = RealtimeModelPolicy.pickerRows(RealtimeModelPolicy.PickerInput(
+        context: context.realtimePickerContext,
+        connections: providers.map { provider in
+            provider.realtimePolicyConnection
+        },
+        realtimeCatalog: realtimeCatalog,
+        selected: selected.map {
+            RealtimeModelPolicy.PickerSelected(connectionId: $0.providerID.uuidString, model: $0.model)
+        }
+    ))
+    var byProvider: [UUID: [String]] = [:]
+    for group in result.groups {
+        guard let id = UUID(uuidString: group.connectionId) else { continue }
+        let rows = group.rows.filter { $0.kind == .realtime }.map(\.model)
+        if !rows.isEmpty { byProvider[id] = rows }
+    }
+    let selectedRow = result.selectedRow.flatMap { row -> ModelPickerRowID? in
+        guard row.kind == .realtime, let id = UUID(uuidString: row.connectionId) else { return nil }
+        return ModelPickerRowID(providerID: id, modelID: row.model)
+    }
+    return ModelPickerRealtimeRows(byProvider: byProvider, selectedRow: selectedRow)
+}
+
+struct ModelPickerRealtimeRows {
+    /// connection → realtime models to list (already ordered)
+    let byProvider: [UUID: [String]]
+    /// The checked row for the realtime selection; nil if no selection was passed or the selected item is not listed.
+    let selectedRow: ModelPickerRowID?
+}
+
+/// Whether a text row is checked: when the current selection is a realtime model, no text row is checked (even if the realtime row was filtered out and not listed);
+/// otherwise only the current text model of the current connection is checked.
+func modelPickerIsTextRowSelected(
+    isRealtimeSelected: Bool,
+    currentProviderID: UUID?,
+    currentModelID: String?,
+    providerID: UUID,
+    modelID: String
+) -> Bool {
+    !isRealtimeSelected && currentProviderID == providerID && currentModelID == modelID
+}
+
+extension ModelPickerContext {
+    var realtimePickerContext: RealtimeModelPolicy.PickerContext {
+        switch self {
+        case .home: return .home
+        case .chat: return .chat
+        case .crosscheck: return .crosscheck
+        }
+    }
+}
+
+/// Shared by the picker's realtime rows, the realtime selection judgement and the old-user migration (RealtimeMigration).
+extension Provider {
+    /// The auth shape of a connection: relay and hosted providers each fall into their own class; an official connection's API Key shape counts as apiKey,
+    /// while subscription login counts as subscription (it is not the user's own key, so it lists no realtime rows and is not judged as realtime).
+    var realtimeConnectionAuth: RealtimeModelPolicy.ConnectionAuth {
+        switch kind {
+        case .relay: return .relay
+        default:
+            switch authMode {
+            case .apiKey: return .apiKey
+            case .subscription: return .subscription
+            }
+        }
+    }
+
+    /// The connection shape passed to RealtimeModelPolicy (text models do not take part in realtime judgement, so it is left empty).
+    var realtimePolicyConnection: RealtimeModelPolicy.Connection {
+        RealtimeModelPolicy.Connection(
+            id: id.uuidString,
+            providerKind: kind.rawValue,
+            auth: realtimeConnectionAuth,
+            textModels: []
+        )
+    }
+}
+
+extension VoiceCatalog {
+    /// Converts the catalog realtime[] into RealtimeModelPolicy's shape: providerKind → catalog-ordered models; families without realtime models are not included.
+    var realtimePolicyCatalog: RealtimeModelPolicy.RealtimeCatalog {
+        var result: RealtimeModelPolicy.RealtimeCatalog = [:]
+        for (kind, entries) in providers where !entries.realtime.isEmpty {
+            result[kind.rawValue] = entries.realtime.map {
+                RealtimeModelPolicy.RealtimeCatalogEntry(model: $0.model, isDefault: $0.isDefault)
+            }
+        }
+        return result
     }
 }
 
@@ -1395,6 +1687,7 @@ struct ModelPickerFlatItem: Identifiable {
         case provider(UUID)
         case vendor(UUID, String)
         case model(ModelPickerRowID)
+        case realtimeModel(ModelPickerRowID)
         case addModels(UUID)
     }
 
@@ -1402,6 +1695,7 @@ struct ModelPickerFlatItem: Identifiable {
         case providerHeader(section: ModelPickerSection, isExpanded: Bool)
         case vendorHeader(provider: Provider, group: ModelPickerVendorGroup, isExpanded: Bool)
         case model(provider: Provider, model: AIModel, isNestedUnderVendor: Bool)
+        case realtimeModel(provider: Provider, model: String)
         case addModels(providerID: UUID)
     }
 
@@ -1417,6 +1711,8 @@ struct ModelPickerFlatItem: Identifiable {
             return .vendor(provider.id, group.id)
         case .model(let provider, let model, _):
             return .model(ModelPickerRowID(providerID: provider.id, modelID: model.id))
+        case .realtimeModel(let provider, let model):
+            return .realtimeModel(ModelPickerRowID(providerID: provider.id, modelID: model))
         case .addModels(let providerID):
             return .addModels(providerID)
         }

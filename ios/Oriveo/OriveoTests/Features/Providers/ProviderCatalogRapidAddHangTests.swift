@@ -93,9 +93,7 @@ struct ProviderCatalogRapidAddHangTests {
         )
         let state = AppState(seedDemoData: false, sessionUID: "rapid-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         state.providers = [provider]
 
@@ -201,9 +199,7 @@ struct ProviderCatalogRapidAddHangTests {
         )
         let state = AppState(seedDemoData: false, sessionUID: "push-pop-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         state.providers = [provider]
 

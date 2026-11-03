@@ -113,7 +113,16 @@ vi.mock("./send-completion", () => ({
   reportSendCompletion: (...args: unknown[]) =>
     mocks.reportSendCompletion(...args),
 }));
-vi.mock("../sync-port", () => ({ getSyncAdapter: vi.fn(() => null) }));
+// Pin rhoHi so the stopped leg estimate is exact: n = 0 keeps rhoHi = rho = FIXED_RHO_HI.
+const FIXED_RHO_HI = vi.hoisted(() => 0.4);
+vi.mock("../../infra/storage/context-ledger-store", async (importOriginal) => {
+  const { RhoCalibration } = await import("@oriveo/core/context/calibration");
+  return {
+    ...(await importOriginal<typeof import("../../infra/storage/context-ledger-store")>()),
+    getRhoCalibration: async () => RhoCalibration.fromJSON({ n: 0, rho: FIXED_RHO_HI, seeds: [] }),
+  };
+});
+vi.mock("../sync", () => ({ getSyncAdapter: vi.fn(() => null) }));
 vi.mock("../telemetry", async () => ({
   trackEvent: vi.fn(),
   telemetryProviderKind: (kind: string) => kind,
@@ -432,11 +441,15 @@ describe("sendLibraryMessage", () => {
       ({
         signal,
         onUsage,
+        onText,
       }: {
         signal: AbortSignal;
         onUsage: (value: typeof usage) => void;
+        onText: (text: string) => void;
       }) => {
         onUsage(usage);
+        // The later leg shows text before the stop: it is estimated, not dropped.
+        onText("Hello");
         return new Promise((_resolve, reject) => {
           signal.addEventListener(
             "abort",

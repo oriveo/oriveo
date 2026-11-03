@@ -1,6 +1,11 @@
 package ai.oriveo.community.feature.chat.components
 
 import ai.oriveo.community.core.context.ContextCompactNumber
+import ai.oriveo.community.core.model.CostFormatter
+import ai.oriveo.community.core.model.NonUsdCost
+import ai.oriveo.community.core.provider.CostSource
+import ai.oriveo.community.core.usage.CostParts
+import java.util.Locale
 
 /**
  * Pure presentation-decision layer for the token usage popup -- no Compose / Android dependency.
@@ -19,7 +24,41 @@ internal data class MessageTokenUsageSnapshot(
     val outputTokens: Int? = null,
     val cacheReadTokens: Int? = null,
     val cacheWriteTokens: Int? = null,
+    /** USD part of the message cost, as persisted. */
+    val estimatedCost: Double = 0.0,
+    /** [CostSource] enum name of the USD part; null = not recorded (legacy). */
+    val costSource: String? = null,
+    val nonUsdCost: NonUsdCost? = null,
 ) {
+    /** The USD part is billed by the Oriveo server. */
+    private val isManaged: Boolean
+        get() = costSource.equals(CostSource.MANAGED.name, ignoreCase = true)
+
+    /** The USD price is unknown and nothing else is recorded: the row shows the missing-state label. */
+    val showsUsdUnavailable: Boolean
+        get() = nonUsdCost == null && !isManaged &&
+            costSource.equals(CostSource.UNKNOWN.name, ignoreCase = true) &&
+            !(estimatedCost.isFinite() && estimatedCost > CostFormatter.COST_EPSILON)
+
+    /**
+     * Cost row visibility: shown for a USD amount above epsilon,
+     * for a non-USD part whose price is unknown or whose amount is above epsilon, or for an unknown
+     * USD price of a non-managed message. Managed / subscription / missing sources at or below epsilon
+     * are hidden; a zero amount is never shown.
+     */
+    val showsCost: Boolean
+        get() {
+            if (estimatedCost.isFinite() && estimatedCost > CostFormatter.COST_EPSILON) return true
+            if (showsUsdUnavailable) return true
+            val nonUsd = nonUsdCost ?: return false
+            return nonUsd.costSource.equals(CostSource.UNKNOWN.name, ignoreCase = true) ||
+                (nonUsd.amount.isFinite() && nonUsd.amount > CostFormatter.COST_EPSILON)
+        }
+
+    /** The Estimated tag: any source other than upstream or managed, a missing source included. */
+    val isCostEstimated: Boolean
+        get() = !costSource.equals(CostSource.UPSTREAM.name, ignoreCase = true) && !isManaged
+
     /**
      * The total only exists when both input and output are present; cache sub-values
      * are already included in the input count, so they must not be added again
@@ -89,3 +128,16 @@ internal fun resolveTokenUsageRows(snapshot: MessageTokenUsageSnapshot): Message
  */
 internal fun tokenUsageMenuSubtitle(snapshot: MessageTokenUsageSnapshot, locale: String): String? =
     snapshot.total?.let { ContextCompactNumber.format(it.toLong(), locale) }
+
+/**
+ * Cost row value: same per-currency formatting as the message cost text (parts joined by " + ");
+ * a non-USD part with an unknown price renders [unavailableText] (the sheet's own missing-state label).
+ * Empty when nothing is displayable.
+ */
+internal fun tokenUsageCostText(snapshot: MessageTokenUsageSnapshot, locale: Locale, unavailableText: String): String =
+    if (snapshot.showsUsdUnavailable) unavailableText else CostFormatter.formatParts(
+        parts = CostParts.messageParts(snapshot.estimatedCost, snapshot.nonUsdCost),
+        locale = locale,
+        notAvailableCodes = CostParts.messageNotAvailableCodes(snapshot.nonUsdCost),
+        notAvailableText = unavailableText,
+    )

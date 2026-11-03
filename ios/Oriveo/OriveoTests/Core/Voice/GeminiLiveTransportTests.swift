@@ -74,6 +74,12 @@ struct GeminiLiveTransportTests {
         apiKey: "k+y/="
     )
 
+    /// Same config, with the host recognition language (fixture openCases input.language).
+    private static func config(language: String) -> GeminiLiveConfig {
+        GeminiLiveConfig(host: config.host, path: config.path, model: config.model, voice: config.voice,
+                         apiKey: config.apiKey, language: language)
+    }
+
     private static func setup(of frame: String) throws -> [String: Any] {
         try #require(try json(frame)["setup"] as? [String: Any])
     }
@@ -99,7 +105,7 @@ struct GeminiLiveTransportTests {
 
     @Test func history_sent_after_setup_complete() async throws {
         let hub = FakeSocketHub()
-        let transport = hub.transport(config: Self.config)
+        let transport = hub.transport(config: Self.config(language: "zh-Hans-CN"))
         let input = try Self.input()
         var events = transport.openRealtimeSession(transport: input).makeAsyncIterator()
         var sockets = hub.sockets.makeAsyncIterator()
@@ -150,6 +156,43 @@ struct GeminiLiveTransportTests {
         await transport.close()
     }
 
+    @Test func headphones_route_omits_sensitivity_on_open_and_switch() async throws {
+        let route = RouteBox(.headphones)
+        let hub = FakeSocketHub()
+        let transport = hub.transport(config: Self.config, route: { route.sample() })
+        var events = transport.openRealtimeSession(transport: try Self.input()).makeAsyncIterator()
+        var sockets = hub.sockets.makeAsyncIterator()
+        let first = try #require(await sockets.next())
+        // First open follows the route at connect time: headphones carry no speech sensitivity
+        #expect(try Self.setup(of: await first.frame(0))["realtimeInputConfig"] == nil)
+        first.push(Self.setupComplete)
+        first.push(Self.resumable("h1"))
+        #expect(try await events.next() == .ready)
+        #expect(try await events.next() == .resumable(handle: "h1"))
+
+        // Route switches to speaker before resume: the resume setup carries sensitivity per the value at that time
+        route.set(.speaker)
+        first.push(Self.goAway())
+        #expect(try await events.next() == .goAway(timeLeftMs: nil))
+        let second = try #require(await sockets.next())
+        let resumed = try Self.setup(of: await second.frame(0))
+        #expect(try Self.handle(of: await second.frame(0)) == "h1")
+        let detection = (resumed["realtimeInputConfig"] as? [String: Any])?["automaticActivityDetection"] as? [String: Any]
+        #expect(detection?["startOfSpeechSensitivity"] as? String == "START_SENSITIVITY_LOW")
+
+        // Switch back to headphones and resume again: no sensitivity this time
+        second.push(Self.setupComplete)
+        second.push(Self.resumable("h2"))
+        #expect(try await events.next() == .resumable(handle: "h2"))
+        route.set(.headphones)
+        second.push(Self.goAway())
+        #expect(try await events.next() == .goAway(timeLeftMs: nil))
+        let third = try #require(await sockets.next())
+        #expect(try Self.setup(of: await third.frame(0))["realtimeInputConfig"] == nil)
+        #expect(route.samples == 3)
+        await transport.close()
+    }
+
     @Test func resumed_open_sends_handle_not_history() async throws {
         let hub = FakeSocketHub()
         let transport = hub.transport(config: Self.config, resumeHandle: "h0")
@@ -172,7 +215,8 @@ struct GeminiLiveTransportTests {
 
     @Test func go_away_idle_reconnects_with_last_handle() async throws {
         let hub = FakeSocketHub()
-        let transport = hub.transport(config: Self.config)
+        // Resume setup is compared against open_gemini_resume_sends_handle_not_history (input.language = zh-TW)
+        let transport = hub.transport(config: Self.config(language: "zh-TW"))
         var events = transport.openRealtimeSession(transport: try Self.input()).makeAsyncIterator()
         var sockets = hub.sockets.makeAsyncIterator()
         let first = try #require(await sockets.next())
@@ -1385,7 +1429,25 @@ private nonisolated final class FakeGeminiSocket: GeminiLiveSocket, @unchecked S
     }
 }
 
-/// Collects the sockets and sleep requests the transport creates; sleep waits for releaseSleep() to let it go.
+/// Mutable output route; records how many times it was sampled.
+private nonisolated final class RouteBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: VoiceConversationLogic.Route
+    private var count = 0
+
+    init(_ value: VoiceConversationLogic.Route) { self.value = value }
+
+    var samples: Int { lock.withLock { count } }
+    func set(_ route: VoiceConversationLogic.Route) { lock.withLock { value = route } }
+    func sample() -> VoiceConversationLogic.Route {
+        lock.withLock {
+            count += 1
+            return value
+        }
+    }
+}
+
+/// Collects the socket the transport opens and sleep requests; sleep waits until releaseSleep() lets it through.
 private nonisolated final class FakeSocketHub: @unchecked Sendable {
     let sockets: AsyncStream<FakeGeminiSocket>
     let sleeps: AsyncStream<Int>
@@ -1408,10 +1470,15 @@ private nonisolated final class FakeSocketHub: @unchecked Sendable {
 
     func releaseSleep() { gateSink.yield() }
 
-    func transport(config: GeminiLiveConfig, resumeHandle: String? = nil) -> GeminiLiveTransport {
+    func transport(
+        config: GeminiLiveConfig,
+        resumeHandle: String? = nil,
+        route: @escaping RealtimeRouteProvider = { .speaker }
+    ) -> GeminiLiveTransport {
         GeminiLiveTransport(
             config: config,
             resumeHandle: resumeHandle,
+            route: route,
             socketFactory: { [self] url in
                 if failConnect {
                     throw URLError(.cannotConnectToHost, userInfo: [NSURLErrorFailingURLErrorKey: url])

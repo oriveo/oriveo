@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import type { StoreApi } from 'zustand';
 import type { AIModel, ChatMessage, Conversation, Provider } from '@oriveo/shared';
 import type { AppStore } from '../../store/app-store';
-import { prepareSendStart } from '../send-start';
+import { createStore } from 'zustand/vanilla';
+import { newConversationSkillIds, prepareSendStart } from '../send-start';
+import { createAppSlice } from '../../store/slices/app-slice';
 
 const provider = {
   id: 'deepseek-1',
@@ -126,5 +128,73 @@ describe('prepareSendStart last used', () => {
     const { setLastUsedModelRef } = runSend(makeConversation('deepseek-old'), makeModel('deepseek-flash'), 'edit');
 
     expect(setLastUsedModelRef).toHaveBeenCalledWith({ providerID: 'deepseek-1', modelID: 'deepseek-flash' });
+  });
+});
+
+describe('prepareSendStart new conversation skill chips', () => {
+  function makeDraftStore(draftSkillIds: string[]) {
+    const skill = (id: string) => ({ id, name: id, kind: 'user' });
+    const store = createStore<AppStore>()((set) => ({
+      conversations: [],
+      activeConversationId: null,
+      draftConversationInstructions: '',
+      draftConversationSkillIds: draftSkillIds,
+      catalogSkills: [],
+      userSkills: [skill('skill-a'), skill('skill-b')],
+      addConversation: (conversation: Conversation) => set((s) => ({ conversations: [...s.conversations, conversation] })),
+      beginStreamingForConversation: vi.fn(),
+      ...createAppSlice(set as never),
+      setLastUsedModelRef: vi.fn(),
+    }) as unknown as AppStore);
+    return store;
+  }
+
+  function sendFirst(store: StoreApi<AppStore>) {
+    const userMsg = makeMessage('user-1', 'user');
+    const attachedSkillIds = newConversationSkillIds(store, undefined);
+    const result = prepareSendStart({
+      store,
+      userMsg: attachedSkillIds.length > 0 ? { ...userMsg, attachedSkillIds } : userMsg,
+      assistantMsg: makeMessage('assistant-1', 'assistant'),
+      prevMessages: [],
+      conversation: undefined,
+      provider,
+      model: makeModel('deepseek-flash'),
+      reasoningMode: 'automatic',
+      webSearchEnabled: false,
+      attachments: undefined,
+      skillId: undefined,
+    });
+    const created = store.getState().conversations.find((c) => c.id === result.finalConvId);
+    return { attachedSkillIds, created };
+  }
+
+  it('writes the draft chips into the new conversation and its first user message', () => {
+    const store = makeDraftStore(['skill-a', 'skill-b']);
+    const { attachedSkillIds, created } = sendFirst(store);
+
+    expect(created?.skillIds).toEqual(['skill-a', 'skill-b']);
+    expect(created?.skillId).toBe('skill-a');
+    expect(attachedSkillIds).toEqual(['skill-a', 'skill-b']);
+    expect(created?.messages[0]?.attachedSkillIds).toEqual(['skill-a', 'skill-b']);
+  });
+
+  it('leaves skill fields unset when the draft is empty', () => {
+    const { attachedSkillIds, created } = sendFirst(makeDraftStore([]));
+
+    expect(attachedSkillIds).toEqual([]);
+    expect(created?.skillIds).toBeUndefined();
+    expect(created?.skillId).toBeUndefined();
+    expect(created?.messages[0]?.attachedSkillIds).toBeUndefined();
+  });
+
+  it('clears the draft chips when the conversation changes', () => {
+    const store = makeDraftStore(['skill-a']);
+    sendFirst(store);
+    expect(store.getState().draftConversationSkillIds).toEqual([]);
+
+    store.getState().setDraftConversationSkillIds(['skill-b']);
+    store.getState().setActiveConversationId('other-conversation');
+    expect(store.getState().draftConversationSkillIds).toEqual([]);
   });
 });

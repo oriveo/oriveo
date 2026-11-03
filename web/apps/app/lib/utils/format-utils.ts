@@ -2,6 +2,8 @@
  * Cost formatting helpers.
  */
 
+import { formatUsd } from './currency-format';
+
 const numberFormatterCache = new Map<string, Intl.NumberFormat>();
 const dateTimeFormatterCache = new Map<string, Intl.DateTimeFormat>();
 const relativeTimeFormatterCache = new Map<string, Intl.RelativeTimeFormat>();
@@ -93,9 +95,11 @@ export function getRelativeTimeFormatter(
  * - 0.0001 ≤ value < 0.01 → "$X.XXXX" (4 decimals)
  * - value ≥ 0.01 → "$X.XX" (2 decimals)
  */
-export function formatCost(value: number): string {
+export function formatCost(value: number, locale: string): string {
   const digits = costFractionDigits(value);
-  return digits === null ? '' : `$${value.toFixed(digits)}`;
+  return digits === null
+    ? ''
+    : formatUsd(value, locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 /**
@@ -125,7 +129,15 @@ export function formatPerMillionPrice(
   // Non-USD uses the same digit rule as USD (3 significant digits of its own amount, no decimals for integers);
   // symbol position and separators follow the platform currency format (UI locale). Formatters are cached per locale|currency.
   const perMillion = Number((perTokenPrice * 1_000_000).toPrecision(3));
-  if (currencyCode === 'USD') return `$${perMillion}/M`;
+  if (currencyCode === 'USD') {
+    // Keep the 3 significant digits already applied above; trailing zeros are not padded.
+    const fractionDigits = Math.min(20, Math.max(0, 2 - Math.floor(Math.log10(perMillion))));
+    const text = formatUsd(perMillion, locale ?? 'en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: fractionDigits,
+    });
+    return `${text}/M`;
+  }
   const formatter = getNumberFormatter(locale, {
     style: 'currency',
     currency: currencyCode,

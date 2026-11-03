@@ -204,7 +204,7 @@
 }
 
 .pinIcon {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   margin-inline-end: 3px;
   flex-shrink: 0;
   vertical-align: middle;
@@ -250,7 +250,7 @@
 
 .moreBtn:hover {
   color: var(--o-text);
-  background: color-mix(in srgb, var(--o-surface-raised) 70%, transparent);
+  background: color-mix(in srgb, var(--o-surface-hover) 70%, transparent);
 }
 
 .checkbox {

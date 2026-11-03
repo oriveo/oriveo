@@ -51,3 +51,9 @@
 # Keep line numbers so a stack trace from a release build is still readable
 -keepattributes SourceFile,LineNumberTable
 -renamesourcefileattribute SourceFile
+
+# ── Frozen-frame stall attribution (core/performance/MainThreadStallSampler) ──
+# On device, the first app frame is found by the package prefix ai.oriveo.community. and tagged stall.top_frame. Only package names are kept;
+# class and method names stay obfuscated, so the size barely changes. Sentry resolves the main-thread stack server-side using the mapping,
+# and fingerprints use the resolved frames.
+-keeppackagenames ai.oriveo.community.**

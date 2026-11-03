@@ -60,7 +60,12 @@ internal fun resolveMessageRecoveryCardActionLayout(
     attachmentTextOverLimit: Boolean = false,
     relayAttachmentUnsupported: Boolean = false,
     offersSwitchKey: Boolean = false,
+    /** The current chat model is a realtime voice model: retry / edit / regenerate / continue all re-answer with the current model, which cannot use the text API, so only switch-model is kept. */
+    isRealtimeModel: Boolean = false,
 ): MessageRecoveryCardActionLayout {
+    if (isRealtimeModel) {
+        return MessageRecoveryCardActionLayout(primary = MessageRecoveryActionKind.SwitchModel, secondary = null, tertiary = null)
+    }
     val layout = baseMessageRecoveryCardActionLayout(
         state = state,
         shouldOfferModelSwitch = shouldOfferModelSwitch,
@@ -177,10 +182,16 @@ internal fun isRelayAttachmentUnsupportedDetail(errorDetail: String?): Boolean =
 
 internal fun messageRecoveryActionsEnabled(isSendingMessage: Boolean): Boolean = !isSendingMessage
 
+/** When the current model is a realtime voice model, regenerate is not rendered at all (not greyed out); after switching back to a text model, the current text model answers again. */
 internal fun shouldShowDeliveredRegenerateAction(
     state: ChatMessageState,
     isSendingMessage: Boolean,
-): Boolean = state == ChatMessageState.Delivered && !isSendingMessage
+    isRealtimeModel: Boolean = false,
+): Boolean = !isRealtimeModel && state == ChatMessageState.Delivered && !isSendingMessage
+
+/** Edit entry for user messages (bubble button and long-press menu): not rendered under a realtime voice model. */
+internal fun shouldShowEditAction(role: ChatRole, isRealtimeModel: Boolean): Boolean =
+    role == ChatRole.User && !isRealtimeModel
 
 /**
  * Whether the interrupted/failed recovery card (continue, regenerate, retry) should be offered.

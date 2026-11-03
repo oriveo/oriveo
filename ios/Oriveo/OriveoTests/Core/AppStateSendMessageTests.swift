@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import Testing
 @testable import Oriveo
@@ -1613,6 +1614,8 @@ extension AppStateSendMessageTests {
         await MetadataClient.shared.resetForTesting()
         try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
         let fixture = retirementFixture(prefix: "missing-send-", modelID: "removed-model")
+        // While the voice catalog is not ready, a realtime model is exempt from delisting; inject a catalog without this id to test the missing text catalog itself.
+        fixture.state.realtimeVoiceCatalog = { Self.realtimeSendCatalog() }
 
         #expect(fixture.state.conversationModelState(for: fixture.conversation) == .missing(displayName: "removed-model"))
         let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
@@ -1620,6 +1623,169 @@ extension AppStateSendMessageTests {
         #expect(fixture.state.conversation(for: fixture.conversation.id)?.modelID == "removed-model")
         #expect(requestCount() == 0)
         await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("A conversation with a realtime model selected refuses a text send with zero requests")
+    func realtime_selected_conversation_refuses_text_send() async throws {
+        try await assertRealtimeConversationRefuses(delivery: nil, prefix: "realtime-text-send-")
+    }
+
+    @Test("A conversation with a realtime model selected also refuses voice delivery with zero requests")
+    func realtime_selected_conversation_refuses_voice_delivery() async throws {
+        try await assertRealtimeConversationRefuses(delivery: .voice, prefix: "realtime-voice-send-")
+    }
+
+    @Test("A stored realtime model with the voice catalog not ready refuses without a request or toast and leaves the conversation untouched; after the catalog arrives it refuses as realtime")
+    func realtime_stored_model_waits_for_voice_catalog() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        let fixture = retirementFixture(prefix: "realtime-await-catalog-", modelID: "gpt-realtime")
+        fixture.state.realtimeVoiceCatalog = { nil }
+        try #require(fixture.state.realtimeModelSelection(for: fixture.conversation.id) == nil, "precondition: catalog not ready is not judged realtime")
+        let toastBefore = ToastManager.shared.current?.message
+
+        let waiting = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+
+        #expect(waiting == .refused)
+        #expect(requestCount() == 0)
+        #expect(ToastManager.shared.current?.message == toastBefore, "the waiting state shows no toast")
+        let afterWait = try #require(fixture.state.conversation(for: fixture.conversation.id))
+        #expect(afterWait.modelID == "gpt-realtime")
+        #expect(afterWait.messages.map(\.id) == fixture.conversation.messages.map(\.id))
+
+        fixture.state.realtimeVoiceCatalog = { Self.realtimeSendCatalog() }
+        try #require(fixture.state.realtimeModelSelection(for: fixture.conversation.id)?.model == "gpt-realtime")
+        let arrived = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+        #expect(arrived == .refused)
+        #expect(requestCount() == 0)
+        #expect(fixture.state.conversation(for: fixture.conversation.id)?.messages.count == fixture.conversation.messages.count)
+    }
+
+    @Test("A stored realtime model with the voice catalog not ready: retry, regenerate, and continue refuse like a send with no request, and leave the conversation untouched")
+    func retry_regenerate_continue_wait_for_voice_catalog() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        let fixture = retirementFixture(prefix: "realtime-await-catalog-retry-", modelID: "gpt-realtime")
+        fixture.state.realtimeVoiceCatalog = { nil }
+        try #require(fixture.state.realtimeModelSelection(for: fixture.conversation.id) == nil, "precondition: catalog not ready is not judged realtime")
+        let toastBefore = ToastManager.shared.current?.message
+        let conversationID = fixture.conversation.id
+        let failedID = UUID()
+        let interruptedID = UUID()
+        var seeded = fixture.conversation
+        seeded.messages += [
+            TestFactories.makeMessage(role: .user, text: "Again", providerID: fixture.provider.id, modelID: "gpt-realtime"),
+            TestFactories.makeMessage(
+                id: failedID, role: .assistant, text: "", providerID: fixture.provider.id,
+                modelID: "gpt-realtime", state: .failed
+            ),
+            TestFactories.makeMessage(role: .user, text: "More", providerID: fixture.provider.id, modelID: "gpt-realtime"),
+            TestFactories.makeMessage(
+                id: interruptedID, role: .assistant, text: "Partial answer", providerID: fixture.provider.id,
+                modelID: "gpt-realtime", state: .interrupted
+            ),
+        ]
+        fixture.state.upsertConversationProjection(seeded)
+
+        await fixture.state.chatManager.retryMessage(messageID: failedID, in: conversationID)
+        #expect(requestCount() == 0, "retry")
+        await fixture.state.chatManager.regenerateMessage(messageID: fixture.assistantID, in: conversationID)
+        #expect(requestCount() == 0, "regenerate")
+        await fixture.state.chatManager.continueMessage(messageID: interruptedID, in: conversationID)
+        #expect(requestCount() == 0, "continue")
+
+        let after = try #require(fixture.state.conversation(for: conversationID))
+        #expect(after.modelID == "gpt-realtime")
+        #expect(after.messages.map(\.id) == seeded.messages.map(\.id))
+        #expect(after.messages.map(\.text) == seeded.messages.map(\.text))
+        #expect(ToastManager.shared.current?.message == toastBefore, "the waiting state shows no toast")
+    }
+
+    @Test("No voice catalog from the server (404 / unavailable) counts as a ready empty catalog and sending does not wait for it; loading and load failure stay not ready")
+    func unavailable_voice_catalog_does_not_spin() async throws {
+        #expect(AppState.realtimeVoiceCatalog(from: nil) == nil, "still not ready while loading")
+        #expect(AppState.realtimeVoiceCatalog(from: .loadFailed) == nil, "a load failure still shows the failure row with retry")
+        #expect(AppState.realtimeVoiceCatalog(from: .unavailable) == VoiceCatalog.empty)
+
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        let fixture = retirementFixture(prefix: "realtime-catalog-unavailable-", modelID: "gpt-realtime")
+        fixture.state.realtimeVoiceCatalog = { AppState.realtimeVoiceCatalog(from: .unavailable) }
+        let catalog = try #require(fixture.state.realtimeVoiceCatalog(), "no catalog is not the loading state")
+        #expect(!ChatModelRemovedBanner.awaitsVoiceCatalog(
+            storedModelID: fixture.conversation.modelID,
+            provider: fixture.provider,
+            voiceCatalog: catalog
+        ), "does not wait for the catalog (the send button does not spin)")
+        #expect(fixture.state.realtimeModelSelection(for: fixture.conversation.id) == nil, "an empty catalog is not judged realtime")
+
+        _ = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
+        try await waitForSendsToSettle(fixture.state)
+
+        var sent = requestCount()
+        #expect(sent > 0, "the send really sends a request")
+
+        // Retry, regenerate, and continue behave like send: an empty catalog is not awaited, and each really sends a request
+        let conversationID = fixture.conversation.id
+        let failedID = UUID()
+        let interruptedID = UUID()
+        var seeded = try #require(fixture.state.conversation(for: conversationID))
+        seeded.messages += [
+            TestFactories.makeMessage(role: .user, text: "Again", providerID: fixture.provider.id, modelID: "gpt-realtime"),
+            TestFactories.makeMessage(
+                id: failedID, role: .assistant, text: "", providerID: fixture.provider.id,
+                modelID: "gpt-realtime", state: .failed
+            ),
+            TestFactories.makeMessage(role: .user, text: "More", providerID: fixture.provider.id, modelID: "gpt-realtime"),
+            TestFactories.makeMessage(
+                id: interruptedID, role: .assistant, text: "Partial answer", providerID: fixture.provider.id,
+                modelID: "gpt-realtime", state: .interrupted
+            ),
+        ]
+        fixture.state.upsertConversationProjection(seeded)
+
+        // Retry and regenerate truncate the messages after them, so run from the last message backward: continue, then retry, then regenerate
+        await fixture.state.chatManager.continueMessage(messageID: interruptedID, in: conversationID)
+        try await waitForSendsToSettle(fixture.state)
+        #expect(requestCount() > sent, "continue")
+        sent = requestCount()
+        await fixture.state.chatManager.retryMessage(messageID: failedID, in: conversationID)
+        try await waitForSendsToSettle(fixture.state)
+        #expect(requestCount() > sent, "retry")
+        sent = requestCount()
+        await fixture.state.chatManager.regenerateMessage(messageID: fixture.assistantID, in: conversationID)
+        try await waitForSendsToSettle(fixture.state)
+        #expect(requestCount() > sent, "regenerate")
+    }
+
+    private func assertRealtimeConversationRefuses(delivery: ContextDelivery?, prefix: String) async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        let fixture = retirementFixture(prefix: prefix, modelID: "gpt-realtime")
+        fixture.state.realtimeVoiceCatalog = { Self.realtimeSendCatalog() }
+        try #require(fixture.state.realtimeModelSelection(for: fixture.conversation.id)?.model == "gpt-realtime")
+
+        let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id, delivery: delivery)
+
+        #expect(outcome == .refused)
+        let after = try #require(fixture.state.conversation(for: fixture.conversation.id))
+        #expect(after.modelID == "gpt-realtime")
+        #expect(after.messages.map(\.id) == fixture.conversation.messages.map(\.id))
+        #expect(requestCount() == 0)
+    }
+
+    private static func realtimeSendCatalog() -> VoiceCatalog {
+        let entry = VoiceRealtimeEntry(
+            model: "gpt-realtime",
+            transport: .openaiRealtime,
+            path: "/v1/realtime",
+            contextWindow: 128_000,
+            voices: [VoiceCatalogVoice(id: "marin", isDefault: true)],
+            maxSessionSec: nil,
+            inputTranscriptionModel: "gpt-4o-mini-transcribe",
+            isDefault: true
+        )
+        return VoiceCatalog(schemaVersion: 2, revision: "send", providers: [.openAI: VoiceProviderEntries(realtime: [entry])])
     }
 
     @Test("A conversation on a canonical alias can send: this turn uses the canonical id, the conversation modelID is unchanged")
@@ -1661,6 +1827,178 @@ extension AppStateSendMessageTests {
         await MetadataClient.shared.resetForTesting()
     }
 
+    @Test("Voice interjection continuation: the last user message is rewritten in place (same id, content = joinAmend), and the reply after it is replaced by a newly generated one")
+    func amendLastUserMessageRewritesInPlaceAndRegenerates() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "voice-amend-", modelID: "gpt-5.4")
+        let userID = try #require(fixture.conversation.messages.first?.id)
+
+        #expect(await fixture.state.amendLastUserMessage("and Nara too", in: fixture.conversation.id))
+
+        try await waitUntil { requestCount() > 0 }
+        let after = try #require(fixture.state.conversation(for: fixture.conversation.id))
+        #expect(after.messages.filter { $0.role == .user }.map(\.id) == [userID], "same bubble, no new user message")
+        #expect(after.messages.first?.text == VoiceConversationLogic.joinAmend("Hi", "and Nara too"))
+        #expect(after.messages.first?.text == "Hi and Nara too")
+        #expect(after.messages.count == 2)
+        #expect(after.messages.last?.role == .assistant)
+        #expect(after.messages.last?.id != fixture.assistantID, "the following reply is replaced by a regenerated one")
+        try await waitForSendsToSettle(fixture.state)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("Voice interjection with empty text: the user message is unchanged and the reply is regenerated")
+    func amendLastUserMessageEmptyTextRegeneratesAsIs() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "voice-amend-empty-", modelID: "gpt-5.4")
+
+        #expect(await fixture.state.amendLastUserMessage("", in: fixture.conversation.id))
+
+        try await waitUntil { requestCount() > 0 }
+        let after = try #require(fixture.state.conversation(for: fixture.conversation.id))
+        #expect(after.messages.first?.id == fixture.conversation.messages.first?.id)
+        #expect(after.messages.first?.text == "Hi")
+        #expect(after.messages.last?.id != fixture.assistantID)
+        try await waitForSendsToSettle(fixture.state)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    /// grok-4.7: 2M window and 4000 surcharge threshold (same gate fixture as ContextCapConfirmPresentationTests+Gate); long text must stop at the pre-send confirmation gate.
+    private static let voiceAmendGateMetadataJSON = """
+    {
+      "version": 1,
+      "updatedAt": "2026-10-15T00:00:00Z",
+      "providers": {
+        "grok": {
+          "displayName": "grok",
+          "defaultModelId": "grok-4.7",
+          "resolveMap": { "grok-4.7": "grok-4.7" },
+          "models": { "grok-4.7": {
+            "canonicalModelId": "grok-4.7",
+            "displayName": "Grok 4.7",
+            "contextLength": 2000000,
+            "pricing": {
+              "promptPerMToken": 2,
+              "completionPerMToken": 6,
+              "longContext": {"thresholdTokens": 4000, "promptPerMToken": 4, "completionPerMToken": 12}
+            },
+            "capabilities": ["text"],
+            "profiles": {}
+          } }
+        }
+      }
+    }
+    """
+
+    /// Records the outbound request body (without metadata) and returns 503.
+    private func installChatRequestBodyCapture() -> AppStateSendCapturedModels {
+        let bodies = AppStateSendCapturedModels()
+        AppStateSendMessageURLProtocol.requestHandler = { request in
+            if request.url?.path.contains("/api/metadata") != true {
+                bodies.append(appStateSendMessageRequestBody(from: request).map { String(decoding: $0, as: UTF8.self) })
+            }
+            return (appStateSendMessageHTTPResponse(url: request.url!, statusCode: 503), Data())
+        }
+        return bodies
+    }
+
+    @Test("Voice interjection: when the target is no longer in the conversation and was not rolled back by this stop, it is sent as a new voice turn using joinAmend of the original text recorded by the port, without refilling the composer; returns false only when there is no original text")
+    func amendMissingTargetResendsFromTurnText() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let bodies = installChatRequestBodyCapture()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "voice-amend-gone-", modelID: "gpt-5.4")
+        let id = fixture.conversation.id
+        var rollbacks: [ContextCapSendRollback] = []
+        let subscription = fixture.state.chatManager.contextCapRollbacks.sink { rollbacks.append($0) }
+        defer { subscription.cancel() }
+        let goneID = UUID()
+
+        #expect(await fixture.state.amendLastUserMessage("and Nara too", messageID: goneID, in: id) == false)
+        #expect(fixture.state.conversation(for: id)?.messages.count == 2)
+
+        #expect(await fixture.state.amendLastUserMessage("and Nara too", messageID: goneID, turnText: "Plan Kyoto", in: id))
+
+        let messages = try #require(fixture.state.conversation(for: id)).messages
+        #expect(messages.filter { $0.role == .user }.map(\.text)
+            == ["Hi", VoiceConversationLogic.joinAmend("Plan Kyoto", "and Nara too")], "the previous turn is unchanged; a new one is added")
+        #expect(messages.first { $0.id == fixture.assistantID }?.text == "Hello")
+        #expect(rollbacks.isEmpty)
+        try await waitUntil { !bodies.values.isEmpty }
+        #expect(bodies.values.first??.contains("<oriveo-delivery>") == true)
+        try await waitForSendsToSettle(fixture.state)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("Voice interjection blocked by the gate (conversation model delisted, no sendable model): returns false, the stream does not stop, messages are unchanged, zero requests")
+    func amendBlockedByGateLeavesStreamAndMessages() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "voice-amend-gated-", modelID: "gpt-4-legacy")
+        let id = fixture.conversation.id
+        let streaming = Task { @MainActor in
+            await fixture.state.chatManager.mockStreamingForTesting(
+                in: id, userText: "Plan Kyoto", assistantTokens: ["Day", " one"], tokenIntervalMs: 300
+            )
+        }
+        try await waitUntil { fixture.state.chatManager.isBusyStreaming(in: id) }
+        let before = try #require(fixture.state.conversation(for: id)).messages
+
+        #expect(await fixture.state.amendLastUserMessage("and Nara too", in: id) == false)
+
+        #expect(fixture.state.chatManager.isBusyStreaming(in: id), "blocked without stopping the stream")
+        let after = try #require(fixture.state.conversation(for: id)).messages
+        #expect(after.map(\.id) == before.map(\.id))
+        #expect(after.map(\.text) == before.map(\.text))
+        #expect(after.last?.state == .generating)
+        await streaming.value
+        #expect(requestCount() == 0)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("Voice interjection regeneration is delivered as voice (the request carries <oriveo-delivery>)")
+    func amendRegeneratesWithVoiceDeliveryWithoutRegeneratedEvent() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let bodies = installChatRequestBodyCapture()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "voice-amend-delivery-", modelID: "gpt-5.4")
+
+        #expect(await fixture.state.amendLastUserMessage("and Nara too", in: fixture.conversation.id))
+
+        try await waitUntil { !bodies.values.isEmpty }
+        #expect(bodies.values.first??.contains("<oriveo-delivery>") == true)
+        try await waitForSendsToSettle(fixture.state)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("Voice interjection: no user message in the conversation or no such conversation returns false, does not change the conversation, and makes zero requests")
+    func amendLastUserMessageWithoutUserMessageReturnsFalse() async throws {
+        defer { AppStateSendMessageURLProtocol.requestHandler = nil }
+        let requestCount = installChatRequestCounter()
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: Self.retirementMetadataJSON)
+        let fixture = retirementFixture(prefix: "voice-amend-none-", modelID: "gpt-5.4")
+        var assistantOnly = fixture.conversation
+        assistantOnly.messages.removeAll { $0.role == .user }
+        fixture.state.upsertConversationProjection(assistantOnly)
+
+        #expect(await fixture.state.amendLastUserMessage("and Nara", in: fixture.conversation.id) == false)
+        #expect(await fixture.state.amendLastUserMessage("and Nara", in: UUID()) == false)
+        #expect(fixture.state.conversation(for: fixture.conversation.id)?.messages.map(\.id) == [fixture.assistantID])
+        #expect(requestCount() == 0)
+        await MetadataClient.shared.resetForTesting()
+    }
+
     @Test("While the catalog is pending the model counts as available: sending works, the conversation modelID is unchanged")
     func pendingCatalogAllowsSend() async throws {
         defer { AppStateSendMessageURLProtocol.requestHandler = nil }
@@ -1673,6 +2011,8 @@ extension AppStateSendMessageTests {
         )
         #expect(MetadataClient.shared.syncIsCatalogPending(providerKind: .openAI), "Precondition: the openAI catalog is not loaded")
         let fixture = retirementFixture(prefix: "pending-send-", modelID: "removed-model")
+        // The voice catalog is ready and does not contain this id: the stored value is not a realtime model, so sending proceeds while the text catalog is pending (waiting happens only when the voice catalog is also not ready)
+        fixture.state.realtimeVoiceCatalog = { Self.realtimeSendCatalog() }
 
         #expect(fixture.state.conversationModelState(for: fixture.conversation) == .resolved)
         let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
@@ -1703,6 +2043,8 @@ extension AppStateSendMessageTests {
         )
         #expect(MetadataClient.shared.syncIsCatalogPending(providerKind: .openAI), "Precondition: the openAI catalog is not loaded")
         let fixture = retirementFixture(prefix: "pending-verbatim-", modelID: "removed-model")
+        // The voice catalog is ready and does not contain this id: the stored value is not a realtime model, so sending proceeds while the text catalog is pending (waiting happens only when the voice catalog is also not ready)
+        fixture.state.realtimeVoiceCatalog = { Self.realtimeSendCatalog() }
 
         let outcome = await fixture.state.sendMessageOutcome("Hello again", in: fixture.conversation.id)
         #expect(outcome == .sent(fixture.conversation.id))

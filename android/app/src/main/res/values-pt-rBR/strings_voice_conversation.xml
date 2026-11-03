@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">Encerrar</string>
     <string name="voice_conversation_start_failed_toast">Não foi possível iniciar a conversa por voz. Tente de novo.</string>
     <string name="voice_conversation_background_paused_toast">A conversa por voz fica pausada enquanto o Oriveo está em segundo plano.</string>
+    <string name="voice_conversation_status_say_again">Não entendi, repita</string>
+    <string name="voice_conversation_status_check_language">Não entendi</string>
+    <string name="voice_conversation_prompt_say_again">Não entendi. Pode repetir?</string>
+    <string name="voice_conversation_prompt_check_language">Ainda não entendi. Se você estiver falando outro idioma, toque em “Idioma de reconhecimento” para trocar.</string>
+    <string name="voice_conversation_prompt_echo_hint">O alto-falante está gerando eco. Com fones de ouvido funciona melhor.</string>
+    <string name="voice_conversation_language_chip">Idioma de reconhecimento: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">Altera o idioma de reconhecimento</string>
 </resources>

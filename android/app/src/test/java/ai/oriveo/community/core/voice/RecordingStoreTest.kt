@@ -1,5 +1,7 @@
 package ai.oriveo.community.core.voice
 
+import android.content.ContextWrapper
+import android.content.pm.ApplicationInfo
 import java.io.File
 import java.io.IOException
 import java.security.MessageDigest
@@ -96,6 +98,23 @@ class RecordingStoreTest {
 
     private fun sha256(text: String) =
         MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
+
+    /** The production constructor only builds the path: files/voice/pending under the data dir is created on the first slot write, not at construction. */
+    @Test fun production_doesNotCreateDirectoryUntilFirstWrite() {
+        val dataDir = temp.newFolder("data")
+        val info = ApplicationInfo().apply { this.dataDir = dataDir.absolutePath }
+        val ctx = object : ContextWrapper(null) {
+            override fun getApplicationInfo(): ApplicationInfo = info
+        }
+
+        val store = RecordingStore.production(ctx)
+
+        assertEquals(File(dataDir, "files/voice/pending").absolutePath, store.root.absolutePath)
+        assertFalse(store.root.exists())
+        store.open("conv-1", engine = "cloud", encoder = FakeEncoder()).finish()
+        assertTrue(store.root.isDirectory)
+        assertTrue(store.audioFile("conv-1").exists())
+    }
 
     @Test fun `open writes aac and sidecar named by sha256 of key`() {
         val store = store()

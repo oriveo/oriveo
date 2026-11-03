@@ -255,4 +255,35 @@ class ModelOptionCapabilityShapeTest {
             ),
         )
     }
+
+    @Test
+    fun realtime_web_search_is_notice_with_switch_model() {
+        // Under a realtime model the row collapses to a notice (no web search) plus a model switch instead of a greyed-out toggle.
+        val base = input(Capability.Web, CapabilityControlPresentation.AutomaticAvailable, listOf("off", "automatic"), "automatic")
+        val shape = ModelOptionCapabilityShape.resolve(base.copy(realtime = true))
+        assertEquals(
+            ModelOptionCapabilityShape.Notice(NoticeStatus.RealtimeUnavailable, NoticeBody.RealtimeNoWebSearch, Escape.SupportedModels),
+            shape,
+        )
+        val tile = ModelOptionsTiles.capabilityTile(Capability.Web, shape)
+        assertEquals(R.string.voice_realtime_no_web_search, tile.statusRes)
+        assertEquals(null, tile.bodyRes)
+        assertEquals(true, tile.tappable)
+        // Switching back to a text model restores the original shape.
+        assertEquals(false, ModelOptionCapabilityShape.resolve(base) is ModelOptionCapabilityShape.Notice)
+    }
+
+    @Test
+    fun realtime_thinking_is_notice_with_switch_model() {
+        val base = input(Capability.Reasoning, CapabilityControlPresentation.AutomaticAvailable, listOf("off", "balanced"), "balanced")
+        val shape = ModelOptionCapabilityShape.resolve(base.copy(realtime = true))
+        assertEquals(
+            ModelOptionCapabilityShape.Notice(NoticeStatus.RealtimeUnavailable, NoticeBody.RealtimeNoThinking, Escape.SupportedModels),
+            shape,
+        )
+        val tile = ModelOptionsTiles.capabilityTile(Capability.Reasoning, shape)
+        assertEquals(R.string.voice_realtime_no_thinking, tile.statusRes)
+        assertEquals(null, tile.bodyRes)
+        assertEquals(ModelOptionCapabilityShape.Toggle(isOn = true), ModelOptionCapabilityShape.resolve(base))
+    }
 }

@@ -1,9 +1,9 @@
 import QuartzCore
 import SwiftUI
 
-/// Throttling buffer for streamed chunks. It is deliberately not `@State`, so appending to it
-/// does not re-render anything; only the caller writing `resultText` after the 30fps gate does.
-private final class CrosscheckChunkBuffer {
+/// Throttled buffer for streamed chunks. Not @State / @Published, so writes do not trigger a SwiftUI re-render;
+/// only the caller's explicit write of resultText after the 30fps gate triggers a re-render.
+final class CrosscheckChunkBuffer {
     var rawText: String = ""
     private var lastFlushTime: CFTimeInterval = 0
     private let flushInterval: CFTimeInterval = 1.0 / 30.0
@@ -468,7 +468,7 @@ struct CrosscheckSheet: View {
                         .font(OriveoTheme.Typography.caption.weight(.semibold))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(OriveoTheme.Palette.primary)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             }
         }
         .padding(.vertical, 14)

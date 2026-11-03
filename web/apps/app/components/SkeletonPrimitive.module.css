@@ -7,9 +7,9 @@
   border-radius: var(--o-radius-sm);
   background: linear-gradient(
     90deg,
-    var(--o-surface-raised) 25%,
+    var(--o-fill-muted) 25%,
     var(--o-border) 50%,
-    var(--o-surface-raised) 75%
+    var(--o-fill-muted) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;
@@ -19,9 +19,9 @@
   border-radius: var(--o-radius-full);
   background: linear-gradient(
     90deg,
-    var(--o-surface-raised) 25%,
+    var(--o-fill-muted) 25%,
     var(--o-border) 50%,
-    var(--o-surface-raised) 75%
+    var(--o-fill-muted) 75%
   );
   background-size: 200% 100%;
   animation: shimmer 1.8s ease-in-out infinite;

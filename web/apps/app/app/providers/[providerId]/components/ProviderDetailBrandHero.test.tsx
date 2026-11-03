@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Provider } from '@oriveo/shared';
 import { ProviderDetailBrandHero } from './ProviderDetailBrandHero';
 
@@ -46,7 +48,43 @@ const provider: Provider = {
   baseURLText: 'https://api.openai.com/v1',
 };
 
+const REPO_ROOT = join(process.cwd(), '../../../..');
+const darkPalettes = JSON.parse(
+  readFileSync(join(REPO_ROOT, '\u5171\u4eab/theme-contracts/dark-palettes.v1.json'), 'utf8'),
+) as { order: string[]; palettes: Record<string, { primary: string }> };
+
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const [r, g, b] = channels.map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function contrastRatio(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 describe('ProviderDetailBrandHero', () => {
+  afterEach(() => {
+    delete document.documentElement.dataset.theme;
+    document.documentElement.style.removeProperty('--o-primary');
+  });
+
+  it.each(darkPalettes.order)('heroPillLabelMeetsContrast: dark Relay label on #F5F5F5 with palette %s', (id) => {
+    const primary = darkPalettes.palettes[id].primary;
+    document.documentElement.dataset.theme = 'dark';
+    document.documentElement.style.setProperty('--o-primary', primary);
+
+    const { container, unmount } = render(
+      <ProviderDetailBrandHero provider={{ ...provider, kind: 'relay', baseURLText: 'https://relay.example.com/v1' }} />,
+    );
+    const label = (container.querySelector('section') as HTMLElement).style.getPropertyValue('--hero-label-color');
+
+    expect(label).toMatch(/^#[0-9A-F]{6}$/);
+    expect(contrastRatio(label, '#F5F5F5')).toBeGreaterThanOrEqual(4.5);
+    unmount();
+  });
+
   it('shows the enabled model count instead of the full resolved catalog count', () => {
     render(<ProviderDetailBrandHero provider={provider} />);
 

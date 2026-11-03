@@ -13,6 +13,7 @@ import android.os.Looper
 import androidx.annotation.RequiresApi
 import java.io.IOException
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 
 /** Receives one chunk of PCM (16 kHz mono 16-bit); [samples] is valid only inside the callback, so copy it if you need to keep it. */
 fun interface PcmSink {
@@ -30,6 +31,16 @@ interface AudioCaptureEvents {
 
     /** The system silenced this recording (incoming call, another app grabbed the mic); the capture thread stopped delivering PCM. Not detected below API 29. */
     fun onInterrupted()
+
+    /**
+     * Diagnostics: the read thread reports the cumulative read count for this capture every [AudioRecordCapture.STATS_INTERVAL_MS] ([zeroReads] = reads that returned 0 samples,
+     * [errorReads] = reads that returned a negative error code). It reports one final total before the read thread exits on its own. Callbacks run on the capture thread (on the main thread when exiting due to mute) and must not block.
+     * Stats are not reported while read is blocked: no new stats and no [onStopped] after the last report means the read thread is stuck in read.
+     */
+    fun onStats(reads: Long, zeroReads: Long, errorReads: Long) = Unit
+
+    /** Diagnostics: why the read thread stopped delivering PCM on its own ([AudioRecordCapture.STOP_READ_ERROR] etc.), reported before onFailure / onInterrupted. Exits caused by stop are not reported. */
+    fun onStopped(reason: String) = Unit
 
     companion object {
         val NONE: AudioCaptureEvents = object : AudioCaptureEvents {
@@ -74,8 +85,17 @@ interface PcmSource {
 class AudioRecordCapture internal constructor(
     private val openSource: () -> PcmSource,
     private val newThread: (Runnable) -> Thread = { Thread(it, THREAD_NAME) },
+    /** Capture source for AudioRecord (MediaRecorder.AudioSource.*): VOICE_RECOGNITION for dictation, default MIC for conversation and realtime. */
+    internal val audioSource: Int = MediaRecorder.AudioSource.MIC,
+    /** Monotonic clock (ms), used only for the stats reporting interval. */
+    private val clock: () -> Long = { System.nanoTime() / 1_000_000 },
+    /** Read thread yield (ms) used when read keeps returning 0; test injection records it. */
+    private val pause: (Long) -> Unit = { Thread.sleep(it) },
 ) : AudioCapture {
-    constructor(context: Context) : this({ AudioRecordSource.open(context.applicationContext) })
+    constructor(
+        context: Context,
+        source: Int = MediaRecorder.AudioSource.MIC,
+    ) : this({ AudioRecordSource.open(context.applicationContext, source) }, audioSource = source)
 
     private var session: Session? = null
 
@@ -85,8 +105,14 @@ class AudioRecordCapture internal constructor(
     override fun start(sinks: List<PcmSink>, events: AudioCaptureEvents) {
         check(session == null) { "AudioRecordCapture already started" }
         val source = openSource()
-        val current = Session(source, sinks, events)
-        current.unsubscribe = source.observeSilenced { current.end { events.onInterrupted() } }
+        val current = Session(source, sinks, events, clock, pause)
+        current.unsubscribe = source.observeSilenced {
+            current.end {
+                current.reportStats()
+                events.onStopped(STOP_SILENCED)
+                events.onInterrupted()
+            }
+        }
         session = current
         current.thread = newThread { current.readLoop() }.also { it.start() }
     }
@@ -107,8 +133,15 @@ class AudioRecordCapture internal constructor(
         val source: PcmSource,
         val sinks: List<PcmSink>,
         val events: AudioCaptureEvents,
+        val clock: () -> Long,
+        val pause: (Long) -> Unit,
     ) {
         val ended = AtomicBoolean(false)
+
+        // The read thread writes and the mute callback (main thread) reads the final value, so use atomic counters; no allocation inside the loop.
+        val reads = AtomicLong()
+        val zeroReads = AtomicLong()
+        val errorReads = AtomicLong()
         var unsubscribe: () -> Unit = {}
         var thread: Thread? = null
 
@@ -117,18 +150,44 @@ class AudioRecordCapture internal constructor(
             if (ended.compareAndSet(false, true)) report()
         }
 
+        fun reportStats() = events.onStats(reads.get(), zeroReads.get(), errorReads.get())
+
         fun readLoop() {
             val buffer = ShortArray(CHUNK_SAMPLES)
+            var statsAt = clock()
+            var stage = STOP_READ_ERROR
+            // Consecutive zero-read count: when the system mutes or the device has no data, read returns 0 immediately; yield from the second time on to avoid a hot loop.
+            var zeroRun = 0
             try {
                 while (!ended.get()) {
+                    stage = STOP_READ_ERROR
                     val read = source.read(buffer, 0, buffer.size)
                     if (ended.get()) return
-                    if (read < 0) throw IOException("AudioRecord.read failed: $read")
-                    if (read == 0) continue
+                    reads.incrementAndGet()
+                    if (read < 0) {
+                        errorReads.incrementAndGet()
+                        throw IOException("AudioRecord.read failed: $read")
+                    }
+                    if (read == 0) zeroReads.incrementAndGet()
+                    val now = clock()
+                    if (now - statsAt >= STATS_INTERVAL_MS) {
+                        statsAt = now
+                        reportStats()
+                    }
+                    if (read == 0) {
+                        if (zeroRun++ > 0) pause(ZERO_READ_YIELD_MS)
+                        continue
+                    }
+                    zeroRun = 0
+                    stage = STOP_SINK_ERROR
                     sinks.forEach { it.onPcm(buffer, read) }
                 }
             } catch (error: Exception) {
-                end { events.onFailure(error) }
+                end {
+                    reportStats()
+                    events.onStopped(stage)
+                    events.onFailure(error)
+                }
             }
         }
     }
@@ -138,6 +197,17 @@ class AudioRecordCapture internal constructor(
 
         /** 20 ms per chunk. */
         internal const val CHUNK_SAMPLES = 320
+
+        /** Diagnostic stats reporting interval. */
+        const val STATS_INTERVAL_MS = 500L
+
+        /** Yield duration per consecutive zero-returning read (at most 10 ms, under half of a 20 ms block). */
+        const val ZERO_READ_YIELD_MS = 5L
+
+        /** Read thread exit reasons: read returns a negative value or throws / a sink throws / the system mutes. */
+        const val STOP_READ_ERROR = "read_error"
+        const val STOP_SINK_ERROR = "sink_error"
+        const val STOP_SILENCED = "silenced"
         private const val THREAD_NAME = "oriveo-audio-capture"
     }
 }
@@ -166,13 +236,13 @@ internal class AudioRecordSource private constructor(
 
         // The caller confirmed RECORD_AUDIO is granted before start; if not, AudioRecord initialization fails and is thrown as the dedicated error.
         @SuppressLint("MissingPermission")
-        fun open(context: Context): AudioRecordSource {
+        fun open(context: Context, source: Int = MediaRecorder.AudioSource.MIC): AudioRecordSource {
             val sampleRate = AudioRecordCapture.SAMPLE_RATE
             val minBuffer = AudioRecord.getMinBufferSize(sampleRate, CHANNEL, ENCODING)
             if (minBuffer <= 0) throw AudioCaptureInitException("getMinBufferSize failed: $minBuffer")
             val bufferBytes = maxOf(minBuffer, AudioRecordCapture.CHUNK_SAMPLES * BYTES_PER_SAMPLE * 2)
             val created = try {
-                AudioRecord(MediaRecorder.AudioSource.MIC, sampleRate, CHANNEL, ENCODING, bufferBytes)
+                AudioRecord(source, sampleRate, CHANNEL, ENCODING, bufferBytes)
             } catch (error: Exception) {
                 throw AudioCaptureInitException("AudioRecord construction failed: ${error.message}")
             }

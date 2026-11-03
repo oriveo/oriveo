@@ -134,7 +134,7 @@ struct MarkdownMessageView: View {
                 BackgroundColor(inlineBg)
             }
             .link {
-                ForegroundColor(OriveoTheme.Palette.primary)
+                ForegroundColor(OriveoTheme.Palette.primaryTextOnSurface)
             }
             .paragraph { configuration in
                 configuration.label
@@ -184,7 +184,7 @@ struct MarkdownMessageView: View {
                     .markdownTextStyle {
                         FontWeight(.semibold)
                         FontSize(typography.heading3Size)
-                        ForegroundColor(typography.emphasizedHeadings ? OriveoTheme.Palette.primary : textColor)
+                        ForegroundColor(typography.emphasizedHeadings ? OriveoTheme.Palette.primaryTextOnSurface : textColor)
                     }
             }
             .blockquote { configuration in
@@ -1147,7 +1147,7 @@ struct CachedMarkdownView: UIViewRepresentable {
         tv.textContainerInset = .zero
         tv.textContainer.lineFragmentPadding = 0
         tv.linkTextAttributes = [
-            .foregroundColor: UIColor(OriveoTheme.Palette.primary)
+            .foregroundColor: OriveoTheme.Palette.primaryTextOnSurfaceUIColor
         ]
         tv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         tv.setContentHuggingPriority(.required, for: .vertical)
@@ -1273,7 +1273,7 @@ struct CachedMarkdownView: UIViewRepresentable {
         let secondaryColor = UIColor(OriveoTheme.Palette.textSecondary)
         let inlineFg = MarkdownAttributedStringRenderer.codeFg
         let inlineBg = MarkdownAttributedStringRenderer.codeBg
-        let linkColor = UIColor(OriveoTheme.Palette.primary)
+        let linkColor = OriveoTheme.Palette.primaryTextOnSurfaceUIColor
 
         do {
             var attrStr = try AttributedString(
@@ -1677,7 +1677,7 @@ private struct StreamingMarkdownTailTextView: UIViewRepresentable {
         tv.textContainer.lineFragmentPadding = 0
         tv.textColor = UIColor(foregroundColor)
         tv.linkTextAttributes = [
-            .foregroundColor: UIColor(OriveoTheme.Palette.primary)
+            .foregroundColor: OriveoTheme.Palette.primaryTextOnSurfaceUIColor
         ]
         tv.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         tv.setContentHuggingPriority(.required, for: .vertical)

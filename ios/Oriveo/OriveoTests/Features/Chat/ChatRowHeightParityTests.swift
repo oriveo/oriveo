@@ -435,10 +435,11 @@ struct ChatRowHeightParityTests {
     /// (covered by `StreamActivityPipelineTests`).
     ///
     /// The reply notice row is part of `estimatedRowHeight` (`replyNoticeHeight`); see the reply notice case in the matrix.
-    /// The memory suggestion bar moved into the `AssistantMessageCell` contentStack, so slots went from 10 to 11.
-    /// The external search query chips (shown only while streaming, following the activity, no static height) and the error card
-    /// (counted in `searchErrorCardHeight`, see "external search" in the matrix) joined the contentStack, so slots went from 11 to 13.
-    private static let expectedContentSlots = 13
+    /// The memory suggestion bar moved into the `AssistantMessageCell` contentStack, so slots went from 11 to 12.
+    /// The external search query chips (shown only while streaming, following the activity, no static height) and the error card (counted in `searchErrorCardHeight`, see "external search" in the matrix)
+    /// joined the contentStack (2026-10-27), so slots went from 12 to 14.
+    /// Skill used chip (2026-10-30; estimated via `row.skillUsage`) joins contentStack, 14 -> 16.
+    private static let expectedContentSlots = 16
     /// bodyStack: reasoning | textView | streaming code container | typing container
     private static let expectedBodySlots = 4
 }

@@ -16,7 +16,7 @@
   touch-action: none;
   user-select: none;
   box-shadow: 0 0 0 4px var(--o-border), var(--o-elevation-card);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
 }
 
 .cropContainer:active {
@@ -67,7 +67,7 @@
   padding: var(--o-space-sm) var(--o-space-md);
   border: none;
   border-radius: var(--o-radius-md);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   color: var(--o-text-secondary);
   font-size: var(--o-text-sm);
   font-weight: 600;

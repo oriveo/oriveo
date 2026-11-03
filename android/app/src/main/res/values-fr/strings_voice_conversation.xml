@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">Terminer</string>
     <string name="voice_conversation_start_failed_toast">Impossible de démarrer la conversation vocale. Réessayez.</string>
     <string name="voice_conversation_background_paused_toast">La conversation vocale est en pause tant qu’Oriveo est en arrière-plan.</string>
+    <string name="voice_conversation_status_say_again">Je n’ai pas compris, pouvez-vous répéter ?</string>
+    <string name="voice_conversation_status_check_language">Je n’ai pas compris</string>
+    <string name="voice_conversation_prompt_say_again">Je n’ai pas compris. Pouvez-vous répéter ?</string>
+    <string name="voice_conversation_prompt_check_language">Je n’ai toujours pas compris. Si vous parlez une autre langue, touchez « Langue de reconnaissance » pour la changer.</string>
+    <string name="voice_conversation_prompt_echo_hint">Le haut-parleur crée de l’écho. Ce sera mieux avec des écouteurs.</string>
+    <string name="voice_conversation_language_chip">Langue de reconnaissance : %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">Change la langue de reconnaissance</string>
 </resources>

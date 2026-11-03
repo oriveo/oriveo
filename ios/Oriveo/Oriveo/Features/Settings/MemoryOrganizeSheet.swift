@@ -87,7 +87,7 @@ struct MemoryOrganizeSheet: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text((MemoryItemGroup(kind: entry.kind) ?? .about).title)
                                 .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                                .foregroundStyle(OriveoTheme.Palette.primary)
+                                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             Text(entry.content)
                                 .font(OriveoTheme.Typography.body)
                                 .foregroundStyle(OriveoTheme.Palette.textPrimary)

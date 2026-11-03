@@ -156,17 +156,16 @@
     "generationParameterDormantClear": "Temizle",
     "generationParameterDormantRestored": "{count} parametre geri yüklendi",
     "generationPresetName": "Ön ayar adı",
-    "capabilityControlFixedByConnection": "Bu bağlantı tarafından ayarlandı",
     "capabilityControlReasonPending": "Otomatik yapılandırma henüz hazır değil",
     "capabilityControlReasonUnsupported": "Bu istek bu model tarafından desteklenmiyor",
     "capabilityControlReasonExternalConnector": "Ayrı bir harici hizmet tarafından sağlanır, bu sohbet isteğinin dışındadır",
     "capabilityControlReasonCustom": "Bu isteği bağlantınızda yapılandırın",
     "capabilityControlReasonUnknown": "Otomatik yapılandırma kullanılamıyor",
     "capabilityPreferencesUnavailable": "Bağlantı, model ve istek rotası hazır olana kadar bu ayarlar kaydedilemez.",
-    "currentConversation": "Geçerli Sohbet",
+    "currentConversation": "Geçerli sohbet",
     "restoreModelBehavior": "Varsayılanları Geri Yükle",
     "restoreModelBehaviorConfirm": "Bu, bu model için ayarladığın tüm değerleri siler. Geri alınamaz.",
-    "modelBehaviorScopeHint": "Yalnızca bu sohbette bu model kullanılırken geçerlidir. Model değiştirilince değerler kopyalanmaz; geri dönülünce geri yüklenir.",
+    "modelBehaviorScopeHint": "Yalnızca bu sohbette bu model kullanılırken geçerlidir. Model değiştirmek değerleri kopyalamaz; geri dönünce geri yüklenir.",
     "controlledByReasoningShortcut": "«Düşünme» kısayoluyla kontrol edilir",
     "customRequestFieldsCustom": "Özel istek alanları",
     "customRequestFieldsReasonSyntax": "Parçanın yinelenen anahtar içermeyen geçerli bir JSON nesnesi olduğunu denetleyin.",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "En zor problemler, ne kadar sürerse sürsün.",
     "capabilityControlReasoningFixedLevel": "Bu model sabit bir düşünme düzeyinde çalışır ve ayarlanamaz.",
     "capabilityControlCannotAdjustYet": "Henüz ayarlanamıyor",
+    "capabilityControlGoToParameters": "Parametrelere git",
     "customRequestFieldsNotAllowed": "Bu alana izin verilmiyor. Bu modelin kabul ettiği alanlar: {fields}",
     "customRequestFieldsFooter": "Alanlar isteğe yazıldığı gibi eklenir. Yalnızca sağlayıcının resmi olarak bildirdiği alanlar desteklenir; hatalar isteğin başarısız olmasına yol açabilir. Taslaklar bu cihazda kalır.",
     "customRequestFieldsScopeConnectionModel": "Kapsam: bu bağlantıdaki bu model, sohbetlerinin varsayılanı olarak.",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "Ekle",
     "advancedStopSequenceRemove": "Kaldır: {sequence}",
     "advancedMore": "Daha Fazla",
-    "add": "Ekle",
-    "capabilityControlGoToParameters": "Parametrelere git"
+    "add": "Ekle"
   },
   "pages": {
     "welcome": {
       "title": "Oriveo'ye hoş geldiniz",
       "tagline": "Tüm Modelleriniz, Tek Uygulama.",
-      "slogan": "Anahtarlarınız, Maliyetleriniz, Verileriniz.",
       "description": "Çok modelli görüşmelere başlamak için ilk yapay zeka sağlayıcınızı kurun.",
       "addProvider": "Sağlayıcı Ekle",
       "enterHome": "Uygulamaya Git"
@@ -502,7 +500,6 @@
       "stop": "Oluşturmayı durdur",
       "generating": "Oluşturuluyor",
       "activityWebSearch": "Web'de aranıyor",
-      "activityMcpTool": "{server} · {tool} kullanılıyor",
       "aiAnswering": "AI cevap veriyor…",
       "export": "Bu sohbeti dışa aktar",
       "continueAnswering": "Yanıtlamaya Devam Et",
@@ -586,7 +583,9 @@
         "cacheRead": "Önbellek okuma",
         "cacheWrite": "Önbellek yazma",
         "total": "Toplam",
-        "unavailable": "Veri yok"
+        "unavailable": "Veri yok",
+        "cost": "Maliyet",
+        "estimated": "Tahmini"
       },
       "attachedNotesTitle": "Bu sohbete dahil edilen notlar",
       "removeNoteContext": "Bağlamı kaldır: {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Ollama Cloud üzerinden",
       "modelRemovedBanner": "Bu sohbetin modeli artık {connection} içinde yok.",
       "modelRemovedChoose": "Model seç",
+      "connectionRemovedBanner": "Bu sohbetin kullandığı bağlantı silindi.",
+      "modelRetiredBanner": "{model} kullanımdan kaldırıldı.",
+      "modelRetiredSwitchTo": "{model} modeline geç",
+      "lastUsedModelRetiredHint": "Son kullandığınız model kullanımdan kaldırıldı. Artık {model} kullanılıyor.",
       "copyFailed": "Kopyalanamadı",
+      "activityMcpTool": "{server} · {tool} kullanılıyor",
       "contextCompaction": {
         "summaryLine1": "{count, plural, one {Önceki {count} mesaj sıkıştırıldı · {before} → {after} token} other {Önceki {count} mesaj sıkıştırıldı · {before} → {after} token}}",
         "summaryLine2": "{model} ile · Özeti görüntüle",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "Ayrıca {model} için {line} fiyat eşiğini de aşıyor; bu yüzden isteğin tamamı uzun bağlam fiyatından ücretlendirilir.",
         "confirmDontAsk": "Bu sohbette bir daha sorma",
         "confirmSend": "Yine de gönder"
-      },
-      "connectionRemovedBanner": "Bu sohbetin kullandığı bağlantı silindi.",
-      "modelRetiredBanner": "{model} kullanımdan kaldırıldı.",
-      "modelRetiredSwitchTo": "{model} modeline geç",
-      "lastUsedModelRetiredHint": "Son kullandığınız model kullanımdan kaldırıldı. Artık {model} kullanılıyor."
+      }
     },
     "providerSetup": {
       "title": "Sağlayıcı Ekle",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "API anahtarına geç",
         "disabledFallback": "ChatGPT abonelik girişi şu anda kullanılamıyor. API anahtarına geçebilir veya bu bağlantıyı kaldırabilirsin."
       },
-      "subscription": "Abonelik",
-      "tokenPrices": {
-        "input": "Girdi {count}",
-        "cacheRead": "Önbellek okuma {count}",
-        "cacheWrite": "Önbellek yazma {count}",
-        "output": "Çıktı {count}",
-        "unit": "token"
-      }
+      "subscription": "Abonelik"
     },
     "providers": {
       "title": "Sağlayıcılar",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "Gizlilik Politikası",
-      "sourceCode": "Kaynak Kodu",
       "aiSection": "AI",
       "skills": "Beceriler",
       "backupImportExport": "Yedekleme ve İçe Aktarma/Dışa Aktarma",
-      "reportIssue": "Sorun Bildir",
-      "documentation": "Belgeler",
       "aboutTagline": "Tüm modelleriniz. Bir uygulama.",
       "context": {
         "title": "Bağlam",
@@ -1781,7 +1771,7 @@
       "editorCategory": "Kategori",
       "editorTooLong": "En fazla 2.000 karakter",
       "deleteConfirmTitle": "Bu bellek kaydı silinsin mi?",
-      "deleteConfirmBody": "Bu cihazdan kalıcı olarak silinir.",
+      "deleteConfirmBody": "Tüm cihazlarınızdan silinir.",
       "actionOrganize": "Kayıtlara ayır",
       "rawView": "Düz metin",
       "rawViewHint": "Kayıtları yalnızca --- içeren bir satırla ayırın.",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "Sağlayıcı Hatası",
       "message": "Sağlayıcı bu istek için bir hata döndürdü. Lütfen yeniden deneyin veya modelleri değiştirin."
+    },
+    "emptyReply": {
+      "title": "Boş Sağlayıcı Yanıtı",
+      "message": "Sağlayıcı bu mesaj için asistan içeriği döndürmedi."
     },
     "moderationBlocked": {
       "title": "İçerik Engellendi",
@@ -2060,15 +2054,12 @@
     "title": "Beceriler",
     "mySkills": "Becerilerim",
     "builtinSkills": "Yerleşik Beceriler",
-    "pinned": "Sabitlendi",
     "newSkill": "Yeni Beceri",
     "editSkill": "Beceriyi Düzenle",
     "deleteSkill": "Beceriyi Sil",
     "forkSkill": "Becerim olarak kopyala",
-    "useSkill": "Kullan",
-    "pinToHome": "Ana Sayfaya Sabitle",
-    "unpinFromHome": "Ana Sayfadaki sabitlemeyi kaldır",
-    "instructions": "İstem",
+    "useSkill": "Bu Beceriyi Kullan",
+    "instructions": "Çabuk",
     "instructionsPlaceholder": "örneğin Kıdemli bir kod incelemecisisiniz. Kodu güvenlik, performans ve okunabilirlik açısından inceleyin. Kullanıcının dilinde yanıt verin.",
     "starterMessages": "Konuşma Başlatıcılar",
     "useMemory": "Tercihleri Hatırla",
@@ -2076,7 +2067,7 @@
     "referenceFiles": "Referans Materyalleri",
     "tipInstructions": "Yapay zekanın nasıl davranacağını (kişiliğini, uzmanlığını ve tepki stilini) tanımlayan talimatları yazın. Bunu yalnızca yapay zeka görüyor, kullanıcılar göremiyor.",
     "knowledgeSectionTitle": "Bilgi",
-    "tipReferenceFiles": "Yapay zeka her yanıt verdiğinde bu dosyaları baştan sona okur — masasında her zaman açık duran notlar gibi. Kısa ve önemli belgeler (stil kılavuzları, sözlükler, temel kurallar) için idealdir. Dosyalar büyüdükçe her yanıtın maliyeti artar.",
+    "tipReferenceFiles": "Yapay zeka her yanıt verdiğinde bu dosyaları tamamen okur — masasında her zaman açık duran notlar gibi. Kısa ve önemli belgeler (stil kılavuzları, sözlükler, temel kurallar) için idealdir. Daha büyük dosyalar yanıt maliyetini artırır.",
     "noReferenceFiles": "Henüz referans materyali yok",
     "addFile": "Dosya ekle",
     "filesQuota": "{count} / {max}",
@@ -2103,7 +2094,7 @@
     "fileReadError": "Dosya okunamadı",
     "knowledgeBaseFiles": "Bilgi tabanı dosyaları",
     "tipKnowledgeBaseFiles": "Yapay zeka bu dosyaları arar ve yalnızca sorunuzla ilgili kısımları okur — tüm kitabı okumak yerine içinden bir şey aramak gibi. Uzun veya çok sayıda belge için idealdir. OpenAI API Key gerektirir.",
-    "knowledgeReadyHint": "Yeni yüklenen dosyaların konuşmalarda kullanılabilmesi için dizine eklenmesi birkaç dakika sürebilir. Dizinlenen içerik yalnızca mevcut mesajla ilgili olduğunda eklenir.",
+    "knowledgeReadyHint": "Yeni yüklenen dosyaların sohbetlerde kullanılabilmesi için dizine eklenmesi birkaç dakika sürebilir. Dizine eklenen içerik yalnızca geçerli mesajla ilgiliyse eklenir.",
     "knowledgeCtaOpenAIRequired": "Beceri Bilgi Tabanı resmi bir OpenAI anahtarı gerektirir. Beceriyi hâlâ kaydedebilirsiniz ancak henüz bilgi tabanı dosyalarını ekleyemezsiniz.",
     "knowledgeCtaOpenRouterOnly": "OpenRouter kullandığınızı tespit ettik. Skill Knowledge Base, OpenRouter'ı değil, yalnızca resmi OpenAI API'sini destekler.",
     "knowledgeCtaEndpointNotOfficial": "OpenAI yapılandırmanız resmi uç noktayı kullanmadığından Beceri Bilgi Tabanı kullanılamıyor. Lütfen resmi OpenAI uç noktasına geçin.",
@@ -2121,11 +2112,11 @@
     "replaceKnowledgeFile": "Değiştir",
     "retryKnowledgeFile": "Yeniden dene",
     "deleteKnowledgeFile": "Sil",
-    "addKnowledgeFile": "Bilgi tabanı dosyası ekle",
+    "addKnowledgeFile": "Bilgi dosyası ekle",
     "referenceFileChars": "{count} karakter",
     "knowledgeStatusExtracting": "Çıkarılıyor",
     "knowledgeStatusUploading": "Yükleniyor",
-    "knowledgeStatusIndexing": "Dizinleniyor",
+    "knowledgeStatusIndexing": "Dizine ekleniyor",
     "knowledgeStatusReady": "Kullanılabilir",
     "knowledgeStatusFailed": "Başarısız",
     "knowledgeStatusReplacing": "Değiştiriliyor",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "Bilgi tabanı için resmi bir OpenAI API anahtarı gerekir.",
     "openai_endpoint_not_official": "Bilgi tabanı yalnızca resmi OpenAI uç noktasıyla çalışır.",
     "retrieval_model_not_enabled": "Önce OpenAI sağlayıcınızda {model} modelini ekleyip etkinleştirin.",
-    "knowledge_service_unavailable": "Bilgi tabanı geçici olarak kullanılamıyor. Yine de bu Skill'i düzenleyip kaydedebilirsiniz.",
+    "knowledge_service_unavailable": "Bilgi tabanı şu anda kullanılamıyor.",
     "unsupported_file_type": "Bu dosya türü bilgi tabanı için desteklenmiyor.",
     "reference_file_too_large": "Referans dosyaları 3 MB veya daha küçük olmalıdır.",
     "knowledge_file_too_large": "Bilgi tabanı dosyaları 20 MB veya daha küçük olmalıdır.",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "Bu Beceriyi kullanmak için sağlayıcı ekleyin",
     "providerRequiredMessage": "Bu Beceri, sohbet başlatmadan önce kullanılabilir bir AI sağlayıcısına ihtiyaç duyar.",
     "providerRequiredAction": "Sağlayıcı ekle",
-    "promptCancel": "Şimdi değil"
+    "promptCancel": "Şimdi değil",
+    "home": {
+      "autoCount": "Otomatik · {count}",
+      "slashHint": "Kullanmak için / yazın",
+      "empty": "Kendi yönteminizi kaydedin",
+      "notesRecent": "Son düzenlenen"
+    },
+    "list": {
+      "subtitle": "İşlerin nasıl yapılmasını istediğinizi kaydedin; yapay zeka uygun olduğunda bunu kullanır."
+    },
+    "create": {
+      "describePlaceholder": "Bir yöntemi anlatın, yapay zeka beceriyi yazsın",
+      "fromChat": "Sohbetten",
+      "manual": "Elle oluştur"
+    },
+    "segment": {
+      "mine": "Becerilerim",
+      "templates": "Şablonlar"
+    },
+    "group": {
+      "auto": "Otomatik",
+      "manual": "Yalnızca elle"
+    },
+    "card": {
+      "usageCount": "Kullanım: {count}"
+    },
+    "row": {
+      "slashHint": "{slash} yazdığınızda kullanılır"
+    },
+    "auto": {
+      "needWhenTitle": "Önce ne zaman kullanılacağını yazın",
+      "suggest": "Öner",
+      "limitReached": "Otomatik kullanım sınırına ulaşıldı ({count}). Önce birini kapatın."
+    },
+    "search": {
+      "placeholder": "Beceri ara"
+    },
+    "empty": {
+      "title": "Henüz beceri yok",
+      "body": "Sık kullandığınız yöntemleri kaydedin, her seferinde yeniden anlatmanız gerekmesin.",
+      "browseTemplates": "Şablonlara göz at"
+    },
+    "migrate": {
+      "banner": "“Ne zaman kullanılır” alanı boş beceriler: {count}. Bir cümle ekleyin, otomatik kullanılabilsinler.",
+      "review": "Tek tek tamamla"
+    },
+    "templates": {
+      "note": "Şablonlar ancak “Becerilerim” bölümüne eklendikten sonra otomatik kullanılır.",
+      "featured": "Öne çıkanlar",
+      "addToMine": "Becerilerime ekle",
+      "add": "Ekle",
+      "added": "Eklendi",
+      "tryOnce": "Bir kez dene"
+    },
+    "detail": {
+      "useInNewChat": "Yeni sohbette kullan",
+      "orSlash": "Ya da mesaj kutusuna {slash} yazın",
+      "usage": "Kullanım: {count} · Son kullanım {time}",
+      "neverUsed": "Henüz kullanılmadı",
+      "autoInvoke": "Otomatik kullan",
+      "whenToUse": "Ne zaman kullanılır",
+      "whenToUseNote": "Yapay zeka buna bakarak karar verir",
+      "instructions": "Talimatlar",
+      "showAll": "Tümünü göster",
+      "references": "Referans materyalleri",
+      "starters": "Sohbet başlatıcıları",
+      "recentChats": "Son sohbetler",
+      "try": "Dene"
+    },
+    "edit": {
+      "changeIcon": "Simgeyi değiştir",
+      "name": "Ad",
+      "whenBadge": "Otomatik kullanımı belirler",
+      "whenPlaceholder": "ör. Notlarımı haftalık rapora dönüştürmeni istediğimde. Günlük güncellemeler için değil.",
+      "keywordsCaption": "Bu kelimelerle tetiklenir · durumu anlatmanız yeterli",
+      "whenTip": "Ne yaptığını, ne zaman kullanılacağını ve genelde nasıl istediğinizi yazın. Yanlış eşleşmeleri önlemek için “… için değil” ekleyin. Tırnak içindeki kelimeler vurgulanır.",
+      "polish": "Yapay zekayla iyileştir",
+      "addStarter": "Başlatıcı ekle",
+      "modelAndFeatures": "Model ve özellikler",
+      "followChat": "Sohbetle aynı",
+      "needWhenForAuto": "“Ne zaman kullanılır” alanını doldurun veya otomatik kullanımı kapatın."
+    },
+    "draft": {
+      "askScenarios": "Kullanacağınız bir iki durum örneği verin",
+      "askQuality": "İyi bir sonuç nasıl olmalı?",
+      "skip": "Atla",
+      "generating": "Taslak yazılıyor…",
+      "title": "Taslak",
+      "editFirst": "Önce düzenle",
+      "suggestedIcon": "Önerilen simge",
+      "failed": "Taslak tamamlanamadı. Kullanılabilir kısımlar sizin için dolduruldu."
+    },
+    "fromChat": {
+      "menuConversation": "Beceri olarak kaydet",
+      "menuMessage": "Bu yaklaşımı beceri olarak kaydet",
+      "messages": "Mesaj: {count}",
+      "extracting": "Derleniyor…"
+    },
+    "limit": {
+      "upgrade": "Daha fazlası için yükselt",
+      "draftKept": "Taslağınız bu cihazda saklanıyor."
+    },
+    "composer": {
+      "placeholder": "Beceri kullanmak için / yazın"
+    },
+    "picker": {
+      "title": "Becerilerim",
+      "multi": "Birden fazla seçilebilir",
+      "auto": "Otomatik",
+      "manual": "Elle",
+      "manage": "Becerileri yönet",
+      "maxReached": "Aynı anda en fazla {count}"
+    },
+    "chip": {
+      "deleted": "Silindi"
+    },
+    "message": {
+      "attached": "Kullanılan: {names}"
+    },
+    "used": {
+      "chip": "Kullanıldı: {names}",
+      "loading": "{names} kullanılıyor…",
+      "byChoice": "Siz seçtiğiniz için kullanıldı",
+      "why": "Neden kullanıldı",
+      "disableHere": "Bu sohbette otomatik kullanma",
+      "view": "Beceriyi görüntüle"
+    },
+    "settings": {
+      "autoToggle": "Becerileri otomatik kullan",
+      "autoToggleFooter": "Kapalıyken model kendi başına beceri seçmez. Yine de / yazarak birini kullanabilirsiniz."
+    },
+    "try": {
+      "banner": "Deneniyor · Geçmişe kaydedilmez",
+      "saveToSkill": "Beceriye kaydet",
+      "adjust": "Talimatları düzenle",
+      "saved": "“{name}” becerisine kaydedildi",
+      "savedToDraft": "Düzenleyiciye aktarıldı. Kalıcı olması için orada kaydedin."
+    },
+    "improve": {
+      "prompt": "Bunu “{name}” becerisine ekleyelim mi?",
+      "review": "Değişikliği incele",
+      "accept": "Beceriye ekle",
+      "dismiss": "Şimdi değil",
+      "addedLine": "Eklendi",
+      "removedLine": "Kaldırıldı",
+      "saved": "“{name}” becerisine eklendi"
+    },
+    "usage": {
+      "manifestRow": "Beceri listesi ek yükü"
+    },
+    "glyph": {
+      "writing": "Yazı",
+      "report": "Rapor",
+      "code": "Kod",
+      "study": "Ders çalışma",
+      "travel": "Seyahat",
+      "health": "Sağlık",
+      "meeting": "Toplantı",
+      "idea": "Fikir",
+      "translate": "Çeviri",
+      "email": "E-posta",
+      "data": "Veri",
+      "design": "Tasarım",
+      "legal": "Hukuk",
+      "finance": "Finans",
+      "marketing": "Pazarlama",
+      "support": "Destek",
+      "teaching": "Öğretim",
+      "research": "Araştırma",
+      "life": "Günlük yaşam",
+      "food": "Yemek",
+      "music": "Müzik",
+      "photo": "Fotoğrafçılık",
+      "product": "Ürün",
+      "general": "Genel"
+    },
+    "capability": {
+      "title": "Model Tercihi",
+      "any": "Herhangi",
+      "reasoning": "muhakeme",
+      "vision": "Görüş",
+      "fast": "Hızlı",
+      "largeContext": "Geniş Bağlam"
+    },
+    "saveFailed": "Değişiklikler kaydedilemedi. Lütfen tekrar deneyin."
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2636,8 +2811,7 @@
       "stepLimit": "Tek bir araştırma için seçilen belgeler çok fazla ya da çok uzun. Birkaçının seçimini kaldırıp yeniden deneyin.",
       "notConnected": "Araştırmaya başlamadan önce bir Kitaplık kaynağı bağlayın.",
       "sourceForbidden": "Kaynak, izin veya politika kısıtlaması nedeniyle erişimi reddetti. Yeniden bağlanmak bunu çözmez — kaynağın kendisindeki paylaşım veya uyumluluk ayarlarını kontrol edin.",
-      "unavailable": "Kitaplık geçici olarak kullanılamıyor. Daha sonra yeniden deneyin.",
-      "retry": "Yeniden dene"
+      "unavailable": "Kitaplık geçici olarak kullanılamıyor. Daha sonra yeniden deneyin."
     }
   },
   "notes": {

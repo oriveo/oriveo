@@ -23,7 +23,7 @@ class LocalCapabilityCustomFragmentStoreTest {
             { raw }, { raw = it },
             readRetiredDeveloperGate = { null },
             clearRetiredDeveloperGate = { cleared = true },
-        )
+        ).fragment("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
 
         assertFalse("cleanup should not run when the key is absent", cleared)
         assertEquals("no record should be rewritten when the key is absent", before, raw)
@@ -43,11 +43,12 @@ class LocalCapabilityCustomFragmentStoreTest {
             clearRetiredDeveloperGate = { gate = null },
         )
 
-        assertNull("the legacy key must be cleared", gate)
+        // Migration is deferred to the first read: read first, then assert the legacy key was cleared.
         assertEquals(
             "{\"temperature\":0.2}",
             store.fragment("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE),
         )
+        assertNull("the legacy key must be cleared", gate)
     }
 
     /**
@@ -72,11 +73,11 @@ class LocalCapabilityCustomFragmentStoreTest {
             clearRetiredDeveloperGate = { gate = null },
         )
 
-        assertNull(gate)
         assertNull("must not go out once disabled", store.fragment("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE))
         val configuration = store.configuration("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
         assertFalse(configuration.enabled)
         assertEquals("the draft must be preserved as-is", "{\"temperature\":0.2}", configuration.rawJSON)
+        assertNull(gate)
     }
 
     /** Idempotent: once the legacy key is gone, constructing the store again does not rewrite anything a second time (and won't turn off a configuration the user has re-enabled). */
@@ -90,8 +91,8 @@ class LocalCapabilityCustomFragmentStoreTest {
             { raw }, { raw = it },
             readRetiredDeveloperGate = { gate },
             clearRetiredDeveloperGate = { gate = null },
-        )
-        // the user re-enabled it.
+        ).fragment("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
+        // The user re-enabled it.
         val reenabled = LocalCapabilityCustomFragmentStore({ raw }, { raw = it })
         reenabled.setFragment("{\"temperature\":0.9}", "provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
 
@@ -107,11 +108,57 @@ class LocalCapabilityCustomFragmentStoreTest {
         )
     }
 
+    /** DI's viewModel{} factory constructs the store on the main thread: construction must not touch any storage entry point. */
+    @Test
+    fun construction_doesNotReadPrefs() {
+        var gateReads = 0
+        var prefsCalls = 0
+        LocalCapabilityCustomFragmentStore(
+            read = { prefsCalls++; null },
+            write = { prefsCalls++ },
+            readRetiredDeveloperGate = { gateReads++; false },
+            clearRetiredDeveloperGate = { prefsCalls++ },
+            readAdditionalBody = { prefsCalls++; null },
+            writeAdditionalBody = { prefsCalls++ },
+        )
+
+        assertEquals("the retired master switch must not be read during construction", 0, gateReads)
+        assertEquals("storage must not be read or written during construction", 0, prefsCalls)
+    }
+
+    /** The first read runs the migrations once; later reads and writes do not rerun them (the legacy key is deliberately not cleared, so this verifies the guard rather than the migration's own idempotency). */
+    @Test
+    fun firstRead_runsMigrationsOnce() {
+        var raw: String? = null
+        var additional: String? = null
+        val seed = LocalCapabilityCustomFragmentStore({ raw }, { raw = it })
+        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity)
+        var gateReads = 0
+        var additionalWrites = 0
+        val store = LocalCapabilityCustomFragmentStore(
+            { raw }, { raw = it },
+            readRetiredDeveloperGate = { gateReads++; false },
+            clearRetiredDeveloperGate = {},
+            readAdditionalBody = { additional },
+            writeAdditionalBody = { additionalWrites++; additional = it },
+        )
+
+        store.effectiveConfiguration("provider-a", "model-a", "conversation-a", identity)
+        store.effectiveConfiguration("provider-a", "model-a", "conversation-a", identity)
+
+        assertEquals("retired master switch migration runs only once", 1, gateReads)
+        assertEquals("generation fragment migration writes the additional request body only once", 1, additionalWrites)
+        assertEquals(
+            "{\"temperature\":0.2}",
+            store.additionalBody("provider-a", "model-a", "conversation-a").rawJSON,
+        )
+        assertEquals(1, gateReads)
+    }
+
     /**
-     * When there is no conversation-level record, fall back to the model-default scope, and
-     * both read paths must agree -- the provider detail page writes to the model-default
-     * tier, so reading it differently elsewhere would show a blank editor while the field is
-     * still going out on the wire.
+     * When the conversation layer has no record, fall back to the model default scope. Both sides
+     * must read the same way: the provider detail page writes to the model default tier, and
+     * reading them separately would leave the edit page blank while the field is still going out.
      */
     @Test
     fun effectiveConfigurationFallsBackToTheModelDefaultScope() {
@@ -131,7 +178,7 @@ class LocalCapabilityCustomFragmentStoreTest {
             store.fragmentsByOwner("provider-a", "model-a", "conversation-a", identity),
         )
 
-        // a conversation-level record -- even a disabled one -- means the user made an explicit choice in this conversation, and the model default must not override it.
+        // A conversation-level record (even a disabled one) means the user explicitly chose in this conversation; the model default must not override it.
         store.setConfiguration(
             LocalCapabilityCustomFragmentStore.Configuration(enabled = false, rawJSON = "{\"temperature\":0.9}"),
             "provider-a", "model-a", "conversation-a", identity,

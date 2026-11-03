@@ -10,7 +10,8 @@ export interface CompactionPurposeMessage {
 
 export type PurposeRequestInput =
   | {
-    purpose: 'crosscheck' | 'memoryExtraction';
+    /** skillDraft: AI skill draft (skill_draft.v1); same shape as memoryExtraction, no tools / memory / manifest. */
+    purpose: 'crosscheck' | 'memoryExtraction' | 'skillDraft';
     purposeSystem: string;
     userText: string;
   }
@@ -32,17 +33,19 @@ export type PurposeRequestInput =
  */
 export function assemblePurposeRequest(input: PurposeRequestInput): PlannedChatRequest {
   if (input.purpose === 'compaction') return assembleCompactionRequest(input);
+  // skillDraft is assembled exactly like memoryExtraction: system = trimmed purposeSystem, one user, nothing else.
+  const purpose = input.purpose === 'skillDraft' ? 'memoryExtraction' : input.purpose;
   const source = {
-    id: `${input.purpose}-source`,
+    id: `${purpose}-source`,
     role: 'user',
     text: input.userText,
     state: 'delivered',
     attachments: [],
   } as const;
   const plan = ContextAssembler.assemble({
-    purpose: input.purpose,
+    purpose,
     window: { W: null, windowKind: 'total', maxOutput: {} },
-    conversation: { id: input.purpose, useMemory: false },
+    conversation: { id: purpose, useMemory: false },
     history: [{ ...source, attachments: [] }],
     purposeSystem: input.purposeSystem,
   });

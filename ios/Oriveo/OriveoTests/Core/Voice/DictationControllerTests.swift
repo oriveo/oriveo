@@ -44,7 +44,8 @@ struct DictationControllerTests {
         system: DictationSystemPreparation? = nil,
         store: RecordingStore? = nil,
         capture: AudioCapture? = nil,
-        audioSession: VoiceAudioSessionOwner = .shared
+        audioSession: VoiceAudioSessionOwner = .shared,
+        uiLocale: @escaping () -> Locale = { AppLocalization.currentLanguage.locale }
     ) async -> (DictationController, EventSpy) {
         let timer = self.timer
         let controller = DictationController(
@@ -52,7 +53,8 @@ struct DictationControllerTests {
             capture: capture ?? self.capture, store: store ?? self.store, audioSession: audioSession,
             permission: permission, readAloud: readAloud, screenAwake: screenAwake, notificationCenter: center,
             now: { Date(timeIntervalSince1970: 1_000) },
-            sleep: { try await timer.sleep($0) }
+            sleep: { try await timer.sleep($0) },
+            uiLocale: uiLocale
         )
         controller.bind(slotKey: Self.slotKey)
         await controller.bindLoad?.value
@@ -80,6 +82,74 @@ struct DictationControllerTests {
     }
 
     // MARK: Permission and read-aloud
+
+    @Test("Tapping the mic stops read-aloud first, then starts recording")
+    func test_startRecording_startsCaptureOffMain() async {
+        let (controller, _) = await makeController()
+        permission.status = .granted
+        await controller.micTapped()
+
+        #expect(capture.startOnMain == [false])
+        #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
+        #expect(audioExists)
+        #expect(lost.total == 0)
+    }
+
+    @Test("Tapping the mic stops read-aloud first, then starts recording")
+    func test_captureStartPending_bindThenTap_startsOnce() async throws {
+        let (controller, _) = await makeController()
+        permission.status = .granted
+        let gate = ThreadGate()
+        capture.onStart = { gate.block() }
+
+        let first = Task { await controller.micTapped() }
+        await gate.waitUntilReached()
+        controller.bind(slotKey: Self.otherKey)
+        await controller.bindLoad?.value
+        await controller.micTapped()
+        #expect(capture.startCount == 1)
+
+        gate.open()
+        await first.value
+        await controller.storeDrained()
+        #expect(capture.startCount == 1)
+        #expect(capture.stopCount == 1)
+        #expect(controller.state == .idle)
+        #expect(store.peekSlot(for: Self.slotKey) == nil)
+        #expect(store.peekSlot(for: Self.otherKey) == nil)
+
+        capture.onStart = nil
+        await controller.micTapped()
+        #expect(capture.startCount == 2)
+        #expect(capture.stopCount == 1)
+        #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
+        #expect(store.peekSlot(for: Self.otherKey) != nil)
+        #expect(lost.total == 0)
+    }
+
+    @Test("Tapping the mic stops read-aloud first, then starts recording")
+    func test_captureStartPending_bindThenFail_keepsNewSlotState() async throws {
+        let (controller, _) = await makeController()
+        try crashedRecording(key: Self.otherKey, seconds: 0.5)
+        permission.status = .granted
+        let gate = ThreadGate()
+        capture.onStart = { gate.block() }
+        capture.startError = CaptureStartFailed()
+
+        let first = Task { await controller.micTapped() }
+        await gate.waitUntilReached()
+        controller.bind(slotKey: Self.otherKey)
+        await controller.bindLoad?.value
+        #expect(controller.state == .interrupted)
+
+        gate.open()
+        await first.value
+        #expect(capture.startCount == 1)
+        #expect(capture.stopCount == 0)
+        #expect(controller.state == .interrupted)
+        #expect(store.peekSlot(for: Self.slotKey) == nil)
+        #expect(lost.total == 0)
+    }
 
     @Test("Tapping the mic stops read-aloud first, then starts recording")
     func micStopsReadAloud() async {
@@ -557,6 +627,37 @@ struct DictationControllerTests {
     }
 
     @Test("Empty text -> failed(noTranscript), recording kept")
+    func failedLanguageNameKeepsLanguageAtFailure() async throws {
+        let ui = UILocaleBox(Locale(identifier: "en-US"))
+        let (controller, _) = await makeController(uiLocale: { ui.locale })
+        engine.outcome = .success(" ")
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(controller.state == .failed(.noTranscript))
+        #expect(controller.recognitionLanguageName == Locale(identifier: "en-US").localizedString(forIdentifier: "en-US"))
+
+        ui.locale = Locale(identifier: "fr-FR")
+        let french = Locale(identifier: "fr-FR")
+        #expect(controller.recognitionLanguageName == french.localizedString(forIdentifier: "en-US"))
+        #expect(controller.recognitionLanguageName != french.localizedString(forIdentifier: "fr-FR"))
+        await controller.storeDrained()
+    }
+
+    @Test("Empty text -> failed(noTranscript), recording kept")
+    func failedLanguageNameKeepsFullTag() async throws {
+        let ui = UILocaleBox(Locale(identifier: "zh-Hans"))
+        let (controller, _) = await makeController(uiLocale: { ui.locale })
+        engine.outcome = .success(" ")
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(controller.state == .failed(.noTranscript))
+        let chinese = Locale(identifier: "zh-Hans")
+        #expect(controller.recognitionLanguageName == chinese.localizedString(forIdentifier: "zh-Hans"))
+        #expect(controller.recognitionLanguageName != chinese.localizedString(forIdentifier: "zh"))
+        await controller.storeDrained()
+    }
+
+    @Test("Empty text -> failed(noTranscript), recording kept")
     func emptyTranscriptKeepsRecording() async throws {
         let (controller, spy) = await makeController()
         engine.outcome = .success(" \n\t ")
@@ -970,84 +1071,188 @@ struct DictationControllerTests {
         #expect(lost.total == 0)
     }
 
-    @Test("System assets downloading -> preparing(progress), completion goes to recording")
-    func systemAssetsDownloadShowsPreparing() async throws {
-        let inventory = DictationAssetInventoryFake()
+    private static let packLocale = Locale(identifier: "en-US")
+
+    private static func promptDefaults(prompted: [String] = []) -> UserDefaults {
         let defaults = UserDefaults(suiteName: "DictationControllerTests-\(UUID().uuidString)")!
-        let assets = SpeechAssetManager(inventory: inventory, defaults: defaults)
-        let locale = Locale(identifier: "en-US")
-        let system = DictationSystemPreparation(
-            analyzerAvailable: true, authorizer: DictationSpeechAuthorizerFake(), assets: assets, assetLocale: { _ in locale }
+        if !prompted.isEmpty { defaults.set(prompted, forKey: DictationSystemPreparation.promptedDefaultsKey) }
+        return defaults
+    }
+
+    private static func prompted(_ defaults: UserDefaults) -> [String] {
+        defaults.stringArray(forKey: DictationSystemPreparation.promptedDefaultsKey) ?? []
+    }
+
+    /// iOS 26+ system preparation: the language pack language is fixed to en-US; the prompt record lives in defaults.
+    private func languagePackSystem(
+        _ inventory: DictationAssetInventoryFake, defaults: UserDefaults, analyzerAvailable: Bool = true
+    ) -> (DictationSystemPreparation, SpeechAssetManager) {
+        let assets = SpeechAssetManager(
+            inventory: inventory, defaults: UserDefaults(suiteName: "DictationControllerTests-\(UUID().uuidString)")!
         )
+        let authorizer = DictationSpeechAuthorizerFake()
+        authorizer.settle(authorized: true)
+        var system = DictationSystemPreparation(
+            analyzerAvailable: analyzerAvailable, authorizer: authorizer, assets: assets,
+            assetLocale: { _ in Self.packLocale }
+        )
+        system.promptDefaults = defaults
+        return (system, assets)
+    }
+
+    private static let expectedPrompt = DictationLanguagePackPrompt(
+        localeID: "en-US",
+        displayName: AppLocalization.currentLanguage.locale.localizedString(forIdentifier: "en-US") ?? "en-US",
+        downloading: false
+    )
+
+    @Test("Language pack not installed and not prompted → publish the prompt, recording starts, no download")
+    func missingLanguagePackPromptsWithoutBlocking() async throws {
+        let inventory = DictationAssetInventoryFake()
+        let defaults = Self.promptDefaults()
+        let (system, _) = languagePackSystem(inventory, defaults: defaults)
         let (controller, _) = await makeController(engines: systemSource(FakeSTTEngine()), system: system)
         permission.status = .granted
+        await controller.micTapped()
 
-        let tap = Task { await controller.micTapped() }
-        let preparing = await controller.$state.values.first { $0 == .preparing(progress: 0.5) }
-        #expect(preparing == .preparing(progress: 0.5))
-        #expect(capture.startCount == 0)
-        #expect(try store.slot(for: Self.slotKey) == nil)
-
-        inventory.finishInstall()
-        await tap.value
         #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
-        #expect(assets.state(.speechTranscriber, locale: locale) == .installed)
         #expect(capture.startCount == 1)
+        #expect(controller.languagePackPrompt == Self.expectedPrompt)
+        #expect(inventory.installCount == 0)
+        // Only prompted, the user has not chosen yet: do not record it as prompted.
+        #expect(Self.prompted(defaults).isEmpty)
         _ = await controller.discard()
         #expect(lost.total == 0)
     }
 
     @Test("Host detaches during preparing -> the start is voided, still idle after preparation completes, no recording in the slot")
-    func hostDetachDuringPreparingCancelsStart() async throws {
-        let inventory = DictationAssetInventoryFake()
-        let assets = SpeechAssetManager(
-            inventory: inventory, defaults: UserDefaults(suiteName: "DictationControllerTests-\(UUID().uuidString)")!
-        )
-        let locale = Locale(identifier: "en-US")
-        let system = DictationSystemPreparation(
-            analyzerAvailable: true, authorizer: DictationSpeechAuthorizerFake(), assets: assets, assetLocale: { _ in locale }
-        )
-        let (controller, _) = await makeController(engines: systemSource(FakeSTTEngine()), system: system)
-        let host = DictationHostBinding()
-        host.attach(controller: controller, slotKey: Self.slotKey)
+    func languagePackNotPromptedWhenPromptedInstalledOrUnavailable() async {
         permission.status = .granted
+        let promptedInventory = DictationAssetInventoryFake()
+        let (promptedSystem, _) = languagePackSystem(promptedInventory, defaults: Self.promptDefaults(prompted: ["en-US"]))
+        let installedInventory = DictationAssetInventoryFake()
+        installedInventory.installed = true
+        let (installedSystem, _) = languagePackSystem(installedInventory, defaults: Self.promptDefaults())
+        let legacyInventory = DictationAssetInventoryFake()
+        let (legacySystem, _) = languagePackSystem(legacyInventory, defaults: Self.promptDefaults(), analyzerAvailable: false)
 
-        let tap = Task { await controller.micTapped() }
-        let preparing = await controller.$state.values.first { $0 == .preparing(progress: 0.5) }
-        #expect(preparing == .preparing(progress: 0.5))
+        for (system, inventory) in [
+            (promptedSystem, promptedInventory), (installedSystem, installedInventory), (legacySystem, legacyInventory),
+        ] {
+            let (controller, _) = await makeController(engines: systemSource(FakeSTTEngine()), system: system)
+            await controller.micTapped()
+            #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
+            #expect(controller.languagePackPrompt == nil)
+            #expect(inventory.installCount == 0)
+            _ = await controller.discard()
+        }
+        #expect(lost.total == 0)
+    }
 
-        host.detach()
-        #expect(controller.state == .idle)
+    @Test("Host detaches during preparing -> the start is voided, still idle after preparation completes, no recording in the slot")
+    func languagePackDownloadRunsInBackground() async throws {
+        let inventory = DictationAssetInventoryFake()
+        let defaults = Self.promptDefaults()
+        let (system, assets) = languagePackSystem(inventory, defaults: defaults)
+        let (controller, _) = await makeController(engines: systemSource(FakeSTTEngine()), system: system)
+        permission.status = .granted
+        await controller.micTapped()
+        #expect(controller.languagePackPrompt == Self.expectedPrompt)
+
+        controller.download()
+        var downloading = Self.expectedPrompt
+        downloading.downloading = true
+        #expect(controller.languagePackPrompt == downloading)
+        #expect(Self.prompted(defaults) == ["en-US"])
+        #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
+
         inventory.finishInstall()
-        await tap.value
-        #expect(controller.state == .idle)
-        #expect(capture.startCount == 0)
-        #expect(try store.slot(for: Self.slotKey) == nil)
-        #expect(controller.onEvent == nil)
+        await controller.languagePackDownload?.value
+        #expect(inventory.installCount == 1)
+        #expect(assets.state(.speechTranscriber, locale: Self.packLocale) == .installed)
+        #expect(controller.languagePackPrompt == nil)
+        #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
+        _ = await controller.discard()
         #expect(lost.total == 0)
     }
 
     @Test("System assets already installed -> recording directly, without passing through preparing")
-    func installedAssetsSkipPreparing() async {
+    func languagePackDownloadFailureClearsPrompt() async throws {
         let inventory = DictationAssetInventoryFake()
-        inventory.installed = true
-        let assets = SpeechAssetManager(
-            inventory: inventory, defaults: UserDefaults(suiteName: "DictationControllerTests-\(UUID().uuidString)")!
-        )
-        let system = DictationSystemPreparation(
-            analyzerAvailable: true, authorizer: DictationSpeechAuthorizerFake(), assets: assets,
-            assetLocale: { _ in Locale(identifier: "en-US") }
-        )
+        inventory.failInstall = true
+        let defaults = Self.promptDefaults()
+        let (system, _) = languagePackSystem(inventory, defaults: defaults)
         let (controller, _) = await makeController(engines: systemSource(FakeSTTEngine()), system: system)
-        var seen: [DictationState] = []
-        let cancellable = controller.$state.sink { seen.append($0) }
         permission.status = .granted
         await controller.micTapped()
-        cancellable.cancel()
 
+        controller.download()
+        inventory.finishInstall()
+        await controller.languagePackDownload?.value
+        #expect(inventory.installCount == 1)
+        #expect(controller.languagePackPrompt == nil)
         #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
-        #expect(!seen.contains { if case .preparing = $0 { return true } else { return false } })
+        _ = await controller.discard()
+
+        await controller.micTapped()
+        #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
+        #expect(controller.languagePackPrompt == nil)
+        _ = await controller.discard()
+        #expect(lost.total == 0)
+    }
+
+    @Test("dismissLanguagePack() → prompt cleared and marked as prompted; the same language is not prompted again next time")
+    func dismissLanguagePackRecordsPrompted() async throws {
+        let inventory = DictationAssetInventoryFake()
+        let defaults = Self.promptDefaults()
+        let (system, _) = languagePackSystem(inventory, defaults: defaults)
+        let (controller, _) = await makeController(engines: systemSource(FakeSTTEngine()), system: system)
+        permission.status = .granted
+        await controller.micTapped()
+        #expect(controller.languagePackPrompt == Self.expectedPrompt)
+
+        controller.dismissLanguagePack()
+        #expect(controller.languagePackPrompt == nil)
+        #expect(Self.prompted(defaults) == ["en-US"])
         #expect(inventory.installCount == 0)
+        _ = await controller.discard()
+
+        await controller.micTapped()
+        #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
+        #expect(controller.languagePackPrompt == nil)
+        _ = await controller.discard()
+        #expect(lost.total == 0)
+    }
+
+    @Test("The language pack prompt's language name is shown in the App's interface language")
+    func languagePackDisplayNameFollowsAppLanguage() async throws {
+        let inventory = DictationAssetInventoryFake()
+        let (system, _) = languagePackSystem(inventory, defaults: Self.promptDefaults())
+        let (controller, _) = await makeController(engines: systemSource(FakeSTTEngine()), system: system)
+        permission.status = .granted
+        await controller.micTapped()
+        let uiLocale = AppLocalization.currentLanguage.locale
+        #expect(controller.languagePackPrompt?.displayName == uiLocale.localizedString(forIdentifier: "en-US"))
+        _ = await controller.discard()
+    }
+
+    @Test("Before the voice conversation starts (prepareConversationListening) with the language pack not installed: no prompt published, not recorded as prompted, no download")
+    func conversationListeningDoesNotPromptLanguagePack() async throws {
+        let inventory = DictationAssetInventoryFake()
+        let defaults = Self.promptDefaults()
+        let (system, _) = languagePackSystem(inventory, defaults: defaults)
+        let (controller, _) = await makeController(engines: systemSource(FakeSTTEngine()), system: system)
+        permission.status = .granted
+        let choice = await controller.prepareConversationListening()
+        #expect(choice?.isSystem == true)
+        #expect(controller.languagePackPrompt == nil)
+        #expect(Self.prompted(defaults).isEmpty)
+        #expect(inventory.installCount == 0)
+        #expect(controller.state == .idle)
+
+        // Afterwards, tapping the mic for dictation still prompts once as usual.
+        await controller.micTapped()
+        #expect(controller.languagePackPrompt == Self.expectedPrompt)
         _ = await controller.discard()
         #expect(lost.total == 0)
     }
@@ -1356,7 +1561,9 @@ struct DictationControllerTests {
 
         let tap = Task { await controller.micTapped() }
         await files.waitUntilHeld()
+        // Stopped at slot-open while the background start had completed: activation has happened and has not deactivated yet.
         #expect(input.startCount == 1)
+        #expect(activator.calls == [.activate])
         #expect(owner.current?.client == .dictation)
         controller.interrupt()
         let conversation = owner.claim(.conversation)
@@ -1578,6 +1785,312 @@ struct DictationControllerTests {
             .cloud(providerKind: .relay, connectionID: usable.id.uuidString, model: Self.cloudModel, isDefault: true),
         ])
     }
+
+    // MARK: Live recognition
+
+    /// The fixed source for the system engine with live capability.
+    private func liveSource(_ live: FakeLiveSTTEngine) -> DictationEngineSource {
+        .fixed(live, isSystem: true)
+    }
+
+    private static func final(_ text: String) -> SystemSTTResult { SystemSTTResult(text: text, isFinal: true) }
+    private static func partial(_ text: String) -> SystemSTTResult { SystemSTTResult(text: text, isFinal: false) }
+
+    /// Waits until the live text is published to text (if it hangs, the suite's timeLimit is the backstop).
+    private func waitForLiveText(_ controller: DictationController, _ text: String) async {
+        for await value in controller.liveText.$value.values where value?.text == text { return }
+    }
+
+    @Test("System engine while recording: capture buffers feed the live session; snapshots publish separately as livePartial without touching the controller; set to nil after transcription")
+    func liveSnapshotsPublished() async throws {
+        let live = FakeLiveSTTEngine()
+        live.script = [Self.partial("hel"), Self.final("hello"), Self.partial(" wor ")]
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        let changes = ChangeCounter()
+        let token = controller.objectWillChange.sink { changes.count += 1 }
+        await waitForLiveText(controller, "hello wor")
+        #expect(controller.liveText.value == DictationRules.livePartial(finals: ["hello"], partial: "wor"))
+        #expect(changes.count == 0)
+        #expect(live.liveStarts == 1)
+        token.cancel()
+
+        await controller.finish(.insert)
+        #expect(controller.liveText.value == nil)
+        #expect(spy.events == [.insert("hello")])
+        #expect(engine.calls.isEmpty)
+        await controller.storeDrained()
+        #expect(lost.total == 0)
+    }
+
+    @Test("Every stop path cancels the live session and sends liveDiscarded: ✕, interruption, slot switch, silent precheck", arguments: DictationLiveStop.allCases)
+    func liveSessionCancelledOnStop(_ stop: DictationLiveStop) async throws {
+        let live = FakeLiveSTTEngine()
+        live.script = [Self.partial("hello")]
+        // Tapping "Done" starts wrap-up immediately (in parallel with closing the file): on a silent precheck the session is still wrapping up and gets cancelled
+        live.liveHangs = stop == .silent
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1, amplitude: stop == .silent ? 0 : 0.1)
+        await waitForLiveText(controller, "hello")
+        switch stop {
+        case .discard: _ = await controller.discard()
+        case .interruption: postInterruptionBegan()
+        case .switchSlot: controller.bind(slotKey: Self.otherKey)
+        case .silent: await controller.finish(.insert)
+        }
+        #expect(live.liveCancels == 1)
+        #expect(controller.liveText.value == nil)
+        #expect(spy.events.first == .liveDiscarded)
+        #expect(spy.events.filter { $0 == .liveDiscarded }.count == 1)
+        #expect(live.calls.isEmpty)
+        await controller.storeDrained()
+        #expect(lost.total == 0)
+    }
+
+    @Test("Live session ends normally with non-empty finals → use the finals directly, do not recognize the recording file; slot deleted")
+    func liveFinalsSkipFileRecognition() async throws {
+        let live = FakeLiveSTTEngine()
+        live.script = [Self.final("hello"), Self.final("world"), Self.partial("tail")]
+        live.outcome = .success("from file")
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.send)
+        await controller.storeDrained()
+        #expect(spy.events == [.send("hello world")])
+        #expect(live.calls.isEmpty)
+        #expect(live.liveCancels == 0)
+        #expect(controller.state == .idle)
+        #expect(try store.slot(for: Self.slotKey) == nil)
+        #expect(lost.total == 0)
+    }
+
+    @Test("No live finals → recognize the recording file; file text takes precedence")
+    func emptyLiveFallsBackToFile() async throws {
+        let live = FakeLiveSTTEngine()
+        live.script = [Self.partial("hel")]
+        live.outcome = .success(" from file ")
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        await controller.storeDrained()
+        #expect(spy.events == [.insert("from file")])
+        #expect(live.calls.count == 1)
+        #expect(controller.state == .idle)
+        #expect(try store.slot(for: Self.slotKey) == nil)
+        #expect(lost.total == 0)
+    }
+
+    @Test("Live session errors and the file also fails → keep the on-screen live text (live_partial), do not enter the failure card")
+    func fileFailureKeepsLivePartial() async throws {
+        let live = FakeLiveSTTEngine()
+        live.script = [Self.final("hello"), Self.partial("wor")]
+        live.liveError = NSError(domain: "kAFAssistantErrorDomain", code: 203)
+        live.outcome = .failure(NSError(domain: "kLSRErrorDomain", code: 201))
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        await controller.storeDrained()
+        #expect(spy.events == [.insert("hello wor")])
+        #expect(live.calls.count == 1)
+        #expect(controller.state == .idle)
+        #expect(lost.total == 0)
+    }
+
+    @Test("File recognition busy → retry automatically once: a second success inserts; busy again stops at failed(busy)")
+    func fileBusyRetriesOnce() async throws {
+        let busy = NSError(domain: "kAFAssistantErrorDomain", code: 1100)
+        let live = FakeLiveSTTEngine()
+        live.queue = [.failure(busy), .success("second")]
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(spy.events == [.insert("second")])
+        #expect(live.calls.count == 2)
+
+        spy.events = []
+        live.queue = [.failure(busy), .failure(busy)]
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(live.calls.count == 4)
+        #expect(controller.state == .failed(.system(.busy)))
+        #expect(spy.events == [.liveDiscarded])
+
+        // Manual retry counts again from attempt 1: a busy again still auto-retries.
+        live.queue = [.failure(busy), .success("third")]
+        await controller.finish(.insert)
+        #expect(live.calls.count == 6)
+        #expect(spy.events == [.liveDiscarded, .insert("third")])
+        await controller.storeDrained()
+        #expect(lost.total == 0)
+    }
+
+    @Test("File recognition failures are subdivided by systemFailure; the recording is kept",
+          arguments: [
+              ("kLSRErrorDomain", 102, SystemFailureKind.languageUnsupported),
+              ("kLSRErrorDomain", 201, .noService),
+              (NSURLErrorDomain, -1009, .network),
+              ("SFSpeechErrorDomain", 1, .other),
+          ])
+    func fileFailureSubdivided(domain: String, code: Int, kind: SystemFailureKind) async throws {
+        let live = FakeLiveSTTEngine()
+        live.outcome = .failure(NSError(domain: domain, code: code))
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(controller.state == .failed(.system(kind)))
+        #expect(spy.events == [.liveDiscarded])
+        await controller.storeDrained()
+        #expect(try store.slot(for: Self.slotKey)?.status == .failed)
+        #expect(audioExists)
+        #expect(lost.total == 0)
+    }
+
+    @Test("Live and file both empty → failed(noTranscript), send liveDiscarded")
+    func liveAndFileEmptyIsNoTranscript() async throws {
+        let live = FakeLiveSTTEngine()
+        live.outcome = .success("  ")
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(controller.state == .failed(.noTranscript))
+        #expect(spy.events == [.liveDiscarded])
+        await controller.storeDrained()
+        #expect(lost.total == 0)
+    }
+
+    /// Errors actually thrown by SystemSTTEngine: the fake backend's segment finish throws segmentError, which the production run wrapper returns unchanged.
+    private static func systemEngineError(_ segmentError: Error) async -> Error {
+        let engine = SystemSTTEngine(
+            speechTranscriber: nil,
+            dictationTranscriber: nil,
+            speechRecognizer: FakeSTTBackend(.speechRecognizer, finishError: segmentError),
+            analyzerAvailable: false,
+            authorizer: FakeSpeechAuthorizer(authorized: true),
+            defaultLocale: { Locale(identifier: "en-US") }
+        )
+        let session = engine.startLive(language: "en-US")
+        let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 1_600)!
+        buffer.frameLength = 1_600
+        session.feed(buffer)
+        do {
+            let text = try await session.finish()
+            Issue.record("SystemSTTEngine returned \(text) instead of failing")
+            return CancellationError()
+        } catch {
+            return error
+        }
+    }
+
+    @Test("SystemSTTEngine throws kAF 1101: file recognition retries once automatically; a second failure ends in failed(busy)")
+    func productionBusyErrorRetriesOnce() async throws {
+        let busy = await Self.systemEngineError(NSError(domain: "kAFAssistantErrorDomain", code: 1101))
+        let live = FakeLiveSTTEngine()
+        live.queue = [.failure(busy), .success("second")]
+        let (controller, spy) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(spy.events == [.insert("second")])
+        #expect(live.calls.count == 2)
+
+        spy.events = []
+        live.queue = [.failure(busy), .failure(busy)]
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(live.calls.count == 4)
+        #expect(controller.state == .failed(.system(.busy)))
+        await controller.storeDrained()
+        #expect(lost.total == 0)
+    }
+
+    @Test("SystemSTTEngine throws a system cancellation (kLSR 301): no failure card, no failed; the recording stays as interrupted")
+    func productionSystemCancelIsSilent() async throws {
+        guard case .failure(let segmentError) = SFSpeechRecognizerSegment.outcome(
+            for: NSError(domain: "kLSRErrorDomain", code: 301)
+        ) else {
+            Issue.record("kLSR 301 resolved as text")
+            return
+        }
+        let cancelled = await Self.systemEngineError(segmentError)
+        let live = FakeLiveSTTEngine()
+        live.outcome = .failure(cancelled)
+        let (controller, _) = await makeController(engines: liveSource(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(live.calls.count == 1)
+        #expect(controller.state == .interrupted)
+        await controller.storeDrained()
+        #expect(try store.slot(for: Self.slotKey)?.status == .interrupted)
+        #expect(audioExists)
+        #expect(lost.total == 0)
+    }
+
+    @Test("After Done, the live wrap-up's 1.5 s counts from the tap: the timer has already started while the file close is held up by the storage queue")
+    func liveStopDeadlineStartsAtFinishTap() async throws {
+        let live = FakeLiveSTTEngine()
+        live.liveHangs = true
+        live.outcome = .success("from file")
+        let files = ThreadRecordingFileManager()
+        let root = FileManager.default.temporaryDirectory
+            .appending(path: "DictationControllerTests-\(UUID().uuidString)", directoryHint: .isDirectory)
+            .appending(path: "pending", directoryHint: .isDirectory)
+        let lost = self.lost
+        let store = try RecordingStore(root: root, onLost: { lost.total += $0 }, fileManager: files)
+        let (controller, spy) = await makeController(engines: liveSource(live), store: store)
+        await record(controller, seconds: 1)
+        await controller.storeDrained()
+
+        // Another controller binds another slot on the same store; its occupancy query stalls on the shared storage queue, so the file close queues behind it.
+        files.holdNextOffMainCall()
+        let blocker = DictationController(
+            engines: .fixed(engine), system: .skipped, capture: FakeAudioCapture(sampleRate: Self.inputRate),
+            store: store, permission: permission, readAloud: readAloud, screenAwake: screenAwake,
+            notificationCenter: NotificationCenter(), now: { Date(timeIntervalSince1970: 1_000) },
+            sleep: { _ in }
+        )
+        blocker.bind(slotKey: Self.otherKey)
+        await files.waitUntilHeld()
+
+        let finishing = Task { await controller.finish(.insert) }
+        try await Task.sleep(for: .milliseconds(DictationRules.liveStopTimeoutMs + 300))
+        let clock = ContinuousClock()
+        let released = clock.now
+        files.releaseHeld()
+        await finishing.value
+        let afterRelease = clock.now - released
+        #expect(afterRelease < .milliseconds(1_000), "after the file close completed, it waited another \(afterRelease)")
+        #expect(spy.events.last == .insert("from file"))
+        #expect(live.liveCancels >= 1)
+        await blocker.bindLoad?.value
+        await controller.storeDrained()
+        #expect(lost.total == 0)
+    }
+
+    private static let relayEngineID = "\(ProviderKind.relay.rawValue)/whisper-1"
+
+    private func cloudFixed(_ engine: any STTEngine) -> DictationEngineSource {
+        .fixed(engine, engineID: Self.relayEngineID)
+    }
+
+    @Test("Cloud engine does not open a live session; it takes the old file path")
+    func cloudEngineSkipsLive() async throws {
+        let live = FakeLiveSTTEngine()
+        live.outcome = .success("cloud text")
+        let (controller, spy) = await makeController(engines: cloudFixed(live))
+        await record(controller, seconds: 1)
+        await controller.finish(.insert)
+        #expect(live.liveStarts == 0)
+        #expect(spy.events == [.insert("cloud text")])
+        await controller.storeDrained()
+        #expect(lost.total == 0)
+    }
+}
+
+nonisolated enum DictationLiveStop: CaseIterable, Sendable {
+    case discard
+    case interruption
+    case switchSlot
+    case silent
 }
 
 // MARK: - Test doubles
@@ -1764,28 +2277,90 @@ private nonisolated final class ManualTimer: @unchecked Sendable {
     }
 }
 
-nonisolated final class FakeSTTEngine: STTEngine, @unchecked Sendable {
+nonisolated class FakeSTTEngine: STTEngine, @unchecked Sendable {
     private let lock = NSLock()
     private var _outcome: Result<String, Error> = .success("text")
+    private var _queue: [Result<String, Error>] = []
     private var _calls: [RecordingResult] = []
+    private var _languages: [String?] = []
 
     var outcome: Result<String, Error> {
         get { lock.withLock { _outcome } }
         set { lock.withLock { _outcome = newValue } }
     }
 
+    /// When non-empty, each transcription takes one in order; once exhausted, outcome is used.
+    var queue: [Result<String, Error>] {
+        get { lock.withLock { _queue } }
+        set { lock.withLock { _queue = newValue } }
+    }
+
     var calls: [RecordingResult] { lock.withLock { _calls } }
+    /// The recognition language received for each transcription, one-to-one with calls.
+    var languages: [String?] { lock.withLock { _languages } }
 
     func transcribe(_ recording: RecordingResult, language: String?) async throws -> String {
         let outcome = lock.withLock {
             _calls.append(recording)
-            return _outcome
+            _languages.append(language)
+            return _queue.isEmpty ? _outcome : _queue.removeFirst()
         }
         return try outcome.get()
     }
 }
 
-/// Transcription hangs until cancelled: waitForCall waits until the engine is called; when cancelled it throws CancellationError and records it.
+/// Fake system engine with live capability: for each capture buffer it emits the next result from script in order; after input ends, if liveError is non-nil it throws it,
+/// otherwise it returns the concatenated finals. Records once when the session is cancelled (the cancel callback fires synchronously, so it can be read as soon as controller cancel returns).
+nonisolated final class FakeLiveSTTEngine: FakeSTTEngine, LiveSTTEngine, @unchecked Sendable {
+    private let liveLock = NSLock()
+    private var _script: [SystemSTTResult] = []
+    private var _liveError: Error?
+    private var _liveHangs = false
+    private var _liveStarts = 0
+    private var _liveCancels = 0
+
+    var script: [SystemSTTResult] {
+        get { liveLock.withLock { _script } }
+        set { liveLock.withLock { _script = newValue } }
+    }
+
+    var liveError: Error? {
+        get { liveLock.withLock { _liveError } }
+        set { liveLock.withLock { _liveError = newValue } }
+    }
+
+    /// Does not wrap up after input ends until the session is cancelled.
+    var liveHangs: Bool {
+        get { liveLock.withLock { _liveHangs } }
+        set { liveLock.withLock { _liveHangs = newValue } }
+    }
+
+    var liveStarts: Int { liveLock.withLock { _liveStarts } }
+    var liveCancels: Int { liveLock.withLock { _liveCancels } }
+
+    func startLive(language: String?) -> SystemSTTSession {
+        let (script, error, hangs) = liveLock.withLock { () -> ([SystemSTTResult], Error?, Bool) in
+            _liveStarts += 1
+            return (_script, _liveError, _liveHangs)
+        }
+        return SystemSTTSession { [self] stream, onResult in
+            try await withTaskCancellationHandler {
+                var pending = script[...]
+                for await _ in stream {
+                    if let next = pending.popFirst() { onResult(next) }
+                }
+                if hangs { try await Task.sleep(for: .seconds(60)) }
+                try Task.checkCancellation()
+                if let error { throw error }
+                return DictationRules.join(script.filter(\.isFinal).map(\.text))
+            } onCancel: {
+                self.liveLock.withLock { self._liveCancels += 1 }
+            }
+        }
+    }
+}
+
+/// Transcription hangs until cancelled: waitForCall waits until the engine is called; on cancellation it throws CancellationError and records it.
 private nonisolated final class SuspendedSTTEngine: STTEngine, @unchecked Sendable {
     private let lock = NSLock()
     private var pending: CheckedContinuation<String, Error>?
@@ -1836,7 +2411,47 @@ private nonisolated final class SuspendedSTTEngine: STTEngine, @unchecked Sendab
     }
 }
 
-/// Does not touch the microphone: start records the handler and returns the tap format; feed synchronously feeds a 440 Hz sine (amplitude 0 is all zeros).
+/// Simulates a capture start failure.
+private struct CaptureStartFailed: Error {}
+
+/// Holds a GCD thread inside block() until open(); waitUntilReached waits until a thread has entered block. A hang is backstopped by the suite's timeLimit.
+nonisolated final class ThreadGate: @unchecked Sendable {
+    private let condition = NSCondition()
+    private var opened = false
+    private var reached = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func block() {
+        condition.lock()
+        reached = true
+        let waiting = waiters
+        waiters = []
+        condition.unlock()
+        for waiter in waiting { waiter.resume() }
+        condition.lock()
+        while !opened { condition.wait() }
+        condition.unlock()
+    }
+
+    func open() {
+        condition.lock()
+        opened = true
+        condition.broadcast()
+        condition.unlock()
+    }
+
+    func waitUntilReached() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            condition.lock()
+            let now = reached
+            if !now { waiters.append(continuation) }
+            condition.unlock()
+            if now { continuation.resume() }
+        }
+    }
+}
+
+/// No microphone: start records the handler and returns the tap format; feed synchronously feeds a 440 Hz sine (amplitude 0 is all zeros).
 nonisolated final class FakeAudioCapture: AudioCapture {
     let inputFormat: AVAudioFormat
     /// When non-nil, simulates the input format changing after the session activates: start returns it, and buffers are then fed in that format.
@@ -1845,6 +2460,8 @@ nonisolated final class FakeAudioCapture: AudioCapture {
     private var handlers: [AudioBufferHandler] = []
     private(set) var startCount = 0
     private(set) var stopCount = 0
+    /// Whether each start is called on the main thread.
+    private(set) var startOnMain: [Bool] = []
 
     init(sampleRate: Double) {
         inputFormat = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate,
@@ -1854,10 +2471,14 @@ nonisolated final class FakeAudioCapture: AudioCapture {
 
     /// Called the moment capture is running (before the slot opens): tests use it to stage a stall in file operations before the slot opens.
     var onStart: (() -> Void)?
+    /// When non-nil, start throws it after onStart (simulates session activation failure).
+    var startError: Error?
 
     func start(handlers: [AudioBufferHandler]) throws -> AVAudioFormat {
         startCount += 1
+        startOnMain.append(Thread.isMainThread)
         onStart?()
+        if let startError { throw startError }
         self.handlers = handlers
         tapFormat = formatAfterStart ?? inputFormat
         return tapFormat
@@ -1913,7 +2534,7 @@ final class SilentSpeechEngine: SpeechEngine {
 
 final class SilentReadAloudPlatform: ReadAloudPlatform {
     var uiLanguage = "en"
-    func activateAudioSession() throws {}
+    func activateAudioSession() async throws {}
     func deactivateAudioSession() {}
     func localizedVoiceString(_ key: String, locale: String) -> String { key }
     func showToast(_ toast: ReadAloudToast) {}
@@ -1955,11 +2576,12 @@ private nonisolated final class DictationSpeechAuthorizerFake: SpeechAuthorizing
     }
 }
 
-/// Installing first reports 0.5 progress, then stalls until finishInstall.
-private nonisolated final class DictationAssetInventoryFake: SpeechAssetInventory, @unchecked Sendable {
+/// On install, first reports 0.5 progress, then waits until finishInstall.
+nonisolated final class DictationAssetInventoryFake: SpeechAssetInventory, @unchecked Sendable {
     private let lock = NSLock()
     private var _installed = false
     private var _installCount = 0
+    private var _failInstall = false
     private let gate: AsyncStream<Void>
     private let release: AsyncStream<Void>.Continuation
 
@@ -1973,6 +2595,12 @@ private nonisolated final class DictationAssetInventoryFake: SpeechAssetInventor
     }
 
     var installCount: Int { lock.withLock { _installCount } }
+
+    /// true = after proceeding, the install throws an error.
+    var failInstall: Bool {
+        get { lock.withLock { _failInstall } }
+        set { lock.withLock { _failInstall = newValue } }
+    }
 
     func finishInstall() { release.yield() }
 
@@ -1990,6 +2618,14 @@ private nonisolated final class DictationAssetInventoryFake: SpeechAssetInventor
         lock.withLock { _installCount += 1 }
         await progress(0.5)
         for await _ in gate { break }
+        if failInstall { throw URLError(.networkConnectionLost) }
         installed = true
     }
+}
+
+/// Interface language that can be changed in tests.
+@MainActor
+private final class UILocaleBox {
+    var locale: Locale
+    init(_ locale: Locale) { self.locale = locale }
 }

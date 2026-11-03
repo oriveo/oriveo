@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/data.svg (glyphs.v1.json glyph:data, hue #0891B2); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M4.2 12.5h2.4a1.2 1.2 0 0 1 1.2 1.2v6.1a1.2 1.2 0 0 1-1.2 1.2H4.2A1.2 1.2 0 0 1 3 19.8v-6.1a1.2 1.2 0 0 1 1.2-1.2ZM10.8 8h2.4a1.2 1.2 0 0 1 1.2 1.2v10.6a1.2 1.2 0 0 1-1.2 1.2h-2.4a1.2 1.2 0 0 1-1.2-1.2V9.2A1.2 1.2 0 0 1 10.8 8ZM17.4 3.5h2.4A1.2 1.2 0 0 1 21 4.7v15.1a1.2 1.2 0 0 1-1.2 1.2h-2.4a1.2 1.2 0 0 1-1.2-1.2V4.7a1.2 1.2 0 0 1 1.2-1.2Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="3"
+                android:startY="3.5"
+                android:endX="21"
+                android:endY="21">
+                <item android:offset="0" android:color="#A5F3FC" />
+                <item android:offset="1" android:color="#0891B2" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M4.6 15.4h1.6M11.2 11h1.6M17.8 6.5h1.6"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.92"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

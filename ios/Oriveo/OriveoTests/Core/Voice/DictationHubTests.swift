@@ -70,6 +70,18 @@ struct DictationHubTests {
     }
 
     @Test("controller is nil when the factory throws")
+    func productionPassesRecognitionLanguage() throws {
+        let settings = VoiceEngineSettings()
+        let saved = settings.recognitionLanguage
+        defer { settings.recognitionLanguage = saved }
+        let controller = try DictationHub.makeProduction(providers: { [] }, capture: FakeAudioCapture(sampleRate: 48_000))
+        settings.recognitionLanguage = "ja-JP"
+        #expect(controller.language() == "ja-JP")
+        settings.recognitionLanguage = nil
+        #expect(controller.language() == nil)
+    }
+
+    @Test("controller is nil when the factory throws")
     func controllerNilWhenFactoryThrows() {
         let counter = FactoryCounter()
         let hub = DictationHub(factory: { _ in

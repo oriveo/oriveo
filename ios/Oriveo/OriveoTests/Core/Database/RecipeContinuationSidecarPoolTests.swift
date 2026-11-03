@@ -60,8 +60,37 @@ struct RecipeContinuationSidecarPoolTests {
         }
     }
 
+    @Test("Reopening the sidecar with the same uid after the partition is deleted does not reuse a connection to the deleted file, and purgeOrphans reports no disk I/O")
+    @MainActor
+    func partitionCleanupDropsCachedSidecarPool() async throws {
+        let uid = "sidecar-wipe-\(UUID().uuidString)"
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("oriveo-sidecar-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        RecipeContinuationStore.resetLocalOnlyPoolForTesting()
+        defer {
+            RecipeContinuationStore.resetLocalOnlyPoolForTesting()
+            try? FileManager.default.removeItem(at: directory)
+        }
+        let parentPool = try makeParentPool(in: directory)
+        defer { try? parentPool.close() }
+
+        try RecipeContinuationStore.purgeOrphans(for: uid, parentPool: parentPool)
+        #expect(RecipeContinuationStore.localOnlyPoolOpenCountForTesting == 1)
+
+        // Same uid runs one pipeline, the partition is deleted, then the next pipeline starts.
+        await TestPartitionCleanup.remove(uid)
+        try RecipeContinuationStore.purgeOrphans(for: uid, parentPool: parentPool)
+
+        #expect(
+            RecipeContinuationStore.localOnlyPoolOpenCountForTesting == 2,
+            "Deleting the partition must drop the cached sidecar connection; reusing it would write to the deleted file (6922 vnode unlinked)"
+        )
+        await TestPartitionCleanup.remove(uid)
+    }
+
     @Test("Opening the sidecar and an empty purge do not write: the first write creates the table (opens often run on the main-thread send path)")
-    func sidecarOpenAndEmptyPurgeDoNotWrite() throws {
+    func sidecarOpenAndEmptyPurgeDoNotWrite() async throws {
         let uid = "sidecar-lazy-\(UUID().uuidString)"
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("oriveo-sidecar-\(UUID().uuidString)", isDirectory: true)
@@ -70,38 +99,63 @@ struct RecipeContinuationSidecarPoolTests {
         defer {
             RecipeContinuationStore.resetLocalOnlyPoolForTesting()
             try? FileManager.default.removeItem(at: directory)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
         let parentPool = try makeParentPool(in: directory)
         defer { try? parentPool.close() }
         let pool = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
-        #expect(try pool.read { try $0.tableExists("message_recipe_continuation") } == false, "Opening must not create the table")
+        #expect(try await pool.read { try $0.tableExists("message_recipe_continuation") } == false, "Opening must not create the table")
 
         try RecipeContinuationStore.purgeOrphans(for: uid, parentPool: parentPool)
-        #expect(try pool.read { try $0.tableExists("message_recipe_continuation") } == false, "Nothing to delete means no write")
+        #expect(try await pool.read { try $0.tableExists("message_recipe_continuation") } == false, "Nothing to delete means no write")
     }
 
-    @Test("The pool reopens after close and rebinds on a uid switch")
-    func sidecarPoolRebindsOnCloseAndUIDSwitch() throws {
-        try withTemporaryUID { uid, _ in
-            // Assert on pool identity rather than the open count: without caching the count also
-            // happens to increment once per call, so a count-based check would pass either way.
-            let first = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
-            let sameSession = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
-            #expect(first === sameSession, "The same uid must reuse one sidecar connection")
+    @Test("closeLocalOnlyPool: a departing uid reuses the retiring sidecar, an active partition and a finished close reopen")
+    func sidecarPoolRebindsOnCloseAndUIDSwitch() async throws {
+        let previousUID = AppSessionStore.activeUID
+        let uid = "sidecar-pool-\(UUID().uuidString)"
+        let otherUID = "\(uid)-other"
+        RecipeContinuationStore.resetLocalOnlyPoolForTesting()
+        AppSessionStore.activeUID = uid
+        let gate = DispatchSemaphore(value: 0)
+        let closeQueue = DispatchQueue(label: "sidecar-pool-test.close")
+        closeQueue.async { gate.wait() }
+        var gateOpen = false
+        defer { if !gateOpen { gate.signal() } }
 
-            // Logout / partition switch: the cache must drop, or the previous partition's
-            // connection stays open.
-            RecipeContinuationStore.closeLocalOnlyPool()
-            let afterClose = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
-            #expect(first !== afterClose, "closeLocalOnlyPool must force a reopen")
+        // Identity, not the open count: without a cache the count would also grow by one per call.
+        let first = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
+        let sameSession = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
+        #expect(first === sameSession, "the same uid must reuse one sidecar connection")
 
-            let otherPool = try RecipeContinuationStore.localOnlyPoolForTesting(for: "\(uid)-other")
-            #expect(afterClose !== otherPool, "A different uid must get its own sidecar")
+        // Close held behind a blocked serial queue: the retiring sidecar has not closed yet.
+        RecipeContinuationStore.closeLocalOnlyPool(after: closeQueue)
+        let departing = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
+        #expect(departing === first, "a departing uid reuses its retiring sidecar instead of opening another connection")
 
-            let backToOriginal = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
-            #expect(backToOriginal !== otherPool, "Switching back must not hand out the other partition's connection")
-        }
+        // The uid becomes the manager's active partition again: no reuse of the retiring sidecar.
+        _ = try DatabaseManager.shared.openIfNeeded(for: uid)
+        let active = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
+        #expect(active !== first, "an active partition never reuses a retiring sidecar")
+
+        gate.signal()
+        gateOpen = true
+        RecipeContinuationStore.closeLocalOnlyPool()
+        DatabaseManager.shared.close()
+        await DatabaseManager.shared.waitForRetiredPools(uid: uid)
+        let afterClose = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
+        #expect(afterClose !== first && afterClose !== active, "once the retired close finished, reopening opens a fresh pool")
+
+        let otherPool = try RecipeContinuationStore.localOnlyPoolForTesting(for: otherUID)
+        #expect(afterClose !== otherPool, "different uids must not share a sidecar connection")
+        let backToOriginal = try RecipeContinuationStore.localOnlyPoolForTesting(for: uid)
+        #expect(backToOriginal !== otherPool, "switching back must not get the other partition's connection")
+
+        RecipeContinuationStore.closeLocalOnlyPool()
+        await DatabaseManager.shared.waitForRetiredPools(uid: otherUID)
+        RecipeContinuationStore.resetLocalOnlyPoolForTesting()
+        AppSessionStore.activeUID = previousUID
+        await TestPartitionCleanup.remove(uid, otherUID)
     }
 
     @Test("The sidecar pool carries the shared busy timeout")

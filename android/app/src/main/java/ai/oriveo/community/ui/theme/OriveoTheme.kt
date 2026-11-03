@@ -61,8 +61,8 @@ internal fun lightColorSchemeOf(c: OriveoColors): ColorScheme = lightColorScheme
     errorContainer = Color(0xFFFEF2F2),
     background = Color(0xFFF8FAFC),
     onBackground = Color(0xFF111827),
-    surface = Color(0xFFFFFFFF),
-    onSurface = Color(0xFF111827),
+    surface = c.surface,
+    onSurface = c.textPrimary,
     surfaceVariant = Color(0xFFF8FAFC),
     onSurfaceVariant = Color(0xFF6B7280),
     outline = Color(0xFFE5E7EB),
@@ -354,6 +354,14 @@ object OriveoGradients {
 
 enum class OriveoSurfaceStyle { None, Soft, Lifted }
 
+/** Cards whose fill is surfaceElevated get no cardSheen overlay, matching iOS. */
+internal fun cardSheenApplies(fill: Color, colors: OriveoColors): Boolean = fill != colors.surfaceElevated
+
+/**
+ * Aligns with iOS `.oriveoRoundedSurface(fill:border:radius:shadow:)`.
+ *
+ * Composite modifier providing background fill, border, shadow and a dark-mode highlight.
+ */
 fun Modifier.oriveoSurface(
     colors: OriveoColors,
     isDark: Boolean,
@@ -403,14 +411,20 @@ fun Modifier.oriveoSurface(
         )
 
         .background(fill, shape)
-
-        .background(
-            brush = Brush.linearGradient(
-                colors = listOf(colors.cardHighlight, Color.Transparent),
-                start = Offset.Zero,
-                end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
-            ),
-            shape = shape,
+        // cardSheen gradient overlay, matching iOS; elevated fills skip it like iOS does
+        .then(
+            if (cardSheenApplies(fill, colors)) {
+                Modifier.background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(colors.cardSheen, Color.Transparent),
+                        start = Offset.Zero,
+                        end = Offset(Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY),
+                    ),
+                    shape = shape,
+                )
+            } else {
+                Modifier
+            },
         )
 
         .border(OriveoBorderWidth.standard, borderColor, shape)

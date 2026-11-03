@@ -101,8 +101,13 @@ class ChatViewModel(
     private val memoryAccountId: () -> String = { "" },
     private val readAloudController: ai.oriveo.community.core.voice.ReadAloudController? = null,
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
+    /** Rejection and rollback event source (a voice turn uses it to tell whether its turn was rolled back by the confirmation dialog); unit tests inject an independent flow, since the process-wide singleton would accumulate subscribers from earlier cases. */
+    private val contextRejections: kotlinx.coroutines.flow.Flow<ai.oriveo.community.core.data.repository.ChatContextRejection> =
+        ai.oriveo.community.core.data.repository.ChatContextRejections.shared.events,
     /** Local search facts behind the web search card; null (tests etc.) = external search not wired, requests go out unchanged. */
     private val modelControlsWebSearch: ai.oriveo.community.feature.chat.modelcontrols.ModelControlsWebSearch? = null,
+    /** Voice catalog cache snapshot (synchronous read; production takes VoiceCatalogClient.state); null = no realtime models recognized. */
+    internal val voiceCatalog: () -> ai.oriveo.community.core.voice.VoiceCatalog? = { null },
 ) : ViewModel() {
     val generationParameterDraftSessionId: String = generateUuidString()
     private val generationParameterSettingsStore = GenerationParameterSettingsStore.from(context)
@@ -129,12 +134,11 @@ class ChatViewModel(
     fun ignoreDirectiveSuggestion() = conversationSettings.ignoreSuggestion()
     val memorySuggestions: MemorySuggestionController get() = conversationSettings.memorySuggestions
 
-    private val capabilityResolver = ChatModelCapabilityResolver()
+    internal val capabilityResolver = ChatModelCapabilityResolver()
     private val providerResolutionErrorReporter = ChatProviderResolutionErrorReporter(context, globalSnackbarManager)
     internal val sendCoordinator = ChatSendCoordinator(
         chatStreamingManager = chatStreamingManager,
         applicationScope = applicationScope,
-        skillProvider = skillRepository::getById,
         providersProvider = { providers.value },
         untitledNoteFallback = context.getString(R.string.notes_untitled),
         pinnedNotesResolver = { ids -> noteRepository.getActiveNotesByIds(ids) },
@@ -145,6 +149,8 @@ class ChatViewModel(
         capabilityEvidencePartition = providerRepository::currentCapabilityPartitionId,
         capabilityEvidenceIdentity = { p, modelId, partitionId -> providerRepository.capabilityEvidenceIdentity(p, modelId, partitionId) },
         toolCallMemoryVerdict = providerRepository::toolCallMemoryVerdict,
+        mcpToolsPossible = { mcpCoordinator.panelState.enabledServerCount > 0 },
+        memoryRecallIndexCache = ai.oriveo.community.core.memory.MemoryRecallIndexCache(ioDispatcher),
         webSearchSnapshot = modelControlsWebSearch?.let { webSearch ->
             { provider, model, conversationId ->
                 // Before the conversation exists the preview uses the draft id: its source lives in memory
@@ -165,6 +171,7 @@ class ChatViewModel(
         activeModel = { conversationState.model },
         toolCallMemoryVerdict = providerRepository::toolCallMemoryVerdict,
         capabilityEvidenceIdentity = { provider, modelId -> providerRepository.capabilityEvidenceIdentity(provider, modelId) },
+        isRealtimeModel = { isRealtimeModelSelected() },
     )
     private val attachmentCoordinator = ChatAttachmentCoordinator(
         attachmentProcessor = attachmentProcessor,
@@ -202,6 +209,8 @@ class ChatViewModel(
         stopReadAloudIfSpeaking = { id ->
             readAloudController?.stopIfSpeaking(id, ai.oriveo.community.core.voice.ReadAloudEndReason.NAVIGATED)
         },
+        // Lambda: voice is declared after this coordinator.
+        sendVoiceTurn = { text, attachments, quoteContext, onBlocked -> voice.send(text, attachments, quoteContext, onBlocked) },
     )
     private val exportCoordinator = ChatExportCoordinator(
         viewModelScope = viewModelScope,
@@ -209,7 +218,7 @@ class ChatViewModel(
         globalSnackbarManager = globalSnackbarManager,
         currentConversation = { currentConversation },
     )
-    private val modelSelectionCoordinator = ChatModelSelectionCoordinator(
+    internal val modelSelectionCoordinator = ChatModelSelectionCoordinator(
         viewModelScope = viewModelScope,
         appPreferencesRepository = appPreferencesRepository,
         providerRepository = providerRepository,
@@ -220,6 +229,7 @@ class ChatViewModel(
         activeModelId = { activeModelId },
         activeConversationId = { activeConversationId.value },
         onProviderResolutionError = ::showProviderResolutionError,
+        voiceCatalog = voiceCatalog,
     )
     private val draftCoordinator = ChatDraftCoordinator(
         viewModelScope = viewModelScope,
@@ -239,7 +249,7 @@ class ChatViewModel(
     private val quoteCoordinator = ChatQuoteCoordinator()
     private var newChatSelectionOnce: ActiveModelSelection? = null
     private var composerAttemptKind: ContextConfirmAttempt = ContextConfirmAttempt.SEND
-    private val sendCommandCoordinator = ChatSendCommandCoordinator(
+    internal val sendCommandCoordinator = ChatSendCommandCoordinator(
         adoptSearchSourceDraft = modelControlsWebSearch?.let { webSearch -> webSearch::adoptDraft },
         viewModelScope = viewModelScope,
         appPreferencesRepository = appPreferencesRepository,
@@ -316,7 +326,7 @@ class ChatViewModel(
     fun loadMoreAbove() = window.loadMoreAbove()
     fun loadMoreBelow() = window.loadMoreBelow()
     fun loadFocusMessageWindow(messageId: String) = window.loadFocusMessageWindow(messageId)
-    private val loadedProviders: StateFlow<List<Provider>?> =
+    internal val loadedProviders: StateFlow<List<Provider>?> =
         providerRepository.observeAll().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
     val providers: StateFlow<List<Provider>> =
         loadedProviders.map { it.orEmpty() }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
@@ -326,7 +336,7 @@ class ChatViewModel(
         .modelDisplayLookups()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ModelDisplayLookup.Pending)
 
-    private val lastUsedModelRef = appPreferencesRepository.lastUsedModelRef
+    internal val lastUsedModelRef = appPreferencesRepository.lastUsedModelRef
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val currentSkill: StateFlow<Skill?> = conversation
@@ -442,7 +452,7 @@ class ChatViewModel(
     var conversationState: ChatConversationState by mutableStateOf(
         ChatConversationState(provider = null, model = null),
     )
-        private set
+        internal set
 
     var pendingPinUserMessageId: String? by mutableStateOf(null)
         private set
@@ -485,6 +495,7 @@ class ChatViewModel(
     private val currentConversation: Conversation?
         get() = conversation.value.conversation ?: bootstrapConversation
 
+    /** Full orchestration of the note-differentiation engine on the chat side (save, related recall, continue, append, model-switch check), extracted from the VM to reduce complexity. */
     val noteCoordinator = ChatNoteCoordinator(
         scope = viewModelScope,
         noteRepository = noteRepository,
@@ -500,14 +511,11 @@ class ChatViewModel(
         savedStateHandle = savedStateHandle,
     )
     /** Voice conversation entry and turns: the gates of [sendMessage], `delivery = VOICE`. */
-    internal val voice: ChatVoiceCoordinator = ChatVoiceCoordinator(
-        sendCommands = sendCommandCoordinator,
-        conversationReady = { canSendMessages },
-        claimSendSetup = { !isSendSetupInFlight && activeConversationId.value?.let(chatStreamingManager::isBusyStreaming) != true && run { isSendSetupInFlight = true; true } },
-        selection = { activeProviderId to activeModelId },
-        approvalPending = (mcpConfirmationCoordinator?.pending ?: flowOf(emptyList())).map { it.isNotEmpty() },
-        messages = conversation.map { it.conversation?.messages.orEmpty() },
-    )
+    internal val voice: ChatVoiceCoordinator = chatVoiceCoordinator(
+        { canSendMessages },
+        { !isSendSetupInFlight && activeConversationId.value?.let(chatStreamingManager::isBusyStreaming) != true && run { isSendSetupInFlight = true; true } },
+        sendCommandCoordinator, { activeProviderId to activeModelId }, mcpConfirmationCoordinator?.pending, flowOf(emptyList<Any>()), { compaction?.pendingConfirm },
+        conversation, { currentConversation }, ::amendLastUserMessage, contextRejections, { activeConversationId.value })
 
     init {
         // A refused send: show the toast and put the original text and attachments back into the composer; the wiring lives in ChatContextRejectionObserver.
@@ -631,12 +639,26 @@ class ChatViewModel(
     }
 
     internal fun attachmentEntryModel(localIdentity: ai.oriveo.community.core.model.CapabilityEvidenceIdentity? = null) =
-        capabilityResolver.attachmentEntryModel(activeProvider(), conversationState.model, localIdentity)
+        capabilityResolver.attachmentEntryModel(
+            activeProvider(),
+            conversationState.model,
+            localIdentity,
+            realtime = isRealtimeModelSelected(),
+        )
+
+    /** Whether the selected model is a realtime voice model (the single source of truth): the typed-input state projects attachments, tools and the primary key from RealtimeModel.capability. */
+    fun isRealtimeModelSelected(): Boolean =
+        ai.oriveo.community.core.voice.realtime.RealtimeSelection.isRealtime(
+            activeProvider(),
+            conversationState.model?.id,
+            voiceCatalog(),
+        )
 
     fun modelControlsFinalTransport(): String? =
         capabilityResolver.finalTransport(activeProvider(), conversationState.model)
 
-    private fun activeProvider(): Provider? =
+    /** The current active provider (prefers conversationState, falls back to providers.value). */
+    internal fun activeProvider(): Provider? =
         capabilityResolver.activeProvider(conversationState.provider, providers.value, activeProviderId)
 
     /** Realtime voice on a draft: creates the conversation through the first-send path, without sending. */
@@ -646,6 +668,8 @@ class ChatViewModel(
     /** The conversation a first send would create (not stored), for a realtime plan on a draft. */
     suspend fun plannedFirstConversation(): Conversation? =
         sendCommandCoordinator.plannedFirstConversation(activeProviderId, activeModelId)
+
+    // ── Send message ──
 
     fun sendMessage() {
         val text = inputText.trim()
@@ -694,6 +718,10 @@ class ChatViewModel(
     fun regenerateMessage(messageId: String) {
         retryCoordinator.regenerateMessage(messageId)
     }
+
+    /** Voice-conversation barge-in while thinking: attaches to the end of the last user message and regenerates in the same bubble; false = no user message to attach to. */
+    fun amendLastUserMessage(text: String, target: VoiceAmendTarget? = null, onFailed: () -> Unit = {}): Boolean =
+        retryCoordinator.amendLastUserMessage(text, target, onFailed)
 
     /** "Regenerate and search again" (menu item / retry-style buttons on the error card): regenerate.action = re_search. */
     fun regenerateWithSearch(messageId: String) {
@@ -972,14 +1000,16 @@ fun saveConversationInstructions(opened: String, edited: String) = conversationS
     private fun activeProviderKind() = conversationState.provider?.kind
         ?: providers.value.find { it.id == activeProviderId }?.kind
 
-    private fun syncResolvedConversationSelectionIfNeeded(providerList: List<Provider>, resolvedState: ChatConversationState) {
-        val (providerId, modelId) = conversationSelectionToSync(providerList, activeProviderId, activeModelId, resolvedState) ?: return
+    /** Converges the selection to the resolved conversation state after it is resolved; see [conversationSelectionToSync] for when the stored session value is kept. */
+    internal fun syncResolvedConversationSelectionIfNeeded(providerList: List<Provider>, resolvedState: ChatConversationState) {
+        val (providerId, modelId) = conversationSelectionToSync(providerList, activeProviderId, activeModelId, resolvedState, voiceCatalog()) ?: return
         activeProviderId = providerId
         activeModelId = modelId
     }
 
-    private fun resolveConversationState(conversation: Conversation?, snapshot: List<Provider>?, lastUsed: LastUsedModelRef? = null) =
-        resolveChatConversationState(conversation, snapshot, activeProviderId, activeModelId, lastUsed)
+    /** Resolves the conversation state from the current selection. */
+    internal fun resolveConversationState(conversation: Conversation?, snapshot: List<Provider>?, lastUsed: LastUsedModelRef? = null) =
+        resolveChatConversationState(conversation, snapshot, activeProviderId, activeModelId, lastUsed, voiceCatalog = voiceCatalog())
 
     private fun showProviderSelectionError() {
         globalSnackbarManager.show(

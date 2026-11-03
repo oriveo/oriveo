@@ -52,10 +52,10 @@ class ModelControlModalContrastTest {
             "the raw warning value passes against its own capsule fill (${fmt(contrast(LightOriveoColors.warning, capsule))})",
             contrast(LightOriveoColors.warning, capsule) < 4.5,
         )
-        // Light theme textTertiary doesn't even clear the non-text 3:1 floor -- which is why every caption in the panel uses textSecondary instead.
+        // Light textTertiary is no longer a failing raw value: since #71717A it reads as text on the light card.
         assertTrue(
-            "textTertiary passes on the light card, meaning the palette changed and the caption token choice needs to be reconsidered",
-            contrast(LightOriveoColors.textTertiary, lightCard) < 3.0,
+            "light textTertiary on the light card is ${fmt(contrast(LightOriveoColors.textTertiary, lightCard))}, expected >= 4.5",
+            contrast(LightOriveoColors.textTertiary, lightCard) >= 4.5,
         )
     }
 
@@ -179,27 +179,18 @@ class ModelControlModalContrastTest {
     }
 
     /**
-     * The component-local light theme value must actually be darker than the global
-     * `textSecondary` -- otherwise "changing the color" is just a different way of writing the
-     * same thing. This also pins it to the same value as iOS's `Palette.textSecondary` in light
-     * theme so the two platforms don't drift apart.
+     * The light override stays pinned to iOS `Palette.textSecondary` light (the contract textSecondary role),
+     * so the three ends cannot drift; since the global light textSecondary adopted the same value, they must agree.
      */
     @Test
-    fun `the pill label color is a component local override that beats the global neutral`() {
+    fun `the pill label color is a component local override pinned to the contract secondary text`() {
         assertEquals(Color(0xFF52525B), modelControlUnselectedPillLabel(LightOriveoColors, isDark = false))
         // Dark theme already matches on both platforms, so no separate constant is needed.
         assertEquals(DarkOriveoColors.textSecondary, modelControlUnselectedPillLabel(DarkOriveoColors, isDark = true))
         assertEquals(Color(0xFFB3B3BA), DarkOriveoColors.textSecondary)
-        val lightFill = composite(
-            LightOriveoColors.textPrimary.copy(alpha = modelControlUnselectedPillAlpha(false)),
-            lightCard,
-        )
-        assertTrue(
-            "the global textSecondary now passes against this fill, meaning this component-local override is no longer needed",
-            contrast(LightOriveoColors.textSecondary, lightFill) < 4.5,
-        )
-        // The global neutral color is untouched.
-        assertEquals(Color(0xFF6B7280), LightOriveoColors.textSecondary)
+        // The global light textSecondary now carries the contract value, so the override must never be lighter than it.
+        assertEquals(Color(0xFF52525B), LightOriveoColors.textSecondary)
+        assertEquals(LightOriveoColors.textSecondary, modelControlUnselectedPillLabel(LightOriveoColors, isDark = false))
     }
 
     // -- Do the components actually use these tokens? --

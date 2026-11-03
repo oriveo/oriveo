@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "Löschen",
     "generationParameterDormantRestored": "{count} Parameter wiederhergestellt",
     "generationPresetName": "Preset-Name",
-    "capabilityControlFixedByConnection": "Von dieser Verbindung festgelegt",
     "capabilityControlReasonPending": "Die automatische Konfiguration ist noch nicht bereit",
     "capabilityControlReasonUnsupported": "Diese Anfrage wird von diesem Modell nicht unterstützt",
     "capabilityControlReasonExternalConnector": "Wird von einem separaten externen Dienst bereitgestellt, außerhalb dieser Chat-Anfrage",
@@ -166,12 +165,12 @@
     "currentConversation": "Aktuelle Unterhaltung",
     "restoreModelBehavior": "Standard wiederherstellen",
     "restoreModelBehaviorConfirm": "Damit werden alle für dieses Modell gesetzten Werte gelöscht. Das lässt sich nicht rückgängig machen.",
-    "modelBehaviorScopeHint": "Gilt nur für dieses Modell in dieser Unterhaltung. Beim Modellwechsel werden Werte nicht kopiert; beim Zurückwechsel werden sie wiederhergestellt.",
+    "modelBehaviorScopeHint": "Gilt nur, solange dieses Modell in dieser Unterhaltung verwendet wird. Beim Modellwechsel werden die Werte nicht kopiert; beim Zurückwechseln werden sie wiederhergestellt.",
     "controlledByReasoningShortcut": "Wird über die Schaltfläche „Nachdenken“ gesteuert",
     "customRequestFieldsCustom": "Benutzerdefinierte Anfragefelder",
-    "customRequestFieldsReasonSyntax": "Prüfen Sie, ob das Fragment ein gültiges JSON-Objekt ohne doppelte Schlüssel ist.",
+    "customRequestFieldsReasonSyntax": "Prüfe, ob das Fragment ein gültiges JSON-Objekt ohne doppelte Schlüssel ist.",
     "customRequestFieldsReasonLimit": "Dieses Fragment überschreitet die sichere Größen- oder Verschachtelungsgrenze.",
-    "capabilityRiskPrivacy": "Dieses Feld kann Ihre Daten an einen Drittanbieterdienst senden.",
+    "capabilityRiskPrivacy": "Dieses Feld kann deine Daten an einen Drittanbieterdienst senden.",
     "capabilityRiskCost": "Dieses Feld kann die Kosten des Anbieters erhöhen.",
     "customRequestFieldsDocs": "Offizielle Dokumentation öffnen",
     "customRequestFieldsPreview": "Redigierte Anfrage-Deltavorschau",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "Die schwersten Probleme, egal wie lange es dauert.",
     "capabilityControlReasoningFixedLevel": "Dieses Modell nutzt eine feste Denkstufe, die sich nicht anpassen lässt.",
     "capabilityControlCannotAdjustYet": "Noch nicht einstellbar",
+    "capabilityControlGoToParameters": "Zu den Parametern",
     "customRequestFieldsNotAllowed": "Dieses Feld ist nicht erlaubt. Zulässige Felder für dieses Modell: {fields}",
     "customRequestFieldsFooter": "Felder werden unverändert in die Anfrage übernommen. Nur offiziell vom Anbieter deklarierte Felder werden unterstützt; Fehler können Anfragen scheitern lassen. Entwürfe bleiben auf diesem Gerät.",
     "customRequestFieldsScopeConnectionModel": "Geltungsbereich: dieses Modell auf dieser Verbindung, als Standard für seine Unterhaltungen.",
@@ -266,7 +266,7 @@
     "capabilityControlScopeSetAsModelDefault": "Als Standard für dieses Modell festlegen",
     "capabilityControlScopeDefaultConfirmed": "Neue Unterhaltungen mit diesem Modell verwenden diese Einstellungen.",
     "customRequestFieldsNoSchemaForControl": "Diese Verbindung deklariert für dieses Steuerelement keine eigenen Felder.",
-    "customRequestFieldsPreviewHint": "Geben Sie ein JSON-Objekt ein, um die zulässigen Feldpfade in der Vorschau zu sehen.",
+    "customRequestFieldsPreviewHint": "Gib ein JSON-Objekt ein, um die zulässigen Feldpfade in der Vorschau zu sehen.",
     "customRequestFieldsNotAllowedConflict": "Dieses Feld steht im Konflikt mit dem verwalteten Anfrageschema oder ist für diese Verbindung nicht zulässig.",
     "customRequestFieldsRelayDocs": "Verwende für diese Verbindung die Dokumentation ihres Administrators.",
     "customRequestFieldsRemoveTitle": "Benutzerdefinierte Anforderungsfelder entfernen?",
@@ -287,7 +287,7 @@
     "modelOptionsAlwaysThinks": "Denkt immer nach, bevor es antwortet",
     "modelOptionsThinksFirstNote": "Denkt erst gründlich nach, daher dauern Antworten etwas länger",
     "modelOptionsHigherLevelsNote": "Höhere Stufen dauern länger und können mehr kosten.",
-    "modelOptionsTemplateThinkingNote": "Schaltet Nachdenken über das Chat-Template ein oder aus. Ob das funktioniert, hängt von Ihrem Server ab.",
+    "modelOptionsTemplateThinkingNote": "Schaltet Nachdenken über das Chat-Template ein oder aus. Ob das funktioniert, hängt von deinem Server ab.",
     "modelOptionsConnectionCannot": "Mit dieser Verbindung nicht möglich",
     "modelOptionsUsesModelDefault": "Nutzt den Standard des Modells",
     "modelOptionsReasoningNotCatalogued": "Für dieses Modell hat Oriveo noch keine Einstellungen zum Nachdenken, daher läuft es mit seinem eigenen Standard.",
@@ -309,8 +309,8 @@
     "modelOptionsRelayWebUntested": "Noch nicht getestet",
     "modelOptionsRelayWebUserOff": "Für dieses Modell unter „Erweitert“ ausgeschaltet",
     "modelOptionsRelayWebRetest": "In „Websuche“ erneut testen",
-    "modelOptionsReasoningNoGenericSwitch": "Dieser Anbieter hat keinen einheitlichen Schalter für Nachdenken. Tragen Sie seine Felder in den zusätzlichen Anfragedaten ein.",
-    "modelOptionsWebNoGenericSwitch": "Dieser Anbieter hat keinen einheitlichen Schalter für die Websuche. Tragen Sie seine Felder in den zusätzlichen Anfragedaten ein.",
+    "modelOptionsReasoningNoGenericSwitch": "Dieser Anbieter hat keinen einheitlichen Schalter für Nachdenken. Trag seine Felder in den zusätzlichen Anfragedaten ein.",
+    "modelOptionsWebNoGenericSwitch": "Dieser Anbieter hat keinen einheitlichen Schalter für die Websuche. Trag seine Felder in den zusätzlichen Anfragedaten ein.",
     "modelOptionsSwitchConnection": "Verbindung wechseln",
     "modelOptionsChooseProtocolFirst": "Zuerst das Protokoll dieser Verbindung wählen",
     "modelOptionsProtocolAutoNote": "Das Protokoll steht noch auf „Automatisch“, daher weiß Oriveo nicht, wie Einstellungen für Websuche und Nachdenken gesendet werden sollen.",
@@ -339,10 +339,10 @@
     "advancedThisConversationOnly": "Nur diese Unterhaltung",
     "advancedReset": "Zurücksetzen",
     "advancedResetConversationTitle": "Einstellungen dieser Unterhaltung zurücksetzen?",
-    "advancedResetConversationBody": "Setzt nur die Parameter zurück, die Sie in dieser Unterhaltung geändert haben. Ihr Modellstandard und die zusätzlichen Anfragedaten bleiben unverändert.",
+    "advancedResetConversationBody": "Setzt nur die Parameter zurück, die du in dieser Unterhaltung geändert hast. Dein Modellstandard und die zusätzlichen Anfragedaten bleiben unverändert.",
     "advancedResetConversationAction": "Änderungen in dieser Unterhaltung zurücksetzen",
-    "advancedResetModelTitle": "Ihre Standardwerte für dieses Modell zurücksetzen?",
-    "advancedResetModelBody": "Setzt die Standardparameter zurück, die Sie für dieses Modell bei dieser Verbindung festgelegt haben. Änderungen in einzelnen Unterhaltungen bleiben unverändert.",
+    "advancedResetModelTitle": "Deine Standardwerte für dieses Modell zurücksetzen?",
+    "advancedResetModelBody": "Setzt die Standardparameter zurück, die du für dieses Modell bei dieser Verbindung festgelegt hast. Änderungen in einzelnen Unterhaltungen bleiben unverändert.",
     "advancedResetModelAction": "Modellstandard zurücksetzen",
     "advancedNotAdjusted": "Nicht angepasst",
     "advancedFieldsCount": "Felder: {count}",
@@ -351,7 +351,7 @@
     "advancedWriteYourOwn": "Eigene Ergänzungen",
     "advancedAdditionalBodySubtitle": "Felder, die oben fehlen, als JSON hinzufügen",
     "advancedChangedInConversation": "In dieser Unterhaltung geändert",
-    "advancedUsingYourDefault": "Ihr Modellstandard wird verwendet",
+    "advancedUsingYourDefault": "Dein Modellstandard wird verwendet",
     "advancedYourDefault": "Modellstandard",
     "advancedStateSet": "Festgelegt",
     "advancedStateOn": "Ein",
@@ -362,15 +362,15 @@
     "advancedNoLimit": "Unbegrenzt",
     "advancedNewStopSequence": "Neue Stoppsequenz",
     "advancedStopSequencesNote": "Das Modell stoppt, sobald es eine dieser Sequenzen schreibt. Eine Sequenz darf Kommas, Leerzeichen und Zeilenumbrüche enthalten.",
-    "advancedErrorMaxTokens": "Dieses Modell kann höchstens {limit} schreiben. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
-    "advancedErrorNumber": "Geben Sie eine Zahl ein. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
-    "advancedErrorInteger": "Geben Sie eine ganze Zahl ein. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
-    "advancedErrorHighest": "Dieses Modell akzeptiert höchstens {value}. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
-    "advancedErrorLowest": "Dieses Modell akzeptiert mindestens {value}. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
-    "advancedErrorGreaterThan": "Der Wert muss größer als {value} sein. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
-    "advancedErrorLessThan": "Der Wert muss kleiner als {value} sein. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
-    "advancedErrorJsonSchema": "Das ist kein gültiges JSON Schema. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
-    "advancedErrorValueRejected": "Dieses Modell akzeptiert diesen Wert nicht. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorMaxTokens": "Dieses Modell kann höchstens {limit} schreiben. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorNumber": "Gib eine Zahl ein. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorInteger": "Gib eine ganze Zahl ein. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorHighest": "Dieses Modell akzeptiert höchstens {value}. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorLowest": "Dieses Modell akzeptiert mindestens {value}. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorGreaterThan": "Der Wert muss größer als {value} sein. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorLessThan": "Der Wert muss kleiner als {value} sein. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorJsonSchema": "Das ist kein gültiges JSON Schema. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
+    "advancedErrorValueRejected": "Dieses Modell akzeptiert diesen Wert nicht. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen.",
     "advancedDroppedThinking": "Solange Nachdenken aktiviert ist, akzeptiert das Modell diese Einstellung nicht, daher wird sie nicht gesendet.",
     "advancedDroppedConflict": "Steht im Konflikt mit einer anderen Einstellung und wird daher weggelassen.",
     "advancedDroppedConflictWith": "Kann nicht zusammen mit {parameter} gesendet werden und wird daher weggelassen.",
@@ -381,7 +381,7 @@
     "advancedDroppedReasoningBudget": "Kleiner als das Denkbudget, daher wird stattdessen der Standardwert gesendet.",
     "advancedTakenOver": "{family} ist aktiv, daher wird diese Einstellung nicht verwendet.",
     "advancedCrossedOutLegend": "Durchgestrichene Einstellungen übernimmt gerade {families}.",
-    "advancedGreyDefaultsLegend": "Graue Werte sind die eigenen Standardwerte von {engine}. Sie werden nur gesendet, wenn Sie sie ändern.",
+    "advancedGreyDefaultsLegend": "Graue Werte sind die eigenen Standardwerte von {engine}. Gesendet werden sie nur, wenn du sie änderst.",
     "advancedMirostatNote": "Hält die Zufälligkeit der Ausgabe stabil um einen Zielwert – anstelle von Top K und Top P.",
     "advancedTargetEntropy": "Zielentropie",
     "advancedLearningRate": "Lernrate",
@@ -401,22 +401,22 @@
     "additionalBodyWhenSending": "Beim Senden",
     "additionalBodyIncluded": "Enthalten",
     "additionalBodyCannotChange": "Nicht änderbar",
-    "additionalBodyFooter": "Felder hier werden unverändert in die Anfrage übernommen; Oriveo prüft nicht, ob Ihr Server sie akzeptiert. Hat ein Feld denselben Namen wie eine erweiterte Einstellung, gilt das Feld hier – Ihre übrigen Einstellungen werden wie gewohnt gesendet.",
+    "additionalBodyFooter": "Felder hier werden unverändert in die Anfrage übernommen; Oriveo prüft nicht, ob dein Server sie akzeptiert. Hat ein Feld denselben Namen wie eine erweiterte Einstellung, gilt das Feld hier – deine übrigen Einstellungen werden wie gewohnt gesendet.",
     "additionalBodyDocsLink": "Welche Felder {provider} unterstützt",
-    "additionalBodyRemoveLine": "{reason} Löschen Sie Zeile {line}, um zu senden.",
-    "additionalBodyConversationFilled": "Den Gesprächsverlauf fügt Oriveo selbst ein.",
+    "additionalBodyRemoveLine": "{reason} Lösche Zeile {line}, um zu senden.",
+    "additionalBodyConversationFilled": "Den Verlauf der Unterhaltung fügt Oriveo selbst ein.",
     "additionalBodyAttachmentsFilled": "Anhänge fügt Oriveo selbst ein.",
     "additionalBodySystemPromptFilled": "Den Systemprompt fügt Oriveo selbst ein.",
     "additionalBodyToolsManaged": "Tools werden von Oriveo verwaltet.",
-    "additionalBodyModelChosen": "Als Modell gilt das, das Sie in Oriveo ausgewählt haben.",
+    "additionalBodyModelChosen": "Als Modell gilt das, das du in Oriveo ausgewählt hast.",
     "additionalBodyStreamingByOriveo": "Wie die Antwort gestreamt wird, legt Oriveo fest.",
     "additionalBodyFieldFilled": "Dieses Feld füllt Oriveo selbst aus.",
     "additionalBodyFieldNameInvalid": "Dieser Name kann nicht als Feldname verwendet werden.",
     "additionalBodyPasteReplaceTitle": "Vorhandenen Inhalt ersetzen?",
     "additionalBodyPasteReplaceBody": "Beim Einfügen wird der aktuelle Inhalt durch den Inhalt der Zwischenablage ersetzt.",
     "additionalBodyTidyInvalid": "Noch kein gültiges JSON, daher wurde nichts geändert.",
-    "additionalBodySwitchBlockedInvalid": "Mit den zusätzlichen Anfragedaten stimmt etwas nicht, daher kann dieser Schalter sie nicht ändern. Korrigieren Sie sie zuerst dort.",
-    "additionalBodySwitchBlockedOff": "Die zusätzlichen Anfragedaten werden derzeit nicht mit Anfragen gesendet. Aktivieren Sie das zuerst dort.",
+    "additionalBodySwitchBlockedInvalid": "Mit den zusätzlichen Anfragedaten stimmt etwas nicht, daher kann dieser Schalter sie nicht ändern. Korrigiere sie zuerst dort.",
+    "additionalBodySwitchBlockedOff": "Die zusätzlichen Anfragedaten werden derzeit nicht mit Anfragen gesendet. Aktiviere das zuerst dort.",
     "advancedNotSet": "Nicht festgelegt",
     "advancedModelDefaultValue": "Modellstandard",
     "advancedAdjustedCount": "Angepasst: {count}",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "Hinzufügen",
     "advancedStopSequenceRemove": "{sequence} entfernen",
     "advancedMore": "Mehr",
-    "add": "Hinzufügen",
-    "capabilityControlGoToParameters": "Zu den Parametern"
+    "add": "Hinzufügen"
   },
   "pages": {
     "welcome": {
       "title": "Willkommen bei Oriveo",
       "tagline": "Alle Modelle, eine App.",
-      "slogan": "Deine Schlüssel, deine Kosten, deine Daten.",
       "description": "Richte deinen ersten KI-Anbieter ein, um Multi-Modell-Unterhaltungen zu starten.",
       "addProvider": "Anbieter hinzufügen",
       "enterHome": "Weiter zur App"
@@ -451,7 +449,7 @@
       "contextRejectMessageTooLong": "Diese Nachricht ist zu lang für den Kontext dieses Modells. Kürze sie oder wechsle zu einem Modell mit größerem Kontext.",
       "send": "Senden",
       "greeting": "Wie kann ich dir helfen?",
-      "greetingSub": "Wählen Sie einen Prompt unten oder geben Sie Ihre eigene Nachricht ein.",
+      "greetingSub": "Wähle unten einen Prompt oder gib deine eigene Nachricht ein.",
       "noProviderHint": "Füge einen Anbieter hinzu, um zu chatten.",
       "addProvider": "Anbieter hinzufügen",
       "providerHasIssue": "{name} hat ein Problem",
@@ -496,13 +494,12 @@
         "textBudgetExceeded": "{fileName} wurde nicht hinzugefügt: Damit würde der angehängte Text dieser Nachricht das Limit überschreiten.",
         "truncatedNotice": "{fileName} ist lang, daher wurden nur die ersten {shown} von {total} Zeilen hinzugefügt.",
         "sendBlockedTextBudget": "Nicht gesendet: Mit {fileName} überschreitet der angehängte Text das Limit dieses Modells. Entferne eine Datei oder wechsle das Modell.",
-        "truncatedCtaKnowledge": "Große Datei abgeschnitten. Zu Skill Knowledge hinzufügen für vollständige Suche →"
+        "truncatedCtaKnowledge": "Große Datei gekürzt. Füge sie der Wissensdatenbank einer Fähigkeit hinzu, um sie vollständig zu durchsuchen →"
       },
       "dropFiles": "Dateien hier ablegen",
       "stop": "Generierung stoppen",
       "generating": "Wird generiert",
       "activityWebSearch": "Websuche läuft",
-      "activityMcpTool": "{server} · {tool} wird verwendet",
       "aiAnswering": "KI antwortet…",
       "export": "Exportieren",
       "continueAnswering": "Antwort fortsetzen",
@@ -555,7 +552,7 @@
       },
       "attachmentDownloading": "Wird heruntergeladen…",
       "attachmentOnlyOnOriginalDevice": "Nur auf dem ursprünglichen Gerät verfügbar",
-      "outlineNavLabel": "Gesprächsübersicht",
+      "outlineNavLabel": "Übersicht der Unterhaltung",
       "outlineJumpTo": "Springe zu: {preview}",
       "outlineAttachmentOnly": "(Anhang)",
       "selectionAsk": "Fragen",
@@ -586,7 +583,9 @@
         "cacheRead": "Cache-Lesen",
         "cacheWrite": "Cache-Schreiben",
         "total": "Gesamt",
-        "unavailable": "Keine Daten"
+        "unavailable": "Keine Daten",
+        "cost": "Kosten",
+        "estimated": "Geschätzt"
       },
       "attachedNotesTitle": "In diesen Chat übernommene Notizen",
       "removeNoteContext": "Kontext entfernen: {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Über Ollama Cloud",
       "modelRemovedBanner": "Das Modell dieses Chats ist in {connection} nicht mehr verfügbar.",
       "modelRemovedChoose": "Modell wählen",
+      "connectionRemovedBanner": "Die Verbindung dieses Chats wurde gelöscht.",
+      "modelRetiredBanner": "{model} wurde eingestellt.",
+      "modelRetiredSwitchTo": "Zu {model} wechseln",
+      "lastUsedModelRetiredHint": "Dein zuletzt genutztes Modell wurde eingestellt. Jetzt wird {model} verwendet.",
       "copyFailed": "Kopieren fehlgeschlagen",
+      "activityMcpTool": "{server} · {tool} wird verwendet",
       "contextCompaction": {
         "summaryLine1": "{count, plural, one {{count} frühere Nachricht verdichtet · {before} → {after} Token} other {{count} frühere Nachrichten verdichtet · {before} → {after} Token}}",
         "summaryLine2": "Von {model} · Zusammenfassung ansehen",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "Außerdem liegt sie über der Preisschwelle von {line} bei {model}. Daher wird die gesamte Anfrage zum Langkontext-Preis abgerechnet.",
         "confirmDontAsk": "In diesem Chat nicht mehr fragen",
         "confirmSend": "Trotzdem senden"
-      },
-      "connectionRemovedBanner": "Die Verbindung dieses Chats wurde gelöscht.",
-      "modelRetiredBanner": "{model} wurde eingestellt.",
-      "modelRetiredSwitchTo": "Zu {model} wechseln",
-      "lastUsedModelRetiredHint": "Dein zuletzt genutztes Modell wurde eingestellt. Jetzt wird {model} verwendet."
+      }
     },
     "providerSetup": {
       "title": "Anbieter hinzufügen",
@@ -858,7 +858,7 @@
         "errorUpstream": "Codex hat eine unerwartete Antwort zurückgegeben (HTTP {status}). Bitte versuche es erneut."
       },
       "workspaceId": "Workspace-ID",
-      "workspaceIdHint": "Kopieren Sie sie aus der Konsole Ihres Kontos."
+      "workspaceIdHint": "Kopiere sie aus der Konsole deines Kontos."
     },
     "manualModel": {
       "title": "Manuelle Modelleingabe",
@@ -991,7 +991,7 @@
       "queryParams": "Eigene Query-Parameter",
       "capabilities": {
         "title": "Modellfähigkeiten",
-        "subtitle": "Wählen Sie aus, was dieses Standardmodell kann. Sie können dies später in den Modelldetails anpassen.",
+        "subtitle": "Wähle aus, was dieses Standardmodell kann. Du kannst das später in den Modelldetails anpassen.",
         "labels": {
           "text": "Text",
           "image": "Vision",
@@ -1018,17 +1018,17 @@
       "modelsFound": "{count}-Modell(e) im Katalog gefunden.",
       "verifiedProtocol": "Verifiziert {protocol} über den tatsächlichen Chatpfad.",
       "probeProtocol": "Die Modellliste konnte nicht abgerufen werden. Füge die Modell-IDs, die du nutzen möchtest, manuell hinzu.",
-      "emptyCatalog": "Katalog gefunden, aber keine Modell-IDs zurückgegeben. Geben Sie oben ein Modell ein, um fortzufahren.",
+      "emptyCatalog": "Katalog gefunden, aber keine Modell-IDs zurückgegeben. Gib oben ein Modell ein, um fortzufahren.",
       "manualSetup": "Manuelle Einrichtung",
       "detectConnectionSettings": "Verbindungseinstellungen erkennen",
       "connectAndSave": "Verbinden und speichern",
       "noProtocolVerified": "Kein erkanntes Protokoll hat die Testanforderung abgeschlossen.",
-      "embeddedQuery": "Entfernen Sie Abfrageparameter aus der Anforderungs-URL. Oriveo probiert API-Schlüssel aus Abfrageparametern niemals automatisch aus.",
-      "authenticationRejected": "Der Server hat den API-Schlüssel abgelehnt. Überprüfen Sie den Schlüssel oder wählen Sie das dokumentierte Protokoll manuell aus.",
+      "embeddedQuery": "Entferne Abfrageparameter aus der Anfrage-URL. Oriveo probiert API-Schlüssel aus Abfrageparametern niemals automatisch aus.",
+      "authenticationRejected": "Der Server hat den API-Schlüssel abgelehnt. Überprüfe den Schlüssel oder wähle das dokumentierte Protokoll manuell aus.",
       "relayRateLimited": "Der Dienst unter dieser Adresse begrenzt gerade die Anfragen. Warte kurz und versuche es erneut; Oriveo hat weder zu einem anderen Schlüssel noch zu einem anderen Protokoll gewechselt.",
       "temporaryFailure": "Zu dieser Adresse konnte keine stabile Verbindung hergestellt werden. Prüfe die Adresse und versuche es erneut.",
       "networkFailure": "Zu dieser Adresse konnte keine stabile Verbindung hergestellt werden. Prüfe die Adresse und versuche es erneut.",
-      "routeUnavailable": "Unter dieser Adresse hat weder ein Modellkatalog noch ein bekannter Generierungsendpunkt geantwortet. Prüfen Sie die Adresse oder wählen Sie das Protokoll manuell aus.",
+      "routeUnavailable": "Unter dieser Adresse hat weder ein Modellkatalog noch ein bekannter Generierungsendpunkt geantwortet. Prüfe die Adresse oder wähle das Protokoll manuell aus.",
       "automaticRetries": "Oriveo hat {count} Anfrage(n) automatisch wiederholt.",
       "attemptedRequests": "Technische Details",
       "whatOriveoTried": "Was Oriveo versucht hat",
@@ -1054,8 +1054,8 @@
       "localValueUnsupported": "Nicht unterstützt",
       "localValueUnavailable": "Nicht verfügbar",
       "localUnrecognizedTitle": "Engine nicht erkannt",
-      "localUnrecognizedBody": "Wählen Sie unten Engine und Kanal aus.",
-      "localLanHttpBlocked": "Browser erreichen Engines nur unter localhost oder über https. Für eine LAN-Adresse über http nutzen Sie Oriveo für iOS oder Android.",
+      "localUnrecognizedBody": "Wähle unten Engine und Kanal aus.",
+      "localLanHttpBlocked": "Browser erreichen Engines nur unter localhost oder über https. Für eine LAN-Adresse über http nutze Oriveo für iOS oder Android.",
       "twoStep": {
         "heroSubtitle": "Gib Adresse und Schlüssel ein und wähle im nächsten Schritt die Modelle aus. Protokoll und Fähigkeiten werden pro Modell erkannt.",
         "willRequest": "Anfrage an {url}",
@@ -1109,7 +1109,7 @@
       "endpoint": "Anfrage-URL",
       "models": "Modelle",
       "modelsCount": "{count, plural, =0 {Keine Modelle} =1 {Ein Modell} other {# Modelle}}",
-      "noModelsHint": "Noch keine Modelle hinzugefügt. Verwenden Sie die Schaltfläche unten, um Modell-IDs hinzuzufügen.",
+      "noModelsHint": "Noch keine Modelle hinzugefügt. Verwende die Schaltfläche unten, um Modell-IDs hinzuzufügen.",
       "addModelsTitle": "Modelle hinzufügen",
       "addModelsHint": "Gib eine Model ID pro Zeile ein",
       "addModelsPlaceholder": "gpt-4o\nclaude-3.5-sonnet\ndeepseek-chat",
@@ -1407,7 +1407,7 @@
       "verifyConnection": "Verbindung prüfen",
       "addedModels": "Hinzugefügte Modelle",
       "addedModelsHint": "{count, plural, =0 {Keine Modelle hinzugefügt} =1 {1 Modell hinzugefügt} other {# Modelle hinzugefügt}}",
-      "noAddedModels": "Keine Modelle hinzugefügt. Fügen Sie unten Modelle aus dem Katalog hinzu.",
+      "noAddedModels": "Keine Modelle hinzugefügt. Füge unten Modelle aus dem Katalog hinzu.",
       "enabledModels": "Aktivierte Modelle",
       "enabledModelsHint": "{count, plural, =0 {Keine Modelle aktiviert} =1 {1 Modell aktiviert} other {# Modelle aktiviert}}",
       "noEnabledModels": "Keine aktivierten Modelle. Füge Modelle aus dem Katalog unten hinzu.",
@@ -1496,7 +1496,7 @@
         "cash": "Bargeld",
         "owing": "Geschuldet",
         "errorNetwork": "Guthaben konnte nicht geladen werden, bitte erneut versuchen.",
-        "errorInvalidKey": "Der API-Schlüssel ist ungültig. Bitte überprüfen Sie den Schlüssel."
+        "errorInvalidKey": "Der API-Schlüssel ist ungültig. Bitte überprüfe den Schlüssel."
       },
       "toast": {
         "connectionVerified": "Verbindung verifiziert.",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "Zu API-Schlüssel wechseln",
         "disabledFallback": "Die Anmeldung mit dem ChatGPT-Abo ist derzeit nicht verfügbar. Du kannst zu einem API-Schlüssel wechseln oder diese Verbindung entfernen."
       },
-      "subscription": "Abo",
-      "tokenPrices": {
-        "input": "Eingabe {count}",
-        "cacheRead": "Cache-Lesen {count}",
-        "cacheWrite": "Cache-Schreiben {count}",
-        "output": "Ausgabe {count}",
-        "unit": "Tokens"
-      }
+      "subscription": "Abo"
     },
     "providers": {
       "title": "Anbieter",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "Datenschutzrichtlinie",
-      "sourceCode": "Quellcode",
       "aiSection": "KI",
       "skills": "Fähigkeiten",
       "backupImportExport": "Backup & Import/Export",
-      "reportIssue": "Problem melden",
-      "documentation": "Dokumentation",
       "aboutTagline": "Alle deine Modelle. Eine App.",
       "context": {
         "title": "Kontext",
@@ -1620,30 +1610,30 @@
     "backup": {
       "title": "Sicherung und Daten",
       "exportSection": "Sicherung exportieren",
-      "exportDescription": "Erstellen Sie eine Sicherung Ihrer Konversationen und Anbietereinstellungen.",
+      "exportDescription": "Erstelle eine Sicherung deiner Unterhaltungen und Anbietereinstellungen.",
       "exportPrivateCatalogNotice": "Diese Datei enthält die private Modellliste deines benutzerdefinierten LLM. API-Schlüssel sind nie enthalten.",
       "password": "Passwort",
       "confirmPassword": "Passwort bestätigen",
       "includeApiKeys": "API Keys einschließen",
       "export": "Exportieren",
       "exporting": "Wird exportiert…",
-      "exportFailed": "Export fehlgeschlagen. Bitte versuchen Sie es erneut.",
+      "exportFailed": "Export fehlgeschlagen. Bitte versuche es erneut.",
       "passwordTooShort": "Das Passwort muss mindestens 8 Zeichen lang sein",
       "importSection": "Sicherung importieren",
-      "importDescription": "Stellen Sie Daten aus einer Sicherungsdatei wieder her.",
+      "importDescription": "Stelle Daten aus einer Sicherungsdatei wieder her.",
       "dropZone": "Sicherungsdatei hierher ziehen oder klicken zum Durchsuchen",
       "importPassword": "Sicherungspasswort",
       "preview": "Vorschau",
       "import": "Importieren",
       "importing": "Wird importiert…",
-      "importFailed": "Import fehlgeschlagen. Bitte versuchen Sie es erneut.",
+      "importFailed": "Import fehlgeschlagen. Bitte versuche es erneut.",
       "passwordMismatch": "Passwörter stimmen nicht überein",
       "wrongPassword": "Falsches Passwort",
       "invalidFile": "Ungültige oder nicht erkannte Sicherungsdatei",
       "success": "Sicherung erfolgreich exportiert",
       "exportComplete": "Export abgeschlossen",
-      "legacyPasswordHint": "Diese Sicherung ist verschlüsselt. Geben Sie das Passwort ein, um fortzufahren.",
-      "checksumWarning": "Diese Sicherung wurde möglicherweise verändert oder beschädigt. Gehen Sie mit Vorsicht vor.",
+      "legacyPasswordHint": "Diese Sicherung ist verschlüsselt. Gib das Passwort ein, um fortzufahren.",
+      "checksumWarning": "Diese Sicherung wurde möglicherweise verändert oder beschädigt. Sei vorsichtig.",
       "checksumCrossPlatform": "Plattformübergreifender Import — Integrität kann nicht überprüft werden, aber die Daten sollten intakt sein.",
       "attachmentChecksumWarning": "Einige Bilddateien in dieser Sicherung sind möglicherweise beschädigt.",
       "previewBackupInfo": "Sicherungsinformationen",
@@ -1654,38 +1644,38 @@
       "previewYes": "Ja",
       "previewNo": "Nein",
       "previewDataContent": "Dateninhalt",
-      "previewConversations": "Konversationen",
+      "previewConversations": "Unterhaltungen",
       "previewProviders": "Anbieter",
       "previewImages": "Bilder",
       "previewCountWithExisting": "{total} gesamt ({existing} bereits lokal vorhanden)",
       "importModeTitle": "Importmodus",
       "modeImportNew": "Nur neue importieren",
-      "modeImportNewHint": "Vorhandene Konversationen und Anbieter überspringen, nur neue hinzufügen.",
+      "modeImportNewHint": "Vorhandene Unterhaltungen und Anbieter überspringen, nur neue hinzufügen.",
       "modeMerge": "Zusammenführen",
-      "modeMergeHint": "Nachrichten in vorhandenen Konversationen zusammenführen und neue hinzufügen.",
+      "modeMergeHint": "Nachrichten in vorhandenen Unterhaltungen zusammenführen und neue hinzufügen.",
       "modeReplaceAll": "Alles ersetzen",
       "modeReplaceAllHint": "Alle lokalen Daten löschen und durch den Sicherungsinhalt ersetzen.",
-      "keyPasswordHint": "Diese Sicherung enthält verschlüsselte API Keys. Geben Sie das Passwort ein, um sie wiederherzustellen.",
+      "keyPasswordHint": "Diese Sicherung enthält verschlüsselte API Keys. Gib das Passwort ein, um sie wiederherzustellen.",
       "keyPasswordPlaceholder": "API Key Passwort",
       "skipKeys": "API Keys überspringen",
       "restoreKeys": "Keys wiederherstellen",
       "importComplete": "Import abgeschlossen",
-      "resultConversationsAdded": "Konversationen hinzugefügt",
-      "resultConversationsMerged": "Konversationen zusammengeführt",
-      "resultConversationsSkipped": "Konversationen übersprungen",
+      "resultConversationsAdded": "Unterhaltungen hinzugefügt",
+      "resultConversationsMerged": "Unterhaltungen zusammengeführt",
+      "resultConversationsSkipped": "Unterhaltungen übersprungen",
       "resultProvidersAdded": "Anbieter hinzugefügt",
       "resultProvidersMerged": "Anbieter zusammengeführt",
       "resultProvidersSkipped": "Anbieter übersprungen",
       "resultKeysRestored": "API Keys wiederhergestellt",
       "resultImagesRestored": "Bilder wiederhergestellt",
       "replaceConfirmTitle": "Alle lokalen Daten ersetzen?",
-      "replaceConfirmDesc": "Dadurch werden alle lokalen Konversationen und Anbieter gelöscht und durch den Sicherungsinhalt ersetzt. Diese Aktion kann nicht rückgängig gemacht werden.",
+      "replaceConfirmDesc": "Dadurch werden alle lokalen Unterhaltungen und Anbieter gelöscht und durch den Sicherungsinhalt ersetzt. Diese Aktion kann nicht rückgängig gemacht werden.",
       "replaceConfirmAction": "Verstanden, alles ersetzen",
       "encryptionPassword": "Verschlüsselungspasswort",
       "passwordPlaceholder": "Mindestens 8 Zeichen",
       "confirmPasswordPlaceholder": "Passwort erneut eingeben",
-      "encryptionFootnote": "API-Schlüssel werden mit diesem Passwort verschlüsselt. Bewahren Sie es sicher auf — Sie benötigen es zur Wiederherstellung der Schlüssel.",
-      "yourData": "Ihre Daten",
+      "encryptionFootnote": "API-Schlüssel werden mit diesem Passwort verschlüsselt. Bewahre es sicher auf — du brauchst es zur Wiederherstellung der Schlüssel.",
+      "yourData": "Deine Daten",
       "dataConversations": "Unterhaltungen",
       "dataProviders": "Anbieter",
       "dataMessages": "Nachrichten",
@@ -1701,9 +1691,9 @@
       "title": "Gedächtnis",
       "settingsEntry": "Gedächtnis",
       "notSet": "Nicht eingestellt",
-      "description": "Erzähl der KI von dir. Sie wird es automatisch am Anfang jedes Gesprächs wissen.",
+      "description": "Erzähl der KI von dir. Sie wird es automatisch am Anfang jeder Unterhaltung wissen.",
       "emptyTitle": "Lass die KI dich ab der ersten Nachricht kennen",
-      "emptyDescription": "Beschreibe deinen Hintergrund und deine Vorlieben. Die KI wird dies in jedem Gespräch automatisch wissen — kein Wiederholen nötig.",
+      "emptyDescription": "Beschreibe deinen Hintergrund und deine Vorlieben. Die KI wird dies in jeder Unterhaltung automatisch wissen — kein Wiederholen nötig.",
       "exampleHint": "Z.B.: Ich bin Backend-Ingenieur, nutze hauptsächlich Go. Kurze Antworten, auf Deutsch, Code statt langer Erklärungen.",
       "examples": {
         "1": "Ich verwende TypeScript und Python, gib mir Code in den Antworten",
@@ -1711,15 +1701,15 @@
         "3": "Ich arbeite an einem E-Commerce-Projekt, antworte in diesem Kontext"
       },
       "generateDraft": "Entwurf aus letzten Chats generieren",
-      "generateDraftLoading": "Analysiere deine letzten Gespräche...",
+      "generateDraftLoading": "Deine letzten Unterhaltungen werden analysiert…",
       "generateDraftFailed": "Generierung fehlgeschlagen, bitte manuell schreiben",
-      "generateDraftEmpty": "Das Modell hat keinen Inhalt zurückgegeben. Versuch es später noch einmal oder wähle ein anderes Modell.",
+      "generateDraftEmpty": "Das Modell hat keinen Inhalt zurückgegeben. Versuche es später noch einmal oder wähle ein anderes Modell.",
       "save": "Speichern",
       "saved": "Gedächtnis gespeichert",
       "privacyWarning": "Der Gedächtnisinhalt wird mit jeder KI-Anfrage an den gewählten Anbieter gesendet. Gib keine Passwörter oder sensiblen Informationen ein.",
-      "indicatorTitle": "Diese Konversation verwendet das Gedächtnis",
+      "indicatorTitle": "Diese Unterhaltung verwendet das Gedächtnis",
       "indicatorViewEdit": "Vollständiges Gedächtnis anzeigen/bearbeiten",
-      "indicatorDisable": "Gedächtnis für diese Konversation nicht verwenden",
+      "indicatorDisable": "Gedächtnis für diese Unterhaltung nicht verwenden",
       "conversationUseMemory": "Gedächtnis verwenden",
       "discard": "Verwerfen",
       "keepEditing": "Weiter bearbeiten",
@@ -1733,9 +1723,9 @@
       "errorNoModelMessage": "Dieser Anbieter hat keine Modelle konfiguriert. Füge zuerst mindestens ein Modell hinzu.",
       "errorNoProviderTitle": "Kein Anbieter konfiguriert",
       "errorNoProviderMessage": "Füge zuerst einen Anbieter mit API-Schlüssel hinzu und erstelle dann den Entwurf.",
-      "errorNotEnoughTitle": "Nicht genug Gesprächsinhalt",
-      "errorNotEnoughMessage": "Führe zuerst einige Gespräche, dann erstelle daraus den Entwurf.",
-      "errorHydrateTitle": "Kürzliche Gespräche konnten nicht geladen werden",
+      "errorNotEnoughTitle": "Nicht genug Inhalt aus Unterhaltungen",
+      "errorNotEnoughMessage": "Führe zuerst einige Unterhaltungen, dann erstelle daraus den Entwurf.",
+      "errorHydrateTitle": "Kürzliche Unterhaltungen konnten nicht geladen werden",
       "errorHydrateMessage": "Versuche es später erneut oder schreibe es manuell.",
       "errorGenericTitle": "Generierung fehlgeschlagen, bitte manuell schreiben",
       "backToSettings": "Zurück zu Einstellungen",
@@ -1781,7 +1771,7 @@
       "editorCategory": "Kategorie",
       "editorTooLong": "Höchstens 2.000 Zeichen",
       "deleteConfirmTitle": "Diese Erinnerung löschen?",
-      "deleteConfirmBody": "Sie wird endgültig von diesem Gerät gelöscht.",
+      "deleteConfirmBody": "Sie wird auf all deinen Geräten gelöscht.",
       "actionOrganize": "In Einträge aufteilen",
       "rawView": "Reiner Text",
       "rawViewHint": "Trenne Einträge durch eine Zeile, die nur --- enthält.",
@@ -1891,7 +1881,7 @@
   },
   "errorBoundary": {
     "title": "Etwas ist schiefgelaufen",
-    "description": "Ein unerwarteter Fehler ist aufgetreten. Ihre Daten sind sicher.",
+    "description": "Ein unerwarteter Fehler ist aufgetreten. Deine Daten sind sicher.",
     "retry": "Erneut versuchen",
     "goHome": "Zur Startseite",
     "technicalDetails": "Technische Details"
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "Anbieterfehler",
       "message": "Der Anbieter hat einen Fehler für diese Anfrage zurückgegeben. Bitte versuche es erneut oder wechsle das Modell."
+    },
+    "emptyReply": {
+      "title": "Leere Anbieterantwort",
+      "message": "Der Anbieter hat keinen Assistenteninhalt für diese Nachricht zurückgegeben."
     },
     "moderationBlocked": {
       "title": "Inhalt blockiert",
@@ -1934,27 +1928,27 @@
     },
     "emptyModelCatalog": {
       "title": "Keine Modelle gefunden",
-      "message": "Der Modellkatalog ist leer. Versuchen Sie es später erneut oder geben Sie eine Modell-ID manuell ein."
+      "message": "Der Modellkatalog ist leer. Versuche es später erneut oder gib eine Modell-ID manuell ein."
     },
     "unauthorized": {
       "title": "Zugriff abgelaufen",
-      "message": "Ihr Zugriff konnte nicht verifiziert werden. Bitte versuchen Sie es erneut, um Ihre Sitzung zu aktualisieren."
+      "message": "Dein Zugriff konnte nicht verifiziert werden. Bitte versuche es erneut, um deine Sitzung zu aktualisieren."
     },
     "badRequest": {
       "title": "Ungültige Anfrage",
-      "message": "Die Anfrage war fehlerhaft. Überprüfen Sie Ihre Eingabe und versuchen Sie es erneut."
+      "message": "Die Anfrage war fehlerhaft. Überprüfe deine Eingabe und versuche es erneut."
     },
     "quotaExceeded": {
       "title": "Anbieter-Kontingent erreicht",
-      "message": "Der Anbieter meldet, dass Kontingent oder Guthaben dieses API-Schlüssels aufgebraucht ist. Prüfen Sie Ihre Abrechnung beim Anbieter oder wechseln Sie das Modell."
+      "message": "Der Anbieter meldet, dass Kontingent oder Guthaben dieses API-Schlüssels aufgebraucht ist. Prüfe deine Abrechnung beim Anbieter oder wechsle das Modell."
     },
     "unavailable": {
       "title": "Vorübergehend nicht verfügbar",
-      "message": "Dieses Modell ist vorübergehend nicht verfügbar. Versuchen Sie ein anderes Modell oder kommen Sie später wieder."
+      "message": "Dieses Modell ist vorübergehend nicht verfügbar. Versuche ein anderes Modell oder komm später wieder."
     },
     "relayStreamError": {
       "moderation": "Das Sicherheitssystem des Anbieters hat deine Eingabe blockiert (häufig wegen urheberrechtlich geschützter Figuren, realer Personen oder sensibler Inhalte). Formuliere sie mit eigenen Beschreibungen neu und versuche es erneut.",
-      "imageGenUser": "Das Bildgenerierungstool The ist im Upstream fehlgeschlagen. Please formulieren Sie Ihre Eingabeaufforderung um oder versuchen Sie es mit einem anderen Bildmodell ID."
+      "imageGenUser": "Das Bildgenerierungstool ist beim Anbieter fehlgeschlagen. Bitte formuliere deinen Prompt um oder versuche es mit einer anderen Bildmodell-ID."
     },
     "relay": {
       "codexIdentityRequiredSwitch": "Diese Verbindung erfordert eine Codex-Client-Identität. Öffne Anbieter → diese Verbindung → Modellbibliothek → dieses Modell → Erweitert, stelle das Protokoll auf OpenAI Responses um und versuche es erneut.",
@@ -1977,9 +1971,9 @@
     },
     "validation": {
       "invalidKey": "Der API-Schlüssel konnte nicht validiert werden. Überprüfe den Wert oder erstelle einen neuen Schlüssel.",
-      "unverified": "Die Verbindung konnte nicht verifiziert werden. Sie können es in den Anbieterdetails erneut versuchen.",
+      "unverified": "Die Verbindung konnte nicht verifiziert werden. Du kannst es in den Anbieterdetails erneut versuchen.",
       "catalogUnavailable": "Die Modellliste konnte nicht geladen werden. Du kannst es erneut versuchen oder manuell eine Modell-ID hinzufügen.",
-      "savedButInvalid": "Gespeichert, aber der Schlüssel scheint ungültig zu sein. Sie können ihn später in den Anbietereinstellungen überprüfen.",
+      "savedButInvalid": "Gespeichert, aber der Schlüssel scheint ungültig zu sein. Du kannst ihn später in den Anbietereinstellungen überprüfen.",
       "grokSubscriptionCatalogUnavailable": "Die Modellliste des Grok-Abos konnte nicht geladen werden. Aktualisiere die Verbindung in den Anbieterdetails.",
       "grokSubscriptionReauthorize": "Deine Grok-Anmeldung ist abgelaufen. Autorisiere erneut in den Anbieterdetails.",
       "openAISubscriptionReauthorize": "Deine ChatGPT-Anmeldung ist abgelaufen. Autorisiere erneut in den Anbieterdetails.",
@@ -2053,46 +2047,43 @@
   },
   "offline": {
     "title": "Offline",
-    "description": "Es scheint, dass Sie Ihre Internetverbindung verloren haben. Oriveo benötigt eine Verbindung, um mit KI-Modellen zu chatten.",
+    "description": "Anscheinend hast du keine Internetverbindung mehr. Oriveo braucht eine Verbindung, um mit KI-Modellen zu chatten.",
     "retry": "Erneut versuchen"
   },
   "skills": {
     "title": "Fähigkeiten",
-    "mySkills": "Meine Skills",
-    "builtinSkills": "Integrierte Skills",
-    "pinned": "Angepinnt",
-    "newSkill": "Neuer Skill",
-    "editSkill": "Skill bearbeiten",
-    "deleteSkill": "Skill löschen",
-    "forkSkill": "Als meinen Skill kopieren",
-    "useSkill": "Verwenden",
-    "pinToHome": "An Startseite anheften",
-    "unpinFromHome": "Loslösen",
-    "instructions": "Eingabe",
+    "mySkills": "Meine Fähigkeiten",
+    "builtinSkills": "Eingebaute Fähigkeiten",
+    "newSkill": "Neue Fähigkeit",
+    "editSkill": "Fähigkeit bearbeiten",
+    "deleteSkill": "Fähigkeit löschen",
+    "forkSkill": "Als eigene Fähigkeit kopieren",
+    "useSkill": "Diese Fähigkeit verwenden",
+    "instructions": "Prompt",
     "instructionsPlaceholder": "Z. B.: Du bist ein erfahrener Code-Reviewer. Überprüfe Code auf Sicherheit, Leistung und Lesbarkeit. Antworte in der Sprache des Nutzers.",
     "starterMessages": "Gesprächsstarter",
     "useMemory": "Einstellungen merken",
     "useMemoryHint": "Persönliche Einstellungen in Unterhaltungen einbeziehen",
-    "referenceFiles": "Referenzmaterialien",
+    "referenceFiles": "Referenzmaterial",
     "tipInstructions": "Definiert das Verhalten der KI — Persönlichkeit, Expertise und Antwortstil. Nur die KI sieht dies, Benutzer nicht.",
     "knowledgeSectionTitle": "Wissen",
-    "tipReferenceFiles": "Die KI liest diese Dateien bei jeder Antwort vollständig — wie Notizen, die immer aufgeschlagen auf dem Schreibtisch liegen. Ideal für kurze, wichtige Dokumente (Stilrichtlinien, Glossare, Grundregeln). Größere Dateien erhöhen die Kosten pro Antwort.",
-    "noReferenceFiles": "Noch keine Referenzmaterialien",
+    "tipReferenceFiles": "Die KI liest diese Dateien bei jeder Antwort vollständig — wie Notizen, die immer aufgeschlagen auf dem Schreibtisch liegen. Am besten für kurze, wichtige Dokumente (Stilrichtlinien, Glossare, zentrale Regeln). Größere Dateien erhöhen die Antwortkosten.",
+    "noReferenceFiles": "Noch kein Referenzmaterial",
     "addFile": "Datei hinzufügen",
     "filesQuota": "{count} / {max}",
     "icon": "Symbol",
     "name": "Name",
     "namePlaceholder": "Z. B.: E-Mail-Assistent",
     "description": "Beschreibung",
-    "descriptionPlaceholder": "Kurze Beschreibung dieses Skills",
+    "descriptionPlaceholder": "Kurze Beschreibung dieser Fähigkeit",
     "color": "Farbe",
     "save": "Speichern",
     "saving": "Speichern…",
     "newChat": "Neuer Chat",
-    "allSkills": "Alle Skills",
+    "allSkills": "Alle Fähigkeiten",
     "greeting": "Wie kann ich dir helfen?",
-    "greetingSub": "Fragen Sie etwas oder fangen Sie einfach an zu tippen.",
-    "noCustomSkills": "Noch keine eigenen Skills",
+    "greetingSub": "Frag etwas oder fang einfach an zu tippen.",
+    "noCustomSkills": "Noch keine eigenen Fähigkeiten",
     "createFirst": "Erstellen",
     "deleteConfirmTitle": "„{name}“ löschen?",
     "deleteConfirmMessage": "Bestehende Unterhaltungen werden nicht beeinflusst.",
@@ -2102,22 +2093,22 @@
     "needProvider": "Füge zuerst einen Anbieter hinzu",
     "fileReadError": "Datei konnte nicht gelesen werden",
     "knowledgeBaseFiles": "Wissensdatenbankdateien",
-    "tipKnowledgeBaseFiles": "Die KI durchsucht diese Dateien und liest nur die für Ihre Frage relevanten Teile — wie das Nachschlagen in einem Buch, statt es komplett zu lesen. Ideal für lange oder mehrere Dokumente. Erfordert einen OpenAI API Key.",
+    "tipKnowledgeBaseFiles": "Die KI durchsucht diese Dateien und liest nur die Teile, die für deine Frage relevant sind – wie beim Nachschlagen in einem Buch, statt es ganz zu lesen. Ideal für lange oder mehrere Dokumente. Erfordert einen OpenAI-API-Schlüssel.",
     "knowledgeReadyHint": "Neu hochgeladene Dateien können einige Minuten benötigen, bis sie indiziert sind und in Unterhaltungen verwendet werden können. Indizierte Inhalte werden nur eingefügt, wenn sie für die aktuelle Nachricht relevant sind.",
-    "knowledgeCtaOpenAIRequired": "Für die Skill Knowledge Base ist ein offizieller OpenAI-Schlüssel erforderlich. Sie können den Skill weiterhin speichern, aber Sie können noch keine Wissensdatenbankdateien hinzufügen.",
-    "knowledgeCtaOpenRouterOnly": "Wir haben festgestellt, dass Sie OpenRouter verwenden. Die Skill Knowledge Base unterstützt nur die offizielle OpenAI-API, nicht OpenRouter.",
-    "knowledgeCtaEndpointNotOfficial": "Ihre OpenAI-Konfiguration verwendet nicht den offiziellen Endpunkt, daher ist die Skill Knowledge Base nicht verfügbar. Bitte wechseln Sie zum offiziellen OpenAI-Endpunkt.",
-    "knowledgeCtaRetrievalModel": "Für die Skill Knowledge Base ist das für Ihr Konto konfigurierte OpenAI-Abrufmodell erforderlich. Bitte fügen Sie es zuerst bei Ihrem OpenAI-Anbieter hinzu und aktivieren Sie es. Erforderliches Modell: {model}",
-    "knowledgeCtaServiceUnavailable": "Wir konnten die Verfügbarkeit der Skill Knowledge Base derzeit nicht bestätigen. Sie können mit der Bearbeitung fortfahren und den Skill speichern.",
-    "knowledgeCtaPrimaryConfigureOpenAI": "Konfigurieren Sie OpenAI",
+    "knowledgeCtaOpenAIRequired": "Für die Wissensdatenbank ist ein offizieller OpenAI-Schlüssel erforderlich. Du kannst die Fähigkeit trotzdem speichern, aber noch keine Wissensdatenbankdateien hinzufügen.",
+    "knowledgeCtaOpenRouterOnly": "Wir haben festgestellt, dass du OpenRouter verwendest. Die Wissensdatenbank unterstützt nur die offizielle OpenAI-API, nicht OpenRouter.",
+    "knowledgeCtaEndpointNotOfficial": "Deine OpenAI-Konfiguration verwendet nicht den offiziellen Endpunkt, daher ist die Wissensdatenbank nicht verfügbar. Bitte wechsle zum offiziellen OpenAI-Endpunkt.",
+    "knowledgeCtaRetrievalModel": "Für die Wissensdatenbank ist das für dein Konto konfigurierte OpenAI-Abrufmodell erforderlich. Füge es bitte zuerst bei deinem OpenAI-Anbieter hinzu und aktiviere es.",
+    "knowledgeCtaServiceUnavailable": "Wir konnten die Verfügbarkeit der Wissensdatenbank gerade nicht bestätigen. Du kannst weiter bearbeiten und die Fähigkeit speichern.",
+    "knowledgeCtaPrimaryConfigureOpenAI": "OpenAI konfigurieren",
     "knowledgeCtaPrimaryAddOpenAIKey": "OpenAI-Schlüssel hinzufügen",
-    "knowledgeCtaPrimaryCheckOpenAIConfig": "Überprüfen Sie die OpenAI-Konfiguration",
+    "knowledgeCtaPrimaryCheckOpenAIConfig": "OpenAI-Konfiguration prüfen",
     "knowledgeCtaPrimaryAddModel": "Modell hinzufügen",
-    "knowledgeCtaPrimaryRetryLater": "Versuchen Sie es erneut",
+    "knowledgeCtaPrimaryRetryLater": "Erneut versuchen",
     "knowledgeCtaSecondaryLater": "Nicht jetzt",
-    "knowledgeCtaSecondaryContinue": "Bearbeiten Sie den Skill weiter",
+    "knowledgeCtaSecondaryContinue": "Fähigkeit weiter bearbeiten",
     "knowledgeEmptyHint": "Noch keine Wissensdatenbankdateien",
-    "knowledgeRetryUnavailable": "„Wiederholen“ ist nur für Dateien verfügbar, die in dieser Bearbeitungssitzung hinzugefügt wurden.",
+    "knowledgeRetryUnavailable": "Erneut versuchen ist für diese Datei auf diesem Gerät nicht verfügbar.",
     "replaceKnowledgeFile": "Ersetzen",
     "retryKnowledgeFile": "Erneut versuchen",
     "deleteKnowledgeFile": "Löschen",
@@ -2133,26 +2124,210 @@
     "knowledgeStatusDisabled": "Nicht verfügbar",
     "openai_not_configured": "Für die Wissensdatenbank ist ein offizieller OpenAI-API-Schlüssel erforderlich.",
     "openai_endpoint_not_official": "Die Wissensdatenbank funktioniert nur mit dem offiziellen OpenAI-Endpunkt.",
-    "retrieval_model_not_enabled": "Fügen Sie zuerst {model} in Ihrem OpenAI-Anbieter hinzu und aktivieren Sie es.",
-    "knowledge_service_unavailable": "Die Wissensdatenbank ist vorübergehend nicht verfügbar. Sie können diesen Skill weiterhin bearbeiten und speichern.",
+    "retrieval_model_not_enabled": "Füge zuerst {model} bei deinem OpenAI-Anbieter hinzu und aktiviere es.",
+    "knowledge_service_unavailable": "Die Wissensdatenbank ist derzeit nicht verfügbar.",
     "unsupported_file_type": "Dieser Dateityp wird für die Wissensdatenbank nicht unterstützt.",
     "reference_file_too_large": "Referenzdateien dürfen maximal 3 MB groß sein.",
     "knowledge_file_too_large": "Wissensdatenbankdateien dürfen maximal 20 MB groß sein.",
-    "knowledge_total_size_exceeded": "Ein Skill kann bis zu 5 Wissensdatenbankdateien und insgesamt 100 MB haben.",
+    "knowledge_total_size_exceeded": "Eine Fähigkeit kann bis zu 5 Wissensdatenbankdateien und insgesamt 100 MB haben.",
     "knowledge_extract_failed": "Text konnte aus dieser Datei nicht extrahiert werden.",
     "knowledge_upload_failed": "Diese Datei konnte nicht hochgeladen werden.",
     "knowledge_index_failed": "Diese Datei konnte nicht indiziert werden.",
     "knowledge_retrieve_failed": "Der Wissensabruf für diese Nachricht ist fehlgeschlagen.",
-    "knowledge_cleanup_failed": "Die Remote-Datei konnte nicht bereinigt werden. Versuchen Sie es später noch einmal.",
-    "providerRequiredTitle": "Füge einen Anbieter hinzu, um diesen Skill zu nutzen",
-    "providerRequiredMessage": "Dieser Skill benötigt einen verfügbaren KI-Anbieter, bevor eine Unterhaltung gestartet werden kann.",
+    "knowledge_cleanup_failed": "Die Remote-Datei konnte nicht bereinigt werden. Versuche es später noch einmal.",
+    "providerRequiredTitle": "Füge einen Anbieter hinzu, um diese Fähigkeit zu nutzen",
+    "providerRequiredMessage": "Diese Fähigkeit braucht einen verfügbaren KI-Anbieter, bevor eine Unterhaltung starten kann.",
     "providerRequiredAction": "Anbieter hinzufügen",
-    "promptCancel": "Nicht jetzt"
+    "promptCancel": "Nicht jetzt",
+    "home": {
+      "autoCount": "Automatisch · {count}",
+      "slashHint": "Mit / aufrufen",
+      "empty": "Speichere deine Arbeitsweise",
+      "notesRecent": "Zuletzt bearbeitet"
+    },
+    "list": {
+      "subtitle": "Speichere deine bevorzugte Arbeitsweise – die KI nutzt sie, wenn es passt."
+    },
+    "create": {
+      "describePlaceholder": "Beschreibe einen Ablauf, die KI schreibt die Fähigkeit",
+      "fromChat": "Aus einem Chat",
+      "manual": "Selbst erstellen"
+    },
+    "segment": {
+      "mine": "Meine",
+      "templates": "Vorlagen"
+    },
+    "group": {
+      "auto": "Automatisch",
+      "manual": "Nur manuell"
+    },
+    "card": {
+      "usageCount": "Verwendet: {count}"
+    },
+    "row": {
+      "slashHint": "Wird verwendet, wenn du {slash} tippst"
+    },
+    "auto": {
+      "needWhenTitle": "Sag zuerst, wann sie greifen soll",
+      "suggest": "Vorschlagen",
+      "limitReached": "Die automatische Verwendung hat ihr Limit erreicht ({count}). Schalte zuerst eine aus."
+    },
+    "search": {
+      "placeholder": "Fähigkeiten suchen"
+    },
+    "empty": {
+      "title": "Noch keine Fähigkeiten",
+      "body": "Speichere deine bevorzugte Arbeitsweise, dann musst du sie nicht jedes Mal neu erklären.",
+      "browseTemplates": "Vorlagen ansehen"
+    },
+    "migrate": {
+      "banner": "Fähigkeiten ohne „Wann verwenden“: {count}. Ergänze einen Satz, dann können sie automatisch greifen.",
+      "review": "Nacheinander ergänzen"
+    },
+    "templates": {
+      "note": "Vorlagen werden erst automatisch verwendet, wenn du sie zu „Meine“ hinzugefügt hast.",
+      "featured": "Empfohlen",
+      "addToMine": "Zu „Meine“ hinzufügen",
+      "add": "Hinzufügen",
+      "added": "Hinzugefügt",
+      "tryOnce": "Einmal ausprobieren"
+    },
+    "detail": {
+      "useInNewChat": "In neuem Chat verwenden",
+      "orSlash": "Oder tippe {slash} ins Nachrichtenfeld",
+      "usage": "Verwendet: {count} · Zuletzt {time}",
+      "neverUsed": "Noch nicht verwendet",
+      "autoInvoke": "Automatisch verwenden",
+      "whenToUse": "Wann verwenden",
+      "whenToUseNote": "Danach entscheidet die KI",
+      "instructions": "Anweisungen",
+      "showAll": "Alles anzeigen",
+      "references": "Referenzdateien",
+      "starters": "Gesprächseinstiege",
+      "recentChats": "Letzte Chats",
+      "try": "Ausprobieren"
+    },
+    "edit": {
+      "changeIcon": "Symbol ändern",
+      "name": "Name",
+      "whenBadge": "Steuert die automatische Verwendung",
+      "whenPlaceholder": "z. B. Wenn ich Notizen zu einem Wochenbericht zusammenfassen lasse. Nicht für Tagesberichte.",
+      "keywordsCaption": "Reagiert auf diese Begriffe · eine Beschreibung der Situation reicht",
+      "whenTip": "Schreib, was sie tut, wann sie greifen soll und wie du normalerweise fragst. Mit „Nicht für …“ vermeidest du Fehltreffer. Wörter in Anführungszeichen werden hervorgehoben.",
+      "polish": "Mit KI verbessern",
+      "addStarter": "Einstieg hinzufügen",
+      "modelAndFeatures": "Modell und Funktionen",
+      "followChat": "Wie im Chat",
+      "needWhenForAuto": "Fülle „Wann verwenden“ aus oder schalte die automatische Verwendung aus."
+    },
+    "draft": {
+      "askScenarios": "Nenne ein, zwei Situationen, in denen du sie nutzen würdest",
+      "askQuality": "Wie sieht ein gutes Ergebnis aus?",
+      "skip": "Überspringen",
+      "generating": "Entwurf wird geschrieben…",
+      "title": "Entwurf",
+      "editFirst": "Erst bearbeiten",
+      "suggestedIcon": "Vorgeschlagenes Symbol",
+      "failed": "Der Entwurf konnte nicht fertiggestellt werden. Was schon da ist, wurde für dich eingetragen."
+    },
+    "fromChat": {
+      "menuConversation": "Als Fähigkeit speichern",
+      "menuMessage": "Diese Vorgehensweise als Fähigkeit speichern",
+      "messages": "Nachrichten: {count}",
+      "extracting": "Wird zusammengefasst…"
+    },
+    "limit": {
+      "upgrade": "Für mehr upgraden",
+      "draftKept": "Dein Entwurf bleibt auf diesem Gerät gespeichert."
+    },
+    "composer": {
+      "placeholder": "Tippe /, um eine Fähigkeit zu nutzen"
+    },
+    "picker": {
+      "title": "Meine Fähigkeiten",
+      "multi": "Mehrfachauswahl",
+      "auto": "Auto",
+      "manual": "Manuell",
+      "manage": "Fähigkeiten verwalten",
+      "maxReached": "Höchstens {count} gleichzeitig"
+    },
+    "chip": {
+      "deleted": "Gelöscht"
+    },
+    "message": {
+      "attached": "Mit {names}"
+    },
+    "used": {
+      "chip": "{names} verwendet",
+      "loading": "Verwende {names}…",
+      "byChoice": "Verwendet, weil du sie gewählt hast",
+      "why": "Warum sie verwendet wurde",
+      "disableHere": "In diesem Chat nicht automatisch verwenden",
+      "view": "Fähigkeit ansehen"
+    },
+    "settings": {
+      "autoToggle": "Fähigkeiten automatisch verwenden",
+      "autoToggleFooter": "Wenn deaktiviert, wählt das Modell keine Fähigkeiten selbst aus. Mit / kannst du trotzdem eine verwenden."
+    },
+    "try": {
+      "banner": "Testlauf · Wird nicht im Verlauf gespeichert",
+      "saveToSkill": "In Fähigkeit übernehmen",
+      "adjust": "Anweisungen bearbeiten",
+      "saved": "In „{name}“ übernommen",
+      "savedToDraft": "In den Editor übernommen. Speichere dort, damit die Änderungen bleiben."
+    },
+    "improve": {
+      "prompt": "Das zu „{name}“ hinzufügen?",
+      "review": "Änderung ansehen",
+      "accept": "Zur Fähigkeit hinzufügen",
+      "dismiss": "Jetzt nicht",
+      "addedLine": "Hinzugefügt",
+      "removedLine": "Entfernt",
+      "saved": "Zu „{name}“ hinzugefügt"
+    },
+    "usage": {
+      "manifestRow": "Fähigkeitenliste (Grundverbrauch)"
+    },
+    "glyph": {
+      "writing": "Schreiben",
+      "report": "Bericht",
+      "code": "Code",
+      "study": "Lernen",
+      "travel": "Reisen",
+      "health": "Gesundheit",
+      "meeting": "Besprechung",
+      "idea": "Idee",
+      "translate": "Übersetzung",
+      "email": "E-Mail",
+      "data": "Daten",
+      "design": "Design",
+      "legal": "Recht",
+      "finance": "Finanzen",
+      "marketing": "Marketing",
+      "support": "Kundensupport",
+      "teaching": "Unterricht",
+      "research": "Recherche",
+      "life": "Alltag",
+      "food": "Essen",
+      "music": "Musik",
+      "photo": "Fotografie",
+      "product": "Produkt",
+      "general": "Allgemein"
+    },
+    "capability": {
+      "title": "Modellpräferenz",
+      "any": "Beliebig",
+      "reasoning": "Reasoning",
+      "vision": "Vision",
+      "fast": "Schnell",
+      "largeContext": "Großer Kontext"
+    },
+    "saveFailed": "Änderungen konnten nicht gespeichert werden. Bitte erneut versuchen."
   },
   "builtinSkills": {
     "code_assistant": {
       "name": "Code-Assistent",
-      "description": "Programmierung, Code-Generierung, Debugging",
+      "description": "Programmier-Fragen, Code-Generierung, Debugging",
       "starters": {
         "0": "Hilf mir, diesen Code zu debuggen",
         "1": "Schreib eine Funktion, die…",
@@ -2162,7 +2337,7 @@
     },
     "code_review": {
       "name": "Code-Review",
-      "description": "Codequalität, Sicherheit und Performance-Review",
+      "description": "Code-Qualität, Sicherheit und Performance-Review",
       "starters": {
         "0": "Prüfe diesen Code auf Sicherheitslücken",
         "1": "Check diese PR auf Performance-Probleme",
@@ -2172,7 +2347,7 @@
     },
     "sql_expert": {
       "name": "SQL-Experte",
-      "description": "SQL-Abfragen, Optimierung und Schemadesign",
+      "description": "SQL-Abfragen, Optimierung und Schema-Design",
       "starters": {
         "0": "Schreib eine SQL-Abfrage für…",
         "1": "Optimiere diese langsame Query",
@@ -2202,7 +2377,7 @@
     },
     "email_assistant": {
       "name": "E-Mail-Assistent",
-      "description": "Professionelle geschäftliche und persönliche E-Mails",
+      "description": "Professionelle Geschäfts- und persönliche E-Mails verfassen",
       "starters": {
         "0": "Verfasse eine Follow-up-E-Mail",
         "1": "Schreib eine höfliche Absage",
@@ -2222,7 +2397,7 @@
     },
     "blog_writer": {
       "name": "Blog-Autor",
-      "description": "Ansprechende Langform-Inhalte und Blogbeiträge",
+      "description": "Ansprechende Langform-Inhalte und Blog-Beiträge",
       "starters": {
         "0": "Schreib einen Blogbeitrag über…",
         "1": "Erstelle eine Gliederung für einen Artikel über…",
@@ -2232,7 +2407,7 @@
     },
     "translation_expert": {
       "name": "Übersetzungsexperte",
-      "description": "Präzise Übersetzung mit Beibehaltung von Ton und Nuancen",
+      "description": "Präzise Übersetzung unter Beibehaltung von Ton und Nuancen",
       "starters": {
         "0": "Übersetze das ins Englische",
         "1": "Übersetze das ins Chinesische",
@@ -2282,7 +2457,7 @@
     },
     "data_analyst": {
       "name": "Datenanalyst",
-      "description": "Dateninterpretation, Visualisierung und Insights",
+      "description": "Dateninterpretation, Visualisierung und Erkenntnisse",
       "starters": {
         "0": "Analysiere diese Daten und finde Erkenntnisse",
         "1": "Welches Diagramm eignet sich für diese Daten?",
@@ -2292,7 +2467,7 @@
     },
     "math_tutor": {
       "name": "Mathe-Tutor",
-      "description": "Schritt-für-Schritt mathematische Aufgaben lösen",
+      "description": "Schrittweise mathematische Problemlösung",
       "starters": {
         "0": "Löse das Schritt für Schritt",
         "1": "Erkläre dieses Mathe-Konzept",
@@ -2322,7 +2497,7 @@
     },
     "story_creator": {
       "name": "Geschichtenersteller",
-      "description": "Belletristik, Storytelling und Weltenbau",
+      "description": "Fiktionales Schreiben, Storytelling und Weltenbau",
       "starters": {
         "0": "Hilf mir, diesen Charakter zu entwickeln",
         "1": "Erzähle diese Geschichte weiter",
@@ -2332,7 +2507,7 @@
     },
     "meeting_notes": {
       "name": "Besprechungsnotizen",
-      "description": "Besprechungsprotokolle in strukturierte Zusammenfassungen",
+      "description": "Besprechungsprotokolle in strukturierte Zusammenfassungen umwandeln",
       "starters": {
         "0": "Mach aus diesen Notizen ein Besprechungsprotokoll",
         "1": "Extrahiere die Aufgaben aus diesem Transkript",
@@ -2342,17 +2517,17 @@
     },
     "interview_coach": {
       "name": "Bewerbungscoach",
-      "description": "Vorstellungsgespräche vorbereiten und simulieren",
+      "description": "Vorbereitung auf Vorstellungsgespräche und Übungsinterviews",
       "starters": {
         "0": "Simuliere ein Vorstellungsgespräch für Software Engineer",
-        "1": "Hilf mir bei der Frage ‚Erzählen Sie von sich'",
+        "1": "Hilf mir bei der Frage ‚Erzählen Sie etwas über sich‘",
         "2": "Übe Verhaltensfragen im Interview mit mir",
         "3": "Bewerte meine Antwort auf diese Frage"
       }
     },
     "presentation_outliner": {
       "name": "Präsentationsgliederung",
-      "description": "Präsentationsgliederung, Stichpunkte und Folieninhalte",
+      "description": "Präsentationsgliederungen, Gesprächspunkte und Folieninhalte",
       "starters": {
         "0": "Erstelle eine Präsentationsgliederung für…",
         "1": "Hilf mir, einen 10-Minuten-Vortrag zu strukturieren",
@@ -2372,7 +2547,7 @@
     },
     "travel_planner": {
       "name": "Reiseplaner",
-      "description": "Reiserouten und Zielempfehlungen",
+      "description": "Reiserouten und Reisezielempfehlungen",
       "starters": {
         "0": "Plane eine 5-tägige Reise nach…",
         "1": "Was sollte man in… sehen?",
@@ -2392,7 +2567,7 @@
     },
     "image_analyst": {
       "name": "Bildanalyse",
-      "description": "Bilder beschreiben, analysieren und Infos extrahieren",
+      "description": "Bilder beschreiben, analysieren und Informationen extrahieren",
       "starters": {
         "0": "Beschreibe dieses Bild im Detail",
         "1": "Extrahiere den Text aus diesem Bild",
@@ -2636,8 +2811,7 @@
       "stepLimit": "Zu viele oder zu lange Dokumente für eine Recherche. Wähle einige ab und versuche es erneut.",
       "notConnected": "Verbinde eine Bibliotheksquelle, bevor du die Recherche startest.",
       "sourceForbidden": "Die Quelle hat den Zugriff aufgrund einer Berechtigungs- oder Richtlinieneinschränkung verweigert. Ein erneutes Verbinden behebt das nicht — überprüfe die Freigabe- oder Compliance-Einstellungen der Quelle selbst.",
-      "unavailable": "Die Bibliothek ist vorübergehend nicht verfügbar. Versuche es später erneut.",
-      "retry": "Erneut versuchen"
+      "unavailable": "Die Bibliothek ist vorübergehend nicht verfügbar. Versuche es später erneut."
     }
   },
   "notes": {
@@ -2703,7 +2877,7 @@
     },
     "source": {
       "blank": "Diese Notiz wurde manuell erstellt.",
-      "backToConversation": "Zurück zum Gespräch",
+      "backToConversation": "Zurück zur Unterhaltung",
       "prompt": "Prompt",
       "title": "Quelle",
       "crosscheck": "Mit anderem Modell prüfen"
@@ -2799,7 +2973,7 @@
       "continue": "Weiter",
       "browserTitle": "Anmeldung abschließen",
       "browserBody": "Die Anmeldeseite ist in einem neuen Fenster geöffnet. Komm hierher zurück, sobald du fertig bist.",
-      "popupBlocked": "Dein Browser hat das Anmeldefenster blockiert. Erlaube Pop-ups für diese Website und versuch es dann noch einmal.",
+      "popupBlocked": "Dein Browser hat das Anmeldefenster blockiert. Erlaube Pop-ups für diese Website und versuche es dann noch einmal.",
       "connected": "Verbunden",
       "toolCount": "{count, plural, one {# Tool} other {# Tools}}",
       "defaultPermissions": "Standardberechtigungen",

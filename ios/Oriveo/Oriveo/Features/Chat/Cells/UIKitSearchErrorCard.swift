@@ -44,7 +44,7 @@ final class UIKitSearchErrorCard: UIView {
         return true
     }
 
-    private func configure(_ button: UIButton, _ model: SearchErrorCardPresentation.Button?, primary: Bool) {
+    private func configure(_ button: UIButton, _ model: SearchErrorCardPresentation.CardButton?, primary: Bool) {
         button.isHidden = model == nil
         guard let model else { return }
         var config = primary ? UIButton.Configuration.filled() : UIButton.Configuration.gray()

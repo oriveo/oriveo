@@ -27,8 +27,7 @@ struct ImageStoreTests {
         defer {
             ImageStore.deleteImage(for: imageID, partitionUID: uidA)
             ImageStore.deleteImage(for: imageID, partitionUID: uidB)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uidA))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uidB))
+            await TestPartitionCleanup.remove(uidA, uidB)
         }
 
         let imageA = await ImageStore.loadDisplayImage(for: imageID, partitionUID: uidA)
@@ -60,8 +59,7 @@ struct ImageStoreTests {
         defer {
             ImageStore.deleteImage(for: imageID, partitionUID: uidA)
             ImageStore.deleteImage(for: imageID, partitionUID: uidB)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uidA))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uidB))
+            await TestPartitionCleanup.remove(uidA, uidB)
         }
 
         _ = await ImageStore.loadDisplayImage(for: imageID, partitionUID: uidA)
@@ -200,7 +198,7 @@ struct ImageStoreTests {
         ImageStore.save(imageData: data, for: imageID, partitionUID: uid)
         defer {
             ImageStore.deleteImage(for: imageID, partitionUID: uid)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         let image = await ImageStore.loadOriginalImage(for: imageID, partitionUID: uid)
@@ -222,7 +220,7 @@ struct ImageStoreTests {
         ImageStore.save(imageData: data, for: imageID, partitionUID: uid)
         defer {
             ImageStore.deleteImage(for: imageID, partitionUID: uid)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         let image = await ImageStore.loadOriginalImage(for: imageID, partitionUID: uid)

@@ -46,6 +46,11 @@ mlkitTextRecognitionPlayServices = "16.0.1"
 # HTML text extraction for attached web pages
 jsoup = "1.23.2"
 
+# Play In-App Updates (in-app updates, Android only)
+appUpdate = "2.1.0"
+# Play In-App Review (system rating flow)
+playReview = "2.0.2"
+
 metricsPerformance = "1.0.0"
 profileinstaller = "1.4.1"
 
@@ -53,6 +58,9 @@ profileinstaller = "1.4.1"
 # archived but stable, and carries JLaTeXMath's GPL-2.0-or-later licence with the linking exception
 # that permits linking from a differently licensed program.
 jlatexmath = "0.2.0"
+
+# On-device Silero VAD inference (E-365, MIT)
+onnxruntime = "1.31.1"
 
 # Testing
 junit = "4.13.2"
@@ -131,6 +139,9 @@ androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profi
 jlatexmath-android = { group = "ru.noties", name = "jlatexmath-android", version.ref = "jlatexmath" }
 jlatexmath-android-font-cyrillic = { group = "ru.noties", name = "jlatexmath-android-font-cyrillic", version.ref = "jlatexmath" }
 jlatexmath-android-font-greek = { group = "ru.noties", name = "jlatexmath-android-font-greek", version.ref = "jlatexmath" }
+
+# ONNX Runtime (Silero VAD)
+onnxruntime-android = { group = "com.microsoft.onnxruntime", name = "onnxruntime-android", version.ref = "onnxruntime" }
 
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }

@@ -18,6 +18,13 @@ struct HomeDictationWiringTests {
     }
 
     @Test("the home text view passes out the selection")
+    func openVoiceSettingsRoute() throws {
+        let source = try homeViewSource()
+        #expect(source.contains("onOpenVoiceSettings: openDictationVoiceSettings"))
+        #expect(source.contains("private func openDictationVoiceSettings() {\n        navigation.attemptNavigate(to: .voiceSettings)"))
+    }
+
+    @Test("the home text view passes out the selection")
     func heroComposerPassesSelectionProbe() throws {
         let source = try homeViewSource()
 
@@ -44,17 +51,29 @@ struct HomeDictationWiringTests {
     @Test("home has no microphone; the recording bar's ↑ and the host's canSend both look at the sending state")
     func sendingDisablesMicAndSend() throws {
         let source = try homeViewSource()
-        #expect(!source.contains("DictationMicButton("), "the home bottom bar has no microphone")
-        #expect(source.contains("DictationInputSwitcher(controller: controller, canSend: !isSendingFromHero)"))
+        #expect(!source.contains("DictationMicButton("), "home bottom bar drops the microphone")
+        #expect(source.contains("DictationInputSwitcher(controller: controller, canSend: canHandOffFromHero)"))
 
         let host = try #require(source.range(of: ".modifier(HomeDictationHost("))
         let hostTail = source[host.upperBound...]
         let hostEnd = try #require(hostTail.range(of: "\n        ))"))
-        #expect(hostTail[..<hostEnd.lowerBound].contains("canSend: { !isSendingFromHero }"))
+        #expect(hostTail[..<hostEnd.lowerBound].contains("canSend: { canHandOffFromHero }"))
 
         let hostType = try #require(DictationHostSourceScan.typeBody(source, type: "HomeDictationHost", keyword: "private struct"))
         #expect(hostType.contains("canSend: canSend"))
         #expect(!hostType.contains("canSend: { true }"))
+    }
+
+    @Test("Live text: the home screen hands the selection exit and draft binding to the dictation host")
+    func liveTextWiredThroughProbe() throws {
+        let source = try homeViewSource()
+        let host = try #require(source.range(of: ".modifier(HomeDictationHost("))
+        let hostTail = source[host.upperBound...]
+        let hostEnd = try #require(hostTail.range(of: "\n        ))"))
+        #expect(hostTail[..<hostEnd.lowerBound].contains("live: .probe(dictationProbe, text: $heroText)"))
+
+        let hostType = try #require(DictationHostSourceScan.typeBody(source, type: "HomeDictationHost", keyword: "private struct"))
+        #expect(hostType.contains("live: live"))
     }
 
     private func homeViewSource() throws -> String {
@@ -83,13 +102,16 @@ enum DictationHostSourceScan {
         return tail[..<end.lowerBound]
     }
 
-    /// The property body of every `var X: some View {` in a type body (up to the `}` at 4-space indentation).
+    /// The body of each `var X: some View {` and `func X(…) -> some View {` in the type body (up to the `}` indented by 4 spaces).
     static func viewProperties(in body: Substring) -> [String: Substring] {
         let text = String(body)
-        let pattern = try! NSRegularExpression(pattern: #"(?m)^    (?:private |fileprivate )?var (\w+): some View \{$"#)
+        let pattern = try! NSRegularExpression(
+            pattern: #"(?m)^    (?:private |fileprivate )?(?:var (\w+): some View|func (\w+)\([^)\n]*\) -> some View) \{$"#
+        )
         var result: [String: Substring] = [:]
         for match in pattern.matches(in: text, range: NSRange(text.startIndex..., in: text)) {
-            guard let nameRange = Range(match.range(at: 1), in: text),
+            let nameGroup = match.range(at: 1).location != NSNotFound ? 1 : 2
+            guard let nameRange = Range(match.range(at: nameGroup), in: text),
                   let whole = Range(match.range, in: text) else { continue }
             let tail = text[whole.upperBound...]
             guard let end = tail.range(of: "\n    }\n") else { continue }

@@ -708,7 +708,7 @@ struct RelayKeysPage: View {
                     .font(OriveoTheme.Typography.body.weight(.semibold))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
             .contentShape(Rectangle())
@@ -748,7 +748,7 @@ struct RelayKeysPage: View {
                 }
                 .buttonStyle(.plain)
                 .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.primary)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             }
         }
     }
@@ -997,7 +997,7 @@ struct RelayKeyRowView: View {
     private var primaryBadge: some View {
         Text(L10n.tr(RelayKeysBoardModel.primaryBadgeKey, table: .providers))
             .font(OriveoTheme.Typography.footnote.weight(.semibold))
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .lineLimit(1)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

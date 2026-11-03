@@ -70,9 +70,9 @@ final class VoiceEngineSheetModel {
 
     var title: String {
         switch direction {
-        case .stt: return L10n.tr("Dictation Engine", table: .voice)
+        // The settings page no longer has a conversation-engine entry, so .realtime never opens this sheet.
+        case .stt, .realtime: return L10n.tr("Dictation Engine", table: .voice)
         case .tts: return L10n.tr("Read-Aloud Engine", table: .voice)
-        case .realtime: return L10n.tr("Conversation Engine", table: .voice)
         }
     }
 
@@ -102,16 +102,10 @@ final class VoiceEngineSheetModel {
         return options.map { option in
             switch option {
             case .system:
-                // For conversations, "system" means follow the current chat model.
-                let isRealtime = direction == .realtime
                 return VoiceEngineSheetRow(
                     option: option,
-                    title: isRealtime
-                        ? L10n.tr("Follow Current Model", table: .voice)
-                        : L10n.tr("System", table: .voice),
-                    subtitle: isRealtime
-                        ? L10n.tr("Dictation → current model → read aloud", table: .voice)
-                        : L10n.tr("Built into your device, free", table: .voice),
+                    title: L10n.tr("System", table: .voice),
+                    subtitle: L10n.tr("Built into your device, free", table: .voice),
                     isSelected: selection == .system
                 )
             case .cloud(let providerKind, let connectionID, let model, _):

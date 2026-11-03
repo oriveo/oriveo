@@ -70,6 +70,11 @@ export type TelemetryEventName =
   | 'skill_used'
   | 'skill_created'
   | 'skill_forked'
+  | 'skill_manual_attached'
+  | 'skill_auto_disabled_in_conversation'
+  | 'skill_auto_used'
+  | 'skill_improve_suggested'
+  | 'skill_improve_accepted'
   | 'memory_edited'
   | 'folder_created'
   | 'conversation_deleted'
@@ -131,6 +136,11 @@ export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'skill_used',
   'skill_created',
   'skill_forked',
+  'skill_manual_attached',
+  'skill_auto_disabled_in_conversation',
+  'skill_auto_used',
+  'skill_improve_suggested',
+  'skill_improve_accepted',
   'memory_edited',
   'folder_created',
   'conversation_deleted',

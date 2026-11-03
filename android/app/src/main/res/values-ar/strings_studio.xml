@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="studio_tab_title">الصور</string>
+    <plurals name="studio_generating_title">
+        <item quantity="one">جارٍ إنشاء صورة واحدة</item>
+        <item quantity="two">جارٍ إنشاء صورتين</item>
+        <item quantity="few">جارٍ إنشاء %1$d صور</item>
+        <item quantity="many">جارٍ إنشاء %1$d صورة</item>
+        <item quantity="other">جارٍ إنشاء %1$d صورة</item>
+    </plurals>
+</resources>

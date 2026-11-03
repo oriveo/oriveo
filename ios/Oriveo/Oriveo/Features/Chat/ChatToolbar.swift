@@ -6,7 +6,12 @@ struct ChatToolbar: View {
     let currentModel: AIModel?
     /// The model name stored on the conversation, shown while its connection is temporarily unavailable and the model cannot be resolved.
     var pendingModelName: String? = nil
+    /// Whether the selected model in this session is a realtime voice model: a teal dot goes before the model name; false for text models.
+    var realtimeSelected: Bool = false
+    /// Realtime model name selected in this session (catalog model, same as the picker row name); when set, it replaces the currentModel name.
+    var realtimeModelName: String? = nil
     let isSendingMessage: Bool
+    /// Empty state (no messages) leaves the top bar unfilled; with messages, a solid top scrim fades downward so scrolling content fades in softly.
     var transparentChrome: Bool = false
     @Binding var showModelSwitcher: Bool
     @Binding var showDeleteConfirmation: Bool
@@ -54,13 +59,19 @@ struct ChatToolbar: View {
                         ConnectionAvatarIcon(provider: provider, kind: provider.kind, relayKind: provider.relayKind, size: 26)
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(currentModel?.name ?? pendingModelName ?? L10n.tr("Choose Model"))
-                                .font(.system(size: 15, weight: .bold))
-                                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                                .lineLimit(2)
-                                .minimumScaleFactor(0.8)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .layoutPriority(1)
+                            HStack(spacing: 6) {
+                                if realtimeSelected {
+                                    RealtimeModelDot()
+                                }
+                                Text(realtimeModelName ?? currentModel?.name ?? pendingModelName ?? L10n.tr("Choose Model"))
+                                    .accessibilityValue(modelNameAccessibilityValue)
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.8)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .layoutPriority(1)
+                            }
 
                             if let currentModel {
                                 LocalModelRuntimeLabel(model: currentModel)
@@ -83,6 +94,8 @@ struct ChatToolbar: View {
                 }
             }
             .buttonStyle(ChatToolbarPressableStyle())
+            // The button merges the teal dot into itself so its identifier can't be found: wrap the button in a contain container that carries the teal dot identifier
+            .realtimeModelDotAnchor(realtimeSelected)
 
             if hasInstructions && !usesVerticalBar {
                 instructionsBadge
@@ -133,7 +146,7 @@ struct ChatToolbar: View {
                         }
                     }
 
-                    // Conversation settings (instructions and the use-memory switch live in the sheet)
+                    // Conversation settings (the instructions and memory toggles moved into the sheet)
                     conversationSettingsButton
 
                     if projection.activeConversationID != nil {
@@ -178,7 +191,19 @@ struct ChatToolbar: View {
         }
     }
 
-    // MARK: - Vertical bars (Duo)
+    // MARK: - Screen reader
+
+    /// Model name for screen readers: the label is the model name (the Text itself); when realtime is selected the value reads "Realtime Voice",
+    /// the screen reader adds the separator itself, with no hard-coded punctuation (same convention as Android stateDescription).
+    private var modelNameAccessibilityValue: String {
+        Self.modelNameAccessibilityValue(realtime: realtimeSelected)
+    }
+
+    static func modelNameAccessibilityValue(realtime: Bool) -> String {
+        realtime ? L10n.tr("Realtime Voice", table: .voice) : ""
+    }
+
+    // MARK: - Duo vertical column
 
     /// The model capsule with vertical bars: model name · provider on one line, shorter than the two-line version, giving the height back to the cover screen's reading area.
     private var verticalBarModelLabel: some View {
@@ -187,7 +212,11 @@ struct ChatToolbar: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 4) {
-                    Text(currentModel?.name ?? pendingModelName ?? L10n.tr("Choose Model"))
+                    if realtimeSelected {
+                        RealtimeModelDot()
+                    }
+                    Text(realtimeModelName ?? currentModel?.name ?? pendingModelName ?? L10n.tr("Choose Model"))
+                        .accessibilityValue(modelNameAccessibilityValue)
                         .font(.system(size: 15, weight: .bold))
                         .foregroundStyle(OriveoTheme.Palette.textPrimary)
                         .lineLimit(1)
@@ -313,7 +342,7 @@ struct ChatToolbar: View {
         } label: {
             Text(L10n.tr("conversation_instructions_badge", table: .chat))
                 .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.primary)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 .lineLimit(1)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 3)
@@ -384,7 +413,7 @@ struct ChatToolbar: View {
 
                     Text(L10n.tr("Memory"))
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(
@@ -621,7 +650,7 @@ private struct ChatCostPill: View {
     var body: some View {
         Text(text)
             .font(.system(size: 13, weight: .semibold, design: .rounded).monospacedDigit())
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
     }
 }
 

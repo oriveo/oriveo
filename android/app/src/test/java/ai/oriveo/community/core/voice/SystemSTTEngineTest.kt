@@ -1,27 +1,48 @@
 package ai.oriveo.community.core.voice
 
+import android.content.Context
 import android.content.Intent
 import android.media.AudioFormat
 import android.os.Bundle
+import android.os.Looper
 import android.os.Parcelable
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
+import androidx.test.core.app.ApplicationProvider
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.IOException
+import java.util.Locale
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 /**
@@ -197,7 +218,292 @@ class SystemSTTEngineTest {
         assertEquals(AudioFormat.ENCODING_PCM_16BIT, intent.getIntExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, -1))
         assertEquals(16_000, intent.getIntExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, -1))
         assertEquals("de-DE", intent.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
+        assertTrue(intent.getBooleanExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false))
         assertEquals("system", SystemSTTEngine(backend).engineName)
+    }
+
+    @Test
+    fun `pipe session streams partials and appends each segment as a final clearing the partial`() = runTest {
+        val backend = FakeBackend()
+        val session = SystemSTTEngine(backend).startPipeSession(route)
+
+        assertEquals(LiveTranscript(), session.live.value)
+        backend.callbacks.onPartialResult("  Hal ")
+        assertEquals(LiveTranscript(emptyList(), "Hal"), session.live.value)
+        backend.callbacks.onPartialResult(null)
+        assertEquals(LiveTranscript(emptyList(), "Hal"), session.live.value)
+        backend.callbacks.onSegmentResult("Hallo")
+        assertEquals(LiveTranscript(listOf("Hallo"), ""), session.live.value)
+        backend.callbacks.onSegmentResult(null)
+        // No live text: an empty final does not change the state.
+        assertEquals(LiveTranscript(listOf("Hallo"), ""), session.live.value)
+        backend.callbacks.onPartialResult("Wel")
+        backend.callbacks.onSegmentResult(null)
+        // A final without text promotes the current live text to this segment.
+        assertEquals(LiveTranscript(listOf("Hallo", "Wel"), ""), session.live.value)
+        backend.callbacks.onPartialResult("Welt")
+        backend.callbacks.onSegmentResult("Welt.")
+        assertEquals(LiveTranscript(listOf("Hallo", "Wel", "Welt."), ""), session.live.value)
+
+        session.stop()
+        backend.awaitStopped()
+        backend.callbacks.onEndOfSegmentedSession()
+        assertEquals(STTResult.Success("Hallo Wel Welt."), session.await())
+        backend.callbacks.onPartialResult("late")
+        assertEquals(LiveTranscript(listOf("Hallo", "Wel", "Welt."), ""), session.live.value)
+    }
+
+    @Test
+    fun `pipe partial with text counts as a result so a later language error does not fall back`() = runTest {
+        val backend = FakeBackend()
+        val session = SystemSTTEngine(backend).startPipeSession(route)
+
+        backend.callbacks.onPartialResult("Guten")
+        backend.callbacks.onError(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
+
+        val failure = DictationFailure.Recognizer(SpeechRecognizer.ERROR_LANGUAGE_UNAVAILABLE)
+        assertEquals(STTResult.Failed(failure, DictationPrimaryAction.Retry), session.await())
+        assertEquals(listOf(SystemSTTRecognizer.ON_DEVICE), backend.started)
+    }
+
+    @Test
+    fun `pipe session without a result 1500 ms after stop times out and releases the recognizer`() = runTest {
+        val backend = FakeBackend()
+        val session = SystemSTTEngine(backend).startPipeSession(route)
+        session.onPcm(shortArrayOf(1, 2), 2)
+
+        session.stop()
+        backend.awaitStopped()
+        val result = session.await()
+
+        assertEquals(SystemSTTEngine.TIMEOUT_RESULT, result)
+        assertEquals(STTResult.Failed(DictationFailure.Timeout, DictationPrimaryAction.Retry), result)
+        assertEquals(1_500L, currentTime)
+        assertTrue(backend.pipe.sinkClosed)
+        assertTrue(backend.pipe.sourceClosed)
+        assertEquals(listOf("stopListening(sinkClosed=true)", "destroy"), backend.calls)
+        // A result arriving after the timeout does not change the outcome.
+        backend.callbacks.onEndOfSegmentedSession()
+        assertEquals(SystemSTTEngine.TIMEOUT_RESULT, session.await())
+    }
+
+    @Test
+    fun `awaiting before stop has no time limit and the stop limit starts at stop`() = runTest {
+        val backend = FakeBackend()
+        val session = SystemSTTEngine(backend).startPipeSession(route)
+
+        val pending = async { session.await() }
+        advanceTimeBy(60_000)
+        runCurrent()
+        assertFalse(pending.isCompleted)
+
+        session.stop()
+        backend.awaitStopped()
+        runCurrent()
+        advanceTimeBy(1_400)
+        runCurrent()
+        assertFalse(pending.isCompleted)
+        backend.callbacks.onSegmentResult("spät")
+        backend.callbacks.onEndOfSegmentedSession()
+
+        assertEquals(STTResult.Success("spät"), pending.await())
+    }
+
+    @Test
+    fun `self record session exposes finals and the trimmed partial of the current round`() = runTest {
+        val backend = FakeBackend()
+        val session = SystemSTTEngine(backend).startSelfRecordSession(selfRoute)
+
+        backend.callbacks.onPartialResult(" Bon ")
+        assertEquals(LiveTranscript(emptyList(), "Bon"), session.live.value)
+        backend.callbacks.onResults("Bonjour")
+        assertEquals(LiveTranscript(listOf("Bonjour"), ""), session.live.value)
+        backend.callbacks.onPartialResult("tout")
+        backend.callbacks.onError(SpeechRecognizer.ERROR_NO_MATCH)
+        assertEquals(LiveTranscript(listOf("Bonjour"), ""), session.live.value)
+        backend.callbacks.onPartialResult("le monde ")
+        session.interrupt()
+
+        assertEquals(LiveTranscript(listOf("Bonjour", "le monde "), ""), session.live.value)
+        assertEquals(STTResult.Success("Bonjour le monde"), session.await())
+    }
+
+    @Test
+    fun `self record without a result 1500 ms after stop times out and destroys the recognizer`() = runTest {
+        val backend = FakeBackend()
+        val session = SystemSTTEngine(backend).startSelfRecordSession(selfRoute)
+        backend.callbacks.onResults("Bonjour")
+
+        session.stop()
+        val result = session.await()
+
+        assertEquals(SystemSTTEngine.TIMEOUT_RESULT, result)
+        assertEquals(1_500L, currentTime)
+        assertEquals(listOf("restart", "stopListening(sinkClosed=false)", "destroy"), backend.calls)
+        assertEquals("Bonjour", session.transcript)
+    }
+
+    @Test
+    fun `file transcription without a result times out at duration times 1_5 plus grace`() = runTest {
+        val backend = FakeBackend()
+        val decoder = FakeDecoder(listOf(ByteArray(3200) { it.toByte() }))
+        val engine = SystemSTTEngine(backend, decoder, routeFor = { route }, fileTimeoutGraceMs = 200)
+        val segment = STTSegment(File("slot.aac"), range = 0.0..0.2)
+
+        val startedNs = System.nanoTime()
+        val result = engine.transcribe(segment, "de-DE")
+        val elapsedMs = (System.nanoTime() - startedNs) / 1_000_000
+
+        assertEquals(SystemSTTEngine.TIMEOUT_RESULT, result)
+        // Limit 0.2 s × 1.5 + 0.2 s = 0.5 s; the 1.5 s limit after stop does not apply to file recognition.
+        assertTrue("elapsed $elapsedMs ms", elapsedMs in 500L until 1_500L)
+        assertTrue(backend.pipe.sinkClosed)
+        assertTrue(backend.pipe.sourceClosed)
+        assertEquals(listOf("stopListening(sinkClosed=true)", "destroy"), backend.calls)
+    }
+
+    @Test
+    fun `recognizer gate makes a new recognizer wait for the previous one to be destroyed`() = runTest {
+        val gate = SystemSTTRecognizerGate()
+        val first = gate.enqueue()
+        first.awaitTurn()
+        val second = gate.enqueue()
+
+        val turn = async { second.awaitTurn() }
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertFalse(turn.isCompleted)
+        first.release()
+        runCurrent()
+
+        turn.await()
+        assertEquals(1_000L, currentTime)
+    }
+
+    @Test
+    fun `recognizer gate never times out and waits until the previous one is destroyed`() = runTest {
+        val gate = SystemSTTRecognizerGate()
+        val first = gate.enqueue()
+        val second = gate.enqueue()
+
+        val turn = async { second.awaitTurn() }
+        advanceTimeBy(10 * 60_000L)
+        runCurrent()
+        assertFalse(turn.isCompleted)
+
+        first.release()
+        runCurrent()
+        assertTrue(turn.isCompleted)
+        assertEquals(10 * 60_000L, currentTime)
+    }
+
+    @Test
+    fun `recognizer gate completion is transitive when a later ticket releases first`() = runTest {
+        val gate = SystemSTTRecognizerGate()
+        val first = gate.enqueue()
+        val second = gate.enqueue()
+        val third = gate.enqueue()
+
+        // Second instance cancelled while waiting and released first: the third must still wait for the first instance to be destroyed.
+        second.release()
+        val turn = async { third.awaitTurn() }
+        runCurrent()
+        assertFalse(turn.isCompleted)
+
+        first.release()
+        runCurrent()
+        assertTrue(turn.isCompleted)
+    }
+
+    @Test
+    fun `production session backend destroys the created recognizer and releases when startListening is cancelled`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val gate = SystemSTTRecognizerGate()
+            val created = mutableListOf<SpeechRecognizer>()
+            lateinit var caller: Job
+            val recognizers = AndroidSystemSTTBackend(context(), gate) {
+                SpeechRecognizer.createSpeechRecognizer(context()).also {
+                    created += it
+                    // Cancelled after creation but before startListening returns.
+                    caller.cancel()
+                }
+            }
+            val backend = AndroidSystemSTTSessionBackend(context(), recognizers)
+            caller = launch {
+                backend.startListening(SystemSTTRecognizer.DEFAULT, Intent(), NoopCallbacks)
+                fail("startListening should be cancelled")
+            }
+            caller.join()
+
+            assertTrue(caller.isCancelled)
+            assertEquals(1, created.size)
+            assertTrue(shadowOf(created.single()).isDestroyed)
+            // Instance released: the next one gets its turn immediately.
+            val next = async { gate.enqueue().awaitTurn() }
+            runCurrent()
+            assertTrue(next.isCompleted)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
+    fun `production model download during a live session waits until the session recognizer is destroyed`() = runTest {
+        Dispatchers.setMain(StandardTestDispatcher(testScheduler))
+        try {
+            val gate = SystemSTTRecognizerGate()
+            val created = mutableListOf<SpeechRecognizer>()
+            val recognizers = AndroidSystemSTTBackend(context(), gate) {
+                // The first instance must be destroyed before the second is created.
+                assertTrue(created.all { shadowOf(it).isDestroyed })
+                SpeechRecognizer.createSpeechRecognizer(context()).also { created += it }
+            }
+            val listening = AndroidSystemSTTSessionBackend(context(), recognizers)
+                .startListening(SystemSTTRecognizer.DEFAULT, Intent(), NoopCallbacks)
+            assertEquals(1, created.size)
+
+            recognizers.triggerModelDownload(SystemSTTRecognizer.DEFAULT, "fr-FR")
+            advanceTimeBy(10 * 60_000L)
+            runCurrent()
+            assertEquals(1, created.size)
+
+            listening.destroy()
+            shadowOf(Looper.getMainLooper()).idle()
+            runCurrent()
+
+            assertEquals(2, created.size)
+            val download = shadowOf(created[1])
+            assertEquals("fr-FR", download.latestModelDownloadIntent?.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
+            assertTrue(download.isDestroyed)
+        } finally {
+            Dispatchers.resetMain()
+        }
+    }
+
+    @Test
+    fun `file transcription routes through the router cache and checks support once`() = runTest {
+        val routeBackend = object : SystemSTTBackend {
+            val checks = mutableListOf<Pair<SystemSTTRecognizer, String>>()
+            override fun isRecognitionAvailable() = true
+            override fun isOnDeviceRecognitionAvailable() = true
+            override fun hasEnabledRecognitionService() = true
+            override suspend fun checkSupport(recognizer: SystemSTTRecognizer, languageTag: String): SystemSTTSupport {
+                checks += recognizer to languageTag
+                return SystemSTTSupport()
+            }
+            override fun triggerModelDownload(recognizer: SystemSTTRecognizer, languageTag: String) = Unit
+            override fun uiLocale(): Locale = Locale.FRANCE
+        }
+        val router = SystemSTTRouter(routeBackend, sdkInt = 34)
+        val engine = SystemSTTEngine(FakeBackend(), FakeDecoder(emptyList()), routeFor = router::route)
+
+        repeat(2) { engine.transcribe(STTSegment(File("slot.aac")), "fr-FR") }
+
+        assertEquals(
+            listOf(SystemSTTRecognizer.ON_DEVICE to "fr-FR", SystemSTTRecognizer.DEFAULT to "fr-FR"),
+            routeBackend.checks,
+        )
     }
 
     @Test
@@ -254,6 +560,7 @@ class SystemSTTEngineTest {
         // Each chunk is 20 ms (320 samples = 640 bytes); the 2 s queue limit = 100 chunks.
         val chunks = (0 until 151).map { chunk -> ShortArray(320) { (chunk * 7 + it).toShort() } }
 
+        backend.callbacks.onReadyForSpeech()
         sinks.forEach { it.onPcm(chunks[0], 320) }
         assertTrue(backend.pipe.firstWriteEntered.await(WAIT_SEC, TimeUnit.SECONDS))
         val capture = Thread { chunks.drop(1).forEach { chunk -> sinks.forEach { it.onPcm(chunk, 320) } } }
@@ -270,6 +577,67 @@ class SystemSTTEngineTest {
 
         val kept = listOf(chunks[0]) + chunks.takeLast(100)
         assertEquals(kept.flatMap { it.leBytes() }, backend.pipe.bytes())
+        // Chunk dropped: the session result is marked droppedAudio, so dictation / conversation switch to the recording file.
+        backend.callbacks.onSegmentResult("\u4ECA\u5929\u5929\u6C14")
+        backend.callbacks.onEndOfSegmentedSession()
+        assertEquals(STTResult.Success("\u4ECA\u5929\u5929\u6C14", droppedAudio = true), session.await())
+    }
+
+    @Test
+    fun `before the recognizer is ready the queue keeps ten seconds without dropping then drops to two seconds`() = runTest {
+        val release = CountDownLatch(1)
+        val backend = FakeBackend(blockWrites = release)
+        val session = SystemSTTEngine(backend).startPipeSession(route)
+        // Each chunk is 20 ms (640 bytes): the limit before ready is 10 s = 500 chunks; after ready, 2 s = 100 chunks.
+        val chunks = (0 until 503).map { chunk -> ShortArray(320) { (chunk * 7 + it).toShort() } }
+
+        session.onPcm(chunks[0], 320)
+        assertTrue(backend.pipe.firstWriteEntered.await(WAIT_SEC, TimeUnit.SECONDS))
+        chunks.subList(1, 501).forEach { session.onPcm(it, 320) }
+        assertEquals(0, session.droppedChunks)
+        session.onPcm(chunks[501], 320)
+        assertEquals(1, session.droppedChunks)
+
+        backend.callbacks.onReadyForSpeech()
+        session.onPcm(chunks[502], 320)
+        assertEquals(1 + 401, session.droppedChunks)
+
+        release.countDown()
+        session.stop()
+        backend.awaitStopped()
+        val kept = listOf(chunks[0]) + chunks.takeLast(100)
+        assertEquals(kept.flatMap { it.leBytes() }, backend.pipe.bytes())
+    }
+
+    @Test
+    fun `writer blocked on a stuck recognizer exits within one second after the session ends`() {
+        val writeEntered = CountDownLatch(1)
+        val pipe = object : SystemSTTPipe {
+            override val source: Parcelable = Bundle()
+
+            // Recognition service hangs: closing the write end does not unblock the write; only interrupting the write thread returns.
+            override fun write(bytes: ByteArray, offset: Int, length: Int) {
+                writeEntered.countDown()
+                try {
+                    Thread.sleep(Long.MAX_VALUE)
+                } catch (interrupted: InterruptedException) {
+                    throw java.io.InterruptedIOException("interrupted")
+                }
+            }
+
+            override fun closeSink() = Unit
+
+            override fun closeSource() = Unit
+        }
+        val session = SystemSTTPipeSession(pipe)
+        session.onPcm(ShortArray(320), 320)
+        assertTrue(writeEntered.await(WAIT_SEC, TimeUnit.SECONDS))
+        val writer = session.writerThread!!
+
+        session.end(STTResult.Success(""))
+        writer.join(1_000)
+
+        assertFalse("writer thread still alive 1 s after the session ended", writer.isAlive)
     }
 
     @Test
@@ -458,6 +826,61 @@ class SystemSTTEngineTest {
         assertEquals(listOf("restart"), listening.calls)
         assertEquals("tôt", session.transcript)
         assertNull(listening.intent)
+    }
+
+    @Test
+    fun `single round with voice but no text ends empty with the voiced duration`() = runTest {
+        val listening = FakeBackend()
+        var now = 1_000L
+        val session = SystemSTTSelfRecordSession(singleRound = true, clock = { now })
+        session.attach(listening)
+
+        session.onBeginningOfSpeech()
+        now = 1_400L
+        session.onBeginningOfSpeech()
+        now = 1_850L
+        session.onEndOfSpeech()
+        now = 2_300L
+        session.onError(SpeechRecognizer.ERROR_NO_MATCH)
+
+        assertEquals(STTResult.Success(""), session.await())
+        assertEquals(850, session.voicedMs)
+        assertEquals(listOf("destroy"), listening.calls)
+    }
+
+    @Test
+    fun `single round without voice restarts and the text round carries its voiced duration`() = runTest {
+        val listening = FakeBackend()
+        var now = 0L
+        val session = SystemSTTSelfRecordSession(singleRound = true, clock = { now })
+        session.attach(listening)
+
+        session.onError(SpeechRecognizer.ERROR_SPEECH_TIMEOUT)
+        session.onResults(null)
+        assertEquals(listOf("restart", "restart"), listening.calls)
+
+        // No onEndOfSpeech: the end time is the time the result arrives.
+        now = 5_000L
+        session.onBeginningOfSpeech()
+        now = 6_200L
+        session.onResults("bonjour")
+
+        assertEquals(STTResult.Success("bonjour"), session.await())
+        assertEquals(1_200, session.voicedMs)
+        assertEquals(listOf("restart", "restart", "destroy"), listening.calls)
+    }
+
+    @Test
+    fun `dictation self record keeps restarting after a voiced empty round`() = runTest {
+        val listening = FakeBackend()
+        val session = SystemSTTSelfRecordSession(clock = { 0L })
+        session.attach(listening)
+
+        session.onBeginningOfSpeech()
+        session.onEndOfSpeech()
+        session.onError(SpeechRecognizer.ERROR_NO_MATCH)
+
+        assertEquals(listOf("restart"), listening.calls)
     }
 
     @Test
@@ -757,6 +1180,92 @@ class SystemSTTEngineTest {
         assertEquals(STTResult.Failed(failure, DictationPrimaryAction.Retry), session.await())
         assertEquals(listOf(SystemSTTRecognizer.ON_DEVICE), backend.started)
         assertEquals(listOf("destroy"), backend.calls)
+    }
+
+    @Test
+    fun `live result cases from fixture`() = runTest {
+        val fixture = Json.parseToJsonElement(workspaceFile("shared/voice-contracts/dictation.v1.json").readText()).jsonObject
+        val cases = fixture["liveResultCases"]!!.jsonArray.map { it.jsonObject }
+        assertTrue(cases.size >= 10)
+        for (case in cases) {
+            val id = case["id"]!!.jsonPrimitive.content
+            val events = case["input"]!!.jsonObject["events"]!!.jsonArray.map { it.jsonObject }
+            val expected = case["expected"]!!.jsonObject
+            val finals = expected["finals"]!!.jsonArray.map { it.jsonPrimitive.content }
+            val partial = expected["partial"]!!.jsonPrimitive.content
+
+            // Pipe session: the final goes through onSegmentResult.
+            val pipeBackend = FakeBackend()
+            val pipe = SystemSTTEngine(pipeBackend).startPipeSession(route)
+            for (event in events) {
+                val text = event.text()
+                if (event["isFinal"]!!.jsonPrimitive.boolean) {
+                    pipeBackend.callbacks.onSegmentResult(text)
+                } else {
+                    pipeBackend.callbacks.onPartialResult(text)
+                }
+            }
+            assertEquals("$id pipe", LiveTranscript(finals, partial), pipe.live.value)
+
+            // Self-recording session: the final goes through onResults (restart after each turn).
+            val selfBackend = FakeBackend()
+            val self = SystemSTTEngine(selfBackend).startSelfRecordSession(selfRoute)
+            for (event in events) {
+                val text = event.text()
+                if (event["isFinal"]!!.jsonPrimitive.boolean) {
+                    selfBackend.callbacks.onResults(text)
+                } else {
+                    selfBackend.callbacks.onPartialResult(text)
+                }
+            }
+            assertEquals("$id self-record", LiveTranscript(finals, partial), self.live.value)
+        }
+    }
+
+    @Test
+    fun `empty final promotes the current partial into the session result`() = runTest {
+        val pipeBackend = FakeBackend()
+        val pipe = SystemSTTEngine(pipeBackend).startPipeSession(route)
+        pipeBackend.callbacks.onPartialResult(" Hallo ")
+        pipeBackend.callbacks.onSegmentResult(null)
+        pipeBackend.callbacks.onSegmentResult("")
+        pipeBackend.callbacks.onSegmentResult("Welt.")
+        pipe.stop()
+        pipeBackend.awaitStopped()
+        pipeBackend.callbacks.onEndOfSegmentedSession()
+        assertEquals(STTResult.Success("Hallo Welt."), pipe.await())
+
+        val selfBackend = FakeBackend()
+        val self = SystemSTTEngine(selfBackend).startSelfRecordSession(selfRoute)
+        selfBackend.callbacks.onPartialResult("Bonjour")
+        selfBackend.callbacks.onResults(" ")
+        selfBackend.callbacks.onPartialResult("monde")
+        selfBackend.callbacks.onResults("monde")
+        self.interrupt()
+        assertEquals(LiveTranscript(listOf("Bonjour", "monde"), ""), self.live.value)
+        assertEquals(STTResult.Success("Bonjour monde"), self.await())
+    }
+
+    private fun JsonObject.text(): String? = this["text"].let { if (it == null || it is JsonNull) null else it.jsonPrimitive.content }
+
+    private fun workspaceFile(relative: String): File {
+        var dir: File? = File("").absoluteFile
+        while (dir != null) {
+            val candidate = File(dir, relative)
+            if (candidate.exists()) return candidate
+            dir = dir.parentFile
+        }
+        throw IllegalStateException("not found: $relative")
+    }
+
+    private fun context(): Context = ApplicationProvider.getApplicationContext()
+
+    private object NoopCallbacks : SystemSTTCallbacks {
+        override fun onSegmentResult(text: String?) = Unit
+        override fun onResults(text: String?) = Unit
+        override fun onPartialResult(text: String?) = Unit
+        override fun onEndOfSegmentedSession() = Unit
+        override fun onError(error: Int) = Unit
     }
 
     private fun ShortArray.leBytes(): List<Byte> = flatMap { listOf(it.toByte(), (it.toInt() shr 8).toByte()) }

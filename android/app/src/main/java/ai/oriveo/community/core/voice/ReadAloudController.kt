@@ -74,8 +74,8 @@ interface ReadAloudEnvironment {
     /** Placeholder sentence for [appLocale] (one of [APP_VOICE_LOCALES]). */
     fun placeholderText(kind: SpeakablePlaceholder, appLocale: String): String
 
-    /** Requests audio focus and starts listening for interruptions; returns false if focus is denied. */
-    fun beginSession(listener: SessionListener): Boolean
+    /** Requests audio focus and starts listening for interruptions; returns false if focus is refused. */
+    suspend fun beginSession(listener: SessionListener): Boolean
 
     fun endSession()
 

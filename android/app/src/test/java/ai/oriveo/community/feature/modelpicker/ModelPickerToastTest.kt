@@ -1,5 +1,14 @@
 package ai.oriveo.community.feature.modelpicker
 
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.onAllNodesWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onFirst
+import androidx.compose.ui.test.onNodeWithText
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
 import ai.oriveo.community.core.app.GlobalToastStyle
@@ -10,6 +19,10 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.ToolCallMemoryStore
+import ai.oriveo.community.core.voice.VoiceCatalogClient
+import ai.oriveo.community.core.voice.VoiceCatalogState
+import ai.oriveo.community.core.voice.VoiceEngineSettings
+import ai.oriveo.community.testing.TestSharedPreferences
 import ai.oriveo.community.ui.component.GlobalToastHost
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -76,6 +89,11 @@ class ModelPickerToastTest {
         val toolCallMemory = mockk<ToolCallMemoryStore> {
             every { revision } returns MutableStateFlow(0L)
         }
+        // The picker reads the voice catalog cache and the notice store; a catalog that is not ready means no realtime row
+        val voiceCatalog = mockk<VoiceCatalogClient> {
+            every { state } returns MutableStateFlow<VoiceCatalogState?>(null)
+        }
+        val voiceSettings = VoiceEngineSettings(prefsProvider = { TestSharedPreferences() })
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent {
             KoinApplication(
@@ -85,6 +103,8 @@ class ModelPickerToastTest {
                             single<ProviderRepository> { providerRepository }
                             single<ToolCallMemoryStore> { toolCallMemory }
                             single<GlobalSnackbarManager> { snackbar }
+                            single<VoiceCatalogClient> { voiceCatalog }
+                            single<VoiceEngineSettings> { voiceSettings }
                         },
                     )
                 },
@@ -125,7 +145,7 @@ class ModelPickerToastTest {
         composeRule.onAllNodesWithText("Model added marker").assertCountEquals(1)
         // The only copy lives in the sheet window: the same compose root as the picker content, not the covered main window
         val toastRoot = composeRule.onNodeWithText("Model added marker").fetchSemanticsNode().root
-        val pickerRoot = composeRule.onAllNodesWithText("GPT-4o mini", substring = true, useUnmergedTree = true)
+        val pickerRoot = composeRule.onAllNodesWithContentDescription("GPT-4o mini", useUnmergedTree = true)
             .onFirst().fetchSemanticsNode().root
         assertSame(pickerRoot, toastRoot)
     }

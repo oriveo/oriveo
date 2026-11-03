@@ -500,3 +500,374 @@ nonisolated enum DictationRules {
         ageSec - pendingRetentionSec > compareTolerance
     }
 }
+
+// MARK: - Live dictation
+
+/// On-screen live text: final = finalized segments joined by join, volatile = current hypothesis (trimmed, shown lighter), text = both joined by needsSpace.
+nonisolated struct LiveDictationText: Sendable, Hashable {
+    let final: String
+    let volatile: String
+    let text: String
+}
+
+/// Result of writing live text into the input (UTF-16 offsets): region is the whole insertion (including the added space, so the X removes exactly it),
+/// volatile = [cursor - volatile length, cursor).
+nonisolated struct LiveDictationInsertion: Sendable, Hashable {
+    let text: String
+    let cursor: Int
+    let region: Range<Int>
+    let volatile: Range<Int>
+}
+
+/// How a live session ends: ok = result delivered normally; failed = recognizer error; timeout = result wait timed out.
+nonisolated enum LiveDictationEnded: String, Sendable, Hashable {
+    case ok
+    case failed
+    case timeout
+}
+
+/// State when a live session ends; hasRecording is required (no default value).
+nonisolated struct LiveDictationEnd: Sendable, Hashable {
+    let finals: [String]
+    let partial: String
+    let hasRecording: Bool
+    let ended: LiveDictationEnded
+    /// Failure category when ended == failed.
+    let failureKind: SystemFailureKind?
+    /// The live session dropped queued audio (may miss words); the file is still recognized when a recording exists.
+    let droppedAudio: Bool
+
+    init(finals: [String], partial: String = "", hasRecording: Bool, ended: LiveDictationEnded,
+         failureKind: SystemFailureKind? = nil, droppedAudio: Bool = false) {
+        self.finals = finals
+        self.partial = partial
+        self.hasRecording = hasRecording
+        self.ended = ended
+        self.failureKind = failureKind
+        self.droppedAudio = droppedAudio
+    }
+}
+
+/// Result of recording-file recognition; no text recognized is recorded as an empty string, not a failure.
+nonisolated enum DictationFileResult: Sendable, Hashable {
+    case text(String)
+    case failed(SystemFailureKind)
+}
+
+/// constants.live.sources.
+nonisolated enum DictationTextSource: String, CaseIterable, Sendable, Hashable {
+    case live
+    case file
+    case livePartial = "live_partial"
+}
+
+nonisolated enum DictationOutcome: Sendable, Hashable {
+    case text(String, source: DictationTextSource)
+    case noTranscript
+    case failed(SystemFailureKind)
+}
+
+// MARK: - System recognition failure
+
+/// constants.systemFailure.kinds: the five failure kinds used for reporting and the card.
+nonisolated enum SystemFailureKind: String, CaseIterable, Sendable, Hashable {
+    case network
+    case busy
+    case languageUnsupported = "language_unsupported"
+    case noService = "no_service"
+    case other
+}
+
+/// systemFailure classification result: besides the five failure kinds there are no_transcript / permission / cancelled.
+nonisolated enum SystemFailureClass: String, CaseIterable, Sendable, Hashable {
+    case network
+    case busy
+    case languageUnsupported = "language_unsupported"
+    case noService = "no_service"
+    case other
+    case noTranscript = "no_transcript"
+    case permission
+    case cancelled
+
+    /// failure_kind when one of the five failure kinds applies; nil otherwise.
+    var failureKind: SystemFailureKind? {
+        SystemFailureKind(rawValue: rawValue)
+    }
+}
+
+/// Conditions produced by preflight and our own waiting (keys of constants.systemFailure.codes.conditions).
+nonisolated enum SystemFailureCondition: String, CaseIterable, Sendable, Hashable {
+    case noService = "no_service"
+    case languageUnsupported = "language_unsupported"
+    case timeout
+    case cancelled
+    /// The recognition call threw an exception that cannot be classified.
+    case thrown
+}
+
+/// One system recognition failure: the NSError reported by the recognizer (domain, code), or a preflight condition.
+nonisolated enum SystemRecognizerFailure: Sendable, Hashable {
+    case error(domain: String, code: Int)
+    case condition(SystemFailureCondition)
+
+    /// The STTError thrown by SystemSTTEngine already carries the classification basis, so use it first; recognizer domains (domains in the code table and NSURLErrorDomain) keep domain + code,
+    /// other exceptions record thrown.
+    init(_ error: Error) {
+        if let failure = (error as? STTError)?.systemFailure {
+            self = failure
+            return
+        }
+        let nsError = error as NSError
+        let domain = nsError.domain
+        guard domain == DictationRules.networkErrorDomain || DictationRules.systemFailureIOSCodes[domain] != nil else {
+            self = .condition(.thrown)
+            return
+        }
+        self = .error(domain: domain, code: nsError.code)
+    }
+}
+
+nonisolated enum SystemFailureAction: String, Sendable, Hashable {
+    case retry
+    case discard
+    case changeLanguage = "change_language"
+    case switchEngine = "switch_engine"
+    case openSettings = "open_settings"
+}
+
+/// Five fields are always present; recreateRecognizer is false when not applicable.
+nonisolated struct SystemFailureDecision: Sendable, Hashable {
+    let kind: SystemFailureClass
+    let autoRetry: Bool
+    let recreateRecognizer: Bool
+    let primaryAction: SystemFailureAction?
+    let secondaryAction: SystemFailureAction?
+}
+
+nonisolated extension DictationRules {
+
+    // MARK: constants (constants.live / constants.systemFailure)
+
+    static let liveStopTimeoutMs = 1500
+    static let fileTimeoutFactor = 1.5
+    static let fileTimeoutBaseSec = 5.0
+    static let supportCacheSec = 600.0
+    static let maxTextLength = 50_000
+
+    /// Any code in NSURLErrorDomain is network.
+    static let networkErrorDomain = NSURLErrorDomain
+
+    /// iOS looks up by (domain, code); outside the table it is other; for SFSpeechErrorDomain codes see SFSpeechError.Code.
+    static let systemFailureIOSCodes: [String: [Int: SystemFailureClass]] = [
+        "kAFAssistantErrorDomain": [
+            203: .other,
+            1100: .busy,
+            1101: .busy,
+            1107: .busy,
+            1110: .noTranscript,
+            1700: .permission,
+        ],
+        "kLSRErrorDomain": [
+            102: .languageUnsupported,
+            201: .noService,
+            300: .noService,
+            301: .cancelled,
+        ],
+        "SFSpeechErrorDomain": [
+            4: .languageUnsupported,
+            10: .languageUnsupported,
+            12: .busy,
+            15: .languageUnsupported,
+            16: .busy,
+        ],
+    ]
+
+    static let systemFailureConditions: [SystemFailureCondition: SystemFailureClass] = [
+        .noService: .noService,
+        .languageUnsupported: .languageUnsupported,
+        .timeout: .busy,
+        .cancelled: .cancelled,
+        .thrown: .other,
+    ]
+
+    /// Card primary / secondary actions; permission uses the existing permission card, cancelled is silent.
+    static let systemFailureActions: [SystemFailureClass: [SystemFailureAction]] = [
+        .network: [.retry, .discard],
+        .busy: [.retry, .discard],
+        .languageUnsupported: [.changeLanguage, .discard],
+        .noService: [.switchEngine, .discard],
+        .other: [.retry, .discard],
+        .noTranscript: [.changeLanguage, .retry],
+    ]
+
+    static let busyAutoRetries = 1
+
+    // MARK: live text
+
+    /// finals are joined with join, partial is only trimmed; a space is added between them per needsSpace.
+    static func livePartial(finals: [String], partial: String) -> LiveDictationText {
+        let final = Array(join(finals).unicodeScalars)
+        let volatile = trimmedScalars(partial)
+        return LiveDictationText(
+            final: string(final),
+            volatile: string(volatile),
+            text: string(liveScalars(final, volatile))
+        )
+    }
+
+    private static func liveScalars(_ final: [Unicode.Scalar], _ volatile: [Unicode.Scalar]) -> [Unicode.Scalar] {
+        guard let head = volatile.first else { return final }
+        return final + (needsSpace(final.last, head) ? [" "] : []) + volatile
+    }
+
+    static func liveInsert(
+        finals: [String],
+        partial: String,
+        into text: String,
+        selectionStart: Int,
+        selectionEnd: Int,
+        maxLength: Int = maxTextLength
+    ) -> LiveDictationInsertion {
+        // Always recomputed from the original text and selection at dictation start, with the same position and space rules as insert.
+        let units = Array(text.utf16)
+        let offset = clamp(max(selectionStart, selectionEnd), units.count)
+        let before = scalarBefore(units, offset)
+        let after = scalarAt(units, offset)
+        var final = Array(livePartial(finals: finals, partial: "").final.unicodeScalars)
+        var volatile = trimmedScalars(partial)
+        // On overflow the result equals "delete code points from the end of the live text one at a time, trimming and recomputing after each delete, deleting volatile before final",
+        // here it is cut once against the remaining budget (linear): truncate volatile first, and only truncate final once volatile is empty.
+        let leading = { (head: Unicode.Scalar) in needsSpace(before, head) ? 1 : 0 }
+        let trailing = { (tail: Unicode.Scalar) in needsSpace(tail, after) ? 1 : 0 }
+        if let head = volatile.first {
+            let middle = final.last.map { needsSpace($0, head) ? 1 : 0 } ?? 0
+            let budget = maxLength - units.count - leading(final.first ?? head) - utf16Length(final) - middle
+            volatile = fitToBudget(volatile, budget: budget, trailing: trailing)
+        }
+        if volatile.isEmpty, let head = final.first {
+            final = fitToBudget(final, budget: maxLength - units.count - leading(head), trailing: trailing)
+        }
+        let live = liveScalars(final, volatile)
+        var inserted: [UInt16] = []
+        var cursor = offset
+        if let head = live.first, let tail = live.last {
+            if needsSpace(before, head) { inserted.append(0x20) }
+            inserted.append(contentsOf: string(live).utf16)
+            cursor = offset + inserted.count
+            if needsSpace(tail, after) { inserted.append(0x20) }
+        }
+        let result = Array(units[..<offset]) + inserted + Array(units[offset...])
+        let volatileLength = utf16Length(volatile)
+        return LiveDictationInsertion(
+            text: String(decoding: result, as: UTF16.self),
+            cursor: cursor,
+            region: offset..<(offset + inserted.count),
+            volatile: (cursor - volatileLength)..<cursor
+        )
+    }
+
+    private static func utf16Length(_ scalars: [Unicode.Scalar]) -> Int {
+        scalars.reduce(0) { $0 + UTF16.width($1) }
+    }
+
+    /// The longest prefix of segment (already trimmed) plus the trailing space to add that fits in budget: cut on code point boundaries, then trim;
+    /// if the trailing space makes it exceed by exactly 1, drop one more code point and trim (that always fits). If nothing fits, return empty.
+    private static func fitToBudget(
+        _ segment: [Unicode.Scalar], budget: Int, trailing: (Unicode.Scalar) -> Int
+    ) -> [Unicode.Scalar] {
+        guard budget > 0 else { return [] }
+        var fitted = segment
+        if utf16Length(segment) > budget {
+            var used = 0
+            var count = 0
+            for scalar in segment {
+                let width = UTF16.width(scalar)
+                if used + width > budget { break }
+                used += width
+                count += 1
+            }
+            fitted = trimmedTail(Array(segment.prefix(count)))
+        }
+        guard let tail = fitted.last, utf16Length(fitted) + trailing(tail) > budget else { return fitted }
+        return trimmedTail(Array(fitted.dropLast()))
+    }
+
+    /// Strip trailing whitespace from a code point sequence already trimmed at the start (same as trimmedScalars).
+    private static func trimmedTail(_ scalars: [Unicode.Scalar]) -> [Unicode.Scalar] {
+        guard let last = scalars.lastIndex(where: { !isWhitespace($0) }) else { return [] }
+        return Array(scalars[...last])
+    }
+
+    /// When a recording exists and the live session did not end with "normal end + non-empty final", recognize the recording file once.
+    static func needsFileRecognition(_ live: LiveDictationEnd) -> Bool {
+        live.hasRecording && !endedWithFinals(live)
+    }
+
+    private static func endedWithFinals(_ live: LiveDictationEnd) -> Bool {
+        live.ended == .ok && !(live.droppedAudio && live.hasRecording)
+            && !livePartial(finals: live.finals, partial: "").final.isEmpty
+    }
+
+    /// Live ended normally with non-empty final (and no audio dropped, or no recording) -> use final (leftover partial ignored); otherwise with a recording, use the file result, file text first,
+    /// if the file is empty or failed but the screen has text (final + last volatile) -> keep it (live_partial); otherwise no_transcript / file failure category.
+    /// Without a recording the live result is final; timeout records busy. file is only meaningful when needsFileRecognition is true.
+    static func dictationOutcome(live: LiveDictationEnd, file: DictationFileResult?) -> DictationOutcome {
+        let shown = livePartial(finals: live.finals, partial: live.partial)
+        if endedWithFinals(live) {
+            return .text(shown.final, source: .live)
+        }
+        if live.hasRecording {
+            var fileFailure: SystemFailureKind?
+            switch file {
+            case .text(let raw):
+                let text = trim(raw)
+                if !text.isEmpty { return .text(text, source: .file) }
+            case .failed(let kind):
+                fileFailure = kind
+            case nil:
+                break
+            }
+            if !shown.text.isEmpty { return .text(shown.text, source: .livePartial) }
+            return fileFailure.map(DictationOutcome.failed) ?? .noTranscript
+        }
+        if !shown.text.isEmpty { return .text(shown.text, source: .livePartial) }
+        switch live.ended {
+        case .ok: return .noTranscript
+        case .failed: return .failed(live.failureKind ?? .other)
+        case .timeout: return .failed(.busy)
+        }
+    }
+
+    // MARK: system recognition failure
+
+    /// Look up by (domain, code); any NSURLErrorDomain code = network, outside the table other; conditions are looked up in conditions.
+    static func systemFailureClass(_ failure: SystemRecognizerFailure) -> SystemFailureClass {
+        switch failure {
+        case .condition(let condition):
+            return systemFailureConditions[condition] ?? .other
+        case .error(let domain, let code):
+            if domain == networkErrorDomain { return .network }
+            return systemFailureIOSCodes[domain]?[code] ?? .other
+        }
+    }
+
+    /// attempt starts at 1 and restarts from 1 when the user taps retry; canRetry is true only when recognition already has a saved recording.
+    static func systemFailure(_ failure: SystemRecognizerFailure, attempt: Int, canRetry: Bool = true) -> SystemFailureDecision {
+        let kind = systemFailureClass(failure)
+        switch kind {
+        case .cancelled:
+            return SystemFailureDecision(kind: kind, autoRetry: false, recreateRecognizer: false,
+                                         primaryAction: nil, secondaryAction: nil)
+        case .permission:
+            return SystemFailureDecision(kind: kind, autoRetry: false, recreateRecognizer: false,
+                                         primaryAction: .openSettings, secondaryAction: nil)
+        case .busy where canRetry && attempt <= busyAutoRetries:
+            return SystemFailureDecision(kind: kind, autoRetry: true, recreateRecognizer: true,
+                                         primaryAction: nil, secondaryAction: nil)
+        default:
+            let actions = systemFailureActions[kind] ?? []
+            return SystemFailureDecision(kind: kind, autoRetry: false, recreateRecognizer: false,
+                                         primaryAction: actions.first, secondaryAction: actions.dropFirst().first)
+        }
+    }
+}

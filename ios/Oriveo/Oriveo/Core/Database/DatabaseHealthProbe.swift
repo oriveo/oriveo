@@ -1,4 +1,5 @@
 import Foundation
+import GRDB
 
 /// The three states of the local database. The UI only cares whether it is `.blocked`.
 enum DatabaseHealth: Equatable {

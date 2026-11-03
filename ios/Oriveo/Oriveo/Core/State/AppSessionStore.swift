@@ -368,6 +368,29 @@ nonisolated enum OpenAISubscriptionCredentialStore {
     }
 }
 
+/// Removing a partition directory while its uid still has a database connection open: deleting files under a live
+/// SQLite connection risks disk I/O errors and a resurrected partition. Reported once per uid, not once per process.
+@MainActor
+enum PartitionRemovalDiagnostics {
+    /// Tests swap in a recording sink.
+    static var sink: ObservabilitySink = Observability.sink
+    private static var reportedUIDs = Set<String>()
+
+    static func reportOpenConnections(uid: String) {
+        guard reportedUIDs.insert(uid).inserted else { return }
+        let issue = DiagnosticIssue.databasePartitionRemovedWhileOpen
+        let tags = ["db.partition": uid == "guest" ? "guest" : "account"]
+        sink.issue(name: issue.rawValue, level: issue.level, fingerprint: issue.fingerprint(tags: tags), context: tags)
+    }
+
+    #if DEBUG
+    static func hasReportedForTesting(uid: String) -> Bool {
+        reportedUIDs.contains(uid)
+    }
+    #endif
+}
+
+// MARK: - Partition-aware session storage
 
 nonisolated enum AppSessionStore {
     private static let legacyKey = "oriveo.session.snapshot"
@@ -376,12 +399,14 @@ nonisolated enum AppSessionStore {
     private static let migratedKey = "oriveo.storage.partitioned"
 
 
-    static let baseDir: URL = {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Oriveo", isDirectory: true)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir
-    }()
+    /// Path only, no directory creation: the cold-start read path must not touch disk. Each writer calls `createDirectory(withIntermediateDirectories:)` itself.
+    static let baseDir: URL = baseDir(
+        under: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    )
+
+    static func baseDir(under root: URL) -> URL {
+        root.appendingPathComponent("Oriveo", isDirectory: true)
+    }
 
 
     private static let activeUIDLock = NSLock()
@@ -389,6 +414,13 @@ nonisolated enum AppSessionStore {
     /// their body (over a hundred call sites). Opening the file on each read is pure waste: only the
     /// setter below writes it, so caching the value in process is enough.
     nonisolated(unsafe) private static var cachedActiveUID: String?
+    /// UserDefaults mirror of the active-uid file: a cold-start read does not touch disk. The file stays the source of truth; the setter writes both.
+    /// After an upgrade the first launch finds the mirror empty, reads the file once, and backfills.
+    static let activeUIDMirrorKey = "oriveo.session.activeUID.mirror"
+    /// The CFBundleVersion when the mirror was written. A different build (or a missing one) means an older build may have written only the file in between,
+    /// so the mirror is not trusted; the first launch after an upgrade reads the file once and backfills.
+    static let activeUIDMirrorBuildKey = "oriveo.session.activeUID.mirror.build"
+    private static let currentBuild = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
     #if DEBUG
     nonisolated(unsafe) private static var debugActiveUIDDiskReadStorage = 0
 
@@ -405,6 +437,23 @@ nonisolated enum AppSessionStore {
         defer { activeUIDLock.unlock() }
         cachedActiveUID = nil
     }
+
+    nonisolated(unsafe) private static var debugPartitionOverrideStorage: String?
+
+    /// DEBUG only: switches the whole process to a demo partition (store-screenshot seed).
+    /// While set, the `activeUID` getter returns it and the setter no longer writes the active-uid file; the real partition and file are left untouched.
+    static var debugPartitionOverride: String? {
+        get {
+            activeUIDLock.lock()
+            defer { activeUIDLock.unlock() }
+            return debugPartitionOverrideStorage
+        }
+        set {
+            activeUIDLock.lock()
+            defer { activeUIDLock.unlock() }
+            debugPartitionOverrideStorage = newValue
+        }
+    }
     #endif
 
     static var activeUID: String {
@@ -412,28 +461,76 @@ nonisolated enum AppSessionStore {
             activeUIDLock.lock()
             defer { activeUIDLock.unlock() }
             if let cachedActiveUID { return cachedActiveUID }
-            #if DEBUG
-            debugActiveUIDDiskReadStorage += 1
-            #endif
-            let file = baseDir.appendingPathComponent("active-uid")
-            let raw = try? String(contentsOf: file, encoding: .utf8)
-            let resolved = normalizedActiveUID(raw)
-            cachedActiveUID = resolved
-            return resolved
+            if let mirrored = trustedMirrorLocked() {
+                let resolved = normalizedActiveUID(mirrored)
+                cachedActiveUID = resolved
+                return resolved
+            }
+            return readActiveUIDFileLocked()
         }
         set {
             activeUIDLock.lock()
             defer { activeUIDLock.unlock() }
             let file = baseDir.appendingPathComponent("active-uid")
             do {
+                try FileManager.default.createDirectory(at: baseDir, withIntermediateDirectories: true)
                 try newValue.write(to: file, atomically: true, encoding: .utf8)
-                cachedActiveUID = normalizedActiveUID(newValue)
+                let resolved = normalizedActiveUID(newValue)
+                cachedActiveUID = resolved
+                writeMirrorLocked(resolved)
             } catch {
                 // The file still holds the previous value, so the next read goes back to disk,
                 // exactly as it would without a cache.
                 cachedActiveUID = nil
+                UserDefaults.standard.removeObject(forKey: activeUIDMirrorKey)
+                UserDefaults.standard.removeObject(forKey: activeUIDMirrorBuildKey)
             }
         }
+    }
+
+    /// For a cold start without a Firebase sign-in: when the mirror points to an account (not guest), neither the mirror nor the cache is trusted; read the file once and backfill.
+    /// If sign-out wrote the file but the mirror was not flushed before a power loss, the mirror still names the old account, and trusting it would load another account's partition.
+    /// When the mirror is guest or untrusted, use the same rule as `activeUID`; a normal cold start does not read disk.
+    static func activeUIDDistrustingMirror() -> String {
+        activeUIDLock.lock()
+        defer { activeUIDLock.unlock() }
+        #if DEBUG
+        if let debugPartitionOverrideStorage { return debugPartitionOverrideStorage }
+        #endif
+        guard let mirrored = trustedMirrorLocked() else { return readActiveUIDFileLocked() }
+        let resolved = normalizedActiveUID(mirrored)
+        guard resolved != "guest" else {
+            cachedActiveUID = resolved
+            return resolved
+        }
+        return readActiveUIDFileLocked()
+    }
+
+    /// Requires `activeUIDLock`. A mirror whose build differs from the current one (or is missing) is treated as untrusted.
+    private static func trustedMirrorLocked() -> String? {
+        let defaults = UserDefaults.standard
+        guard let mirrored = defaults.string(forKey: activeUIDMirrorKey),
+              defaults.string(forKey: activeUIDMirrorBuildKey) == currentBuild else { return nil }
+        return mirrored
+    }
+
+    /// Requires `activeUIDLock`. Reads the active-uid file once, caches the value, and backfills the mirror.
+    private static func readActiveUIDFileLocked() -> String {
+        #if DEBUG
+        debugActiveUIDDiskReadStorage += 1
+        #endif
+        let file = baseDir.appendingPathComponent("active-uid")
+        let raw = try? String(contentsOf: file, encoding: .utf8)
+        let resolved = normalizedActiveUID(raw)
+        cachedActiveUID = resolved
+        writeMirrorLocked(resolved)
+        return resolved
+    }
+
+    /// Requires `activeUIDLock`.
+    private static func writeMirrorLocked(_ uid: String) {
+        UserDefaults.standard.set(uid, forKey: activeUIDMirrorKey)
+        UserDefaults.standard.set(currentBuild, forKey: activeUIDMirrorBuildKey)
     }
 
     private static func normalizedActiveUID(_ raw: String?) -> String {
@@ -504,7 +601,103 @@ nonisolated enum AppSessionStore {
         activeUID = uid
     }
 
+    /// Whether the given user partition has data.
+    static func hasData(for uid: String) -> Bool {
+        let snapshot = snapshotPath(for: uid)
+        if FileManager.default.fileExists(atPath: snapshot.path),
+           let attrs = try? FileManager.default.attributesOfItem(atPath: snapshot.path),
+           let size = attrs[.size] as? UInt64,
+           size > 2 {
+            return true
+        }
+
+        let database = databasePath(for: uid)
+        if FileManager.default.fileExists(atPath: database.path),
+           let attrs = try? FileManager.default.attributesOfItem(atPath: database.path),
+           let size = attrs[.size] as? UInt64,
+           size > 0 {
+            return true
+        }
+
+        return false
+    }
+
+    /// Whether the guest partition has valid data (non-empty providers or conversations).
+    static func guestHasSignificantData() -> Bool {
+        let saved = activeUID
+        defer { if activeUID != saved { activeUID = saved } }
+
+        let guestSnapshot = userDir(for: "guest").appendingPathComponent(fileName)
+        guard let data = try? Data(contentsOf: guestSnapshot) else { return false }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        guard let snapshot = try? decoder.decode(AppSessionSnapshot.self, from: data) else { return false }
+        return !snapshot.providers.isEmpty || !(snapshot.conversations ?? []).isEmpty
+    }
+
+    /// Moves the guest partition to the given user's partition (silent adoption).
+    static func adoptGuestData(to uid: String) {
+        let guestDir = userDir(for: "guest")
+        let targetDir = userDir(for: uid)
+
+        // Remove an existing target first (an empty shell directory) so moveItem succeeds.
+        if FileManager.default.fileExists(atPath: targetDir.path) {
+            try? FileManager.default.removeItem(at: targetDir)
+        }
+
+        do {
+            try FileManager.default.moveItem(at: guestDir, to: targetDir)
+        } catch {
+            #if DEBUG
+            print("[Partition] adoptGuestData failed: \(error)")
+            #endif
+        }
+
+        // Recreate the empty guest directory.
+        try? FileManager.default.createDirectory(at: guestDir, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(
+            at: guestDir.appendingPathComponent("Images", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+        try? FileManager.default.createDirectory(
+            at: guestDir.appendingPathComponent("Files", isDirectory: true),
+            withIntermediateDirectories: true
+        )
+    }
+
+    /// Copies the guest partition's images to the given user's partition (keeps the guest originals as a safety net).
+    static func copyGuestImages(to uid: String) {
+        let guestImages = userDir(for: "guest").appendingPathComponent("Images", isDirectory: true)
+        let targetImages = userDir(for: uid).appendingPathComponent("Images", isDirectory: true)
+
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: guestImages.path) else { return }
+        for file in files {
+            let src = guestImages.appendingPathComponent(file)
+            let dst = targetImages.appendingPathComponent(file)
+            if !FileManager.default.fileExists(atPath: dst.path) {
+                try? FileManager.default.copyItem(at: src, to: dst)
+            }
+        }
+    }
+
+    /// Records `PartitionRemovalDiagnostics` when `uid` still has a database connection open right before its
+    /// directory is removed; the removal itself goes ahead either way. Returns whether a connection was open.
+    @discardableResult
+    static func reportIfConnectionsStillOpen(uid: String) -> Bool {
+        guard DatabaseManager.shared.hasOpenConnections(uid: uid) else { return false }
+        if Thread.isMainThread {
+            MainActor.assumeIsolated { PartitionRemovalDiagnostics.reportOpenConnections(uid: uid) }
+        } else {
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated { PartitionRemovalDiagnostics.reportOpenConnections(uid: uid) }
+            }
+        }
+        return true
+    }
+
+    /// Clears the given user's partition.
     static func clearPartition(for uid: String) {
+        reportIfConnectionsStillOpen(uid: uid)
         let dir = userDir(for: uid)
         try? FileManager.default.removeItem(at: dir)
         ProviderAPIKeyStore.deleteAll(for: uid)

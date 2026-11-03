@@ -182,7 +182,7 @@ final class UIKitToolStepsView: UIView {
 
         earlierButton.contentHorizontalAlignment = .leading
         earlierButton.titleLabel?.font = .systemFont(ofSize: 14, weight: .semibold)
-        earlierButton.setTitleColor(UIColor(OriveoTheme.Palette.primaryTextSafe), for: .normal)
+        earlierButton.setTitleColor(OriveoTheme.Palette.primaryTextOnSurfaceUIColor, for: .normal)
         earlierButton.addTarget(self, action: #selector(showEarlierSteps), for: .touchUpInside)
         earlierButton.isHidden = true
         inner.addArrangedSubview(earlierButton)
@@ -256,7 +256,7 @@ final class UIKitToolStepsView: UIView {
         headerControl.addSubview(stack)
 
         headerIcon.image = UIImage(systemName: "wrench.adjustable")
-        headerIcon.tintColor = UIColor(OriveoTheme.Palette.primaryTextSafe)
+        headerIcon.tintColor = OriveoTheme.Palette.primaryTextOnSurfaceUIColor
         headerIcon.contentMode = .scaleAspectFit
         stack.addArrangedSubview(headerIcon)
 
@@ -308,7 +308,7 @@ final class UIKitToolStepsView: UIView {
         // Single-line title: a wrapping title makes cell self-sizing rebuild temporary constraints for the target width.
         primary.titleLineBreakMode = .byTruncatingTail
         primary.baseBackgroundColor = UIColor(OriveoTheme.Palette.primarySoft)
-        primary.baseForegroundColor = UIColor(OriveoTheme.Palette.primaryTextSafe)
+        primary.baseForegroundColor = OriveoTheme.Palette.primaryTextOnSurfaceUIColor
         primary.background.cornerRadius = 14
         primary.background.strokeColor = UIColor(OriveoTheme.Palette.primary).withAlphaComponent(0.35)
         primary.background.strokeWidth = 1

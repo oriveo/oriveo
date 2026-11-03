@@ -317,7 +317,8 @@ nonisolated enum McpToolBridge {
     ) -> ToolCallLoop {
         ToolCallLoop(
             registry: ToolRegistry(
-                entries: entries(for: plan, executor: executor) + [proposeEntry, searchEntry, webSearchEntry].compactMap { $0 }
+                entries: entries(for: plan, executor: executor)
+                    + [proposeEntry, searchEntry, webSearchEntry].compactMap { $0 }
             ),
             legRunner: legRunner,
             adapter: adapter,

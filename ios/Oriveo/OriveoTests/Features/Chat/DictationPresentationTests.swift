@@ -14,8 +14,9 @@ struct DictationPresentationTests {
 
     @Test("card: the mapping for failed / interrupted / slot busy / rejected, and no card for the other states")
     func cardMapping() {
+        let language = "Klingon"
         let card = { (state: DictationState, duration: TimeInterval?) in
-            DictationPresentation.card(for: state, savedDuration: duration)
+            DictationPresentation.card(for: state, savedDuration: duration, recognitionLanguageName: language)
         }
         #expect(card(.failed(.retry), 12) == DictationCard(
             title: voice("Transcription failed"), subtitle: voice("Recording saved"),
@@ -24,8 +25,30 @@ struct DictationPresentationTests {
             title: voice("Transcription failed"), subtitle: voice("Connection unavailable. Recording saved"),
             secondary: .discard, primary: .checkConnection))
         #expect(card(.failed(.noTranscript), nil) == DictationCard(
-            title: voice("No text recognized"), subtitle: voice("Recording saved"),
+            title: voice("No text recognized"),
+            subtitle: L10n.format(voice("The recognition language is %1$@. If you spoke another language, change it and try again. Your recording is saved."), language),
+            secondary: .retry, primary: .changeLanguage))
+        #expect(card(.failed(.system(.network)), 12) == DictationCard(
+            title: voice("No network connection"),
+            subtitle: voice("Connect to the internet, then retry. Your recording is saved."),
             secondary: .discard, primary: .retry))
+        #expect(card(.failed(.system(.busy)), 12) == DictationCard(
+            title: voice("Speech recognition is busy"),
+            subtitle: voice("The system speech recognition service is busy (already retried once). Your recording is saved, so you can retry later."),
+            secondary: .discard, primary: .retry))
+        #expect(card(.failed(.system(.languageUnsupported)), 12) == DictationCard(
+            title: L10n.format(voice("Speech recognition on this device doesn’t support %1$@"), language),
+            subtitle: voice("Choose another recognition language or a different dictation engine. Your recording is saved."),
+            secondary: .discard, primary: .changeLanguage))
+        #expect(card(.failed(.system(.noService)), 12) == DictationCard(
+            title: voice("No speech recognition service on this device"),
+            subtitle: voice("You can switch to the dictation engine of a provider you’ve connected. Your recording is saved."),
+            secondary: .discard, primary: .switchEngine))
+        #expect(card(.failed(.system(.other)), 12) == DictationCard(
+            title: voice("Transcription failed"), subtitle: voice("Recording saved"),
+            secondary: .discard, primary: .retry))
+        #expect(DictationCardAction.changeLanguage.localizedTitle == voice("Change Language"))
+        #expect(DictationCardAction.switchEngine.localizedTitle == voice("Change Dictation Engine"))
         #expect(card(.interrupted, 65.9) == DictationCard(
             title: voice("Recording interrupted"),
             subtitle: L10n.format(voice("Saved %@"), "1:05"),
@@ -39,7 +62,7 @@ struct DictationPresentationTests {
             secondary: .notNow, primary: .openSettings))
         #expect(card(.denied(.speechRecognition), nil)?.title == voice("Speech recognition access is off"))
 
-        for state: DictationState in [.idle, .preparing(progress: 0.3), .recording(startedAt: .now),
+        for state: DictationState in [.idle, .recording(startedAt: .now),
                                       .transcribing(.insert), .transcribing(.send)] {
             #expect(card(state, 10) == nil)
         }
@@ -47,8 +70,56 @@ struct DictationPresentationTests {
 
     @Test("card: when the duration is missing the subtitle is Recording saved")
     func missingDurationFallsBackToRecordingSaved() {
-        #expect(DictationPresentation.card(for: .interrupted, savedDuration: nil)?.subtitle == voice("Recording saved"))
-        #expect(DictationPresentation.card(for: .slotOccupied, savedDuration: nil)?.subtitle == voice("Recording saved"))
+        #expect(DictationPresentation.card(for: .interrupted, savedDuration: nil, recognitionLanguageName: "English")?.subtitle == voice("Recording saved"))
+        #expect(DictationPresentation.card(for: .slotOccupied, savedDuration: nil, recognitionLanguageName: "English")?.subtitle == voice("Recording saved"))
+    }
+
+    // MARK: Language pack hint card
+
+    @Test("Language pack hint: shows a card when no other card is present (including while recording); the title contains the language name; secondary / primary are Not Now / Download")
+    func languagePackCard() {
+        let prompt = DictationLanguagePackPrompt(localeID: "tlh", displayName: "Klingon", downloading: false)
+        let expected = DictationCard(
+            title: L10n.format(voice("Download the %1$@ speech pack for faster recognition that also works offline."), "Klingon"),
+            subtitle: "",
+            secondary: .notNow,
+            primary: .download
+        )
+        for state: DictationState in [.idle, .recording(startedAt: .now), .transcribing(.insert)] {
+            #expect(DictationPresentation.card(
+                for: state, savedDuration: nil, recognitionLanguageName: "English", languagePack: prompt
+            ) == expected, "\(state)")
+        }
+        #expect(expected.title.contains("Klingon"))
+        #expect(DictationCardAction.download.localizedTitle == voice("Download"))
+        #expect(DictationCardAction.notNow.localizedTitle == voice("Not Now"))
+    }
+
+    @Test("The language pack hint ranks below the failure / interruption / slot-occupied / permission cards; no card is shown while downloading")
+    func languagePackCardYieldsToOtherCards() {
+        let prompt = DictationLanguagePackPrompt(localeID: "tlh", displayName: "Klingon", downloading: false)
+        for state: DictationState in [.failed(.retry), .failed(.system(.network)), .interrupted, .slotOccupied,
+                                      .denied(.microphone)] {
+            let plain = DictationPresentation.card(for: state, savedDuration: 5, recognitionLanguageName: "English")
+            #expect(plain != nil)
+            #expect(DictationPresentation.card(
+                for: state, savedDuration: 5, recognitionLanguageName: "English", languagePack: prompt
+            ) == plain, "\(state)")
+        }
+        var downloading = prompt
+        downloading.downloading = true
+        #expect(DictationPresentation.card(
+            for: .recording(startedAt: .now), savedDuration: nil, recognitionLanguageName: "English", languagePack: downloading
+        ) == nil)
+    }
+
+    @Test("Downloading toast: the recognition pack for this language is downloading; no undo")
+    func languagePackDownloadingToast() {
+        let toast = DictationPresentation.languagePackDownloadingToast(displayName: "Klingon")
+        #expect(toast == DictationToast(
+            message: L10n.format(voice("Downloading the %1$@ speech pack. Until it finishes, recognition uses the internet."), "Klingon"),
+            undoTitle: nil, duration: nil
+        ))
     }
 
     // MARK: Composer row
@@ -59,12 +130,6 @@ struct DictationPresentationTests {
         let cloud = DictationEngineInfo(displayName: "My Groq", providerID: UUID())
         #expect(DictationPresentation.inputRow(for: .recording(startedAt: startedAt), engineInfo: nil)
             == .recording(startedAt: startedAt))
-
-        let preparing = DictationPresentation.inputRow(for: .preparing(progress: 0.4), engineInfo: nil)
-        #expect(preparing == .busy(.preparing(progress: 0.4)))
-        if case .busy(let activity) = preparing {
-            #expect(activity.localizedCaption == voice("Preparing speech recognition"))
-        }
 
         let cloudBusy = DictationPresentation.inputRow(for: .transcribing(.send), engineInfo: cloud)
         #expect(cloudBusy == .busy(.transcribing(engineName: "My Groq")))
@@ -108,6 +173,12 @@ struct DictationPresentationTests {
     }
 
     @Test("events: nothing heard / engine fallback show a toast; an undoable discard shows \"Discarded + Undo\" for 4 seconds")
+    func liveDiscardedRestores() {
+        #expect(DictationPresentation.reaction(to: .liveDiscarded, canSend: true) == .restoreLive)
+        #expect(DictationPresentation.reaction(to: .liveDiscarded, canSend: false) == .restoreLive)
+    }
+
+    @Test("events: nothing heard / engine fallback show a toast; an undoable discard shows \"Discarded + Undo\" for 4 seconds")
     func toastReactions() {
         #expect(DictationPresentation.reaction(to: .noSpeechHeard, canSend: true) == .toast(DictationToast(
             message: voice("Didn't hear anything"), undoTitle: nil, duration: nil)))
@@ -124,7 +195,7 @@ struct DictationPresentationTests {
 
     @Test("each of the 8 card actions has its own button label")
     func actionTitles() {
-        #expect(DictationCardAction.allCases.count == 8)
+        #expect(DictationCardAction.allCases.count == 11)
         #expect(DictationCardAction.transcribeRecording.localizedTitle == voice("Transcribe Recording"))
         #expect(DictationCardAction.discardAndRerecord.localizedTitle == voice("Discard and Re-record"))
     }

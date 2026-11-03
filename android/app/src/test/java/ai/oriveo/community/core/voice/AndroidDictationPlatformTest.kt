@@ -2,6 +2,7 @@ package ai.oriveo.community.core.voice
 
 import android.Manifest
 import android.app.Application
+import android.media.MediaRecorder
 import androidx.test.core.app.ApplicationProvider
 import ai.oriveo.community.testing.TestSharedPreferences
 import java.io.File
@@ -13,6 +14,7 @@ import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -42,7 +44,7 @@ class AndroidDictationPlatformTest {
     private class FakeReadAloudEnvironment : ReadAloudEnvironment {
         override fun uiLocale(): Locale = Locale.ENGLISH
         override fun placeholderText(kind: SpeakablePlaceholder, appLocale: String): String = ""
-        override fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean = true
+        override suspend fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean = true
         override fun endSession() = Unit
         override fun showMessage(resId: Int) = Unit
     }
@@ -198,6 +200,18 @@ class AndroidDictationPlatformTest {
     }
 
     @Test
+    fun `dictation captures from voice recognition source while other callers keep mic`() {
+        val source = File("src/main/java/ai/oriveo/community/di/AppModule.kt").readText()
+        assertTrue(source.contains("capture = AudioRecordCapture(ctx, MediaRecorder.AudioSource.VOICE_RECOGNITION)"))
+
+        assertEquals(
+            MediaRecorder.AudioSource.VOICE_RECOGNITION,
+            AudioRecordCapture(app, MediaRecorder.AudioSource.VOICE_RECOGNITION).audioSource,
+        )
+        assertEquals(MediaRecorder.AudioSource.MIC, AudioRecordCapture(app).audioSource)
+    }
+
+    @Test
     fun `stop read aloud uses user stopped reason`() {
         val engine = FakeEngine()
         val readAloud = ReadAloudController(
@@ -216,7 +230,7 @@ class AndroidDictationPlatformTest {
 
     @Test
     @Config(qualifiers = "fr-rFR")
-    fun `recognition language follows app locale`() {
+    fun `auto recognition language is null and ui language tag follows app locale`() {
         val readAloud = ReadAloudController(
             engine = FakeEngine(),
             environment = FakeReadAloudEnvironment(),
@@ -224,7 +238,8 @@ class AndroidDictationPlatformTest {
         )
         val environment = AndroidDictationEnvironment(app, readAloud)
 
-        assertEquals("fr-FR", environment.recognitionLanguage())
+        assertNull(environment.recognitionLanguage())
+        assertEquals("fr-FR", environment.uiLanguageTag())
     }
 
     @Test
@@ -238,12 +253,13 @@ class AndroidDictationPlatformTest {
         val settings = VoiceEngineSettings(prefsProvider = { TestSharedPreferences() })
         val environment = AndroidDictationEnvironment(app, readAloud, settings)
 
-        assertEquals("fr-FR", environment.recognitionLanguage())
+        assertNull(environment.recognitionLanguage())
 
         settings.setRecognitionLanguage("zh-Hans")
         assertEquals("zh-Hans", environment.recognitionLanguage())
+        assertEquals("fr-FR", environment.uiLanguageTag())
 
         settings.setRecognitionLanguage(null)
-        assertEquals("fr-FR", environment.recognitionLanguage())
+        assertNull(environment.recognitionLanguage())
     }
 }

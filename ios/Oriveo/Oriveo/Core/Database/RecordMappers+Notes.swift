@@ -108,6 +108,38 @@ extension RecordMappers {
         return json
     }
 
+    // MARK: Skills revamp columns (JSON arrays; empty is stored as NULL)
+
+    nonisolated static func encodeStringArray(_ values: [String]) -> String? {
+        guard !values.isEmpty,
+              let data = try? JSONEncoder().encode(values),
+              let json = String(data: data, encoding: .utf8) else { return nil }
+        return json
+    }
+
+    nonisolated static func decodeStringArray(_ raw: String?) -> [String] {
+        guard let raw,
+              let data = raw.data(using: .utf8),
+              let strings = try? JSONDecoder().decode([String].self, from: data)
+        else { return [] }
+        return strings
+    }
+
+    nonisolated static func encodeUsedSkills(_ skills: [UsedSkill]) -> String? {
+        guard !skills.isEmpty,
+              let data = try? JSONEncoder().encode(skills),
+              let json = String(data: data, encoding: .utf8) else { return nil }
+        return json
+    }
+
+    nonisolated static func decodeUsedSkills(_ raw: String?) -> [UsedSkill] {
+        guard let raw,
+              let data = raw.data(using: .utf8),
+              let skills = try? JSONDecoder().decode([UsedSkill].self, from: data)
+        else { return [] }
+        return skills
+    }
+
     nonisolated static func decodePinnedNoteIds(_ raw: String?) -> [UUID] {
         guard let raw,
               let data = raw.data(using: .utf8),

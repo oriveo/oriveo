@@ -62,6 +62,16 @@
       "allowedStates": ["supported", "unsupported", "unknown"],
       "recipeStatus": "not_in_recipe",
       "note": "Server typed evidence (capability_evidence_presentation.go publicToolCallEvidenceCandidate); not migrated into the recipe by this package. Missing or expired evidence is unknown, never a fallback to top-level toolCall."
+    },
+    {
+      "key": "image_output",
+      "family": "output",
+      "surface": "profiles.image",
+      "allowedStates": ["supported", "unsupported", "unknown"],
+      "contract": "共享/model-contracts/image_profile.v2.json",
+      "legacyFields": ["capabilities[imageGeneration]", "profiles.imageGen", "imageGenProfile"],
+      "recipeStatus": "not_in_recipe",
+      "note": "Image output is decided only by the resolved ImageProfile (imageOutput + operations + route), never by a recipe control. The generation control key must not be used to decide image output (E-444). supported = a usable ImageProfile resolves; unsupported = the catalog has the model and no imageProfile; unknown = unresolvable (dangling ref, unknown enum value, unmatched relay). Legacy fields keep shipping for old app versions; new clients do not read them."
     }
   ],
   "parameterKeys": [

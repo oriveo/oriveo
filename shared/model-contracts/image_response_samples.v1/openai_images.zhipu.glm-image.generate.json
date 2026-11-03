@@ -1,0 +1,35 @@
+{
+  "meta": {
+    "route": "openai_images",
+    "provider": "zhipu",
+    "op": "generate",
+    "http": 200,
+    "seconds": 81.6,
+    "captured_at": "2026-10-28T01:17:15.629Z",
+    "endpoint": "https://api.z.ai/api/paas/v4/images/generations"
+  },
+  "observed": {
+    "shapes": [
+      "data[].url"
+    ],
+    "images": [
+      {
+        "mime": "image/jpeg",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 78401,
+        "host": "maas-watermark-prod-new.cn-wlcb.ufileos.com"
+      }
+    ]
+  },
+  "response": {
+    "created": 1793150154,
+    "data": [
+      {
+        "url": "https://maas-watermark-prod-new.cn-wlcb.ufileos.com/202610280915548b6380641ec54232_watermark.png?<query redacted>"
+      }
+    ],
+    "id": "202610280915548b6380641ec54232",
+    "request_id": "202610280915548b6380641ec54232"
+  }
+}

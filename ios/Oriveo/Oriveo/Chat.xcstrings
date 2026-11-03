@@ -720,7 +720,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$@ Löschen Sie Zeile %2$lld, um zu senden."
+            "value" : "%1$@ Lösche Zeile %2$lld, um zu senden."
           }
         },
         "en" : {
@@ -4536,107 +4536,6 @@
         }
       }
     },
-    "Collapsed" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "مطوي"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Eingeklappt"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Collapsed"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Contraído"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Réduit"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "संक्षिप्त"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diciutkan"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "折りたたみ済み"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "접힘"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Recolhido"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Свернуто"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ยุบแล้ว"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Daraltıldı"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đã thu gọn"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已折叠"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已摺疊"
-          }
-        }
-      }
-    },
     "Conflicts with another setting, so this one is left out." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4835,107 +4734,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連線宣告"
-          }
-        }
-      }
-    },
-    "Context" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "السياق"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kontext"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Context"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Contexto"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Contexte"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "कॉन्टेक्स्ट"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Konteks"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "コンテキスト"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "컨텍스트"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Contexto"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Контекст"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "บริบท"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bağlam"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ngữ cảnh"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上下文"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "上下文"
           }
         }
       }
@@ -18827,7 +18625,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "料金"
+            "value" : "コスト"
           }
         },
         "ko" : {
@@ -21696,7 +21494,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie ein JSON-Objekt ein, um die zulässigen Feldpfade in der Vorschau zu sehen."
+            "value" : "Gib ein JSON-Objekt ein, um die zulässigen Feldpfade in der Vorschau zu sehen."
           }
         },
         "en" : {
@@ -21797,7 +21595,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie eine Zahl ein. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Gib eine Zahl ein. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -21898,7 +21696,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie eine ganze Zahl ein. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Gib eine ganze Zahl ein. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -21999,7 +21797,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie gültiges JSON ohne doppelte Schlüssel ein."
+            "value" : "Gib gültiges JSON ohne doppelte Schlüssel ein."
           }
         },
         "en" : {
@@ -22094,7 +21892,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تقديري"
+            "value" : "تقديرية"
           }
         },
         "de" : {
@@ -22136,13 +21934,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "推定値"
+            "value" : "概算"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "추정치"
+            "value" : "예상"
           }
         },
         "pt-BR" : {
@@ -22154,13 +21952,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Оценка"
+            "value" : "Примерная"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ประมาณการ"
+            "value" : "โดยประมาณ"
           }
         },
         "tr" : {
@@ -22286,107 +22084,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每則都搜"
-          }
-        }
-      }
-    },
-    "Expanded" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "موسّع"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Erweitert"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expanded"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expandido"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Développé"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "विस्तृत"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diperluas"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "展開済み"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "펼쳐짐"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Expandido"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Развернуто"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ขยายแล้ว"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Genişletildi"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đã mở rộng"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已展开"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已展開"
           }
         }
       }
@@ -22991,7 +22688,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Felder hier werden unverändert in die Anfrage übernommen; Oriveo prüft nicht, ob Ihr Server sie akzeptiert. Hat ein Feld denselben Namen wie eine erweiterte Einstellung, gilt das Feld hier – Ihre übrigen Einstellungen werden wie gewohnt gesendet."
+            "value" : "Felder hier werden unverändert in die Anfrage übernommen; Oriveo prüft nicht, ob dein Server sie akzeptiert. Hat ein Feld denselben Namen wie eine erweiterte Einstellung, gilt das Feld hier – deine übrigen Einstellungen werden wie gewohnt gesendet."
           }
         },
         "en" : {
@@ -24399,7 +24096,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Große Datei abgeschnitten. Zu Skill Knowledge hinzufügen für vollständige Suche →"
+            "value" : "Große Datei gekürzt. Füge sie der Wissensdatenbank einer Fähigkeit hinzu, um sie vollständig zu durchsuchen →"
           }
         },
         "en" : {
@@ -25207,7 +24904,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Graue Werte sind die eigenen Standardwerte von %@. Sie werden nur gesendet, wenn Sie sie ändern."
+            "value" : "Graue Werte sind die eigenen Standardwerte von %@. Gesendet werden sie nur, wenn du sie änderst."
           }
         },
         "en" : {
@@ -28827,97 +28524,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "سيُحذف نهائيًا من هذا الجهاز."
+            "value" : "سيُحذف من جميع أجهزتك."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sie wird endgültig von diesem Gerät gelöscht."
+            "value" : "Sie wird auf all deinen Geräten gelöscht."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "It will be permanently deleted from this device."
+            "value" : "It will be removed from all your devices."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se eliminará de forma permanente de este dispositivo."
+            "value" : "Se eliminará de todos tus dispositivos."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il sera définitivement supprimé de cet appareil."
+            "value" : "Il sera supprimé de tous vos appareils."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह इस डिवाइस से हमेशा के लिए हट जाएगी।"
+            "value" : "यह आपके सभी डिवाइस से हट जाएगी।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Memori ini akan dihapus permanen dari perangkat ini."
+            "value" : "Memori ini akan dihapus dari semua perangkat Anda."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この端末から完全に削除されます。"
+            "value" : "すべての端末から削除されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 기기에서 영구적으로 삭제돼요."
+            "value" : "모든 기기에서 삭제돼요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ela será excluída permanentemente deste dispositivo."
+            "value" : "Ela será excluída de todos os seus dispositivos."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Она будет безвозвратно удалена с этого устройства."
+            "value" : "Она будет удалена на всех ваших устройствах."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "จะถูกลบออกจากเครื่องนี้อย่างถาวร"
+            "value" : "จะถูกลบออกจากทุกเครื่องของคุณ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu cihazdan kalıcı olarak silinir."
+            "value" : "Tüm cihazlarınızdan silinir."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mục này sẽ bị xóa vĩnh viễn khỏi thiết bị này."
+            "value" : "Mục này sẽ bị xóa trên mọi thiết bị của bạn."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "将从这台设备上永久删除。"
+            "value" : "所有设备上都会删除。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "將從這台裝置上永久刪除。"
+            "value" : "所有裝置上都會刪除。"
           }
         }
       }
@@ -36687,101 +36384,6 @@
         }
       }
     },
-    "Not available · photo picker hidden" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "غير متاح · لا يظهر منتقي الصور في حقل الكتابة"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nicht verfügbar · Fotoauswahl ausgeblendet"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No disponible · selector de fotos oculto"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Indisponible · sélecteur de photos masqué"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "उपलब्ध नहीं · इनपुट में फ़ोटो चुनने का विकल्प नहीं दिखता"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tidak tersedia · pemilih foto disembunyikan"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "利用不可 · 入力欄に写真を表示しない"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "사용 불가 · 입력창에 앨범 숨김"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Indisponível · seletor de fotos oculto"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Недоступно · выбор фото скрыт"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ใช้ไม่ได้ · ไม่แสดงปุ่มเลือกรูปในช่องพิมพ์"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kullanılamaz · fotoğraf seçici gizli"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không khả dụng · ẩn mục chọn ảnh ở ô nhập"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不可用 · 输入框不显示相册"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不可用 · 輸入框不顯示相簿"
-          }
-        }
-      }
-    },
     "Not available yet" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -42509,7 +42111,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Standardwerte für dieses Modell zurücksetzen?"
+            "value" : "Deine Standardwerte für dieses Modell zurücksetzen?"
           }
         },
         "en" : {
@@ -46930,7 +46532,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mit den zusätzlichen Anfragedaten stimmt etwas nicht, daher kann dieser Schalter sie nicht ändern. Korrigieren Sie sie zuerst dort."
+            "value" : "Mit den zusätzlichen Anfragedaten stimmt etwas nicht, daher kann dieser Schalter sie nicht ändern. Korrigiere sie zuerst dort."
           }
         },
         "en" : {
@@ -47233,7 +46835,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die zusätzlichen Anfragedaten werden derzeit nicht mit Anfragen gesendet. Aktivieren Sie das zuerst dort."
+            "value" : "Die zusätzlichen Anfragedaten werden derzeit nicht mit Anfragen gesendet. Aktiviere das zuerst dort."
           }
         },
         "en" : {
@@ -47839,7 +47441,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Modell akzeptiert höchstens %@. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Dieses Modell akzeptiert höchstens %@. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -47940,7 +47542,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Modell akzeptiert mindestens %@. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Dieses Modell akzeptiert mindestens %@. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -48243,7 +47845,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Als Modell gilt das, das Sie in Oriveo ausgewählt haben."
+            "value" : "Als Modell gilt das, das du in Oriveo ausgewählt hast."
           }
         },
         "en" : {
@@ -49924,7 +49526,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Setzt nur die Parameter zurück, die Sie in dieser Unterhaltung geändert haben. Ihr Modellstandard und die zusätzlichen Anfragedaten bleiben unverändert."
+            "value" : "Setzt nur die Parameter zurück, die du in dieser Unterhaltung geändert hast. Dein Modellstandard und die zusätzlichen Anfragedaten bleiben unverändert."
           }
         },
         "en" : {
@@ -50025,7 +49627,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Setzt die Standardparameter zurück, die Sie für dieses Modell bei dieser Verbindung festgelegt haben. Änderungen in einzelnen Unterhaltungen bleiben unverändert."
+            "value" : "Setzt die Standardparameter zurück, die du für dieses Modell bei dieser Verbindung festgelegt hast. Änderungen in einzelnen Unterhaltungen bleiben unverändert."
           }
         },
         "en" : {
@@ -51011,7 +50613,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Feld kann Ihre Daten an einen Drittanbieterdienst senden."
+            "value" : "Dieses Feld kann deine Daten an einen Drittanbieterdienst senden."
           }
         },
         "en" : {
@@ -51415,7 +51017,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das ist kein gültiges JSON Schema. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Das ist kein gültiges JSON Schema. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -51819,7 +51421,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Modell kann höchstens %@ schreiben. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Dieses Modell kann höchstens %@ schreiben. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -52122,7 +51724,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Modell akzeptiert diesen Wert nicht. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Dieses Modell akzeptiert diesen Wert nicht. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -53583,7 +53185,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Wert muss größer als %@ sein. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Der Wert muss größer als %@ sein. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -53684,7 +53286,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Wert muss kleiner als %@ sein. Bis zur Korrektur wird diese Einstellung nicht gesendet; Ihre übrigen Einstellungen sind nicht betroffen."
+            "value" : "Der Wert muss kleiner als %@ sein. Bis zur Korrektur wird diese Einstellung nicht gesendet; deine übrigen Einstellungen sind nicht betroffen."
           }
         },
         "en" : {
@@ -53886,7 +53488,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieser Anbieter hat keinen einheitlichen Schalter für Nachdenken. Tragen Sie seine Felder in den zusätzlichen Anfragedaten ein."
+            "value" : "Dieser Anbieter hat keinen einheitlichen Schalter für Nachdenken. Trage seine Felder in den zusätzlichen Anfragedaten ein."
           }
         },
         "en" : {
@@ -53987,7 +53589,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieser Anbieter hat keinen einheitlichen Schalter für die Websuche. Tragen Sie seine Felder in den zusätzlichen Anfragedaten ein."
+            "value" : "Dieser Anbieter hat keinen einheitlichen Schalter für die Websuche. Trage seine Felder in den zusätzlichen Anfragedaten ein."
           }
         },
         "en" : {
@@ -55799,7 +55401,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Schaltet Nachdenken über das Chat-Template ein oder aus. Ob das funktioniert, hängt von Ihrem Server ab."
+            "value" : "Schaltet Nachdenken über das Chat-Template ein oder aus. Ob das funktioniert, hängt von deinem Server ab."
           }
         },
         "en" : {
@@ -56595,7 +56197,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihr Modellstandard wird verwendet"
+            "value" : "Dein Modellstandard wird verwendet"
           }
         },
         "en" : {
@@ -56892,7 +56494,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sehen Sie sich die Datenschutzrichtlinie von %@ an"
+            "value" : "Datenschutzerklärung von %@ ansehen"
           }
         },
         "en" : {
@@ -59268,7 +58870,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sie sind dabei, %@ zu verwenden"
+            "value" : "Du verwendest gleich %@"
           }
         },
         "en" : {
@@ -59369,7 +58971,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihr Standard"
+            "value" : "Dein Standard"
           }
         },
         "en" : {
@@ -59571,7 +59173,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Nachricht wird an %@ gesendet, um eine Antwort zu generieren. Oriveo speichert Ihre Nachrichten oder API-Schlüssel nicht auf unseren Servern."
+            "value" : "Deine Nachricht wird an %@ gesendet, um eine Antwort zu generieren. Oriveo speichert deine Nachrichten oder API-Schlüssel nicht auf unseren Servern."
           }
         },
         "en" : {
@@ -59672,7 +59274,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ihre Nachricht wird an den benutzerdefinierten Endpunkt gesendet, den Sie konfiguriert haben. Oriveo kann die Datenschutzpraktiken von Endpunkten Dritter nicht überprüfen."
+            "value" : "Deine Nachricht wird an den benutzerdefinierten Endpunkt gesendet, den du konfiguriert hast. Oriveo kann die Datenschutzpraktiken von Endpunkten Dritter nicht überprüfen."
           }
         },
         "en" : {

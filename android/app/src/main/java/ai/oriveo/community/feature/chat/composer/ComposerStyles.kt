@@ -3,9 +3,10 @@ package ai.oriveo.community.feature.chat.composer
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import ai.oriveo.community.core.model.ModelCapability
+import ai.oriveo.community.ui.component.lightOpaqueContainerColor
 import ai.oriveo.community.ui.theme.DefaultLightBrandTuned
+import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
-import ai.oriveo.community.ui.theme.primarySubtle
 
 internal data class ComposerCapabilityAccent(
     val tint: Color,
@@ -116,6 +117,24 @@ internal fun composerResolvedColor(
     val base = if (isDark) dark else light
     val alpha = if (isDark) darkAlpha else lightAlpha
     return Color(0xFF000000L or base).copy(alpha = alpha)
+}
+
+/**
+ * Composer shell fill. The light values are faint white washes (11/19/26%), so they are flattened
+ * onto `backgroundBase` to stay opaque over scrolled messages; dark values are unchanged.
+ */
+internal fun composerShellFillColor(
+    isDark: Boolean,
+    focused: Boolean,
+    draftHighlight: Boolean,
+    colors: OriveoColors,
+): Color {
+    val raw = when {
+        focused -> composerResolvedColor(isDark, light = 0xFFFFFF, dark = 0x101113, lightAlpha = 0.26f, darkAlpha = 0.46f)
+        draftHighlight -> composerResolvedColor(isDark, light = 0xFBF9FF, dark = 0x0B0C0E, lightAlpha = 0.19f, darkAlpha = 0.42f)
+        else -> composerResolvedColor(isDark, light = 0xFFFFFF, dark = 0x07080A, lightAlpha = 0.11f, darkAlpha = 0.38f)
+    }
+    return lightOpaqueContainerColor(raw, isDark, colors)
 }
 
 internal fun composerFileExtensionLabel(fileName: String): String? {

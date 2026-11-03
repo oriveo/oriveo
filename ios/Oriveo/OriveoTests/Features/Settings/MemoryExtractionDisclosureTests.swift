@@ -77,13 +77,13 @@ struct MemoryExtractionDisclosureTests {
         #expect(flow.prepareDraft(conversations: conversations, candidates: [chosen]) == .awaitingConfirmation)
         #expect(recorder.calls.isEmpty)
 
-        let outcome = await flow.confirm()
+        let outcome = await flow.confirm(session: .shared)
 
         #expect(outcome == .draft("I am a novelist."))
         #expect(recorder.calls.map(\.modelId) == ["first"])
         #expect(flow.disclosure == nil)
-        // A confirmed request is not sent a second time
-        #expect(await flow.confirm() == nil)
+        // A request that was already confirmed is never sent a second time
+        #expect(await flow.confirm(session: .shared) == nil)
         #expect(recorder.calls.count == 1)
     }
 
@@ -98,7 +98,7 @@ struct MemoryExtractionDisclosureTests {
         flow.cancel()
 
         #expect(flow.disclosure == nil)
-        #expect(await flow.confirm() == nil)
+        #expect(await flow.confirm(session: .shared) == nil)
         #expect(recorder.calls.isEmpty)
     }
 
@@ -120,7 +120,7 @@ struct MemoryExtractionDisclosureTests {
         let conversations = [older, otherOnly, mixed]
 
         #expect(flow.prepareDraft(conversations: conversations, candidates: [chosen, other]) == .awaitingConfirmation)
-        _ = await flow.confirm()
+        _ = await flow.confirm(session: .shared)
 
         let call = try #require(recorder.calls.first)
         #expect(recorder.calls.count == 1)
@@ -157,7 +157,7 @@ struct MemoryExtractionDisclosureTests {
         ], updatedAt: 1)]
 
         #expect(flow.prepareDraft(conversations: conversations, candidates: [first, second]) == .awaitingConfirmation)
-        let outcome = await flow.confirm()
+        let outcome = await flow.confirm(session: .shared)
 
         #expect(recorder.calls.map(\.modelId) == ["first"])
         // The title is the generic failure title and the body holds the provider's error detail (same on all three platforms, Android is the reference)
@@ -171,7 +171,7 @@ struct MemoryExtractionDisclosureTests {
         let emptyRecorder = SendRecorder()
         let emptyFlow = Self.flow(emptyRecorder) { _ in "   " }
         _ = emptyFlow.prepareDraft(conversations: conversations, candidates: [first, second])
-        #expect(await emptyFlow.confirm() == .failed(
+        #expect(await emptyFlow.confirm(session: .shared) == .failed(
             title: genericTitle,
             message: ProviderServiceError.emptyResponse.message
         ))
@@ -236,10 +236,10 @@ struct MemoryExtractionDisclosureTests {
         }
         #expect(flow.isOrganizePending)
 
-        // What is handed over after confirmation is exactly the provider + model shown in the dialog
-        #expect(await flow.confirm() == .organize(item: item, provider: chosen.provider, model: chosen.model))
+        // After confirming, the handed-off provider + model is the one shown in the dialog
+        #expect(await flow.confirm(session: .shared) == .organize(item: item, provider: chosen.provider, model: chosen.model))
         #expect(flow.disclosure == nil)
-        #expect(await flow.confirm() == nil)
+        #expect(await flow.confirm(session: .shared) == nil)
         #expect(recorder.calls.isEmpty)
 
         // No usable model: no disclosure is shown
@@ -257,7 +257,7 @@ struct MemoryExtractionDisclosureTests {
 
         #expect(flow.disclosure == nil)
         #expect(!flow.isOrganizePending)
-        #expect(await flow.confirm() == nil)
+        #expect(await flow.confirm(session: .shared) == nil)
         #expect(recorder.calls.isEmpty)
     }
 
@@ -269,7 +269,7 @@ struct MemoryExtractionDisclosureTests {
         let item = Self.organizeItem()
 
         _ = flow.prepareOrganize(item: item, candidates: [first, second])
-        guard case let .organize(_, provider, model) = await flow.confirm() else {
+        guard case let .organize(_, provider, model) = await flow.confirm(session: .shared) else {
             Issue.record("expected organize outcome")
             return
         }

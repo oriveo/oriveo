@@ -13,7 +13,8 @@
 
 .dialog {
   position: relative;
-  background: color-mix(in srgb, var(--o-surface) 96%, transparent);
+  /* Opaque in both schemes so underlying text never bleeds through; blur stays as a no-op accent. */
+  background: var(--o-surface);
   backdrop-filter: blur(12px) saturate(140%);
   -webkit-backdrop-filter: blur(12px) saturate(140%);
   border: 1px solid var(--o-border);

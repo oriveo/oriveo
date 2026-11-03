@@ -2,9 +2,21 @@ package ai.oriveo.community.feature.chat.composer
 
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.assert
+import androidx.compose.ui.test.getBoundsInRoot
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasTestTag
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertCountEquals
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -53,11 +65,16 @@ class DictationSlotsTest {
     }
 
     @Test
-    fun `own-slot recording shows the recording bar wired to discard and finish`() {
+    fun `own-slot recording shows the recording bar outside the input frame wired to discard and finish`() {
         commands.state.value = DictationState.Recording(SLOT, START)
-        launch { Switcher(handle, canSend = { true }) }
+        launch { FramedSwitcher(handle) }
 
         composeRule.onNodeWithText(NORMAL).assertDoesNotExist()
+        // Same layout as the iOS DictationInputRow: the frame holds only the input field, and the recording bar sits on its own row below the frame with 8dp spacing.
+        val frame = composeRule.onNodeWithTag(FRAME).getBoundsInRoot()
+        val bar = composeRule.onNodeWithTag(DICTATION_BAR_TAG)
+        bar.assert(hasAnyAncestor(hasTestTag(FRAME)).not())
+        assertEquals("Recording bar top edge must be 8dp below the frame bottom edge", (frame.bottom + 8.dp).value, bar.getBoundsInRoot().top.value, 0.5f)
         composeRule.onNodeWithContentDescription(str(R.string.voice_dictation_discard_recording)).performClick()
         composeRule.onNodeWithText(str(R.string.voice_dictation_transcribe)).performClick()
         composeRule.onNodeWithContentDescription(str(R.string.voice_dictation_transcribe_and_send))
@@ -120,6 +137,15 @@ class DictationSlotsTest {
 
         composeRule.onNodeWithText(NORMAL).assertDoesNotExist()
         composeRule.onNodeWithContentDescription(str(R.string.voice_dictation_discard_recording)).assertExists()
+    }
+
+    @Test
+    fun `idle input frame keeps no gap below it when the normal row is empty`() {
+        launch { FramedSwitcher(handle) }
+
+        val frame = composeRule.onNodeWithTag(FRAME).getBoundsInRoot()
+        val root = composeRule.onNodeWithTag(ROOT).getBoundsInRoot()
+        assertEquals("No recording bar spacing is kept below the frame when idle", frame.bottom.value, root.bottom.value, 0.5f)
     }
 
     @Test
@@ -242,6 +268,20 @@ class DictationSlotsTest {
         DictationInputSwitcher(handle = handle, canSend = canSend) { Text(NORMAL) }
     }
 
+    /** Caller layout (chat and home): the frame wraps only the input field in the input slot, normal is empty, and the switcher places the recording bar 8dp below. */
+    @Composable
+    private fun FramedSwitcher(handle: DictationHostCoordinator?) {
+        DictationInputSwitcher(
+            handle = handle,
+            canSend = { true },
+            modifier = Modifier.testTag(ROOT).fillMaxWidth(),
+            spacing = 8.dp,
+            input = {
+                Box(Modifier.testTag(FRAME).fillMaxWidth().border(1.dp, Color.Gray)) { Text(INPUT) }
+            },
+        ) {}
+    }
+
     private fun launch(content: @Composable () -> Unit) {
         activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent { OriveoTheme(darkTheme = false) { content() } }
@@ -335,5 +375,8 @@ class DictationSlotsTest {
         const val SLOT = "conversation:c1"
         const val OTHER = "conversation:c2"
         const val NORMAL = "normal composer row"
+        const val INPUT = "composer text field"
+        const val FRAME = "input_frame"
+        const val ROOT = "switcher_root"
     }
 }

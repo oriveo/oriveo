@@ -62,7 +62,7 @@ class ReadAloudControllerTest {
             return "[${kind.rawValue}@$appLocale]"
         }
 
-        override fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean {
+        override suspend fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean {
             this.listener = listener
             active = true
             return focusGranted

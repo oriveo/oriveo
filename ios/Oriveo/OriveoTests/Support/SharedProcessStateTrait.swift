@@ -56,6 +56,7 @@ nonisolated struct SharedProcessStateTrait: TestTrait, SuiteTrait, TestScoping {
         testCase: Testing.Test.Case?,
         performing function: @concurrent @Sendable () async throws -> Void
     ) async throws {
+        TestPartitionCleanup.installCreationLabelProviderIfNeeded()
         if Self.isHeld {
             try await function()
             return

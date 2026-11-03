@@ -39,11 +39,6 @@ struct ChatStreamingCheckpointHangCostTests {
     func checkpointDoesNotRerenderChatViewOrGrowWithCompletedLength() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "checkpoint-hang-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let provider = TestFactories.makeProvider(kind: .openAI)
@@ -77,6 +72,10 @@ struct ChatStreamingCheckpointHangCostTests {
         _ = try ConversationRuntimeBridge().replaceAllConversations([conversation], uid: uid)
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         AppSessionStore.switchToUser(uid)
         state.providers = [provider]
         // loadSession turns leftover `.generating` into `.interrupted`. Rewrite a live

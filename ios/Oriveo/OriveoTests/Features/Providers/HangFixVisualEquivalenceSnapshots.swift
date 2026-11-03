@@ -132,12 +132,10 @@ struct HangFixVisualEquivalenceSnapshots {
         }
     }
 
-    private func withState(_ providers: [Provider], _ body: (AppState) throws -> Void) rethrows {
+    private func withState(_ providers: [Provider], _ body: (AppState) throws -> Void) async rethrows {
         let state = AppState(seedDemoData: false, sessionUID: "hang-snapshot-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         state.providers = providers
         try body(state)
@@ -154,7 +152,7 @@ struct HangFixVisualEquivalenceSnapshots {
             kind: .openAI,
             models: Array(catalog.prefix(8))
         )
-        try withState([official]) { state in
+        try await withState([official]) { state in
             for dark in [false, true] {
                 for width in [390.0, 320.0] {
                     try capture("detail-openai", width: width, dark: dark, scrollPages: 4) {
@@ -174,7 +172,7 @@ struct HangFixVisualEquivalenceSnapshots {
             catalogModels: relayCatalog,
             baseURLText: "https://relay.example.com/v1"
         )
-        try withState([relay]) { state in
+        try await withState([relay]) { state in
             for dark in [false, true] {
                 try capture("detail-relay", width: 390, dark: dark, scrollPages: 3) {
                     ProviderDetailView(providerID: relay.id).environment(state)
@@ -235,7 +233,7 @@ struct HangFixVisualEquivalenceSnapshots {
                 }
             )
         }
-        try withState(providers) { state in
+        try await withState(providers) { state in
             for dark in [false, true] {
                 for width in [390.0, 320.0, 280.0] {
                     try capture("picker", width: width, dark: dark, scrollPages: 2) {
@@ -337,7 +335,7 @@ struct HangFixVisualEquivalenceSnapshots {
     }
 
     @Test("chat composer states")
-    func chatComposerInput() throws {
+    func chatComposerInput() async throws {
         let provider = TestFactories.makeProvider(kind: .openAI)
         let samples: [(String, String, Bool)] = [
             ("empty", "", false),
@@ -348,7 +346,7 @@ struct HangFixVisualEquivalenceSnapshots {
             ("chinese", "\u{8FD9}\u{662F}\u{4E00}\u{6BB5}\u{6BD4}\u{8F83}\u{957F}\u{7684}\u{4E2D}\u{6587}\u{8F93}\u{5165}\u{FF0C}\u{7528}\u{6765}\u{68C0}\u{67E5}\u{8F93}\u{5165}\u{6846}\u{5728}\u{6362}\u{884C}\u{4E4B}\u{540E}\u{7684}\u{884C}\u{9AD8}\u{3001}\u{5149}\u{6807}\u{4F4D}\u{7F6E}\u{4E0E}\u{5185}\u{8FB9}\u{8DDD}\u{662F}\u{5426}\u{4E0E}\u{539F}\u{6765}\u{4E00}\u{81F4}\u{3002}", false),
             ("disabled-empty", "", true),
         ]
-        try withState([provider]) { state in
+        try await withState([provider]) { state in
             for dark in [false, true] {
                 for (name, text, sending) in samples {
                     try capture("chat-composer-\(name)", width: 390, height: 360, dark: dark, settle: 1.0) {
@@ -383,7 +381,7 @@ struct HangFixVisualEquivalenceSnapshots {
             ("arabic", "مرحبا، كيف حالك اليوم؟ أريد أن أسأل عن شيء مهم جدا في هذا الموضوع."),
         ]
         try FileManager.default.createDirectory(at: outputDirectory, withIntermediateDirectories: true)
-        try withState([provider]) { state in
+        try await withState([provider]) { state in
             for dark in [false, true] {
                 let host = UIHostingController(rootView: NavigationStack { HomeView() }.environment(state))
                 let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
@@ -501,12 +499,12 @@ struct HangFixVisualEquivalenceSnapshots {
     }
 
     @Test("settings page and provider list")
-    func settingsAndProvidersPages() throws {
+    func settingsAndProvidersPages() async throws {
         let official = TestFactories.makeProvider(
             id: UUID(uuidString: "44444444-4444-4444-4444-444444444444")!,
             kind: .openAI
         )
-        try withState([official]) { state in
+        try await withState([official]) { state in
             for dark in [false, true] {
                 try capture("settings", width: 390, dark: dark, scrollPages: 3) {
                     NavigationStack { SettingsView() }.environment(state)

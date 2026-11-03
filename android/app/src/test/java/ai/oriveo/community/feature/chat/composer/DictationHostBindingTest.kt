@@ -8,6 +8,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
+import ai.oriveo.community.R
+import ai.oriveo.community.core.model.LanguageOption
+import ai.oriveo.community.core.voice.AacEncodedUnit
+import ai.oriveo.community.core.voice.AacEncoder
 import ai.oriveo.community.core.voice.AudioCapture
 import ai.oriveo.community.core.voice.DictationCatalogSource
 import ai.oriveo.community.core.voice.DictationCommands
@@ -16,11 +23,16 @@ import ai.oriveo.community.core.voice.DictationEngineFactory
 import ai.oriveo.community.core.voice.DictationEngineInfo
 import ai.oriveo.community.core.voice.DictationEnvironment
 import ai.oriveo.community.core.voice.DictationEvent
+import ai.oriveo.community.core.voice.DictationFailedAction
 import ai.oriveo.community.core.voice.DictationState
 import ai.oriveo.community.core.voice.DictationSubmit
 import ai.oriveo.community.core.voice.PcmSink
+import ai.oriveo.community.core.voice.RecordingSlotStatus
 import ai.oriveo.community.core.voice.RecordingStore
 import ai.oriveo.community.core.voice.STTEngine
+import ai.oriveo.community.core.voice.STTResult
+import ai.oriveo.community.core.voice.STTSegment
+import ai.oriveo.community.core.voice.SystemSTTEngine
 import ai.oriveo.community.core.voice.SystemSTTRoute
 import ai.oriveo.community.core.voice.SystemSTTSelfRecordSession
 import ai.oriveo.community.core.voice.VoiceCatalog
@@ -28,6 +40,7 @@ import ai.oriveo.community.core.voice.VoiceCatalogState
 import ai.oriveo.community.core.voice.VoiceEngineSettings
 import ai.oriveo.community.core.voice.VoiceSttEntry
 import ai.oriveo.community.testing.TestSharedPreferences
+import ai.oriveo.community.ui.theme.OriveoTheme
 import java.io.File
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -46,6 +59,7 @@ import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /** rememberDictationHost attaches the coordinator to the host lifecycle: bind / rebind / detach / no controller / event routing. */
@@ -103,7 +117,7 @@ class DictationHostBindingTest {
     fun `returns null when no controller is available`() {
         var result: DictationHostCoordinator? = DictationHostCoordinator("x", commands, actions)
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
-        // Koin not started: the default parameter cannot resolve a controller.
+        // Koin is not started: the default parameter cannot resolve a controller.
         activity.setContent { result = rememberDictationHost(slotKey = "conv:1", actions = actions) }
         composeRule.waitForIdle()
 
@@ -139,7 +153,7 @@ class DictationHostBindingTest {
         composeRule.waitForIdle()
         assertSame(old!!.owner, controller.boundOwner.value)
 
-        // Navigation: the new page enters composition and binds first, the old page leaves and detaches afterwards.
+        // Navigation: the new page enters composition and binds first; the old page leaves and detaches afterwards.
         composeRule.runOnIdle { showNew = true }
         composeRule.waitForIdle()
         composeRule.runOnIdle { showOld = false }
@@ -166,7 +180,7 @@ class DictationHostBindingTest {
         composeRule.runOnIdle { events.tryEmit(DictationEvent.Insert(HOME, "first")) }
         composeRule.waitForIdle()
 
-        // After a second host with the same key binds, it becomes the current host and is the only one receiving events.
+        // A second host with the same key binds and becomes the current host; only it receives events.
         composeRule.runOnIdle { showOther = true }
         composeRule.waitForIdle()
         assertSame(other!!.owner, commands.boundOwner.value)
@@ -236,7 +250,7 @@ class DictationHostBindingTest {
         composeRule.waitForIdle()
         assertTrue(view.keepScreenOn)
 
-        // Host leaves while recording: restore the pre-entry value.
+        // The host leaves while recording: restore the pre-entry value.
         composeRule.runOnIdle { view.keepScreenOn = false }
         composeRule.runOnIdle { commands.state.value = DictationState.Recording("conv:1", startedAt = 0L) }
         composeRule.waitForIdle()
@@ -246,12 +260,148 @@ class DictationHostBindingTest {
         assertFalse(view.keepScreenOn)
     }
 
-    /** Real controller: only bind / detach are used, other dependencies are never called. */
-    private fun realController(): DictationController {
+    @Test
+    fun `change language opens the picker instead of voice settings and switch engine still opens settings`() {
+        launchHost()
+        val host = requireNotNull(coordinator)
+
+        composeRule.runOnIdle { host.onCardAction(DictationCardAction.ChangeLanguage) }
+        assertTrue(host.languagePickerOpen.value)
+        assertFalse("openVoiceSettings" in actions.calls)
+
+        // Tapping the mic while the form is open does not start a new dictation.
+        composeRule.runOnIdle { host.onMicTap() }
+        assertFalse(commands.calls.any { it.startsWith("start:") })
+
+        // Closing without changes: only the form is collapsed, no retry.
+        composeRule.runOnIdle { host.closeLanguagePicker(changed = false) }
+        assertFalse(host.languagePickerOpen.value)
+        assertFalse(commands.calls.any { it.startsWith("transcribeSaved") })
+
+        composeRule.runOnIdle { host.onCardAction(DictationCardAction.SwitchEngine) }
+        assertEquals(listOf("openVoiceSettings"), actions.calls)
+    }
+
+    @Test
+    fun `picking a new language retries the kept recording with the new language`() {
+        val prefs = TestSharedPreferences()
+        val settings = VoiceEngineSettings { prefs }
+        settings.setRecognitionLanguage(LanguageOption.Japanese.localeTag)
+        val engine = LanguageRecordingEngine(STTResult.Success(" "), STTResult.Success("bonjour"))
+        val activity = showFailedNoTranscriptCard(engine, settings)
+
+        composeRule.onNodeWithText(activity.getString(R.string.voice_dictation_action_change_language)).performClick()
+        composeRule.waitForIdle()
+        assertFalse("openVoiceSettings" in actions.calls)
+        composeRule.onNodeWithText(activity.getString(R.string.voice_recognition_language)).assertExists()
+
+        composeRule.onNodeWithText(LanguageOption.French.displayName).performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(LanguageOption.Japanese.localeTag, LanguageOption.French.localeTag), engine.languages)
+        assertEquals(listOf("insert:bonjour"), actions.calls)
+        assertEquals(DictationState.Idle, controllerUnderTest!!.state.value)
+        assertFalse(coordinator!!.languagePickerOpen.value)
+        activity.finish()
+    }
+
+    @Test
+    fun `closing the picker without a change keeps the failed card`() {
+        val prefs = TestSharedPreferences()
+        val settings = VoiceEngineSettings { prefs }
+        settings.setRecognitionLanguage(LanguageOption.Japanese.localeTag)
+        val engine = LanguageRecordingEngine(STTResult.Success(" "))
+        val activity = showFailedNoTranscriptCard(engine, settings)
+
+        composeRule.onNodeWithText(activity.getString(R.string.voice_dictation_action_change_language)).performClick()
+        composeRule.waitForIdle()
+        // Tapping the already-selected language = no change.
+        composeRule.onNodeWithText(LanguageOption.Japanese.displayName).performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(LanguageOption.Japanese.localeTag), engine.languages)
+        assertTrue(controllerUnderTest!!.state.value is DictationState.Failed)
+        assertFalse(coordinator!!.languagePickerOpen.value)
+        composeRule.onNodeWithText(activity.getString(R.string.voice_dictation_action_change_language)).assertExists()
+        assertTrue(actions.calls.isEmpty())
+        activity.finish()
+    }
+
+    private var controllerUnderTest: DictationController? = null
+
+    /** Leave an interrupted recording whose transcription yields empty text: this slot's failure card "No speech heard" (with "Change recognition language"). */
+    private fun showFailedNoTranscriptCard(engine: LanguageRecordingEngine, settings: VoiceEngineSettings): ComponentActivity {
+        val store = RecordingStore(File(temp.root, "voice/pending"))
+        val seeded = store.open(HOME, SystemSTTEngine.ENGINE_NAME, FakeEncoder())
+        seeded.write(ShortArray(16_000) { if (it % 2 == 0) 3000 else -3000 })
+        seeded.finish(RecordingSlotStatus.Interrupted)
+        val controller = realController(system = engine, settings = settings, store = store)
+        controllerUnderTest = controller
+        RuntimeEnvironment.setQualifiers("+en")
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent {
+            OriveoTheme(darkTheme = false) {
+                val handle = rememberDictationHost(slotKey = HOME, actions = actions, commands = controller)
+                coordinator = handle
+                DictationPromptSlot(handle = handle, languageSettings = settings)
+            }
+        }
+        composeRule.waitForIdle()
+        assertEquals(DictationState.Interrupted(HOME), controller.state.value)
+        composeRule.runOnIdle { controller.transcribeSaved(DictationSubmit.Insert) }
+        composeRule.waitForIdle()
+        val failed = controller.state.value as DictationState.Failed
+        assertEquals(DictationFailedAction.NoTranscript, failed.action)
+        assertTrue(failed.hasRecording)
+        return activity
+    }
+
+    /** Fake system engine: returns [results] in order and records the language each request carried. */
+    private class LanguageRecordingEngine(vararg results: STTResult) : STTEngine {
+        override val engineName: String = SystemSTTEngine.ENGINE_NAME
+        private val queued = ArrayDeque(results.toList())
+        val languages = mutableListOf<String?>()
+
+        override suspend fun transcribe(segment: STTSegment, language: String?): STTResult {
+            languages += language
+            return queued.removeFirst()
+        }
+    }
+
+    /** One AU per 1024 samples. */
+    private class FakeEncoder : AacEncoder {
+        private var pending = 0
+        override val encoderDelay: Int? = 2112
+
+        override fun encode(samples: ShortArray, count: Int): List<AacEncodedUnit> {
+            pending += count
+            val out = mutableListOf<AacEncodedUnit>()
+            while (pending >= 1024) {
+                pending -= 1024
+                out += AacEncodedUnit(ByteArray(16) { it.toByte() }, isCodecConfig = false)
+            }
+            return out
+        }
+
+        override fun finish(): List<AacEncodedUnit> {
+            if (pending == 0) return emptyList()
+            pending = 0
+            return listOf(AacEncodedUnit(ByteArray(16) { it.toByte() }, isCodecConfig = false))
+        }
+
+        override fun release() = Unit
+    }
+
+    /** Real controller: only bind / detach are used by default; when [system] is given, transcription goes through it and the recognition language is read from [settings]. */
+    private fun realController(
+        system: STTEngine? = null,
+        settings: VoiceEngineSettings = VoiceEngineSettings(prefsProvider = { TestSharedPreferences() }),
+        store: RecordingStore = RecordingStore(File(temp.root, "voice/pending")),
+    ): DictationController {
         val dispatcher = UnconfinedTestDispatcher()
         return DictationController(
             engines = object : DictationEngineFactory {
-                override fun system(): STTEngine = error("unused")
+                override fun system(): STTEngine = system ?: error("unused")
 
                 override suspend fun systemRoute(language: String?): SystemSTTRoute = error("unused")
 
@@ -260,7 +410,7 @@ class DictationHostBindingTest {
 
                 override fun cloud(entry: VoiceSttEntry, baseUrl: String, apiKey: String): STTEngine = error("unused")
             },
-            settings = VoiceEngineSettings(prefsProvider = { TestSharedPreferences() }),
+            settings = settings,
             catalog = object : DictationCatalogSource {
                 override suspend fun loadCached(): VoiceCatalog? = null
 
@@ -272,13 +422,15 @@ class DictationHostBindingTest {
 
                 override fun stop() = Unit
             },
-            store = RecordingStore(File(temp.root, "voice/pending")),
+            store = store,
             encoderFactory = { error("unused") },
             permission = { false },
             environment = object : DictationEnvironment {
                 override fun stopReadAloud() = Unit
 
-                override fun recognitionLanguage(): String? = null
+                override fun recognitionLanguage(): String? = settings.recognitionLanguage()
+
+                override fun uiLanguageTag(): String = "en-US"
 
                 override fun observeInterruptions(onInterrupted: () -> Unit): AutoCloseable = AutoCloseable {}
             },

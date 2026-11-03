@@ -224,6 +224,8 @@ struct ModelOptionsPanelFacts {
     var pdfNativeDefault = false
     /// The relay `file` negative cache has not expired.
     var relayFileRejected = false
+    /// Capability projection for the selected realtime model; when web search and thinking are both statusLine, each gets a status row plus a change-model action. nil = text model.
+    var realtimeCapability: RealtimeModelPolicy.Capability?
 }
 
 extension ModelOptionsPanelModel {
@@ -232,32 +234,49 @@ extension ModelOptionsPanelModel {
         reasoningInput.chatTemplateThinkingIsOn = facts.chatTemplateThinking == .on
 
         let card: Card
-        var tiles: [ModelOptionsTiles.Tile] = []
-        var summary: [String] = []
-        switch ModelOptionCapabilityCard.resolve(web: facts.web, reasoning: reasoningInput) {
-        case let .protocolUndecided(callout):
-            card = .callout(callout)
-        case let .rows(web, reasoning):
-            let usesChatTemplate = reasoning.isChatTemplateThinkingToggle
-            var reasoningShape = reasoning.withoutEmptyModelList(hasCandidates: facts.hasReasoningCandidates)
-            if usesChatTemplate, let blocked = chatTemplateThinkingNotice(facts.chatTemplateThinking) {
-                reasoningShape = .notice(blocked)
+        var rows: [Row] = []
+        // Whether the vision and file tiles and the capability summary are shown follows the capability projection; without a projection (a text model) they are all shown as before.
+        let capability = facts.realtimeCapability
+        let showsVision = (capability?.visionTile ?? "default") != "hidden"
+        let showsFiles = (capability?.fileTile ?? "default") != "hidden"
+        let showsSummary = (capability?.panelSummary ?? "default") != "hidden"
+        if let realtimeRows = realtimeStatusRows(capability) {
+            rows = realtimeRows
+            card = .rows(realtimeRows)
+        } else {
+            switch ModelOptionCapabilityCard.resolve(web: facts.web, reasoning: reasoningInput) {
+            case let .protocolUndecided(callout):
+                card = .callout(callout)
+            case let .rows(web, reasoning):
+                let usesChatTemplate = reasoning.isChatTemplateThinkingToggle
+                var reasoningShape = reasoning.withoutEmptyModelList(hasCandidates: facts.hasReasoningCandidates)
+                if usesChatTemplate, let blocked = chatTemplateThinkingNotice(facts.chatTemplateThinking) {
+                    reasoningShape = .notice(blocked)
+                }
+                let webRow = Row(
+                    capability: .web, shape: web.withoutEmptyModelList(hasCandidates: facts.hasWebCandidates)
+                )
+                let reasoningRow = Row(capability: .reasoning, shape: reasoningShape)
+                // On a custom connection only thinking can be changed, so it comes first; otherwise the order is fixed: web search, then thinking.
+                rows = usesChatTemplate ? [reasoningRow, webRow] : [webRow, reasoningRow]
+                card = .rows(rows)
             }
-            let webRow = Row(
-                capability: .web, shape: web.withoutEmptyModelList(hasCandidates: facts.hasWebCandidates)
-            )
-            let reasoningRow = Row(capability: .reasoning, shape: reasoningShape)
-            // On a custom connection only thinking can be changed, so it comes first; otherwise the order is fixed: web search, then thinking.
-            let rows = usesChatTemplate ? [reasoningRow, webRow] : [webRow, reasoningRow]
-            card = .rows(rows)
-            tiles = rows.map(ModelOptionsTiles.tile(for:)) + [
-                ModelOptionsTiles.visionTile(ModelOptionsTiles.vision(facts.visionInput)),
-                ModelOptionsTiles.filesTile(ModelOptionsTiles.files(
+        }
+        var tiles: [ModelOptionsTiles.Tile] = rows.map(ModelOptionsTiles.tile(for:))
+        var summary: [String] = []
+        if !rows.isEmpty {
+            if showsVision { tiles.append(ModelOptionsTiles.visionTile(ModelOptionsTiles.vision(facts.visionInput))) }
+            if showsFiles {
+                tiles.append(ModelOptionsTiles.filesTile(ModelOptionsTiles.files(
                     mode: facts.fileMode, nativeFileMimes: facts.nativeFileMimes,
                     relayFileRejected: facts.relayFileRejected, pdfNativeDefault: facts.pdfNativeDefault
-                )),
-            ]
-            summary = ModelOptionsTiles.summaryItems(web: webRow.shape, reasoning: reasoningRow.shape)
+                )))
+            }
+            if showsSummary,
+               let web = rows.first(where: { $0.capability == .web }),
+               let reasoning = rows.first(where: { $0.capability == .reasoning }) {
+                summary = ModelOptionsTiles.summaryItems(web: web.shape, reasoning: reasoning.shape)
+            }
         }
 
         let (temperature, otherRows) = ModelOptionsTiles.splitTemperature(facts.advancedRows)
@@ -288,6 +307,17 @@ extension ModelOptionsPanelModel {
             ),
             scopeUpgrade: facts.scopeUpgrade
         )
+    }
+
+    /// Realtime model: when web search and thinking are both statusLine, each gets one row with its reason, and tapping switches the model; otherwise returns nil and the text-model card is used.
+    private static func realtimeStatusRows(_ capability: RealtimeModelPolicy.Capability?) -> [Row]? {
+        guard let capability, capability.webSearch == "statusLine", capability.thinking == "statusLine",
+              let web = capability.webSearchReasonKey.flatMap(RealtimeCapabilityCopy.reason),
+              let thinking = capability.thinkingReasonKey.flatMap(RealtimeCapabilityCopy.reason) else { return nil }
+        return [
+            Row(capability: .web, shape: .disclosure(.init(status: web, action: .switchConnection))),
+            Row(capability: .reasoning, shape: .disclosure(.init(status: thinking, action: .switchConnection))),
+        ]
     }
 
     private static func notes(_ facts: ModelOptionsPanelFacts) -> [Note] {

@@ -189,7 +189,13 @@ export type ModelOptionsPopoverProps = {
   onOpenSearchServiceSheet?: (request: ChatSearchServiceSheetRequest) => void;
   /** Draft conversation id of this page: while a new conversation has no id yet, the search source is kept in memory under it. */
   searchDraftSessionId?: string;
-  /** In-memory data for screenshots: when given, the partition store and the catalog are not read (never passed in production). */
+  /**
+   * Real conversation id for the search source only; absent on a new conversation even when `conversationId`
+   * falls back to the draft id, so the source stays in the in-memory draft table and is adopted on create.
+   * When omitted, `conversationId` is used unless it equals `searchDraftSessionId`.
+   */
+  searchConversationId?: string;
+  /** In-memory data for the style sample: when given, the partition DB and catalog are not read (production does not pass it). */
   externalSearchSource?: { data: ExternalSearchData; stored: unknown; toolCall?: ToolCallSupport; panelWritable?: boolean };
   onClose: () => void;
 };
@@ -232,9 +238,14 @@ export function ModelOptionsPopover({
   initialPane,
   onOpenSearchServiceSheet,
   searchDraftSessionId,
+  searchConversationId: explicitSearchConversationId,
   externalSearchSource,
   onClose,
 }: ModelOptionsPopoverProps) {
+  // An existing conversation writes the persisted source; only a draft (conversationId is the draft id) stays in
+  // the in-memory draft table. Mounts that pass no explicit search id fall back to a non-draft conversationId.
+  const searchConversationId = explicitSearchConversationId
+    ?? (conversationId && conversationId !== searchDraftSessionId ? conversationId : undefined);
   const locale = useLocale();
   const tWebSearch = useTranslations('webSearch');
   const tCommon = useTranslations('common');
@@ -565,14 +576,14 @@ export function ModelOptionsPopover({
       .then(async (data) => ({
         data,
         stored: (await readConversationSearchSource({
-          data, conversationId, ...(searchDraftSessionId ? { draftSessionId: searchDraftSessionId } : {}), modelKey: searchModelKey,
+          data, conversationId: searchConversationId, ...(searchDraftSessionId ? { draftSessionId: searchDraftSessionId } : {}), modelKey: searchModelKey,
         })).stored,
       }))
       .then((next) => {
         if (!cancelled) setSearchState(next);
       }, () => {});
     return () => { cancelled = true; };
-  }, [conversationId, externalSearchSource, searchDraftSessionId, searchModelKey, searchServicesRevision]);
+  }, [externalSearchSource, searchConversationId, searchDraftSessionId, searchModelKey, searchServicesRevision]);
   const searchFacts = searchState && provider && model
     ? externalSearchFacts({
       data: searchState.data,
@@ -595,10 +606,10 @@ export function ModelOptionsPopover({
     }
     // With no conversation id, write the in-memory draft; never persist under the draft id.
     void writeConversationSearchSource({
-      uid: data.uid, conversationId, ...(searchDraftSessionId ? { draftSessionId: searchDraftSessionId } : {}),
+      uid: data.uid, conversationId: searchConversationId, ...(searchDraftSessionId ? { draftSessionId: searchDraftSessionId } : {}),
       stored, modelKey: searchModelKey, event,
     }).then((next) => setSearchState({ data, stored: next }), () => {});
-  }, [conversationId, externalSearchSource, searchDraftSessionId, searchModelKey, searchState]);
+  }, [externalSearchSource, searchConversationId, searchDraftSessionId, searchModelKey, searchState]);
 
   const webInput: ModelOptionCapabilityInput = {
     ...sharedCapabilityInput,
@@ -621,7 +632,7 @@ export function ModelOptionsPopover({
   const armRequest = () => ({
     modelKey: searchModelKey,
     knownServiceIds: (searchState?.data.snapshot.services ?? []).map((view) => view.record.id),
-    ...(conversationId ? { conversationId } : {}),
+    ...(searchConversationId ? { conversationId: searchConversationId } : {}),
     ...(searchDraftSessionId ? { draftSessionId: searchDraftSessionId } : {}),
   });
   const searchServiceName = (id: string | null) => searchState?.data.snapshot.services.find((view) => view.record.id === id)?.name ?? null;

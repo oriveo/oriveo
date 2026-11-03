@@ -333,7 +333,6 @@ class ContextPipelineContinueTest {
         private val sendCoordinator = ChatSendCoordinator(
             chatStreamingManager = streamingManager,
             applicationScope = scope,
-            skillProvider = { null },
             providersProvider = { listOf(provider) },
             untitledNoteFallback = "Untitled",
             pinnedNotesResolver = { emptyList() },

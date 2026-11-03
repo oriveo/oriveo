@@ -114,7 +114,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "„%1$@“ ersetzt alles, was Sie für dieses Modell festgelegt haben: %2$@."
+            "value" : "„%1$@“ ersetzt alles, was du für dieses Modell festgelegt hast: %2$@."
           }
         },
         "en" : {
@@ -6077,7 +6077,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eine unverschlüsselte Verbindung kann keinen Schlüssel enthalten. Ändern Sie die Adresse und den Verbindungstyp in „Öffentliches HTTPS“."
+            "value" : "Eine unverschlüsselte Verbindung kann keinen Schlüssel enthalten. Ändere die Adresse und den Verbindungstyp in „Öffentliches HTTPS“."
           }
         },
         "en" : {
@@ -10960,7 +10960,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Katalogerkennung reicht nicht aus. Beim automatischen Test wird höchstens 1 Token über den echten Chat-Pfad gesendet und ein funktionierendes Protokoll für Sie ausgewählt."
+            "value" : "Die Katalogerkennung reicht nicht aus. Beim automatischen Test wird höchstens 1 Token über den echten Chat-Pfad gesendet und ein funktionierendes Protokoll für dich ausgewählt."
           }
         },
         "en" : {
@@ -11061,7 +11061,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Katalog gefunden, aber keine Modell-IDs zurückgegeben. Geben Sie oben ein Modell ein, um fortzufahren."
+            "value" : "Katalog gefunden, aber keine Modell-IDs zurückgegeben. Gib oben ein Modell ein, um fortzufahren."
           }
         },
         "en" : {
@@ -13451,7 +13451,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wählen Sie manuell ein Protokoll aus"
+            "value" : "Wähle manuell ein Protokoll aus"
           }
         },
         "en" : {
@@ -17039,7 +17039,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kopieren Sie sie aus der Konsole Ihres Kontos."
+            "value" : "Kopiere sie aus der Konsole deines Kontos."
           }
         },
         "en" : {
@@ -23754,7 +23754,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie einen gültigen HTTPS-Endpunkt ein."
+            "value" : "Gib einen gültigen HTTPS-Endpunkt ein."
           }
         },
         "en" : {
@@ -24360,7 +24360,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Geben Sie die Anforderungs-URL und den API-Schlüssel ein. Oriveo erkennt die Verbindungseinstellungen für Sie."
+            "value" : "Gib die Anfrage-URL und den API-Schlüssel ein. Oriveo erkennt die Verbindungseinstellungen für dich."
           }
         },
         "en" : {
@@ -30226,7 +30226,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kimi-API-Schlüssel sind an die Kontoregion gebunden. Wähle die Request-URL, die zu deinem Kimi-Konto passt."
+            "value" : "Kimi-API-Schlüssel sind an die Kontoregion gebunden. Wähle die Anfrage-URL, die zu deinem Kimi-Konto passt."
           }
         },
         "en" : {
@@ -31830,7 +31830,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "MiniMax bietet mehrere offizielle Request-URLs. Wähle die URL, die zu deiner Kontoregion passt."
+            "value" : "MiniMax bietet mehrere offizielle Anfrage-URLs. Wähle die URL, die zu deiner Kontoregion passt."
           }
         },
         "en" : {
@@ -35229,7 +35229,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Noch keine Modelle hinzugefügt. Fügen Sie unten Modelle aus dem Katalog hinzu."
+            "value" : "Noch keine Modelle hinzugefügt. Füge unten Modelle aus dem Katalog hinzu."
           }
         },
         "en" : {
@@ -35330,7 +35330,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Noch keine Modelle hinzugefügt. Verwenden Sie die Schaltfläche unten, um Modell-IDs hinzuzufügen."
+            "value" : "Noch keine Modelle hinzugefügt. Verwende die Schaltfläche unten, um Modell-IDs hinzuzufügen."
           }
         },
         "es" : {
@@ -37136,7 +37136,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Offizielle Request-URL"
+            "value" : "Offizielle Anfrage-URL"
           }
         },
         "en" : {
@@ -39251,7 +39251,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fügen Sie den Host, eine Request-URL mit /v1 oder /v1beta oder eine vollständige API-Route ein. Oriveo normalisiert die Eingabe sicher."
+            "value" : "Füge den Host, eine Anfrage-URL mit /v1 oder /v1beta oder eine vollständige API-Route ein. Oriveo normalisiert die Eingabe sicher."
           }
         },
         "en" : {
@@ -40944,7 +40944,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Qwen API-Schlüssel sind regionengebunden. Wählen Sie die Region aus, die zu Ihrem API-Schlüssel passt."
+            "value" : "Qwen-API-Schlüssel sind regionengebunden. Wähle die Region aus, die zu deinem API-Schlüssel passt."
           }
         },
         "es" : {
@@ -45003,7 +45003,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gespeichert, aber der Schlüssel scheint ungültig zu sein. Sie können ihn später in den Anbietereinstellungen überprüfen."
+            "value" : "Gespeichert, aber der Schlüssel scheint ungültig zu sein. Du kannst ihn später in den Anbietereinstellungen überprüfen."
           }
         },
         "es" : {
@@ -49005,7 +49005,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SiliconFlow-API-Schlüssel sind an die Kontoregion gebunden. Wähle die Request-URL, die zu deinem Konto passt."
+            "value" : "SiliconFlow-API-Schlüssel sind an die Kontoregion gebunden. Wähle die Anfrage-URL, die zu deinem Konto passt."
           }
         },
         "en" : {
@@ -52403,7 +52403,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Der Katalog kann diese OpenAI-kompatiblen Protokolle nicht unterscheiden. Sie müssen nicht raten – verwenden Sie unten den automatischen Test und Oriveo wählt einen aus, der eine echte Anfrage abschließt."
+            "value" : "Der Katalog kann diese OpenAI-kompatiblen Protokolle nicht unterscheiden. Du musst nicht raten – verwende unten den automatischen Test, und Oriveo wählt eines aus, das eine echte Anfrage abschließt."
           }
         },
         "en" : {
@@ -54619,7 +54619,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Request-URL des Dienstes wird automatisch ausgefüllt."
+            "value" : "Die Anfrage-URL des Dienstes wird automatisch ausgefüllt."
           }
         },
         "en" : {
@@ -55118,7 +55118,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diese Einstellungen werden für jeden Anbieter automatisch konfiguriert. Unterstützung für benutzerdefinierte Request-URLs folgt in einem späteren Update."
+            "value" : "Diese Einstellungen werden für jeden Anbieter automatisch konfiguriert. Unterstützung für benutzerdefinierte Anfrage-URLs folgt in einem späteren Update."
           }
         },
         "en" : {

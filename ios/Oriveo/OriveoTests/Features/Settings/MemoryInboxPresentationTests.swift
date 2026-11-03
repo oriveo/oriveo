@@ -66,9 +66,12 @@ struct MemoryInboxPresentationTests {
     private func withState(_ body: (AppState) async throws -> Void) async rethrows {
         let uid = "memory-inbox-\(UUID().uuidString)"
         let state = AppState(seedDemoData: false, sessionUID: uid)
-        defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        // Before deleting the partition, wait for send tasks to finish (failure cleanup still writes to the DB after session removal), then drain each write tail:
+        // An in-flight write hitting a deleted DB file reports disk I/O error, and a write that resolves the DB by uid would recreate the partition.
+        func cleanUp() async {
+            await state.chatManager.waitForSendTasksForTesting()
+            await state.drainPendingWrites()
+            await TestPartitionCleanup.remove(uid)
         }
         try await body(state)
     }
@@ -90,10 +93,10 @@ struct MemoryInboxPresentationTests {
             messages: [TestFactories.makeMessage()]
         )
         state.upsertConversationProjection(conversation)
-        defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        func cleanUp() async {
+            await state.chatManager.waitForSendTasksForTesting()
+            await state.drainPendingWrites()
+            await TestPartitionCleanup.remove(uid)
             defaults.removePersistentDomain(forName: suiteName)
         }
         // Wait for the send tasks before the partition is deleted: failure wrap-up still writes (cost refresh) after the session is removed.

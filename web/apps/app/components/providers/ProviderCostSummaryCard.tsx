@@ -6,6 +6,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import { CreditCard } from 'lucide-react';
 import { formatCostTotals, hasNonUsdCostTotals } from '../../lib/core/cost/cost-currency';
 import type { MonthlyCostSummary } from '../../lib/core/cost/cost-summary';
+import { formatUsd } from '../../lib/utils/currency-format';
 import styles from './ProviderCostSummaryCard.module.css';
 
 interface ProviderCostSummaryCardProps {
@@ -54,11 +55,17 @@ function formatShare(cost: number, totalCost: number): string {
   return `${Math.max(roundedShare, 0.1).toFixed(1)}%`;
 }
 
-function splitCostText(value: string): { dollar: string | null; body: string } {
+// Split the forced "$" off the total whether the locale puts it before (en, pt-BR) or after (de) the amount.
+// Bidi marks (ar emits U+200F) are dropped first so the amount segment carries none.
+function splitCostText(text: string): { dollar: string | null; body: string; suffix: boolean } {
+  const value = text.replace(/[\u200e\u200f\u061c]/g, '');
   if (value.startsWith('$')) {
-    return { dollar: '$', body: value.slice(1) };
+    return { dollar: '$', body: value.slice(1).trim(), suffix: false };
   }
-  return { dollar: null, body: value };
+  if (value.endsWith('$')) {
+    return { dollar: '$', body: value.slice(0, -1).trim(), suffix: true };
+  }
+  return { dollar: null, body: value, suffix: false };
 }
 
 function useMonthLabel(): string {
@@ -73,9 +80,9 @@ export function ProviderCostSummaryCard({ summary, onOpenDetails }: ProviderCost
   const locale = useLocale();
   const subtitle = t('localSubtitle');
   const monthLabel = useMonthLabel();
-  // USD and non-USD amounts are shown separately and never summed; a month with only non-USD spend is not shown as $0
-  const totalText = formatCostTotals(summary.totalCost, summary.nonUsdTotals, locale) || '$0';
-  const { dollar, body: amountBody } = splitCostText(totalText);
+  // USD and non-USD amounts are shown separately and never summed; a month with only non-USD amounts does not show $0
+  const totalText = formatCostTotals(summary.totalCost, summary.nonUsdTotals, locale) || formatUsd(0, locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+  const { dollar, body: amountBody, suffix: dollarIsSuffix } = splitCostText(totalText);
 
   // With one provider and nothing hidden the bar is a single 100% segment, which is pure decoration, so hide it.
   const showSegmentedBar = summary.providers.length + summary.hiddenProviderCount >= 2 && summary.providers.length > 0;
@@ -127,8 +134,9 @@ export function ProviderCostSummaryCard({ summary, onOpenDetails }: ProviderCost
           </span>
 
           <div className={styles.amountRow}>
-            {dollar ? <span className={styles.dollar}>{dollar}</span> : null}
+            {dollar && !dollarIsSuffix ? <span className={styles.dollar}>{dollar}</span> : null}
             <span className={styles.amount}>{amountBody}</span>
+            {dollar && dollarIsSuffix ? <span className={styles.dollar}>{dollar}</span> : null}
           </div>
 
           <span className={styles.baseline} aria-hidden="true" />

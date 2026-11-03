@@ -12,7 +12,7 @@ struct ConversationDeleteOffMainTests {
         let state: AppState
         let uid: String
         let store: ConversationStore
-        let cleanUp: () -> Void
+        let cleanUp: () async -> Void
     }
 
     private static func makeFixture(_ prefix: String) throws -> Fixture {
@@ -24,9 +24,7 @@ struct ConversationDeleteOffMainTests {
             attachmentFileStore: AttachmentFileStore(rootDirectory: AppSessionStore.filesDir(for: uid))
         )
         return Fixture(state: state, uid: uid, store: store, cleanUp: {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         })
     }
 
@@ -37,6 +35,17 @@ struct ConversationDeleteOffMainTests {
 
     private static func storedIDs(_ fixture: Fixture) throws -> Set<UUID> {
         Set(try fixture.store.fetchConversationList().map(\.id))
+    }
+
+    /// Swaps the assertion for a collector; restores it afterwards.
+    private func capturingViolations(_ body: () async throws -> Void) async rethrows -> [String] {
+        var captured: [String] = []
+        let previous = MainThreadDatabaseWriteGuard.violationHandler
+        MainThreadDatabaseWriteGuard.violationHandler = { captured.append($0) }
+        defer { MainThreadDatabaseWriteGuard.violationHandler = previous }
+        try await body()
+        MainThreadDatabaseWriteGuard.drain()
+        return captured
     }
 
     @Test("Memory drops the conversation at once while the database row is deleted only when the queued write runs")
@@ -50,7 +59,7 @@ struct ConversationDeleteOffMainTests {
         var released = false
         defer {
             if !released { gate.signal() }
-            fixture.cleanUp()
+            await fixture.cleanUp()
         }
         let committed = fixture.state.deleteConversationProjection(id: doomed.id)
         #expect(fixture.state.conversations.map(\.id) == [keep.id], "memory drops it at once")
@@ -62,20 +71,47 @@ struct ConversationDeleteOffMainTests {
         #expect(try Self.storedIDs(fixture) == [keep.id])
     }
 
-    @Test("A failed delete is read back from the database so memory and the database agree")
-    func failedDeleteIsReadBack() async throws {
-        let fixture = try Self.makeFixture("delete-offmain-failure")
-        defer { fixture.cleanUp() }
-        let doomed = TestFactories.makeConversation(title: "Doomed", hasCustomTitle: true)
-        let keep = TestFactories.makeConversation(title: "Keep", hasCustomTitle: true)
-        try Self.seed(fixture, [doomed, keep])
+    @Test("A failed delete reads the conversation back from the store and leaves no in-flight deletion")
+    func failedDeleteRestoresFromStore() async throws {
+        let fixture = try Self.makeFixture("delete-offmain-fail")
+        defer { await fixture.cleanUp() }
+        let state = fixture.state
+        let doomed = TestFactories.makeConversation(title: "Survivor", hasCustomTitle: true)
+        try Self.seed(fixture, [doomed])
 
         struct Injected: Error {}
         fixture.state._testingConversationDeleteFailure = Injected()
         let committed = fixture.state.deleteConversationProjections(ids: [doomed.id])
         #expect(!fixture.state.conversations.contains { $0.id == doomed.id })
         #expect(await committed.value == false)
-        #expect(fixture.state.conversations.contains { $0.id == doomed.id }, "restored from the database")
-        #expect(try Self.storedIDs(fixture) == [doomed.id, keep.id])
+        #expect(state.conversations.map(\.id) == [doomed.id], "failed delete is read back from the store")
+        #expect(try Self.storedIDs(fixture).contains(doomed.id))
+    }
+
+    @Test("Deleting conversations (single or batch) does not write to the database synchronously on the main thread, and the ledger has no matching legacy debt")
+    func deleteDoesNotWriteOnMainThread() async throws {
+        for key in [
+            "ConversationStore.deleteConversation",
+            "ConversationStore.deleteConversations",
+        ] {
+            #expect(!MainThreadDatabaseWriteAllowlist.mainThreadDebt.contains(key), "\(key)")
+        }
+        let fixture = try Self.makeFixture("delete-offmain-guard")
+        defer { await fixture.cleanUp() }
+        let state = fixture.state
+        let one = TestFactories.makeConversation(title: "One", hasCustomTitle: true)
+        let two = TestFactories.makeConversation(title: "Two", hasCustomTitle: true)
+        let three = TestFactories.makeConversation(title: "Three", hasCustomTitle: true)
+        try Self.seed(fixture, [one, two, three])
+
+        var results: [Bool] = []
+        let violations = await capturingViolations {
+            state.deleteConversation(id: one.id)
+            results.append(await state.deleteConversationProjections(ids: [two.id, three.id]).value)
+            state.flushConversationPersistQueue()
+        }
+        #expect(violations.isEmpty, "\(violations)")
+        #expect(results == [true])
+        #expect(try Self.storedIDs(fixture).isEmpty)
     }
 }

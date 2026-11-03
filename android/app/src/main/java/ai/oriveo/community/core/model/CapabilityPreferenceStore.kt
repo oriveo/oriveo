@@ -862,8 +862,12 @@ class CapabilityPreferenceStore internal constructor(
         private const val PREFS = "capability_preference_settings"
         private const val KEY = "v1"
         fun from(context: Context): CapabilityPreferenceStore {
-            val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val drafts = context.applicationContext.getSharedPreferences("capability_preference_drafts", Context.MODE_PRIVATE)
+            val app = context.applicationContext
+            // Construction does no disk I/O; SharedPreferences is fetched on first read or write.
+            val prefs by lazy(LazyThreadSafetyMode.PUBLICATION) { app.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
+            val drafts by lazy(LazyThreadSafetyMode.PUBLICATION) {
+                app.getSharedPreferences("capability_preference_drafts", Context.MODE_PRIVATE)
+            }
             return CapabilityPreferenceStore(
                 { prefs.getString(KEY, null) }, { prefs.edit().putString(KEY, it).apply() },
                 { drafts.getString(KEY, null) }, { payload -> drafts.edit().putString(KEY, payload).apply() },

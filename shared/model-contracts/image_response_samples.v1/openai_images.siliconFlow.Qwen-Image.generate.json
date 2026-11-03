@@ -1,0 +1,51 @@
+{
+  "meta": {
+    "route": "openai_images",
+    "provider": "siliconFlow",
+    "op": "generate",
+    "http": 200,
+    "seconds": 15.2,
+    "captured_at": "2026-10-28T01:15:20.435Z",
+    "endpoint": "https://api.siliconflow.com/v1/images/generations"
+  },
+  "observed": {
+    "shapes": [
+      "data[].url",
+      "images[].url"
+    ],
+    "images": [
+      {
+        "mime": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 967077,
+        "host": "s3.siliconflow.cn"
+      },
+      {
+        "mime": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 967077,
+        "host": "s3.siliconflow.cn"
+      }
+    ]
+  },
+  "response": {
+    "images": [
+      {
+        "url": "https://s3.siliconflow.cn/temporary/fti_w5qpsicys095c5hl_87d8c09f5ec5a197db437f516200108c_ComfyUI_d25eea57_00001_.png?<query redacted>"
+      }
+    ],
+    "timings": {
+      "inference": 13.204
+    },
+    "seed": 2138944393,
+    "shared_id": "0",
+    "data": [
+      {
+        "url": "https://s3.siliconflow.cn/temporary/fti_w5qpsicys095c5hl_87d8c09f5ec5a197db437f516200108c_ComfyUI_d25eea57_00001_.png?<query redacted>"
+      }
+    ],
+    "created": 1793150120
+  }
+}

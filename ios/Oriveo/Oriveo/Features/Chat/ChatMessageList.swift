@@ -112,20 +112,50 @@ struct ChatMessageList: View, Equatable {
         let messageRevision: UInt
         let providerMetadataVersion: UInt
         let notesVersion: UInt
+        /// Bars hung on rows: a change must miss the cache so the same body pass hands the list controller
+        /// rows that match its bar gate (otherwise the gate is consumed with stale rows and the bar sticks).
+        var directiveSuggestionMessageID: UUID?
+        var currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection?
+        var memorySuggestion: MemorySuggestionBar?
     }
 
     nonisolated static func makeRowsCacheKey(
         conversationID: UUID?,
         messageRevision: UInt,
         providerMetadataVersion: UInt,
-        notesVersion: UInt = 0
+        notesVersion: UInt = 0,
+        directiveSuggestionMessageID: UUID? = nil,
+        currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil,
+        memorySuggestion: MemorySuggestionBar? = nil
     ) -> RowsCacheKey {
         RowsCacheKey(
             conversationID: conversationID,
             messageRevision: messageRevision,
             providerMetadataVersion: providerMetadataVersion,
-            notesVersion: notesVersion
+            notesVersion: notesVersion,
+            directiveSuggestionMessageID: directiveSuggestionMessageID,
+            currentVisionInput: currentVisionInput,
+            memorySuggestion: memorySuggestion
         )
+    }
+
+    /// Cached rows while the key matches; otherwise rows built for the current state.
+    nonisolated static func resolveRows(
+        cachedKey: RowsCacheKey,
+        cachedRows: [ChatCollectionProjectionBuilder.MessageRow],
+        currentKey: RowsCacheKey,
+        build: () -> [ChatCollectionProjectionBuilder.MessageRow]
+    ) -> [ChatCollectionProjectionBuilder.MessageRow] {
+        cachedKey == currentKey ? cachedRows : build()
+    }
+
+    /// "Back to bottom" button display rule (same as Android ChatScrollToBottomOverlay): the list can still scroll forward, the user is not following, and there are messages.
+    nonisolated static func shouldShowScrollToBottom(
+        canScrollForward: Bool,
+        effectivelyAtBottom: Bool,
+        hasMessages: Bool
+    ) -> Bool {
+        canScrollForward && !effectivelyAtBottom && hasMessages
     }
 
     nonisolated static func shouldEnableAutoScrollWhenSendingStarts(isAtBottom: Bool) -> Bool {
@@ -148,8 +178,13 @@ struct ChatMessageList: View, Equatable {
     let capabilitySelection: ChatCapabilitySelection
     /// Vision input projection of the current model: when it changes the rows are rebuilt (the "not sent to this model" caption on user bubbles with images).
     var currentVisionInput: CapabilityEvidenceFacade.InputCapabilityProjection? = nil
+    /// Whether the conversation's selected model is realtime; when true, "regenerate / retry / edit" are hidden. Part of the equality check: switching the selection must redraw the list.
+    var realtimeSelected = false
     let bottomOverlayInset: CGFloat
     let scrollButtonBottomInset: CGFloat
+    /// Fade-in strength of the voice stage (VoiceStageChrome.listFadeOpacity), computed and passed in by ChatView; part of the equality check: the mask must redraw when the stage appears or collapses.
+    var listFadeOpacity: Double = 0
+    /// Injected window loader: extendUpward when scrolled to the top; jumpToLatest when scrollToBottomButton hits the .messageID anchor.
     let windowLoader: MessageWindowLoader
 
     @Binding var isAtBottom: Bool
@@ -173,6 +208,9 @@ struct ChatMessageList: View, Equatable {
     @State private var emptyStateAppeared = false
     @State private var greetingHeadline = ""
     @State private var scrollToBottomRequest: UInt = 0
+    /// Written back by the list controller: whether it can still scroll forward (false when content is short or already at the bottom, so the "back to bottom" button stays hidden).
+    @State private var listCanScrollForward = false
+    // Outline navigation rail: current highlight state (@Observable, drives only rail redraws) + tap-to-jump request
     @State private var outlineState = ChatOutlineState()
     @State private var outlineScrollRequest: UInt = 0
     @State private var outlineScrollMessageID: UUID?
@@ -210,10 +248,15 @@ struct ChatMessageList: View, Equatable {
             conversationID: projection.activeConversationID,
             messageRevision: projection.messageRevision,
             providerMetadataVersion: providerMetadataVersion,
-            notesVersion: appState.notesVersion
+            notesVersion: appState.notesVersion,
+            directiveSuggestionMessageID: directiveSuggestionMessageID,
+            currentVisionInput: currentVisionInput,
+            memorySuggestion: memorySuggestionBar
         )
     }
 
+    /// The current conversation's streaming publisher (multi-conversation support).
+    /// Returns a never-emitting Empty publisher when conversationID is nil, to avoid handing out an old conversation's publisher.
     private var streamingPublisher: AnyPublisher<Void, Never> {
         guard let convID = projection.activeConversationID else {
             return Empty<Void, Never>().eraseToAnyPublisher()
@@ -236,20 +279,18 @@ struct ChatMessageList: View, Equatable {
     }
 
     private var messageRows: [ChatCollectionProjectionBuilder.MessageRow] {
-        if cachedRowsKey == rowsCacheKey {
-            return cachedRows
+        Self.resolveRows(cachedKey: cachedRowsKey, cachedRows: cachedRows, currentKey: rowsCacheKey) {
+            ChatCollectionProjectionBuilder.makeRows(
+                from: projection.messages,
+                metadata: Self.providerMetadata(in: appState),
+                noteReferencesByMessageID: noteReferencesByMessageID(),
+                replyNotices: appState.chatManager.relayWebReplyNotices,
+                compactionSeparator: compactionSeparator,
+                directiveSuggestionMessageID: directiveSuggestionMessageID,
+                memorySuggestion: memorySuggestionBar,
+                currentVisionInput: currentVisionInput
+            )
         }
-
-        return ChatCollectionProjectionBuilder.makeRows(
-            from: projection.messages,
-            metadata: Self.providerMetadata(in: appState),
-            noteReferencesByMessageID: noteReferencesByMessageID(),
-            replyNotices: appState.chatManager.relayWebReplyNotices,
-            compactionSeparator: compactionSeparator,
-            directiveSuggestionMessageID: directiveSuggestionMessageID,
-            memorySuggestion: memorySuggestionBar,
-            currentVisionInput: currentVisionInput
-        )
     }
 
     /// The user message that the pending "Set as instruction" suggestion of the current conversation is attached to (the controller is @Observable, so rows refresh on change).
@@ -262,7 +303,7 @@ struct ChatMessageList: View, Equatable {
         appState.memorySuggestions.pending(in: projection.activeConversationID)?.bar
     }
 
-    /// Whether compaction rows of this conversation were added or removed (userInfo carries the conversation id).
+    /// The organizing rows of this conversation changed (userInfo carries the conversation id).
     nonisolated static func isCheckpointChange(_ note: Notification, conversationID: UUID?) -> Bool {
         guard let conversationID,
               let changed = note.userInfo?[ContextCompactionStore.conversationIdKey] as? String
@@ -295,7 +336,9 @@ struct ChatMessageList: View, Equatable {
             compactionSeparator: compactionSeparator,
             directiveSuggestionMessageID: directiveSuggestionMessageID,
             memorySuggestion: memorySuggestionBar,
-            currentVisionInput: currentVisionInput
+            currentVisionInput: currentVisionInput,
+            // The realtime temporary bubble's header name is resolved with the same rules as the persisted row (same as makeRows); the draft itself is subscribed to by the list controller.
+            providerMetadata: Self.providerMetadata(in: appState)
         )
     }
 
@@ -319,6 +362,8 @@ struct ChatMessageList: View, Equatable {
             && lhs.isSendingMessage == rhs.isSendingMessage
             && lhs.capabilitySelection == rhs.capabilitySelection
             && lhs.currentVisionInput == rhs.currentVisionInput
+            && lhs.realtimeSelected == rhs.realtimeSelected
+            && lhs.listFadeOpacity == rhs.listFadeOpacity
             && lhs.windowLoader.hasMoreAbove == rhs.windowLoader.hasMoreAbove
             && lhs.windowLoader.hasMoreBelow == rhs.windowLoader.hasMoreBelow
     }
@@ -341,104 +386,110 @@ struct ChatMessageList: View, Equatable {
         }
 
         ZStack(alignment: .bottomTrailing) {
-            if projection.messages.isEmpty {
-                emptyStateContent
-                    .padding(.bottom, bottomOverlayInset)
-            } else {
-                ChatListViewControllerRepresentable(
-                    viewModel: controllerViewModel,
-                    requestedAutoScrollEnabled: autoScrollEnabled,
-                    providerMetadataVersion: providerMetadataVersion,
-                    scrollToBottomRequest: scrollToBottomRequest,
-                    streamingTextPublisher: streamingPublisher,
-                    streamingReasoningPublisher: streamingReasoningPublisher,
-                    streamingTextProvider: { [appState, conversationID = projection.activeConversationID] in
-                        guard let id = conversationID else { return "" }
-                        return appState.streamingText(in: id)
-                    },
-                    streamingReasoningSnapshotProvider: { [appState, conversationID = projection.activeConversationID] in
-                        guard let id = conversationID else { return nil }
-                        return appState.streamingReasoningSnapshot(in: id)
-                    },
-                    streamingActivityPublisher: streamingActivityPublisher,
-                    streamingActivityProvider: { [appState, conversationID = projection.activeConversationID] in
-                        guard let id = conversationID else { return nil }
-                        return appState.streamingActivity(in: id)
-                    },
-                    hasMoreAbove: windowLoader.hasMoreAbove,
-                    hasMoreBelow: windowLoader.hasMoreBelow,
-                    onRequestExtendUpward: { [windowLoader] in
-                        windowLoader.extendUpward()
-                    },
-                    isAtBottom: $isAtBottom,
-                    autoScrollEnabled: $autoScrollEnabled,
-                    onRetryMessage: { handleRetryMessage($0) },
-                    onContinueMessage: handleContinueMessage,
-                    onSaveNoteMessage: handleSaveNote,
-                    onOpenNoteReferences: openNoteReferences,
-                    onCrosscheckMessage: handleCrosscheck,
-                    onMcpStepAction: handleMcpStepAction,
-                    onSearchAction: handleSearchAction,
-                    onOpenMemoryUsed: handleOpenMemoryUsed,
-                    onSaveSelectionMessage: handleSaveSelection,
-                    onAskSelectionMessage: handleAskSelection,
-                    canReplaceCurrentNoteSelection: canReplaceCurrentNote,
-                    onReplaceSelectionMessage: replaceSelectionHandler,
-                    onSaveCodeBlockMessage: handleSaveCode,
-                    onOpenCompactionDetail: onOpenCompactionDetail,
-                    onAcceptDirectiveSuggestion: {
-                        guard let conversationID = projection.activeConversationID else { return }
-                        appState.directiveSuggestions.acceptWithUndoToast(conversationID: conversationID, appState: appState)
-                    },
-                    onIgnoreDirectiveSuggestion: {
-                        guard let conversationID = projection.activeConversationID else { return }
-                        appState.directiveSuggestions.ignore(conversationID: conversationID)
-                    },
-                    onSaveMemorySuggestion: {
-                        guard let conversationID = projection.activeConversationID else { return }
-                        appState.memorySuggestions.saveWithUndoToast(conversationID: conversationID, appState: appState)
-                    },
-                    onEditMemorySuggestion: {
-                        guard let conversationID = projection.activeConversationID else { return }
-                        memorySuggestionEditTarget = appState.memorySuggestions.edit(conversationID: conversationID)
-                    },
-                    onIgnoreMemorySuggestion: {
-                        guard let conversationID = projection.activeConversationID else { return }
-                        Task { await appState.memorySuggestions.ignore(conversationID: conversationID, appState: appState) }
-                    },
-                    onRegenerateMessage: handleRegenerateMessage,
-                    onEditMessage: handleEditMessage,
-                    onSwitchModelRequested: { showModelSwitcher = true },
-                    offersSwitchKey: { RelaySwitchKey.offer(for: $0, providers: appState.providers) != nil },
-                    onSwitchKeyRequested: { message in
-                        switchKeyOffer = RelaySwitchKey.offer(for: message, providers: appState.providers)
-                    },
-                    onPendingSearchTargetHandled: clearPendingSearchTargetIfNeeded,
-                    onDismissComposer: dismissKeyboardIfNeeded,
-                    onAnchorUserMessageConsumed: { userMessageID in
-                        guard let conversationID = projection.activeConversationID else { return }
-                        appState.consumePendingChatAnchorUserMessageID(userMessageID, in: conversationID)
-                    },
-                    outlineScrollRequest: outlineScrollRequest,
-                    outlineScrollMessageID: outlineScrollMessageID,
-                    outlineScrollShouldFlash: outlineScrollShouldFlash,
-                    onVisibleTopUserMessageChanged: { outlineState.currentUserMessageID = $0 },
-                    carrierHandoff: navigation.chatHandoff
-                )
-            }
+            // The edge-fade mask covers only the list content layer; the scroll-to-bottom button sits outside it so its glow is not clipped.
+            ZStack(alignment: .bottomTrailing) {
+                if projection.messages.isEmpty {
+                    emptyStateContent
+                        .padding(.bottom, bottomOverlayInset)
+                } else {
+                    ChatListViewControllerRepresentable(
+                        viewModel: controllerViewModel,
+                        requestedAutoScrollEnabled: autoScrollEnabled,
+                        providerMetadataVersion: providerMetadataVersion,
+                        scrollToBottomRequest: scrollToBottomRequest,
+                        streamingTextPublisher: streamingPublisher,
+                        streamingReasoningPublisher: streamingReasoningPublisher,
+                        streamingTextProvider: { [appState, conversationID = projection.activeConversationID] in
+                            guard let id = conversationID else { return "" }
+                            return appState.streamingText(in: id)
+                        },
+                        streamingReasoningSnapshotProvider: { [appState, conversationID = projection.activeConversationID] in
+                            guard let id = conversationID else { return nil }
+                            return appState.streamingReasoningSnapshot(in: id)
+                        },
+                        streamingActivityPublisher: streamingActivityPublisher,
+                        streamingActivityProvider: { [appState, conversationID = projection.activeConversationID] in
+                            guard let id = conversationID else { return nil }
+                            return appState.streamingActivity(in: id)
+                        },
+                        hasMoreAbove: windowLoader.hasMoreAbove,
+                        hasMoreBelow: windowLoader.hasMoreBelow,
+                        onRequestExtendUpward: { [windowLoader] in
+                            windowLoader.extendUpward()
+                        },
+                        isAtBottom: $isAtBottom,
+                        autoScrollEnabled: $autoScrollEnabled,
+                        realtimeSelected: realtimeSelected,
+                        onRetryMessage: { handleRetryMessage($0) },
+                        onContinueMessage: handleContinueMessage,
+                        onSaveNoteMessage: handleSaveNote,
+                        onOpenNoteReferences: openNoteReferences,
+                        onCrosscheckMessage: handleCrosscheck,
+                        onMcpStepAction: handleMcpStepAction,
+                        onSearchAction: handleSearchAction,
+                        onOpenMemoryUsed: handleOpenMemoryUsed,
+                        onSaveSelectionMessage: handleSaveSelection,
+                        onAskSelectionMessage: handleAskSelection,
+                        canReplaceCurrentNoteSelection: canReplaceCurrentNote,
+                        onReplaceSelectionMessage: replaceSelectionHandler,
+                        onSaveCodeBlockMessage: handleSaveCode,
+                        onOpenCompactionDetail: onOpenCompactionDetail,
+                        onAcceptDirectiveSuggestion: {
+                            guard let conversationID = projection.activeConversationID else { return }
+                            appState.directiveSuggestions.acceptWithUndoToast(conversationID: conversationID, appState: appState)
+                        },
+                        onIgnoreDirectiveSuggestion: {
+                            guard let conversationID = projection.activeConversationID else { return }
+                            appState.directiveSuggestions.ignore(conversationID: conversationID)
+                        },
+                        onSaveMemorySuggestion: {
+                            guard let conversationID = projection.activeConversationID else { return }
+                            appState.memorySuggestions.saveWithUndoToast(conversationID: conversationID, appState: appState)
+                        },
+                        onEditMemorySuggestion: {
+                            guard let conversationID = projection.activeConversationID else { return }
+                            memorySuggestionEditTarget = appState.memorySuggestions.edit(conversationID: conversationID)
+                        },
+                        onIgnoreMemorySuggestion: {
+                            guard let conversationID = projection.activeConversationID else { return }
+                            Task { await appState.memorySuggestions.ignore(conversationID: conversationID, appState: appState) }
+                        },
+                        onRegenerateMessage: handleRegenerateMessage,
+                        onEditMessage: handleEditMessage,
+                        onSwitchModelRequested: { showModelSwitcher = true },
+                        offersSwitchKey: { RelaySwitchKey.offer(for: $0, providers: appState.providers) != nil },
+                        onSwitchKeyRequested: { message in
+                            switchKeyOffer = RelaySwitchKey.offer(for: message, providers: appState.providers)
+                        },
+                        onPendingSearchTargetHandled: clearPendingSearchTargetIfNeeded,
+                        onDismissComposer: dismissKeyboardIfNeeded,
+                        onAnchorUserMessageConsumed: { userMessageID in
+                            guard let conversationID = projection.activeConversationID else { return }
+                            appState.consumePendingChatAnchorUserMessageID(userMessageID, in: conversationID)
+                        },
+                        outlineScrollRequest: outlineScrollRequest,
+                        outlineScrollMessageID: outlineScrollMessageID,
+                        outlineScrollShouldFlash: outlineScrollShouldFlash,
+                        onVisibleTopUserMessageChanged: { outlineState.currentUserMessageID = $0 },
+                        carrierHandoff: navigation.chatHandoff
+                    )
+                }
 
-            if outlineTicks.count > ChatOutline.minUserTurns {
-                ChatOutlineRail(
-                    ticks: outlineTicks,
-                    outlineState: outlineState,
-                    onJumpTo: { id in
-                        outlineScrollShouldFlash = false
-                        outlineScrollMessageID = id
-                        outlineScrollRequest &+= 1
-                    }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                if outlineTicks.count > ChatOutline.minUserTurns {
+                    ChatOutlineRail(
+                        ticks: outlineTicks,
+                        outlineState: outlineState,
+                        onJumpTo: { id in
+                            outlineScrollShouldFlash = false
+                            outlineScrollMessageID = id
+                            outlineScrollRequest &+= 1
+                        }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .mask { listEdgeFadeMask }
 
             scrollToBottomButton(hasMessages: projection.messages.isEmpty == false) {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
@@ -741,6 +792,7 @@ struct ChatMessageList: View, Equatable {
     }
 
 
+
     private func handleRetryMessage(
         _ message: ChatMessage,
         fundingPreference: Int = 0
@@ -928,6 +980,15 @@ struct ChatMessageList: View, Equatable {
     private func finishEmptyStateOpenTraceIfNeeded() {
         guard projection.messages.isEmpty else { return }
         guard projection.isBootstrappingPersistedConversation == false else { return }
+    }
+
+    /// Vertical opacity mask of the message list (no background fill): the bottom edge fades out over 40→4 pt smoothstep from the composer / stage top;
+    /// while the voice stage is active, the top 30% of the visible area fades back in with smoothstep, animated with listFadeOpacity.
+    private var listEdgeFadeMask: some View {
+        ChatListEdgeFadeMask(stageFadeOpacity: listFadeOpacity)
+            .animation(VoiceConversationBar.transitionAnimation(reduceMotion: reduceMotion), value: listFadeOpacity)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
     }
 
     @ViewBuilder

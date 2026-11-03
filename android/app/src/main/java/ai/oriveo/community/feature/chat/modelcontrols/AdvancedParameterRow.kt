@@ -60,6 +60,7 @@ import ai.oriveo.community.feature.chat.modelcontrols.GenerationParameterRowMode
 import ai.oriveo.community.feature.chat.modelcontrols.GenerationParameterRowModel.ValidationError
 import ai.oriveo.community.feature.providers.detail.basicParameterAnnotationRes
 import ai.oriveo.community.feature.providers.detail.generationParameterTitleRes
+import ai.oriveo.community.ui.component.oriveoSwitchColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.modelControlTextButtonColors
 import kotlinx.serialization.json.JsonArray
@@ -243,6 +244,7 @@ private fun AdvancedRowEditor(
                     checked = current == "true",
                     enabled = editable,
                     onCheckedChange = { actions.setValue(JsonPrimitive(it)) },
+                    colors = oriveoSwitchColors(),
                     modifier = Modifier
                         .semantics { contentDescription = title },
                 )

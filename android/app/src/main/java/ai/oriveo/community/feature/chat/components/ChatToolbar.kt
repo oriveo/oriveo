@@ -31,13 +31,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.dropShadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -86,8 +89,11 @@ internal fun ChatToolbar(
     transparentChrome: Boolean,
     hazeState: HazeState,
     trueTransparentBlurEnabled: Boolean,
+    /** The active model is a realtime voice model: cyan dot before the name, read as "<name>, Realtime Voice". */
+    isRealtime: Boolean = false,
 ) {
     val colors = OriveoTheme.colors
+    val realtimeState = if (isRealtime) stringResource(R.string.voice_realtime_model_tag) else null
     // Empty state stays fully transparent; once there are messages, a plain gradient
     // scrim (solid at the status bar, fading downward) lets scrolled-in messages fade
     // in softly. A plain LinearGradient with no real-time blur adds no scroll-time cost
@@ -131,6 +137,7 @@ internal fun ChatToolbar(
                 modifier = Modifier
                     .weight(1f)
                     .padding(start = 2.dp)
+                    .testTag("chat_model_switcher_row")
                     .clickable(onClick = onToggleModelSwitcher),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
@@ -156,6 +163,7 @@ internal fun ChatToolbar(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
+                        if (isRealtime) RealtimeModelDot()
                         Text(
                             text = modelName,
                             // 15sp Bold title, narrowed from 17sp so long model names don't wrap to two lines (matches iOS)
@@ -166,7 +174,19 @@ internal fun ChatToolbar(
                             color = colors.textPrimary,
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false),
+                            // Realtime: the tag is the name's state, so TalkBack reads "<name>, Realtime Voice" once.
+                            modifier = Modifier
+                                .weight(1f, fill = false)
+                                .then(
+                                    if (realtimeState != null) {
+                                        Modifier.semantics {
+                                            contentDescription = modelName
+                                            stateDescription = realtimeState
+                                        }
+                                    } else {
+                                        Modifier
+                                    },
+                                ),
                         )
                         if (showInstructionsBadge) {
                             ConversationInstructionsBadge(onClick = onOpenConversationSettings)
@@ -284,22 +304,37 @@ internal fun ChatToolbar(
     }
 }
 
+/** 6 dp cyan dot with a soft glow before a realtime model's name (iOS RealtimeModelDot); silent for screen readers. */
+@Composable
+internal fun RealtimeModelDot() {
+    val cyan = Color(0xFF22D3EE) // dark-palette-guard: keep (c) realtime marker, same cyan as iOS in both themes
+    Box(
+        modifier = Modifier
+            .testTag("realtime_model_dot")
+            .size(6.dp)
+            .dropShadow(shape = CircleShape, shadow = Shadow(radius = 3.dp, color = cyan.copy(alpha = 0.8f)))
+            .background(cyan, CircleShape),
+    )
+}
+
 /** Instructions badge next to the model name; tapping it opens the settings sheet. */
 @Composable
 private fun ConversationInstructionsBadge(onClick: () -> Unit) {
     val colors = OriveoTheme.colors
     val a11y = stringResource(R.string.conversation_instructions_badge_a11y)
+    // The badge fill keeps the primary ink tint; only the label uses the text-safe role.
+    val badgeModifier = Modifier
+        .clip(RoundedCornerShape(50))
+        .background(colors.primary.copy(alpha = 0.12f))
+        .semantics { contentDescription = a11y }
+        .clickable(onClick = onClick)
+        .padding(horizontal = 8.dp, vertical = 2.dp)
     Text(
         text = stringResource(R.string.conversation_instructions_badge),
         style = OriveoTheme.typography.caption,
-        color = colors.primary,
+        color = colors.primaryTextSafe,
         maxLines = 1,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(colors.primary.copy(alpha = 0.12f))
-            .semantics { contentDescription = a11y }
-            .clickable(onClick = onClick)
-            .padding(horizontal = 8.dp, vertical = 2.dp),
+        modifier = badgeModifier,
     )
 }
 

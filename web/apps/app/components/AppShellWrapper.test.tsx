@@ -12,7 +12,10 @@ const mocks = vi.hoisted(() => ({
   isOverlayViewport: false,
   push: vi.fn(),
   setDraftConversationInstructions: vi.fn(),
+  setDraftConversationSkillIds: vi.fn(),
   lastLinkDefaultPrevented: undefined as boolean | undefined,
+  userSkills: [] as Array<{ id: string }>,
+  catalogSkills: [] as Array<{ id: string }>,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -65,6 +68,7 @@ vi.mock('@oriveo/ui', () => ({
     conversationList,
     navItems,
     notesEntry,
+    skillsEntry,
     activePath,
     sidebarOpen,
     overlaySidebarOpen,
@@ -79,6 +83,7 @@ vi.mock('@oriveo/ui', () => ({
     conversationList: ReactNode;
     navItems: Array<{ label: string; href: string }>;
     notesEntry?: { label: string; href: string };
+    skillsEntry?: { label: string; href: string; count?: number };
     activePath: string;
     sidebarOpen?: boolean;
     overlaySidebarOpen?: boolean;
@@ -138,6 +143,14 @@ vi.mock('@oriveo/ui', () => ({
           )}
         </div>
       )}
+      {skillsEntry && (
+        <div
+          data-testid={`skills-entry-${skillsEntry.href}`}
+          data-count={skillsEntry.count === undefined ? undefined : String(skillsEntry.count)}
+        >
+          {skillsEntry.label}
+        </div>
+      )}
       <div data-testid="app-shell-children">{children}</div>
     </div>
   ),
@@ -147,8 +160,8 @@ vi.mock('../providers/StoreProvider', () => ({
   useAppStore: (selector: (state: any) => unknown) => selector({
     sidebarOpen: true,
     setSidebarOpen: vi.fn(),
-    catalogSkills: [],
-    userSkills: [],
+    catalogSkills: mocks.catalogSkills,
+    userSkills: mocks.userSkills,
     syncBanner: null,
     remotelyDeletedConvID: null,
     activeConversationId: null,
@@ -160,6 +173,7 @@ vi.mock('../providers/StoreProvider', () => ({
       setActiveConversationId: vi.fn(),
       setLastUsedModelRef: vi.fn(),
       setDraftConversationInstructions: mocks.setDraftConversationInstructions,
+      setDraftConversationSkillIds: mocks.setDraftConversationSkillIds,
     }),
   }),
 }));
@@ -189,7 +203,10 @@ describe('AppShellWrapper', () => {
     mocks.isOverlayViewport = false;
     mocks.push.mockClear();
     mocks.setDraftConversationInstructions.mockClear();
+    mocks.setDraftConversationSkillIds.mockClear();
     mocks.lastLinkDefaultPrevented = undefined;
+    mocks.userSkills = [];
+    mocks.catalogSkills = [];
   });
 
   it('renders the app shell with sidebar slots and children', () => {
@@ -369,8 +386,9 @@ describe('AppShellWrapper', () => {
     expect(screen.getByTestId('hide-mobile-nav-chrome').textContent).toBe('false');
   });
 
-  it('keeps the settings dock item selected on the skills route', () => {
-    mocks.pathname = '/skills';
+  it('exposes the skills sidebar entry below notes with the count of my skills only', () => {
+    mocks.userSkills = [{ id: 'u1' }, { id: 'u2' }];
+    mocks.catalogSkills = [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }];
 
     render(
       <AppShellWrapper>
@@ -378,7 +396,46 @@ describe('AppShellWrapper', () => {
       </AppShellWrapper>,
     );
 
-    expect(screen.getByTestId('active-path').textContent).toBe('/settings');
+    const entry = screen.getByTestId('skills-entry-/skills');
+    expect(entry.textContent).toBe('title');
+    expect(entry.getAttribute('data-count')).toBe('2');
+    expect(screen.queryByTestId('nav-/skills')).toBeNull();
+    const notes = screen.getByTestId('notes-entry-/notes');
+    expect(notes.compareDocumentPosition(entry) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows a zero count when I have no skills', () => {
+    render(
+      <AppShellWrapper>
+        <div>Inner Content</div>
+      </AppShellWrapper>,
+    );
+
+    expect(screen.getByTestId('skills-entry-/skills').getAttribute('data-count')).toBe('0');
+  });
+
+  it.each(['/skills', '/skills/edit', '/skills/'])('highlights the skills entry itself on %s', (path) => {
+    mocks.pathname = path;
+
+    render(
+      <AppShellWrapper>
+        <div>Inner Content</div>
+      </AppShellWrapper>,
+    );
+
+    expect(screen.getByTestId('active-path').textContent).toBe('/skills');
+  });
+
+  it('does not treat a /skillsfoo route as the skills entry', () => {
+    mocks.pathname = '/skillsfoo';
+
+    render(
+      <AppShellWrapper>
+        <div>Inner Content</div>
+      </AppShellWrapper>,
+    );
+
+    expect(screen.getByTestId('active-path').textContent).toBe('/skillsfoo');
   });
 
   it('does not cancel desktop app nav link clicks so Next can perform same-document navigation', () => {
@@ -407,6 +464,8 @@ describe('AppShellWrapper', () => {
 
     expect(mocks.push).toHaveBeenCalledWith('/chat');
     expect(mocks.setDraftConversationInstructions).toHaveBeenCalledWith('');
+    // Already on /chat the active id does not change, so draft skill chips must be dropped explicitly too.
+    expect(mocks.setDraftConversationSkillIds).toHaveBeenCalledWith([]);
   });
 });
 

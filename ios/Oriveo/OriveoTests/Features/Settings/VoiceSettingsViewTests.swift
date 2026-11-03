@@ -124,18 +124,13 @@ struct VoiceSettingsViewTests {
         #expect(readAloud.contains("model.voiceRows"))
         #expect(readAloud.contains("speedRow"))
         #expect(readAloud.contains("model.readAloudFooter"))
-        // Voice conversation group: after the read-aloud group, just one conversation engine row + fallback notice + group footer
+        // The conversation engine group has been removed, so there is no conversation engine entry; group order = realtime voice / dictation / read-aloud
+        #expect(!view.contains("openEngineSheet(.realtime)"))
         let body = try view.requiredSlice(from: "var body: some View", to: "// MARK: Groups")
-        let readAloudAt = try #require(body.range(of: "readAloudGroup"))
-        let realtimeAt = try #require(body.range(of: "realtimeGroup"))
-        #expect(readAloudAt.upperBound <= realtimeAt.lowerBound)
-        let realtime = try view.requiredSlice(from: "private var realtimeGroup", to: "// MARK: Rows")
-        #expect(realtime.contains("VoiceSettingsModel.realtimeGroupTitle"))
-        #expect(realtime.contains("flow.openEngineSheet(.realtime)"))
-        #expect(realtime.contains("engineRowLabel(model.realtimeEngine)"))
-        #expect(realtime.contains("model.realtimeNotice"))
-        #expect(realtime.contains("model.realtimeFooter"))
-        // Engine row: logo on the left (the system engine uses the iphone symbol), chevron on the right
+        let order = ["realtimeGroup", "dictationGroup", "readAloudGroup"].compactMap { body.range(of: $0)?.lowerBound }
+        #expect(order.count == 3)
+        #expect(order == order.sorted())
+        // Engine row: logo on the left (system uses the iphone symbol), chevron on the right
         let row = try view.requiredSlice(from: "private func engineRowLabel", to: "private var recognitionLanguageRow")
         #expect(row.contains("ProviderBadgeIcon(kind: providerKind"))
         #expect(row.contains("\"iphone\""))
@@ -176,12 +171,6 @@ struct VoiceSettingsViewTests {
         #expect(view.contains("onDismiss: { flow.engineSheetDismissed() }"))
         #expect(view.contains("flow.openEngineSheet(.stt)"))
         #expect(view.contains("flow.openEngineSheet(.tts)"))
-
-        flow.openEngineSheet(.realtime)
-        let realtime = try #require(flow.engineSheet)
-        #expect(realtime.model.direction == .realtime)
-        #expect(realtime.model.title == "Conversation Engine")
-        #expect(realtime.model.rows.first?.title == "Follow Current Model")
     }
 
     @Test("The speed slider spans 0.5…2 in 0.1 steps and is disabled when unavailable")

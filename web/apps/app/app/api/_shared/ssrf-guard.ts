@@ -40,6 +40,15 @@ export interface SsrfCheckResult {
   address: LookupAddress;
 }
 
+export interface SsrfCheckOptions {
+  /**
+   * Also accept plain http for any host. Port allowlist and the private / reserved IP
+   * blocklist (literal and DNS-resolved) still apply. Only for fetching public resources
+   * that carry no credentials, e.g. upstream image URLs.
+   */
+  allowHttp?: boolean;
+}
+
 /**
  * Check whether a URL is safe to request from the server, throwing SsrfBlockedError otherwise.
  * Accepts a string or a URL; an invalid URL also throws SsrfBlockedError so fetch never sees an
@@ -48,7 +57,10 @@ export interface SsrfCheckResult {
  * Public provider domains such as api.openai.com are allowed - only private, reserved and
  * metadata addresses are blocked.
  */
-export async function assertUrlNotSsrf(rawURL: string | URL): Promise<SsrfCheckResult> {
+export async function assertUrlNotSsrf(
+  rawURL: string | URL,
+  opts: SsrfCheckOptions = {},
+): Promise<SsrfCheckResult> {
   let url: URL;
   try {
     url = typeof rawURL === "string" ? new URL(rawURL) : rawURL;
@@ -65,7 +77,7 @@ export async function assertUrlNotSsrf(rawURL: string | URL): Promise<SsrfCheckR
   }
 
   const allowDevLocal = isAllowedDevHttpHost(url.hostname);
-  if (url.protocol === "http:" && !allowDevLocal) {
+  if (url.protocol === "http:" && !allowDevLocal && !opts.allowHttp) {
     throw new SsrfBlockedError("Plain http is not allowed");
   }
   if (!allowDevLocal && isForbiddenAddress(url.hostname)) {

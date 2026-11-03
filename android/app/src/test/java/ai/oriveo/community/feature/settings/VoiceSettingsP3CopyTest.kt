@@ -22,8 +22,8 @@ class VoiceSettingsP3CopyTest {
     @Test
     fun realtimeKeysMatchP3CopyInAllLocales() {
         val map = copy.obj("settingsKeyMap").obj("android")
-        val pairs = map.keys.filterNot { it.startsWith("_") }.map { it to map.str(it) }
-        assertEquals(9, pairs.size)
+        // Key set is the full p3-copy key list; keys with an Android mapping use the mapped name, the rest use the same name.
+        val pairs = copy.obj("keys").keys.map { it to (map[it]?.jsonPrimitive?.content ?: it) }
         assertEquals(16, locales().size)
         for (locale in locales()) {
             val strings = strings(locale)

@@ -139,7 +139,12 @@ extension ContextPipelineTests {
         withMcp: Bool,
         configure: (AppState) -> Void = { _ in }
     ) async throws -> (message: ChatMessage, bodies: [[String: Any]]) {
-        let database = try McpTestDatabase.make(); defer { database.cleanUp() }
+        let database = try McpTestDatabase.make()
+        let mcpDirectory = McpServerDirectory(
+            credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
+            openStore: { _ in database.store }
+        )
+        defer { database.cleanUp(after: mcpDirectory) }
         McpScriptedURLProtocol.reset()
         if withMcp {
             try McpScriptedURLProtocol.enqueue([
@@ -148,15 +153,11 @@ extension ContextPipelineTests {
             ])
         }
         ScriptedModelURLProtocol.reset(modelLegs)
-        let store = database.store
         let state = AppState(
             seedDemoData: true,
             providerSession: ScriptedModelURLProtocol.session(),
-            toolCallMemory: try makeToolLoopMemoryStore(),
-            mcpServerDirectory: McpServerDirectory(
-                credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
-                openStore: { _ in store }
-            )
+            toolCallMemory: try makeR4MemoryStore(),
+            mcpServerDirectory: mcpDirectory
         )
         try await Self.seedMemory(state, [
             Self.memoryItem("mem-tool-loop", .fact, toolLoopMemoryText, createdAt: "2026-01-01T00:00:00Z"),
@@ -179,7 +180,7 @@ extension ContextPipelineTests {
         #expect(sent != nil)
         var assistant: ChatMessage?
         for _ in 0..<160 {
-            assistant = state.conversation(for: conversationID)?.messages.last(where: { $0.role == .assistant })
+            assistant = state.conversation(for: conversationID)?.messages.last(where: { $0.role == ChatRole.assistant })
             if let assistant, assistant.state != .generating { break }
             try await Task.sleep(nanoseconds: 50_000_000)
         }

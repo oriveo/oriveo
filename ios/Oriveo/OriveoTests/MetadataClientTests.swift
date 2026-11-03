@@ -152,10 +152,8 @@ struct MetadataClientTests {
         let firstUID = "metadata-r3-first-\(UUID().uuidString)"
         let secondUID = "metadata-r3-second-\(UUID().uuidString)"
         defer {
-            DatabaseManager.shared.close()
+            await TestPartitionCleanup.remove(firstUID, secondUID)
             AppSessionStore.activeUID = savedUID
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: firstUID))
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: secondUID))
         }
 
         let client = MetadataClient()

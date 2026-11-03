@@ -87,7 +87,7 @@
 }
 
 .listRowNav:hover {
-  background-color: color-mix(in srgb, var(--o-surface-raised) 60%, transparent);
+  background-color: color-mix(in srgb, var(--o-surface-hover) 60%, transparent);
 }
 
 .listRowNav:focus-visible {
@@ -133,6 +133,22 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Name + secondary explanation stacked (toggle rows). */
+.listText {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 0;
+}
+
+.listFooter {
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--o-text-tertiary);
 }
 
 .listValue {
@@ -190,7 +206,7 @@
 }
 
 .rowControl button:hover {
-  background: color-mix(in srgb, var(--o-surface-raised) 60%, transparent);
+  background: color-mix(in srgb, var(--o-surface-hover) 60%, transparent);
   border-color: transparent;
   transform: none;
 }

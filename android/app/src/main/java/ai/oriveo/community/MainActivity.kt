@@ -15,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.AppViewModel
@@ -54,6 +55,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        ai.oriveo.community.feature.chat.voice.VoiceConversationDemo.capture(intent)
 
         setContent {
             val appViewModel: AppViewModel = koinViewModel()
@@ -108,7 +110,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         window.decorView.post {
-            appJankStats = AppJankStats(window)
+            // post runs after the first onResume: at that point appJankStats is still null, so without this
+            // catch-up the whole cold-start foreground would neither sample frames nor start the main-thread sampler until the next foreground.
+            appJankStats = AppJankStats(window).also {
+                if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) it.onResume()
+            }
             reachabilityMonitor.start()
         }
     }
@@ -126,6 +132,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        appJankStats?.dispose()
+        appJankStats = null
         mcpAuthorizationPageLauncher.detach(this)
         super.onDestroy()
     }

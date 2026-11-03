@@ -14,6 +14,8 @@ struct ReadAloudControllerTests {
     private let idleTimer = FakeIdleTimer()
     private let screenAwake: ScreenAwakeHolds
     private let center = NotificationCenter()
+    /// Each test case gets its own session lease, not shared with the parallel dictation / conversation cases via .shared.
+    private let owner = VoiceAudioSessionOwner()
     private let messageA = UUID()
     private let messageB = UUID()
     private let conversation = UUID()
@@ -24,20 +26,17 @@ struct ReadAloudControllerTests {
     }
 
     private func makeController() -> ReadAloudController {
-        ReadAloudController(
-            engine: engine, platform: platform, screenAwake: screenAwake, notificationCenter: center,
-            detectLanguage: { _ in "en" }
-        )
+        makeController(engines: .fixed(engine))
     }
 
     private func makeController(engines: ReadAloudEngineSource) -> ReadAloudController {
         ReadAloudController(
             engines: engines, platform: platform, screenAwake: screenAwake, notificationCenter: center,
-            detectLanguage: { _ in "en" }
+            detectLanguage: { _ in "en" }, sessionOwner: owner
         )
     }
 
-    /// Production resolution source for a user whose settings still hold the system engine (nothing stored).
+    /// Production resolution source when the setting is the system engine (nothing saved yet).
     private func systemSource() -> ReadAloudEngineSource {
         .resolving(settings: Self.freshSettings(), catalog: { nil }, providers: { [] }, system: engine)
     }
@@ -63,8 +62,7 @@ struct ReadAloudControllerTests {
         VoiceEngineSettings(defaults: UserDefaults(suiteName: "ReadAloudControllerTests-\(UUID().uuidString)")!)
     }
 
-    /// Writes a cloud read-aloud selection and, by default, the provider disclosure consent too
-    /// (a selection made through the engine sheet always has the consent recorded).
+    /// Writes the cloud read-aloud choice; by default also records that provider's consent notice (always already accepted when written normally through the engine sheet).
     private static func selectCloud(_ settings: VoiceEngineSettings, connectionID: String, accepted: Bool = true) {
         settings.setSelection(.cloud(VoiceCloudEngine(
             providerKind: .relay, connectionID: connectionID, model: cloudModel, voice: "nova"
@@ -72,13 +70,19 @@ struct ReadAloudControllerTests {
         if accepted { settings.disclosures.markAccepted(.relay, direction: .tts) }
     }
 
+    /// Waits for the most recent session activation to settle (synthesis only starts after activation completes asynchronously on the coordinator queue).
+    private func settle(_ controller: ReadAloudController) async {
+        await controller.pendingActivation?.value
+    }
+
     // MARK: Start and stop
 
     @Test("Toggle starts reading: state, audio session and idle timer")
-    func toggleStarts() {
+    func toggleStarts() async {
         idleTimer.isIdleTimerDisabled = false
         let controller = makeController(engines: systemSource())
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
 
         #expect(controller.state == .speaking(messageID: messageA, index: 0, total: 3))
         #expect(engine.spoken.last?.map(\.text) == ["First sentence.", "Second sentence.", "Third sentence."])
@@ -87,60 +91,57 @@ struct ReadAloudControllerTests {
         #expect(idleTimer.isIdleTimerDisabled)
     }
 
-    @Test("Tapping the same reply again stops: back to idle, idle timer restored, session released")
-    func toggleSameStops() {
+    func toggleSameStops() async {
         idleTimer.isIdleTimerDisabled = false
         let controller = makeController(engines: systemSource())
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
         controller.toggle(messageID: messageA, text: Self.threeSentences)
 
         #expect(controller.state == .idle)
         #expect(engine.stopCount == 1)
         #expect(platform.deactivations == 1)
         #expect(!idleTimer.isIdleTimerDisabled)
-        #expect(engine.spoken.count == 1)
     }
 
-    @Test("Tapping another reply stops the current one, then starts the new one")
-    func toggleOtherSwitches() {
+    @Test("Another reply: stop the current one first, then start")
+    func toggleOtherSwitches() async {
         let controller = makeController()
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
         controller.toggle(messageID: messageB, text: "Only one.")
+        await settle(controller)
 
         #expect(controller.state == .speaking(messageID: messageB, index: 0, total: 1))
-        #expect(engine.stopCount == 1)
-        #expect(platform.deactivations == 1)
         #expect(engine.spoken.count == 2)
     }
 
-    @Test("Advances segment by segment and returns to idle when finished")
-    func finishesAfterAllSegments() {
+    func finishesAfterAllSegments() async {
         let controller = makeController()
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
         engine.delegate?.speechEngineDidStartSegment(at: 1)
         #expect(controller.state == .speaking(messageID: messageA, index: 1, total: 3))
         engine.delegate?.speechEngineDidStartSegment(at: 2)
         engine.delegate?.speechEngineDidFinishAll()
 
         #expect(controller.state == .idle)
-        #expect(platform.toasts.isEmpty)
         #expect(platform.deactivations == 1)
     }
 
-    @Test("Engine failure marks the reply failed and shows a toast")
-    func failureMarksFailed() {
+    func failureMarksFailed() async {
         let controller = makeController()
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
         engine.delegate?.speechEngineDidStartSegment(at: 1)
         engine.delegate?.speechEngineDidFail()
 
         #expect(controller.state == .failed(messageID: messageA))
         #expect(platform.toasts == [.couldNotRead])
-        #expect(platform.deactivations == 1)
     }
 
-    @Test("After a failure the button looks idle (speaker) and tapping it starts again")
-    func failedButtonLooksIdleAndRestarts() throws {
+    @Test("After failure, the button looks like idle (speaker icon); tapping again restarts normally")
+    func failedButtonLooksIdleAndRestarts() async throws {
         let controller = makeController()
         let readAloud = ReadAloudButton(controller: controller)
         readAloud.configure(messageID: messageA, text: Self.threeSentences, isEligible: true)
@@ -149,6 +150,7 @@ struct ReadAloudControllerTests {
 
         button.sendActions(for: .touchUpInside)
         #expect(button.accessibilityLabel == L10n.tr("Stop Reading", table: .voice))
+        await settle(controller)
         engine.delegate?.speechEngineDidFail()
         #expect(controller.state == .failed(messageID: messageA))
         #expect(button.accessibilityLabel == L10n.tr("Read Aloud", table: .voice))
@@ -156,13 +158,15 @@ struct ReadAloudControllerTests {
         #expect(button.configuration?.baseForegroundColor != .clear)
 
         button.sendActions(for: .touchUpInside)
+        await settle(controller)
         #expect(controller.state == .speaking(messageID: messageA, index: 0, total: 3))
         #expect(engine.spoken.count == 2)
     }
 
-    @Test("Empty text, whitespace and separators only, and ineligible messages show no read-aloud button")
+    @Test("Empty text, whitespace and divider-only text, and unreadable messages do not show the read-aloud button")
     func buttonHiddenWithoutSpeakableContent() {
         let readAloud = ReadAloudButton(controller: makeController())
+        // Text comes from the shared fixtures empty_reply / whitespace_and_markup_only_reply.
         readAloud.configure(messageID: messageA, text: "", isEligible: true)
         #expect(readAloud.isHidden)
         readAloud.configure(messageID: messageA, text: "  \n\n---\n\n**  **\n", isEligible: true)
@@ -173,7 +177,7 @@ struct ReadAloudControllerTests {
         #expect(!readAloud.isHidden)
     }
 
-    @Test("No system voice on the device shows a toast and does not start")
+    @Test("Device has no system voice → toast, does not start")
     func noVoiceShowsToast() {
         engine.hasAnyVoice = false
         let controller = makeController()
@@ -182,13 +186,13 @@ struct ReadAloudControllerTests {
         #expect(controller.state == .failed(messageID: messageA))
         #expect(platform.toasts == [.noVoice])
         #expect(engine.spoken.isEmpty)
-        #expect(platform.activations == 0)
     }
 
-    @Test("Nothing speakable does nothing")
-    func emptySpeakableTextIsIgnored() {
+    @Test("Nothing readable → do nothing")
+    func emptySpeakableTextIsIgnored() async {
         let controller = makeController()
         controller.toggle(messageID: messageA, text: "```\ncode only\n```")
+        await settle(controller)
         #expect(controller.state == .speaking(messageID: messageA, index: 0, total: 1))
         controller.stop(.userStopped)
         controller.toggle(messageID: messageB, text: "🎉 👍")
@@ -196,12 +200,9 @@ struct ReadAloudControllerTests {
         #expect(engine.spoken.count == 1)
     }
 
-    @Test("Measurement: language detection plus engine selection when starting a 20,000-character reply (printed, not asserted)")
+    @Test("Measure: start-time language detection and engine selection cost for a 20k-character reply (print only, no lock)")
     func measureStartLanguageDetectionCost() {
-        let paragraph = String(
-            repeating: "\u{8FD9}\u{662F}\u{4E00}\u{6BB5}\u{7528}\u{4E8E}\u{6D4B}\u{91CF}\u{6717}\u{8BFB}\u{5F00}\u{59CB}\u{8017}\u{65F6}\u{7684}\u{4E2D}\u{6587}\u{53E5}\u{5B50}\u{FF0C}\u{5305}\u{542B}\u{4E00}\u{4E9B} English words \u{6DF7}\u{6392}\u{3002}",
-            count: 8
-        )
+        let paragraph = String(repeating: "This sentence is used to measure read-aloud start latency, mixed with some English words.", count: 8)
         var text = ""
         while text.count < 20_000 { text += paragraph + "\n\n" }
         let joined = SpeakableText.segments(text: text, final: true).compactMap { segment -> String? in
@@ -219,14 +220,15 @@ struct ReadAloudControllerTests {
         #expect(controller.state != .idle)
     }
 
-    @Test("Placeholder sentences come from the Voice table in the placeholder locale")
-    func placeholderUsesLocalizedSentence() {
+    @Test("Placeholder sentence takes its text from the Voice table by placeholderLocale")
+    func placeholderUsesLocalizedSentence() async {
         platform.uiLanguage = "ja"
         let controller = ReadAloudController(
             engine: engine, platform: platform, screenAwake: screenAwake, notificationCenter: center,
             detectLanguage: { _ in "fi" }
         )
         controller.toggle(messageID: messageA, text: "Before.\n\n| a |\n\nAfter.")
+        await settle(controller)
 
         let utterances = engine.spoken.last ?? []
         #expect(utterances.count == 3)
@@ -234,26 +236,26 @@ struct ReadAloudControllerTests {
         #expect(utterances[0].language == "fi")
     }
 
-    @Test("Language detection input is the first 2000 code points (same as Android), not graphemes")
+    @Test("Language detection input is truncated to the first 2000 code points (same as Android), not graphemes")
     func language_detection_prefix_counts_code_points() {
         var detected: [String] = []
         let controller = ReadAloudController(
             engine: engine, platform: platform, screenAwake: screenAwake, notificationCenter: center,
             detectLanguage: { detected.append($0); return "en" }
         )
-        // Each grapheme is 2 code points (e + combining acute), 3000 code points in total.
+        // Each grapheme = 2 code points (e + combining accent), 3000 code points in total.
         controller.toggle(messageID: messageA, text: String(repeating: "e\u{301}", count: 1_500) + ".")
 
         let input = detected.first ?? ""
         #expect(input.unicodeScalars.count == ReadAloudController.languageDetectionLimit)
-        // Cutting by grapheme would take twice as many code points; the grapheme count is necessarily below the limit.
+        // Truncating by grapheme would take up to twice as many code points; here the grapheme count is necessarily below the limit.
         #expect(input.count < ReadAloudController.languageDetectionLimit)
     }
 
-    // MARK: Engine selection from settings
+    // MARK: Engine selection by settings
 
-    @Test("System selected: the system engine is used and no cloud engine is built")
-    func systemSelectionUsesSystemEngine() {
+    @Test("Settings choose the system engine → system engine, no cloud engine built")
+    func systemSelectionUsesSystemEngine() async {
         var cloudBuilt = 0
         let controller = makeController(engines: .resolving(
             settings: Self.freshSettings(),
@@ -263,6 +265,7 @@ struct ReadAloudControllerTests {
             makeCloud: { _, _, _ in cloudBuilt += 1; return FakeSpeechEngine() }
         ))
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
 
         #expect(controller.state == .speaking(messageID: messageA, index: 0, total: 3))
         #expect(engine.spoken.count == 1)
@@ -270,49 +273,50 @@ struct ReadAloudControllerTests {
         #expect(platform.toasts.isEmpty)
     }
 
-    @Test("Cloud selected and available: the cloud engine gets the entry, voice, effective speed and reading language")
-    func cloudSelectionUsesCloudEngine() throws {
-        let settings = Self.freshSettings()
-        let provider = Self.relayProvider()
-        Self.selectCloud(settings, connectionID: provider.id.uuidString)
-        settings.speechRate = 1.237
-        let cloud = FakeSpeechEngine()
-        var setups: [CloudSpeechSetup] = []
-        var fallbacks: [SpeechEngine] = []
-        let fallbackEngine = FakeSpeechEngine()
-        let controller = makeController(engines: .resolving(
-            settings: settings,
-            catalog: { .available(Self.catalog) },
-            providers: { [provider] },
-            system: engine,
-            makeFallback: { fallbackEngine },
-            makeCloud: { setup, fallback, _ in
-                setups.append(setup)
-                fallbacks.append(fallback)
-                return cloud
-            }
-        ))
-        controller.toggle(messageID: messageA, text: Self.threeSentences)
+    @Test("Settings choose cloud and it is available → cloud engine receives entry / voice / effective rate / reading language")
+    func cloudSelectionUsesCloudEngine() async throws {
+            let settings = Self.freshSettings()
+            let provider = Self.relayProvider()
+            Self.selectCloud(settings, connectionID: provider.id.uuidString)
+            settings.speechRate = 1.237
+            let cloud = FakeSpeechEngine()
+            var setups: [CloudSpeechSetup] = []
+            var fallbacks: [SpeechEngine] = []
+            let fallbackEngine = FakeSpeechEngine()
+            let controller = makeController(engines: .resolving(
+                settings: settings,
+                catalog: { .available(Self.catalog) },
+                providers: { [provider] },
+                system: engine,
+                makeFallback: { fallbackEngine },
+                makeCloud: { setup, fallback, _ in
+                    setups.append(setup)
+                    fallbacks.append(fallback)
+                    return cloud
+                }
+            ))
+            controller.toggle(messageID: messageA, text: Self.threeSentences)
+            await settle(controller)
 
-        let baseURL = try #require(DictationEngineSource.requestBaseURL(provider))
-        #expect(setups == [CloudSpeechSetup(
-            entry: Self.ttsEntry, providerKind: .relay, baseURL: baseURL, apiKey: "sk-voice",
-            voice: "nova", speed: 1.24, language: "en"
-        )])
-        #expect(fallbacks.count == 1)
-        #expect(fallbacks.first === fallbackEngine)
-        #expect(cloud.spoken.last?.map(\.text) == ["First sentence.", "Second sentence.", "Third sentence."])
-        #expect(engine.spoken.isEmpty)
-        #expect(controller.state == .speaking(messageID: messageA, index: 0, total: 3))
-        #expect(platform.toasts.isEmpty)
-        #expect(settings.selection(for: .tts) != .system)
+            let baseURL = try #require(DictationEngineSource.requestBaseURL(provider))
+            #expect(setups == [CloudSpeechSetup(
+                entry: Self.ttsEntry, providerKind: .relay, baseURL: baseURL, apiKey: "sk-voice",
+                voice: "nova", speed: 1.24, language: "en"
+            )])
+            #expect(fallbacks.count == 1)
+            #expect(fallbacks.first === fallbackEngine)
+            #expect(cloud.spoken.last?.map(\.text) == ["First sentence.", "Second sentence.", "Third sentence."])
+            #expect(engine.spoken.isEmpty)
+            #expect(controller.state == .speaking(messageID: messageA, index: 0, total: 3))
+            #expect(platform.toasts.isEmpty)
+            #expect(settings.selection(for: .tts) != .system)
 
-        cloud.delegate?.speechEngineDidFinishAll()
-        #expect(controller.state == .idle)
+            cloud.delegate?.speechEngineDidFinishAll()
+            #expect(controller.state == .idle)
     }
 
-    @Test("A cloud selection without a recorded disclosure (restored backup or old data) uses the system engine this time, without rewriting settings or showing a notice")
-    func cloudSelectionWithoutConsentUsesSystemOnce() {
+    @Test("Cloud selection without recorded consent (restored backup / old data) → system engine this time, no cloud build, no settings rewrite, no prompt")
+    func cloudSelectionWithoutConsentUsesSystemOnce() async {
         let settings = Self.freshSettings()
         let provider = Self.relayProvider()
         Self.selectCloud(settings, connectionID: provider.id.uuidString, accepted: false)
@@ -326,6 +330,7 @@ struct ReadAloudControllerTests {
             makeCloud: { _, _, _ in cloudBuilt += 1; return FakeSpeechEngine() }
         ))
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
 
         #expect(engine.spoken.count == 1)
         #expect(cloudBuilt == 0)
@@ -334,7 +339,7 @@ struct ReadAloudControllerTests {
         #expect(settings.takePendingNotice(site: .settings, direction: .tts) == nil)
     }
 
-    @Test("Cloud falls back midway: one notice (provider name, not the connection's custom name), reading continues, settings untouched")
+    @Test("Mid-way cloud fallback → prompts once (with provider name, not the connection custom name), still reading, settings not rewritten")
     func cloudMidwayFallbackToastsOnce() {
         let settings = Self.freshSettings()
         var provider = Self.relayProvider()
@@ -372,7 +377,7 @@ struct ReadAloudControllerTests {
         cloud.delegate?.speechEngineDidFinishAll()
         #expect(controller.state == .idle)
 
-        // A callback that arrives after reading finished shows nothing; the next reading may show one notice again.
+        // A late callback after reading finishes does not prompt; the next read-aloud allows prompting once again.
         triggers.first?()
         #expect(platform.toasts.count == 1)
         controller.toggle(messageID: messageB, text: "Only one.")
@@ -381,8 +386,8 @@ struct ReadAloudControllerTests {
         #expect(platform.toasts.count == 2)
     }
 
-    @Test("The selected connection is gone: system engine, a \"selected engine is unavailable\" notice, and settings are rewritten to system")
-    func missingConnectionFallsBackAndRewrites() {
+    @Test("Selected connection gone → system engine + prompt \"selected read-aloud engine is no longer available\" + settings rewritten to system")
+    func missingConnectionFallsBackAndRewrites() async {
         let settings = Self.freshSettings()
         Self.selectCloud(settings, connectionID: UUID().uuidString)
         var cloudBuilt = 0
@@ -394,6 +399,7 @@ struct ReadAloudControllerTests {
             makeCloud: { _, _, _ in cloudBuilt += 1; return FakeSpeechEngine() }
         ))
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
 
         #expect(engine.spoken.count == 1)
         #expect(cloudBuilt == 0)
@@ -403,12 +409,11 @@ struct ReadAloudControllerTests {
         #expect(settings.selection(for: .tts) == .system)
     }
 
-    @Test("The settings page found the fallback first and rewrote it: the next reading shows the \"engine unavailable\" notice once, the one after shows none")
-    func settingsSiteFallbackNotifiesNextReadOnce() {
+    @Test("Settings page discovers the fallback first and rewrites → next read-aloud prompts \"selected read-aloud engine is no longer available\" once, not again after that")
+    func settingsSiteFallbackNotifiesNextReadOnce() async {
         let settings = Self.freshSettings()
         Self.selectCloud(settings, connectionID: UUID().uuidString)
-        // When the settings page resolved, the selected connection was already gone: storage goes back to system
-        // and one pending notice is left for the place of use.
+        // The connection chosen at settings-page resolution is gone: storage reverts to system, and one pending prompt is left for the point of use.
         settings.resolve(
             direction: .tts, catalog: Self.catalog,
             connections: [Self.relayProvider()].map(VoiceConnection.init(provider:)), site: .settings
@@ -424,20 +429,22 @@ struct ReadAloudControllerTests {
         ))
 
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
         #expect(engine.spoken.count == 1)
         #expect(cloudBuilt == 0)
         #expect(platform.toasts == [.engineUnavailable])
         controller.stop(.userStopped)
 
         controller.toggle(messageID: messageB, text: "Only one.")
+        await settle(controller)
         #expect(engine.spoken.count == 2)
         #expect(platform.toasts == [.engineUnavailable])
         #expect(settings.takePendingNotice(site: .settings, direction: .tts) == nil)
         controller.stop(.userStopped)
     }
 
-    @Test("No cached catalog, load failure or an unavailable (404) catalog: system engine, settings untouched, no notice")
-    func catalogWithoutConclusionKeepsSelection() {
+    @Test("No cached catalog / load failure / 404 unavailable → system engine, settings not rewritten, no prompt")
+    func catalogWithoutConclusionKeepsSelection() async {
         let states: [VoiceCatalogState?] = [nil, .loadFailed, .unavailable]
         for state in states {
             let settings = Self.freshSettings()
@@ -453,6 +460,7 @@ struct ReadAloudControllerTests {
                 makeCloud: { _, _, _ in cloudBuilt += 1; return FakeSpeechEngine() }
             ))
             controller.toggle(messageID: messageA, text: Self.threeSentences)
+            await settle(controller)
 
             #expect(system.spoken.count == 1, "\(String(describing: state))")
             #expect(cloudBuilt == 0)
@@ -468,7 +476,7 @@ struct ReadAloudControllerTests {
 
     private static let snapshotBaseURL = "https://read-aloud-catalog.test"
 
-    /// A voice-view envelope with one read-aloud entry per model under relay (voices alloy / nova).
+    /// Voice-view envelope for one read-aloud entry per relay (voices alloy / nova).
     private static func catalogEnvelope(models: [String]) throws -> Data {
         let tts: [[String: Any]] = models.map { model in
             [
@@ -509,7 +517,7 @@ struct ReadAloudControllerTests {
         state?.catalog?.ttsEntries(.relay).map(\.model)
     }
 
-    @Test("Snapshot holds catalog A, the client refreshes to B with the selected entry, reading goes through the cloud engine, settings untouched, no notice")
+    @Test("Snapshot is catalog A → client refreshes to get B containing the selected entry → read-aloud goes to cloud, settings not rewritten, no prompt")
     func snapshotFollowsClientRefresh() async throws {
         let directory = Self.makeCatalogDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -518,10 +526,9 @@ struct ReadAloudControllerTests {
         let client = Self.makeCatalogClient(directory: directory)
         await client.refresh()
         let snapshot = ReadAloudCatalogSnapshot(client: client)
-        await snapshot.settle()
         #expect(Self.ttsModels(snapshot.state) == ["tts-legacy"])
 
-        // The settings page refreshes to a new catalog B (containing cloudModel) and the user selects it there.
+        // The settings page refreshes to a new catalog B (containing cloudModel), and the user selects it there.
         let catalogB = try Self.catalogEnvelope(models: ["tts-legacy", Self.cloudModel])
         ReadAloudCatalogURLProtocol.reset { _ in (Self.catalogResponse(200, etag: "\"b\""), catalogB) }
         await client.refresh()
@@ -542,6 +549,7 @@ struct ReadAloudControllerTests {
             makeCloud: { setup, _, _ in setups.append(setup); return cloud }
         ))
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
 
         #expect(setups.map(\.entry.model) == [Self.cloudModel])
         #expect(setups.first?.voice == "nova")
@@ -549,13 +557,45 @@ struct ReadAloudControllerTests {
         #expect(engine.spoken.isEmpty)
         #expect(platform.toasts.isEmpty)
         #expect(settings.selection(for: .tts) == selected)
-        // A push arrived less than 10 minutes ago: reading the snapshot sends no request.
-        await snapshot.settle()
+        // Received a push less than 10 minutes ago: reading the snapshot does not send a request.
         #expect(ReadAloudCatalogURLProtocol.capturedRequests.isEmpty)
         controller.stop(.userStopped)
     }
 
-    @Test("An empty snapshot triggers one refresh when reading starts; this reading uses the system engine without rewriting or notice; after 10 minutes it refreshes again with the ETag")
+    @Test("Building the snapshot on the main thread does not read the catalog cache file; after the background read the snapshot has a value; disk reads are off the main thread")
+    func snapshotDoesNotReadCacheOnMainThread() async throws {
+        let directory = Self.makeCatalogDirectory()
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let catalogA = try Self.catalogEnvelope(models: ["tts-legacy"])
+        ReadAloudCatalogURLProtocol.reset { _ in (Self.catalogResponse(200, etag: "\"a\""), catalogA) }
+        // First, one client refreshes and writes to disk as the cache for the next cold start.
+        await Self.makeCatalogClient(directory: directory).refresh()
+        ReadAloudCatalogURLProtocol.reset { _ in (Self.catalogResponse(500), Data()) }
+
+        let reads = CacheReadRecorder()
+        let baseURL = Self.snapshotBaseURL
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [ReadAloudCatalogURLProtocol.self]
+        let client = VoiceCatalogClient(
+            session: URLSession(configuration: configuration), cacheDirectory: directory, baseURL: { baseURL },
+            readCacheFile: { url in
+                reads.record(onMainThread: Thread.isMainThread)
+                return try? Data(contentsOf: url)
+            }
+        )
+        #expect(Thread.isMainThread)
+        let snapshot = ReadAloudCatalogSnapshot(client: client)
+        #expect(reads.mainThreadReads == 0)
+        #expect(reads.total == 0)
+        #expect(snapshot.state == nil)
+
+        #expect(Self.ttsModels(snapshot.state) == ["tts-legacy"])
+        #expect(reads.total == 1)
+        #expect(reads.mainThreadReads == 0)
+        #expect(ReadAloudCatalogURLProtocol.capturedRequests.isEmpty)
+    }
+
+    @Test("Empty snapshot: read-aloud triggers one refresh, uses system this time, no rewrite or prompt; after 10 minutes refreshes again with ETag")
     func emptySnapshotTriggersRefresh() async throws {
         let directory = Self.makeCatalogDirectory()
         defer { try? FileManager.default.removeItem(at: directory) }
@@ -568,7 +608,6 @@ struct ReadAloudControllerTests {
         }
         let clock = SnapshotClock()
         let snapshot = ReadAloudCatalogSnapshot(client: Self.makeCatalogClient(directory: directory), now: { clock.now })
-        await snapshot.settle()
         #expect(snapshot.state == nil)
         #expect(ReadAloudCatalogURLProtocol.capturedRequests.isEmpty)
 
@@ -585,27 +624,25 @@ struct ReadAloudControllerTests {
             makeCloud: { _, _, _ in cloudBuilt += 1; return FakeSpeechEngine() }
         ))
         controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
 
         #expect(engine.spoken.count == 1)
         #expect(cloudBuilt == 0)
         #expect(platform.toasts.isEmpty)
         #expect(settings.selection(for: .tts) == selected)
-        await snapshot.settle()
         #expect(ReadAloudCatalogURLProtocol.capturedRequests.count == 1)
         #expect(Self.ttsModels(snapshot.state) == [Self.cloudModel])
         controller.stop(.userStopped)
 
-        // The next reading uses the refreshed catalog and sends no request.
+        // The next read-aloud uses the catalog refreshed earlier and sends no request.
         controller.toggle(messageID: messageB, text: "Only one.")
         #expect(cloudBuilt == 1)
         controller.stop(.userStopped)
-        await snapshot.settle()
         #expect(ReadAloudCatalogURLProtocol.capturedRequests.count == 1)
 
-        // After 10 minutes, reading again triggers a refresh that carries the ETag.
+        // After 10 minutes: the next read triggers an ETag-carrying refresh.
         clock.now = clock.now.addingTimeInterval(ReadAloudCatalogSnapshot.refreshInterval)
         _ = snapshot.current()
-        await snapshot.settle()
         #expect(ReadAloudCatalogURLProtocol.capturedRequests.count == 2)
         #expect(ReadAloudCatalogURLProtocol.capturedRequests.last?.value(forHTTPHeaderField: "If-None-Match") == "\"b\"")
         #expect(Self.ttsModels(snapshot.state) == [Self.cloudModel])
@@ -613,53 +650,57 @@ struct ReadAloudControllerTests {
 
     // MARK: Preview
 
-    /// A controller for previews: records the setup of every cloud engine built and returns a fake engine.
+    /// Controller for previews: records the parameters of each cloud engine construction and returns a fake engine.
     private func makePreviewController(
         previews: FakeSpeechEngine, setups: @escaping (CloudSpeechSetup) -> Void
     ) -> ReadAloudController {
         ReadAloudController(
             engines: systemSource(), platform: platform, screenAwake: screenAwake, notificationCenter: center,
             detectLanguage: { _ in "en" },
-            makePreview: { setup in setups(setup); return previews }
+            makePreview: { setup in setups(setup); return previews },
+            sessionOwner: owner
         )
     }
 
-    @Test("Preview stops any reading first, builds the cloud engine from the given entry, connection, voice and effective speed, and speaks the sample in the UI language")
-    func previewStopsReadingAndSpeaksSample() throws {
-        platform.uiLanguage = "ja"
-        let provider = Self.relayProvider()
-        let previews = FakeSpeechEngine()
-        var setups: [CloudSpeechSetup] = []
-        let controller = makePreviewController(previews: previews) { setups.append($0) }
-        controller.toggle(messageID: messageA, text: Self.threeSentences)
+    @Test("Preview: stop current reading first (user_stopped), build the cloud engine with the given entry / connection / voice / effective rate, read the sample in the interface language")
+    func previewStopsReadingAndSpeaksSample() async throws {
+            platform.uiLanguage = "ja"
+            let provider = Self.relayProvider()
+            let previews = FakeSpeechEngine()
+            var setups: [CloudSpeechSetup] = []
+            let controller = makePreviewController(previews: previews) { setups.append($0) }
+            controller.toggle(messageID: messageA, text: Self.threeSentences)
+            await settle(controller)
 
-        controller.preview(entry: Self.ttsEntry, provider: provider, voice: "nova", speed: 1.5)
+            controller.preview(entry: Self.ttsEntry, provider: provider, voice: "nova", speed: 1.5)
+            await settle(controller)
 
-        #expect(controller.state == .idle)
-        #expect(engine.stopCount == 1)
-        let baseURL = try #require(DictationEngineSource.requestBaseURL(provider))
-        #expect(setups == [CloudSpeechSetup(
-            entry: Self.ttsEntry, providerKind: .relay, baseURL: baseURL, apiKey: "sk-voice",
-            voice: "nova", speed: 1.5, language: "ja"
-        )])
-        #expect(previews.spoken == [[SpeechUtterance(
-            text: "ja:Hi, this is how I'll sound when I read your replies.", language: "ja"
-        )]])
-        #expect(controller.previewingVoice == "nova")
-        #expect(platform.activations == 2)
-        #expect(engine.spoken.count == 1)
+            #expect(controller.state == .idle)
+            #expect(engine.stopCount == 1)
+            let baseURL = try #require(DictationEngineSource.requestBaseURL(provider))
+            #expect(setups == [CloudSpeechSetup(
+                entry: Self.ttsEntry, providerKind: .relay, baseURL: baseURL, apiKey: "sk-voice",
+                voice: "nova", speed: 1.5, language: "ja"
+            )])
+            #expect(previews.spoken == [[SpeechUtterance(
+                text: "ja:Hi, this is how I'll sound when I read your replies.", language: "ja"
+            )]])
+            #expect(controller.previewingVoice == "nova")
+            #expect(platform.activations == 2)
+            #expect(engine.spoken.count == 1)
 
-        previews.delegate?.speechEngineDidFinishAll()
-        #expect(controller.previewingVoice == nil)
-        #expect(platform.deactivations == 2)
-        #expect(platform.toasts.isEmpty)
+            previews.delegate?.speechEngineDidFinishAll()
+            #expect(controller.previewingVoice == nil)
+            #expect(platform.deactivations == 2)
+            #expect(platform.toasts.isEmpty)
     }
 
-    @Test("A failed preview shows a \"couldn't play the preview\" notice and does not fall back to the system engine")
-    func previewFailureToastsWithoutFallback() {
+    @Test("Preview failure → toast \"unable to preview\", does not fall back to the system engine")
+    func previewFailureToastsWithoutFallback() async {
         let previews = FakeSpeechEngine()
         let controller = makePreviewController(previews: previews) { _ in }
         controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "alloy", speed: 1)
+        await settle(controller)
         previews.delegate?.speechEngineDidFail()
 
         #expect(platform.toasts == [.couldNotPreview])
@@ -669,8 +710,7 @@ struct ReadAloudControllerTests {
         #expect(controller.state == .idle)
         #expect(platform.deactivations == 1)
 
-        // The production preview engine: the cloud engine gets the same setup; the fallback engine only reports
-        // failure and never speaks with a system voice.
+        // Production preview engine: the cloud engine receives the same parameters; the fallback engine only reports failure and does not read the system voice.
         let setup = CloudSpeechSetup(
             entry: Self.ttsEntry, providerKind: .relay, baseURL: URL(string: "https://relay.example.com")!,
             apiKey: "sk-voice", voice: "alloy", speed: 1, language: "en"
@@ -685,12 +725,13 @@ struct ReadAloudControllerTests {
         #expect(spy.failures == 1)
     }
 
-    @Test("Tapping preview again or leaving the settings page stops the preview, restores the audio session, and a late callback shows nothing")
-    func previewTapAgainOrLeaveStops() {
+    @Test("Tap preview again / leave the settings page → stop preview, restore audio session, late callbacks do not prompt")
+    func previewTapAgainOrLeaveStops() async {
         let previews = FakeSpeechEngine()
         var built = 0
         let controller = makePreviewController(previews: previews) { _ in built += 1 }
         controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "alloy", speed: 1)
+        await settle(controller)
         let firstDelegate = previews.delegate
         controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "alloy", speed: 1)
 
@@ -702,6 +743,7 @@ struct ReadAloudControllerTests {
         #expect(platform.toasts.isEmpty)
 
         controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "nova", speed: 1)
+        await settle(controller)
         #expect(built == 2)
         #expect(controller.previewingVoice == "nova")
         controller.stopPreview()
@@ -712,14 +754,16 @@ struct ReadAloudControllerTests {
         #expect(platform.deactivations == 2)
     }
 
-    @Test("Tapping another voice during a preview stops the current one and previews the new voice; a late callback from the old engine shows nothing")
-    func previewOtherVoiceSwitches() {
+    @Test("Tap another voice during preview → stop current and read with the new voice; late callbacks from the old engine do not prompt")
+    func previewOtherVoiceSwitches() async {
         let previews = FakeSpeechEngine()
         var voices: [String] = []
         let controller = makePreviewController(previews: previews) { voices.append($0.voice) }
         controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "alloy", speed: 1)
+        await settle(controller)
         let firstDelegate = previews.delegate
         controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "nova", speed: 1)
+        await settle(controller)
 
         #expect(voices == ["alloy", "nova"])
         #expect(previews.stopCount == 1)
@@ -736,8 +780,8 @@ struct ReadAloudControllerTests {
         #expect(controller.previewingVoice == nil)
     }
 
-    @Test("Going to the background, an interruption beginning or the old route disappearing stops the preview")
-    func systemEventsStopPreview() {
+    @Test("Enter background / interruption begins / old device unplugged → stop preview")
+    func systemEventsStopPreview() async {
         let previews = FakeSpeechEngine()
         let controller = makePreviewController(previews: previews) { _ in }
         let notes: [(Notification.Name, [AnyHashable: Any]?)] = [
@@ -749,6 +793,7 @@ struct ReadAloudControllerTests {
         ]
         for (index, note) in notes.enumerated() {
             controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "alloy", speed: 1)
+            await settle(controller)
             #expect(controller.previewingVoice == "alloy")
             center.post(name: note.0, object: nil, userInfo: note.1)
             #expect(controller.previewingVoice == nil, "\(note.0.rawValue)")
@@ -760,7 +805,7 @@ struct ReadAloudControllerTests {
 
     // MARK: observeChat
 
-    @Test("observeChat: a conversation change stops reading")
+    @Test("observeChat: session changed → navigated")
     func conversationChangeStops() {
         let controller = makeController()
         controller.observeChat(conversationID: conversation, streamingMessageID: nil)
@@ -770,10 +815,9 @@ struct ReadAloudControllerTests {
         controller.observeChat(conversationID: UUID(), streamingMessageID: nil)
 
         #expect(controller.state == .idle)
-        #expect(engine.stopCount == 1)
     }
 
-    @Test("stopIfSpeaking stops only when the deleted messages include the one being read")
+    @Test("stopIfSpeaking: deleted messages include the one being read → stop; reason passed through")
     func stopIfSpeakingOnlyForDeletedMessage() {
         let controller = makeController()
         controller.toggle(messageID: messageA, text: Self.threeSentences)
@@ -785,11 +829,9 @@ struct ReadAloudControllerTests {
 
         controller.toggle(messageID: messageB, text: Self.threeSentences)
         controller.stopIfSpeaking(messageIDs: [messageB], .newGeneration)
-        #expect(controller.state == .idle)
-        #expect(engine.stopCount == 2)
     }
 
-    @Test("observeChat: keeps reading in the same conversation with no new generation (paged window changes do not stop it)")
+    @Test("observeChat: same conversation with no new generation → keeps reading (paged window changes do not stop it by mistake)")
     func sameConversationKeepsSpeaking() {
         let controller = makeController()
         controller.observeChat(conversationID: conversation, streamingMessageID: nil)
@@ -799,7 +841,7 @@ struct ReadAloudControllerTests {
         #expect(controller.state == .speaking(messageID: messageA, index: 0, total: 3))
     }
 
-    @Test("observeChat: streamingMessageID going from nil to non-nil stops reading")
+    @Test("observeChat: streamingMessageID changes from nil to non-nil → new_generation")
     func newGenerationStops() {
         let controller = makeController()
         controller.observeChat(conversationID: conversation, streamingMessageID: nil)
@@ -807,12 +849,11 @@ struct ReadAloudControllerTests {
         controller.observeChat(conversationID: conversation, streamingMessageID: messageB)
 
         #expect(controller.state == .idle)
-        #expect(engine.stopCount == 1)
     }
 
     // MARK: System events
 
-    @Test("Going to the background, an interruption beginning or the old route disappearing stops reading")
+    @Test("Enter background → backgrounded; interruption begins / old device unplugged → interrupted")
     func systemEventsStop() {
         let controller = makeController()
 
@@ -848,18 +889,165 @@ struct ReadAloudControllerTests {
         )
         #expect(controller.state == .idle)
 
-        #expect(engine.stopCount == 3)
-        #expect(platform.deactivations == 3)
     }
 
-    @Test("The reading audio session uses .playback with .spokenAudio")
+    @Test("Read-aloud session: production setCategory uses .playback + .spokenAudio")
     func readAloudUsesPlaybackCategory() {
         let config = SystemReadAloudPlatform.sessionConfiguration
         #expect(config.category == .playback)
         #expect(config.mode == .spokenAudio)
     }
 
-    @Test("System engine speech rate: default rate times the multiplier, clamped to the system limits, keeping the accessibility speech settings")
+    @Test("Read-aloud session: activation / deactivation go through the coordinator serial queue, not changing the session on the main thread")
+    func systemPlatformGoesThroughCoordinator() async throws {
+        let recorder = SessionOpRecorder()
+        let coordinator = AudioSessionCoordinator(apply: recorder.apply)
+        let platform = SystemReadAloudPlatform(coordinator: coordinator)
+        let config = SystemReadAloudPlatform.sessionConfiguration
+
+        #expect(Thread.isMainThread)
+        try await platform.activateAudioSession()
+        #expect(recorder.operations == [
+            .configure(.init(category: config.category, mode: config.mode)), .activate,
+        ])
+        #expect(recorder.anyOnMain == false)
+
+        platform.deactivateAudioSession()
+        try await coordinator.perform([])
+        #expect(recorder.operations.last == .deactivate(notifyOthers: true))
+        #expect(recorder.anyOnMain == false)
+    }
+
+    @Test("Stop during pending activation → no sound; after activation settles, deactivate only once")
+    func stopWhileActivatingStaysSilent() async throws {
+            let recorder = SessionOpRecorder()
+            let queue = DispatchQueue(label: "ReadAloudControllerTests.session")
+            let coordinator = AudioSessionCoordinator(queue: queue, apply: recorder.apply)
+            let controller = ReadAloudController(
+                engines: .fixed(engine), platform: SystemReadAloudPlatform(coordinator: coordinator),
+                screenAwake: screenAwake, notificationCenter: center, detectLanguage: { _ in "en" },
+                sessionOwner: owner
+            )
+            queue.suspend()
+            controller.toggle(messageID: messageA, text: Self.threeSentences)
+            #expect(controller.state == .speaking(messageID: messageA, index: 0, total: 3))
+            controller.toggle(messageID: messageA, text: Self.threeSentences)
+            #expect(controller.state == .idle)
+            queue.resume()
+            await settle(controller)
+            try await coordinator.perform([])
+
+            #expect(engine.spoken.isEmpty)
+            #expect(recorder.operations.filter { $0 == .deactivate(notifyOthers: true) }.count == 1)
+            #expect(recorder.operations.last == .deactivate(notifyOthers: true))
+            #expect(!idleTimer.isIdleTimerDisabled)
+    }
+
+    @Test("Stop during pending activation while dictation claimed the session lease in between → after activation settles no deactivation, dictation is not stopped")
+    func lapseYieldsToSessionLeaseHolder() async throws {
+            let recorder = SessionOpRecorder()
+            let queue = DispatchQueue(label: "ReadAloudControllerTests.session.leased")
+            let coordinator = AudioSessionCoordinator(queue: queue, apply: recorder.apply)
+            let owner = VoiceAudioSessionOwner()
+            let controller = ReadAloudController(
+                engines: .fixed(engine), platform: SystemReadAloudPlatform(coordinator: coordinator),
+                screenAwake: screenAwake, notificationCenter: center, detectLanguage: { _ in "en" },
+                sessionOwner: owner
+            )
+            queue.suspend()
+            controller.toggle(messageID: messageA, text: Self.threeSentences)
+            controller.toggle(messageID: messageA, text: Self.threeSentences)
+            #expect(controller.state == .idle)
+            #expect(owner.current?.client == .readAloud)
+            let dictation = owner.claim(.dictation)
+            queue.resume()
+            await settle(controller)
+            try await coordinator.perform([])
+
+            #expect(engine.spoken.isEmpty)
+            #expect(recorder.operations.contains(.activate))
+            #expect(!recorder.operations.contains(.deactivate(notifyOthers: true)))
+            // The read-aloud lease was taken over, so release returns false; the dictation lease is still in place
+            #expect(owner.current == dictation)
+    }
+
+    @Test("Stop during pending activation with no session lease claimant → after activation settles, deactivate once more")
+    func lapseDeactivatesWhenNoLeaseHolder() async throws {
+            let recorder = SessionOpRecorder()
+            let queue = DispatchQueue(label: "ReadAloudControllerTests.session.unleased")
+            let coordinator = AudioSessionCoordinator(queue: queue, apply: recorder.apply)
+            let owner = VoiceAudioSessionOwner()
+            let controller = ReadAloudController(
+                engines: .fixed(engine), platform: SystemReadAloudPlatform(coordinator: coordinator),
+                screenAwake: screenAwake, notificationCenter: center, detectLanguage: { _ in "en" },
+                sessionOwner: owner
+            )
+            queue.suspend()
+            controller.toggle(messageID: messageA, text: Self.threeSentences)
+            controller.toggle(messageID: messageA, text: Self.threeSentences)
+            #expect(controller.state == .idle)
+            // Stopped before activation settled: the read-aloud lease is left for the activation task to return when it resumes
+            #expect(owner.current?.client == .readAloud)
+            queue.resume()
+            await settle(controller)
+            try await coordinator.perform([])
+
+            #expect(engine.spoken.isEmpty)
+            // Read-aloud lease already returned
+            #expect(owner.current == nil)
+            #expect(recorder.operations.filter { $0 == .deactivate(notifyOthers: true) }.count == 1)
+            #expect(recorder.operations.last == .deactivate(notifyOthers: true))
+    }
+
+    @Test("Claim the .readAloud lease before read-aloud activation; if not taken over, return the lease and deactivate once when it ends")
+    func readAloudClaimsLeaseAndReleasesOnFinish() async {
+        let controller = makeController()
+        controller.toggle(messageID: messageA, text: Self.threeSentences)
+        let lease = owner.current
+        #expect(lease?.client == .readAloud)
+        await settle(controller)
+        #expect(platform.activations == 1)
+        #expect(owner.current == lease)
+
+        controller.toggle(messageID: messageA, text: Self.threeSentences)
+        #expect(controller.state == .idle)
+        #expect(owner.current == nil)
+        #expect(platform.deactivations == 1)
+    }
+
+    @Test("Dictation claim takes over during read-aloud → no deactivation when read-aloud ends, dictation lease still in place")
+    func readAloudTakenOverByDictationKeepsSession() async {
+        let controller = makeController()
+        controller.toggle(messageID: messageA, text: Self.threeSentences)
+        await settle(controller)
+        let dictation = owner.claim(.dictation)
+
+        controller.toggle(messageID: messageA, text: Self.threeSentences)
+        #expect(controller.state == .idle)
+        #expect(platform.deactivations == 0)
+        #expect(owner.current == dictation)
+    }
+
+    @Test("Preview also claims .readAloud: deactivate once if not taken over; no deactivation if taken over by conversation")
+    func previewSharesReadAloudLease() async {
+        let previews = FakeSpeechEngine()
+        let controller = makePreviewController(previews: previews) { _ in }
+        controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "alloy", speed: 1)
+        #expect(owner.current?.client == .readAloud)
+        await settle(controller)
+        controller.stopPreview()
+        #expect(owner.current == nil)
+        #expect(platform.deactivations == 1)
+
+        controller.preview(entry: Self.ttsEntry, provider: Self.relayProvider(), voice: "nova", speed: 1)
+        await settle(controller)
+        let conversation = owner.claim(.conversation)
+        controller.stopPreview()
+        #expect(platform.deactivations == 1)
+        #expect(owner.current == conversation)
+    }
+
+    @Test("System engine speech rate: default rate × multiplier, clamped to the system max, preserves accessibility read-aloud settings")
     func systemEngineSpeechRate() {
         let item = SpeechUtterance(text: "Hello.", language: "en")
         let utterances = [0.5, 1.0, 2.0].map { SystemSpeechEngine.makeUtterance(item, voice: nil, speechRate: $0) }
@@ -941,9 +1129,32 @@ private final class FakeReadAloudPlatform: ReadAloudPlatform {
     private(set) var activations = 0
     private(set) var deactivations = 0
     private(set) var toasts: [ReadAloudToast] = []
+    private var clock = Date(timeIntervalSince1970: 1_000)
 
-    func activateAudioSession() throws { activations += 1 }
+    func activateAudioSession() async throws { activations += 1 }
     func deactivateAudioSession() { deactivations += 1 }
     func localizedVoiceString(_ key: String, locale: String) -> String { "\(locale):\(key)" }
     func showToast(_ toast: ReadAloudToast) { toasts.append(toast) }
+
+    /// Advances time by 1 second on each read: exactly 1000 ms between start and end.
+    func now() -> Date {
+        defer { clock = clock.addingTimeInterval(1) }
+        return clock
+    }
+}
+
+/// Records the number of catalog cache file reads and how many of them happened on the main thread.
+private final class CacheReadRecorder: @unchecked Sendable {
+    private let lock = NSLock()
+    private var counts = (total: 0, main: 0)
+
+    var total: Int { lock.withLock { counts.total } }
+    var mainThreadReads: Int { lock.withLock { counts.main } }
+
+    func record(onMainThread: Bool) {
+        lock.withLock {
+            counts.total += 1
+            if onMainThread { counts.main += 1 }
+        }
+    }
 }

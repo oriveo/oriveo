@@ -4,6 +4,7 @@ import android.os.Process
 import android.os.SystemClock
 import android.util.Log
 import ai.oriveo.community.core.data.dao.MessageDao
+import ai.oriveo.community.core.data.dao.StudioWorkDao
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.util.normalizeUuid
 import kotlinx.coroutines.CancellationException
@@ -35,6 +36,8 @@ import kotlinx.serialization.json.Json
  */
 class AttachmentOrphanSweeper(
     private val messageDao: MessageDao,
+    /** Studio work assets (versions incl. candidates, round refs) count as references. */
+    private val studioWorkDao: StudioWorkDao,
     private val attachmentStore: AttachmentStore,
     private val launchTimeMillis: () -> Long = ::processStartWallClockMillis,
     private val graceMillis: Long = DEFAULT_GRACE_MILLIS,
@@ -140,6 +143,12 @@ class AttachmentOrphanSweeper(
         }
         messageDao.findOversizedAttachmentsJsonRows(OVERSIZED_THRESHOLD_CHARS).forEach { row ->
             collectReferences(readFullChunked(row.accountId, row.id, row.len), references)
+        }
+        // Studio work assets (all version rows incl. candidates and tombstones, plus round refs) are references;
+        // a failed read falls into the same catch and aborts the round.
+        studioWorkDao.referencedAssetIds().forEach { key ->
+            references += key
+            references += normalizeUuid(key)
         }
         Result.success(references)
     } catch (error: CancellationException) {

@@ -211,7 +211,7 @@ enum StatusTone {
     var foreground: Color {
         switch self {
         case .primary:
-            return OriveoTheme.Palette.primary
+            return OriveoTheme.Palette.primaryTextOnSurface
         case .success:
             return OriveoTheme.Palette.success
         case .warning:
@@ -282,6 +282,50 @@ struct StatusPill: View {
         return compact ? 4 : OriveoTheme.Spacing.xs
     }
 }
+
+struct ModelRowActionPill: View {
+    var title: String = L10n.tr("Add")
+    var tone: StatusTone = .primary
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "plus")
+                .font(.system(size: 11, weight: .semibold))
+
+            Text(title)
+                .lineLimit(1)
+                .font(OriveoTheme.Typography.footnote.weight(.semibold))
+        }
+        .foregroundStyle(tone.foreground)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
+        .background(
+            Capsule(style: .continuous)
+                .fill(tone.background)
+        )
+        .overlay(
+            Capsule(style: .continuous)
+                .stroke(tone.foreground.opacity(0.18), lineWidth: 1)
+        )
+    }
+}
+
+struct AddModelsNavigationRow: View {
+    var title: String = L10n.tr("Add Models")
+
+    var body: some View {
+        HStack(spacing: OriveoTheme.Spacing.sm) {
+            Image(systemName: "plus")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(OriveoTheme.Palette.primary)
+
+            Text(title)
+                .font(OriveoTheme.Typography.body.weight(.semibold))
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+        }
+    }
+}
+
 struct HeroIconTextItem: Identifiable {
     let id: String
     let title: String
@@ -735,6 +779,53 @@ enum RelayKindAssetResolver {
         }
     }
 }
+
+struct CostPill: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(OriveoTheme.Typography.footnote)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+            .padding(.horizontal, OriveoTheme.Spacing.sm)
+            .padding(.vertical, 6)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(OriveoTheme.Palette.primarySoft)
+            )
+            .overlay(
+                Capsule(style: .continuous)
+                    .stroke(OriveoTheme.Palette.primary.opacity(0.18), lineWidth: 1)
+            )
+    }
+}
+
+// Compact capsule showing the provider brand icon and the model name in the conversation list
+struct ProviderModelChip: View {
+    let kind: ProviderKind
+    let modelName: String
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ProviderBadgeIcon(kind: kind, size: 14)
+
+            Text(modelName)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .font(OriveoTheme.Typography.footnote.weight(.medium))
+        .foregroundStyle(OriveoTheme.Palette.textPrimary)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(
+            Capsule(style: .continuous)
+                .fill(kind.brandBackground)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(kind.displayName), \(modelName)")
+    }
+}
+
 struct ModelMetadataInlineStrip: View {
     let model: AIModel
     let provider: Provider
@@ -770,7 +861,7 @@ struct ModelMetadataInlineStrip: View {
             if !price.isEmpty {
                 Text(price)
                     .font(OriveoTheme.Typography.footnote.weight(.medium))
-                    .foregroundStyle(prominentPrice ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textSecondary)
+                    .foregroundStyle(prominentPrice ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textSecondary)
                     .fixedSize()
             }
 
@@ -868,7 +959,7 @@ struct ModelListMetadataRow: View {
         Text(price)
             .font(compact ? OriveoTheme.Typography.caption.weight(.medium) : OriveoTheme.Typography.footnote.weight(.medium))
             .monospacedDigit()
-            .foregroundStyle(prominentPrice ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textTertiary)
+            .foregroundStyle(prominentPrice ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textTertiary)
             .fixedSize()
     }
 }

@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">Beenden</string>
     <string name="voice_conversation_start_failed_toast">Das Sprachgespräch konnte nicht gestartet werden. Versuch es noch einmal.</string>
     <string name="voice_conversation_background_paused_toast">Das Sprachgespräch pausiert, solange Oriveo im Hintergrund ist.</string>
+    <string name="voice_conversation_status_say_again">Nicht verstanden – sag es noch mal</string>
+    <string name="voice_conversation_status_check_language">Nicht verstanden</string>
+    <string name="voice_conversation_prompt_say_again">Das habe ich nicht verstanden. Sag es bitte noch einmal.</string>
+    <string name="voice_conversation_prompt_check_language">Ich habe es wieder nicht verstanden. Wenn du eine andere Sprache sprichst, tippe auf „Erkennungssprache“, um sie zu ändern.</string>
+    <string name="voice_conversation_prompt_echo_hint">Der Lautsprecher erzeugt ein Echo. Mit Kopfhörern klappt es besser.</string>
+    <string name="voice_conversation_language_chip">Erkennungssprache: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">Ändert die Erkennungssprache</string>
 </resources>

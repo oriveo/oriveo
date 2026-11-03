@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">結束</string>
     <string name="voice_conversation_start_failed_toast">無法開始語音對話，請再試一次。</string>
     <string name="voice_conversation_background_paused_toast">Oriveo 已移至背景，語音對話已暫停。</string>
+    <string name="voice_conversation_status_say_again">沒聽清楚，再說一次</string>
+    <string name="voice_conversation_status_check_language">沒聽清楚</string>
+    <string name="voice_conversation_prompt_say_again">沒聽清楚，可以再說一次嗎？</string>
+    <string name="voice_conversation_prompt_check_language">還是沒聽清楚。如果你說的是其他語言，可以點「辨識語言」換一下。</string>
+    <string name="voice_conversation_prompt_echo_hint">喇叭播放會有回音，戴上耳機效果會更好。</string>
+    <string name="voice_conversation_language_chip">辨識語言 %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">更換辨識語言</string>
 </resources>

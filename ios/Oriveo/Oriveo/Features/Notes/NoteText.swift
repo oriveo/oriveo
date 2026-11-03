@@ -103,6 +103,9 @@ enum NoteText {
         return AttributedString(clipped)
     }
 
+    /// Note reading pane drops **dividers standing alone on a line** (`---`/`***`/`___`): AI source text often uses `---` to split sections, and MarkdownUI draws them as full-width rules that clash with the body look.
+    /// Handled note-locally without touching the shared chat renderer; extra blank lines are collapsed after the rules are removed.
+    /// Shared by the detail body/snapshot and continuous folder reading, so every note reading surface stays consistent.
     nonisolated static func readingMarkdown(_ text: String) -> String {
         let kept = text.components(separatedBy: "\n").filter { line in
             let t = line.trimmingCharacters(in: .whitespaces)

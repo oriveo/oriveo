@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/teaching.svg (glyphs.v1.json glyph:teaching, hue #2563EB); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12 3.6l9.6 4.6a.6.6 0 0 1 0 1.1L12 13.9 2.4 9.3a.6.6 0 0 1 0-1.1ZM6.2 11.6l5.8 2.8 5.8-2.8v4.3c0 1.7-2.6 3.3-5.8 3.3s-5.8-1.6-5.8-3.3ZM19.6 9.4h1.2v5.4a.6.6 0 0 1-1.2 0ZM19 15.6a1.2 1.2 0 1 1 2.4 0a1.2 1.2 0 1 1-2.4 0Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="2.04"
+                android:startY="3.6"
+                android:endX="21.96"
+                android:endY="19.2">
+                <item android:offset="0" android:color="#BFDBFE" />
+                <item android:offset="1" android:color="#2563EB" /> <!-- capability-ui-lint: allow skill glyph content hue, fixed across themes by skills plan 3.11, not a capability colour -->
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M9 16.6c1.9.9 4.1.9 6 0"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.92"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

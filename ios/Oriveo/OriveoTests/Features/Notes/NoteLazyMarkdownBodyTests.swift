@@ -3,7 +3,7 @@ import Testing
 import UIKit
 @testable import Oriveo
 
-/// Regression for lazy rendering of long note bodies: when to split, split output pixel-identical to whole rendering, first frame only builds cells near the viewport (independent of length).
+/// Regression for lazy rendering of long bodies: whether to split, that split output matches whole-document rendering pixel for pixel, and the first frame only builds units near the viewport (independent of length).
 @MainActor
 @Suite("Note detail long-body lazy rendering", .serialized, .sharedProcessState)
 struct NoteLazyMarkdownBodyTests {
@@ -21,7 +21,7 @@ struct NoteLazyMarkdownBodyTests {
         #expect(gate(Cost.body(.prose, sections: 38)) == nil, "Under 10k chars stays one UITextView, selectable across paragraphs, not split")
         #expect((gate(Cost.mixedBody(sections: 38))?.count ?? 0) >= 76)
         #expect((gate(Cost.body(.tableProse, sections: 38))?.count ?? 0) >= 4)
-        // Bodies beyond the bounded-viewport threshold no longer degrade to plain text.
+        // Bodies over the bounded viewport threshold no longer fall back to plain text.
         for kind in Cost.Kind.allCases {
             let body = Cost.body(kind, sections: 300)
             #expect(NoteText.requiresBoundedLayout(body))
@@ -40,7 +40,7 @@ struct NoteLazyMarkdownBodyTests {
     func blockGroupRules() throws {
         let paragraphs = (0..<8).map { "p\($0) with a [link](https://e.com)" }
         let table = "| a | b |\n| --- | --- |\n| 1 | 2 |"
-        // Block 8 is a heading (cannot start a group) -> split at the paragraph after it, spacing = max(h2 bottom 6, paragraph top 0).
+        // Block 8 is a heading (it cannot start a group) → split at the paragraph after it; gap = max(h2 bottom 6, paragraph top 0).
         let afterHeading = (paragraphs + ["## H", "after heading", table]).joined(separator: "\n\n")
         let units = MarkdownMessageView.lazyUnits(for: afterHeading, typography: .notes)
         #expect(units.map(\.spacingBefore) == [0, 6])
@@ -60,13 +60,13 @@ struct NoteLazyMarkdownBodyTests {
         guard case let .markdownUI(fenced) = ineligibleUnits.last?.content else { Issue.record("expected markdownUI"); return }
         #expect(fenced.contains("~~~\ncode\n\nmore\n~~~"))
 
-        // Reference-style link definitions may end up in another group: do not split at all.
+        // A reference-style link definition may be split into another group: do not split the whole block.
         let withDefinition = (paragraphs + [table, "see [x][ref]", "[ref]: https://e.com"]).joined(separator: "\n\n")
         #expect(MarkdownMessageView.lazyUnits(for: withDefinition, typography: .notes).count == 1)
     }
 
-    /// Same height proposal as the detail page: content goes in a ScrollView (vertically unbounded, ideal height), the window is given `height` so the lazy stack builds every cell.
-    /// The screenshot takes the top `height` of the window; both sides lay out from the same origin and are compared pixel by pixel.
+    /// Same height proposal as the detail page: content goes into a ScrollView (vertical height unbounded, takes ideal height), with the window set to `height` so the lazy stack builds all units.
+    /// The screenshot takes the top `height` of the window; both sides start from the same origin and are compared pixel by pixel.
     private func snapshot<V: View>(_ view: V, width: CGFloat, height: CGFloat, style: UIUserInterfaceStyle) async -> UIImage {
         let host = UIHostingController(rootView: ScrollView { view.frame(width: width) }
             .background(Color(uiColor: .systemBackground)))
@@ -132,12 +132,12 @@ struct NoteLazyMarkdownBodyTests {
             let whole = await snapshot(MarkdownMessageView(text: markdown, typography: .notes), width: 346, height: 9_000, style: style)
             let lazy = await snapshot(NoteLazyMarkdownBody(units: units), width: 346, height: 9_000, style: style)
             let diffRow = Self.firstDifferingRow(whole, lazy)
-            #expect(diffRow == nil, "\(kind.rawValue) style \(style.rawValue) pixels differ, first differing row y=\(diffRow.map(String.init) ?? "-") (2x)")
+            #expect(diffRow == nil, "\(kind.rawValue) style \(style.rawValue) pixels differ, first differing row y=\(diffRow.map(String.init) ?? "-")(2x)")
             if let diffRow { Self.dumpDifference("\(kind)-\(style.rawValue)", whole, lazy, row: diffRow) }
         }
     }
 
-    /// Chunking of long-paragraph bodies over 10k chars: sample the top 9000pt (contains at least one chunk boundary).
+    /// Chunked long body text over 10,000 characters: samples and compares the top 9000pt (including at least one chunk boundary).
     @Test("Long-paragraph chunking matches whole-paragraph rendering pixel for pixel (prose / plain text x light / dark)", arguments: [NoteDetailRenderCostTests.Kind.prose, .plain])
     func longTextChunksMatchWholeRendering(kind: NoteDetailRenderCostTests.Kind) async throws {
         let markdown = NoteText.readingMarkdown(Cost.body(kind, sections: kind == .prose ? 80 : 130))
@@ -148,7 +148,7 @@ struct NoteLazyMarkdownBodyTests {
             let whole = await snapshot(MarkdownMessageView(text: markdown, typography: .notes), width: 346, height: 9_000, style: style)
             let lazy = await snapshot(NoteLazyMarkdownBody(units: units), width: 346, height: 9_000, style: style)
             let diffRow = Self.firstDifferingRow(whole, lazy)
-            #expect(diffRow == nil, "\(kind.rawValue) style \(style.rawValue) pixels differ, first differing row y=\(diffRow.map(String.init) ?? "-") (2x)")
+            #expect(diffRow == nil, "\(kind.rawValue) style \(style.rawValue) pixels differ, first differing row y=\(diffRow.map(String.init) ?? "-")(2x)")
             if let diffRow { Self.dumpDifference("\(kind)-\(style.rawValue)", whole, lazy, row: diffRow) }
         }
     }
@@ -160,7 +160,7 @@ struct NoteLazyMarkdownBodyTests {
                 let legacy = await snapshot(NoteBrandCardBackground.legacy.frame(height: height).padding(20), width: 390, height: height + 40, style: style)
                 let current = await snapshot(NoteBrandCardBackground().frame(height: height).padding(20), width: 390, height: height + 40, style: style)
                 let diffRow = Self.firstDifferingRow(legacy, current)
-                #expect(diffRow == nil, "card height \(Int(height)) style \(style.rawValue) pixels differ, first differing row y=\(diffRow.map(String.init) ?? "-") (2x)")
+                #expect(diffRow == nil, "card height \(Int(height)) style \(style.rawValue) pixels differ, first differing row y=\(diffRow.map(String.init) ?? "-")(2x)")
                 if let diffRow { Self.dumpDifference("card-\(Int(height))-\(style.rawValue)", legacy, current, row: diffRow) }
             }
         }

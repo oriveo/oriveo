@@ -4,7 +4,7 @@ import { type MouseEvent, type ReactNode, useMemo, useCallback, useEffect, useSt
 import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import NextLink from 'next/link';
 import { useTranslations } from 'next-intl';
-import { NotebookPen } from 'lucide-react';
+import { NotebookPen, SquareSlash } from 'lucide-react';
 import { AppShell, type AppShellLinkProps } from '@oriveo/ui';
 import { HomeTabIcon, ProvidersTabIcon, SettingsTabIcon } from './TabBarIcons';
 import { getVanillaStore, useAppStore } from '../providers/StoreProvider';
@@ -152,7 +152,8 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
     if (pathname === '/' || pathname.startsWith('/chat')) return '/chat';
     if (pathname.startsWith('/providers')) return '/providers';
     if (pathname.startsWith('/notes')) return '/notes';
-    if (pathname.startsWith('/settings') || pathname.startsWith('/skills')) return '/settings';
+    if (pathname === '/skills' || pathname.startsWith('/skills/')) return '/skills';
+    if (pathname.startsWith('/settings')) return '/settings';
     return pathname;
   }, [pathname]);
   const firstChatSegment = pathname.startsWith('/chat/')
@@ -168,6 +169,7 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
   const isMobileFullscreenChat = isComposeChatRoute || isConversationChatRoute;
   const t = useTranslations('nav');
   const tSidebar = useTranslations('sidebar');
+  const tSkills = useTranslations('skills');
 
   const sidebarOpen = useAppStore((s) => s.sidebarOpen);
   const setSidebarOpen = useAppStore((s) => s.setSidebarOpen);
@@ -230,10 +232,19 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
     [t],
   );
 
+  // Count reads only the local store (no request): my skills, not the catalog.
+  const userSkillCount = useAppStore((s) => s.userSkills.length);
+  const skillsEntry = useMemo(
+    () => ({ label: tSkills('title'), href: '/skills', icon: <SquareSlash strokeWidth={1.75} />, count: userSkillCount }),
+    [tSkills, userSkillCount],
+  );
+
   const handleNewChat = useCallback(() => {
     setActiveConversationId(null);
-    // Already on a blank chat: the id does not change, so drop the settings draft explicitly.
-    getVanillaStore().getState().setDraftConversationInstructions('');
+    // Already on a blank chat: the id does not change, so drop the settings and skill-chip drafts explicitly.
+    const draft = getVanillaStore().getState();
+    draft.setDraftConversationInstructions('');
+    draft.setDraftConversationSkillIds([]);
     const target = isMobile ? '/chat?compose=1' : '/chat';
     if (isMobile) {
       setSidebarOpen(false);
@@ -262,6 +273,7 @@ export function AppShellWrapper({ children }: AppShellWrapperProps) {
     <AppShell
       navItems={navItems}
       notesEntry={notesEntry}
+      skillsEntry={skillsEntry}
       activePath={activeNavPath}
       conversationList={<ConversationList />}
       onNewChat={handleNewChat}

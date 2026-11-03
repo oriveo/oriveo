@@ -311,7 +311,7 @@ struct NoteDetailView: View {
             }
             .font(.system(size: 13, weight: .semibold))
             .buttonStyle(.plain)
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
@@ -515,7 +515,10 @@ struct NoteDetailView: View {
                             sourceActionBadge(
                                 L10n.tr("Back to conversation", table: .notes),
                                 systemImage: "arrow.uturn.left",
-                                tint: hasBrand ? brand : OriveoTheme.Palette.primary
+                                tint: hasBrand ? brand : OriveoTheme.Palette.primary,
+                                textColor: hasBrand
+                                    ? ProviderTints.textTint(for: note.sourceProviderKind?.rawValue ?? "", fallbackId: "")
+                                    : OriveoTheme.Palette.primaryTextOnSurface
                             )
                         }
                         .buttonStyle(.plain)
@@ -525,7 +528,8 @@ struct NoteDetailView: View {
                             sourceActionBadge(
                                 L10n.tr("Cross-check", table: .notes),
                                 systemImage: "text.magnifyingglass",
-                                tint: OriveoTheme.Palette.primary
+                                tint: OriveoTheme.Palette.primary,
+                                textColor: OriveoTheme.Palette.primaryTextOnSurface
                             )
                         }
                         .buttonStyle(.plain)
@@ -543,7 +547,9 @@ struct NoteDetailView: View {
         .shadow(color: brand.opacity(hasBrand ? 0.07 : 0.025), radius: 14, y: 6)
     }
 
-    private func sourceActionBadge(_ title: String, systemImage: String, tint: Color) -> some View {
+    // Colored badge: solid round icon (white glyph) + brand-colored text on a light capsule background
+    /// `textColor`: title color, split from `tint` so theme-primary badges use the readable on-surface variant.
+    private func sourceActionBadge(_ title: String, systemImage: String, tint: Color, textColor: Color) -> some View {
         HStack(spacing: 6) {
             ZStack {
                 Circle()
@@ -557,7 +563,7 @@ struct NoteDetailView: View {
 
             Text(title)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(tint)
+                .foregroundStyle(textColor)
                 .lineLimit(1)
         }
         .padding(.leading, 4)
@@ -595,25 +601,71 @@ struct NoteDetailView: View {
         )
     }
 
+    /// Long bodies keep their lazy reading face alive while editing, parked above the editor: zero layout height,
+    /// not drawn, no touches, hidden from accessibility. Tearing it down on "Edit" made SwiftUI re-place the
+    /// `LazyVStack` inside the edit transaction and build rows far past the viewport (code / table rows, 70 ms at
+    /// 300 / 1500 sections). Parked at the same position and width it sees no geometry change, so no row is rebuilt;
+    /// "Save" reloads the units and the face shows the new body.
     @ViewBuilder
     private func contentCard(_ note: Note, pageHeight: CGFloat) -> some View {
-        if isEditingBody {
-            Group {
-                if bodyEditorSession?.editor == .bounded {
-                    BoundedNoteTextView(
-                        text: $bodyDraft,
-                        isEditable: true,
-                        focusTakeover: bodyEditorSession?.focusTakeover
-                    )
-                        .frame(height: pageHeight * 0.52)
-                } else {
-                    TextEditor(text: plainEditorBodyBinding)
-                        .font(.system(size: 17))
-                        .frame(minHeight: pageHeight * 0.42)
-                        .scrollContentBackground(.hidden)
-                }
+        VStack(spacing: 0) {
+            readingCard(note, pageHeight: pageHeight)
+                .modifier(NoteReadingFaceParking(isParked: isEditingBody))
+            if isEditingBody {
+                editorCard(pageHeight: pageHeight)
             }
-            .padding(18)
+        }
+    }
+
+    private func editorCard(pageHeight: CGFloat) -> some View {
+        Group {
+            if bodyEditorSession?.editor == .bounded {
+                BoundedNoteTextView(
+                    text: $bodyDraft,
+                    isEditable: true,
+                    focusTakeover: bodyEditorSession?.focusTakeover
+                )
+                    .frame(height: pageHeight * 0.52)
+            } else {
+                TextEditor(text: plainEditorBodyBinding)
+                    .font(.system(size: 17))
+                    .frame(minHeight: pageHeight * 0.42)
+                    .scrollContentBackground(.hidden)
+            }
+        }
+        .padding(18)
+        .background(brandCardBackground)
+        .shadow(color: OriveoTheme.Palette.shadow.opacity(0.5), radius: 16, y: 8)
+        .shadow(color: OriveoTheme.Palette.primary.opacity(0.10), radius: 30, y: 14)
+    }
+
+    /// While editing only the lazy face stays (parked); the short / bounded faces are rebuilt on return as before.
+    @ViewBuilder
+    private func readingCard(_ note: Note, pageHeight: CGFloat) -> some View {
+        let text = contentPane == 0 ? reading.primary : reading.secondary
+        let units = contentPane == 0 ? reading.primaryUnits : reading.secondaryUnits
+        if contentPane == 0 ? reading.isPrimaryBlank : reading.isSecondaryBlank {
+            if !isEditingBody { emptyBodyPlaceholder }
+        } else if units != nil || !isEditingBody {
+            // The tinted card hugs the body (scrolls with the page, no nested scroll); padding narrows the measure; colophon closes it.
+            VStack(spacing: 30) {
+                if let units {
+                    NoteLazyMarkdownBody(units: units, visibleUnits: visibleUnits, onLongPress: isEditingBody ? nil : { presentTextSelection(longPress: $0) })
+                } else if reading.usesBoundedReader(pane: contentPane) {
+                    BoundedNoteTextView(text: .constant(text), isEditable: false)
+                        .frame(height: pageHeight * 0.58)
+                } else {
+                    MarkdownMessageView(
+                        text: contentPane == 0 ? reading.primaryMarkdown : reading.secondaryMarkdown,
+                        typography: .notes
+                    )
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                colophon(note)
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 26)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .background(brandCardBackground)
             .shadow(color: OriveoTheme.Palette.shadow.opacity(0.5), radius: 16, y: 8)
             .shadow(color: OriveoTheme.Palette.primary.opacity(0.10), radius: 30, y: 14)
@@ -726,7 +778,7 @@ struct NoteDetailView: View {
 
                     editActionPill(
                         title: L10n.tr("Save", table: .notes), icon: "checkmark", isBold: true,
-                        foreground: OriveoTheme.Palette.primary,
+                        foreground: OriveoTheme.Palette.primaryTextOnSurface,
                         background: OriveoTheme.Palette.primary.opacity(0.10),
                         border: OriveoTheme.Palette.primary.opacity(0.22)
                     ) { saveBody() }
@@ -1142,6 +1194,10 @@ struct BoundedNoteTextView: UIViewRepresentable {
         textView.textContainerInset = .zero
         textView.textContainer.lineFragmentPadding = 0
         textView.layoutManager.allowsNonContiguousLayout = true
+        // Does not darken with the parent tint: when a sheet closes or a popover covers it, UIKit changes tintAdjustmentMode for the whole view tree and the text canvas redraws,
+        // the redraw must fill the typesetting holes left by non-contiguous layout, and its cost grows with body length (Done in Select Text: 1500 sections 150ms / 300 sections 75ms).
+        // The body color is not tint; it only keeps the caret and selection from going gray when covered.
+        textView.tintAdjustmentMode = .normal
         textView.typingAttributes = Self.textAttributes
         apply(text, to: textView, coordinator: coordinator)
         if let focusTakeover {
@@ -1301,6 +1357,33 @@ struct NoteBrandCardBackground: View {
                 .clipShape(CardTopClip(cardHeight: size.height))
             }
             .overlay(Self.border)
+    }
+}
+
+/// Parks the reading face while editing: reports zero height so the page lays out exactly like the editor alone,
+/// but keeps placing the face at its natural size at the same origin (no geometry change for its `LazyVStack`).
+private struct NoteReadingFaceParking: ViewModifier {
+    let isParked: Bool
+
+    func body(content: Content) -> some View {
+        NoteParkingLayout(isParked: isParked) { content }
+            .opacity(isParked ? 0 : 1)
+            .allowsHitTesting(!isParked)
+            .accessibilityHidden(isParked)
+    }
+}
+
+private struct NoteParkingLayout: Layout {
+    let isParked: Bool
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let child = subviews.first else { return .zero }
+        let size = child.sizeThatFits(ProposedViewSize(width: proposal.width, height: nil))
+        return isParked ? CGSize(width: size.width, height: 0) : size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, anchor: .topLeading, proposal: ProposedViewSize(width: proposal.width, height: nil))
     }
 }
 

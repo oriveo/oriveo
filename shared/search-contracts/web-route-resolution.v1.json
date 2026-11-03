@@ -1,6 +1,6 @@
 {
   "schema": "oriveo.search.web-route-resolution/v1",
-  "$comment": "Web search row, web search card and the per-turn path decision (external search service contract, sections 4 / 4a / 5 / 6). cases -> resolveWebSearchRoute; selectableCases -> searchServiceSelectable; oneTapCases -> oneTapReuseTarget (serviceIds take entries from the catalog fixture); sourceCases -> resolveSearchSource; sourceUpdateCases -> updateSearchSource; pickerCases -> searchSourcePickerItems; cardCases -> webSearchCardPresentation; stateCases -> resolveWebSearchState (the single entry point shared by the panel and sending); turnCases -> resolveSearchTurnPath; callCases -> planSearchCalls; regenerateCases -> regenerateSearchPolicy. row / action / card.* are semantic names; card.* maps to each platform's copy keys through the l10n registry. Expectations come from the reference implementation of the route rules.",
+  "$comment": "联网行、联网卡与本轮路径裁决（外部搜索服务契约 §4 / §4a / §5 / §6，Q-1～Q-3 已定）。cases → resolveWebSearchRoute；selectableCases → searchServiceSelectable；oneTapCases → oneTapReuseTarget（serviceIds 按目录夹具取条目）；sourceCases → resolveSearchSource；sourceUpdateCases → updateSearchSource；pickerCases → searchSourcePickerItems；cardCases → webSearchCardPresentation；stateCases → resolveWebSearchState（面板与发送的唯一组合入口，E-37）；turnCases → resolveSearchTurnPath；callCases → planSearchCalls；regenerateCases → regenerateSearchPolicy。row / action / card.* 是语义名，card.* 经 l10n 登记表映射到三端文案键。expect 由 scripts/lib/search-route.mjs 生成。",
   "legend": {
     "form": [
       "byok",

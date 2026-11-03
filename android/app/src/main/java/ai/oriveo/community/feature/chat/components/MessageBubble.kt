@@ -11,6 +11,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import ai.oriveo.community.ui.component.costPartsText
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
+import ai.oriveo.community.ui.theme.OriveoColors
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
@@ -89,6 +90,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
@@ -121,7 +123,9 @@ import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.QuoteSelectionContent
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.NonUsdCost
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.ui.component.rememberCostLocale
 import ai.oriveo.community.core.model.RelayAvatar
 import ai.oriveo.community.core.model.RelayAvatarResolver
 import ai.oriveo.community.core.model.RelayAvatarResult
@@ -134,6 +138,8 @@ import ai.oriveo.community.feature.chat.ReplyNoticeModel
 import ai.oriveo.community.feature.chat.ReplyNoticePresentation
 import ai.oriveo.community.ui.component.ImageViewerSheet
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
+import ai.oriveo.community.ui.component.OriveoBackButtonDefaults
+import ai.oriveo.community.ui.component.OriveoCloseButton
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.TypingIndicator
 import java.text.NumberFormat
@@ -148,6 +154,7 @@ import ai.oriveo.community.ui.theme.OriveoUserBubble
 import ai.oriveo.community.ui.theme.userBubbleFill
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
+import ai.oriveo.community.ui.util.userContentTextStyle
 import org.koin.compose.koinInject
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
@@ -167,17 +174,28 @@ import kotlin.math.min
 
 private val AssistantBodyLeadingInset = 0.dp
 
+/**
+ * Provider · model · cost line under an assistant reply. The cost shows on delivered replies and on stopped
+ * (interrupted) replies that recorded a cost.
+ */
+internal fun assistantMetadataText(
+    providerName: String,
+    modelName: String,
+    state: ChatMessageState,
+    costText: String,
+): String = buildList {
+    add(providerName)
+    add(modelName)
+    if ((state == ChatMessageState.Delivered || state == ChatMessageState.Interrupted) && costText.isNotEmpty()) {
+        add(costText)
+    }
+}.joinToString(" · ")
+
 internal fun shouldShowAssistantFooterActions(
     messageState: ChatMessageState,
     hasText: Boolean,
     isBodyRenderSettled: Boolean,
 ): Boolean = messageState == ChatMessageState.Delivered && hasText && isBodyRenderSettled
-
-/**
- * The connection in the session (by id): the message header uses it to get the unified avatar for relay messages. Provided by the chat page,
- * so that a connection object need not be threaded through two layers of list / menu parameters for one avatar; when not provided, relay messages draw the relay icon.
- */
-val LocalRelayAvatarProviders = compositionLocalOf<Map<String, Provider>> { emptyMap() }
 
 /**
  * Citations wait until the body has finished appearing on screen: after the message is persisted as
@@ -232,6 +250,12 @@ private fun sortToolCallJson(element: JsonElement): JsonElement = when (element)
 }
 
 /**
+ * The connection in the session (by id): the message header uses it to get the unified avatar for relay messages. Provided by the chat page,
+ * so that a connection object need not be threaded through two layers of list / menu parameters for one avatar; when not provided, relay messages draw the relay icon.
+ */
+val LocalRelayAvatarProviders = compositionLocalOf<Map<String, Provider>> { emptyMap() }
+
+/**
  * Local connection identity used to annotate user bubbles in a Relay conversation (the conversation's connection
  * plus this message's model, the same `ProviderRepository.capabilityEvidenceIdentity` as on the send side).
  * While the identity is being fetched asynchronously it is [RelayBubbleIdentity.Loading]; for non-Relay
@@ -259,6 +283,9 @@ private fun rememberRelayBubbleIdentity(
     }.value
 }
 
+/** Reply whose token-usage dialog starts open (debug shots); null = every dialog starts closed. */
+val LocalInitialTokenUsageMessageId = compositionLocalOf<String?> { null }
+
 /**
  * Message bubble, matching iOS MessageBubble.
  * Handles the four states delivered / generating / interrupted / failed.
@@ -281,6 +308,8 @@ fun MessageBubble(
     /** Last message in the conversation: the external search error card shows its regenerate-style buttons only here. */
     isLastMessage: Boolean = false,
     showMetadata: Boolean = true,
+    /** False hides the assistant header row (provider icon, model name, status pill), e.g. on the skill trial page. */
+    showHeader: Boolean = true,
     providerNameOverride: String? = null,
     modelNameOverride: String? = null,
     avatarURL: String? = null,
@@ -336,6 +365,7 @@ fun MessageBubble(
             streamingActivity = streamingActivity,
             isLiveStream = isLiveStream,
             showMetadata = showMetadata,
+            showHeader = showHeader,
             providerNameOverride = providerNameOverride,
             modelNameOverride = modelNameOverride,
             isUserDragging = isUserDragging,
@@ -677,7 +707,7 @@ private fun SelectableUserMessageText(
                 Text(
                     text = text,
                     modifier = modifier,
-                    style = OriveoTheme.typography.chatBody,
+                    style = OriveoTheme.typography.chatBody.merge(userContentTextStyle),
                     color = userBubbleInk(),
                 )
             }
@@ -687,7 +717,7 @@ private fun SelectableUserMessageText(
             Text(
                 text = text,
                 modifier = modifier,
-                style = OriveoTheme.typography.chatBody,
+                style = OriveoTheme.typography.chatBody.merge(userContentTextStyle),
                 color = userBubbleInk(),
             )
         }
@@ -715,6 +745,7 @@ private fun AssistantMessage(
     streamingActivity: StreamActivity?,
     isLiveStream: Boolean,
     showMetadata: Boolean,
+    showHeader: Boolean,
     providerNameOverride: String?,
     modelNameOverride: String?,
     isUserDragging: Boolean,
@@ -766,13 +797,7 @@ private fun AssistantMessage(
         message.state,
         costText,
     ) {
-        buildList {
-            add(resolvedProviderName)
-            add(resolvedModelName)
-            if (message.state == ChatMessageState.Delivered && costText.isNotEmpty()) {
-                add(costText)
-            }
-        }.joinToString(" · ")
+        assistantMetadataText(resolvedProviderName, resolvedModelName, message.state, costText)
     }
 
     val showReasoningBlock = shouldShowReasoningBlock(
@@ -822,8 +847,8 @@ private fun AssistantMessage(
                 .padding(vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
         ) {
-
-            Row(
+            // Header row: providerBadge + model name + status pill
+            if (showHeader) Row(
                 modifier = Modifier.heightIn(min = 28.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
@@ -1064,6 +1089,9 @@ private fun AssistantMessage(
                             outputTokens = message.outputTokens,
                             cacheReadTokens = message.cachedInputTokens,
                             cacheWriteTokens = message.cacheCreationInputTokens,
+                            estimatedCost = message.estimatedCost,
+                            costSource = message.costSource,
+                            nonUsdCost = message.nonUsdCost,
                             onSaveMessageAsNote = onSaveMessageAsNote,
                             onRegenerate = onRetry,
                             onCrosscheck = onCrosscheck,
@@ -1285,7 +1313,7 @@ private fun ReplyNoticeRow(model: ReplyNoticeModel, onContinue: () -> Unit) {
                 Text(
                     text = stringResource(ReplyNoticePresentation.continueLabelRes),
                     style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.Medium),
-                    color = colors.primary,
+                    color = colors.primaryTextSafe,
                 )
             }
         }
@@ -1301,6 +1329,9 @@ private fun AssistantFooterActionRow(
     outputTokens: Int?,
     cacheReadTokens: Int?,
     cacheWriteTokens: Int?,
+    estimatedCost: Double,
+    costSource: String?,
+    nonUsdCost: NonUsdCost?,
     onSaveMessageAsNote: (() -> Unit)?,
     onRegenerate: (() -> Unit)?,
     onCrosscheck: (() -> Unit)?,
@@ -1311,7 +1342,8 @@ private fun AssistantFooterActionRow(
     val copyScope = rememberCoroutineScope()
     var copied by remember(messageText) { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
-    var showTokenUsage by remember { mutableStateOf(false) }
+    val initialTokenUsageMessageId = LocalInitialTokenUsageMessageId.current
+    var showTokenUsage by remember { mutableStateOf(initialTokenUsageMessageId != null && initialTokenUsageMessageId == messageId) }
     val usageLocale = LocalConfiguration.current.locales[0].toLanguageTag()
     val tokenUsageSubtitle = remember(inputTokens, outputTokens, usageLocale) {
         tokenUsageMenuSubtitle(MessageTokenUsageSnapshot(inputTokens = inputTokens, outputTokens = outputTokens), usageLocale)
@@ -1438,33 +1470,51 @@ private fun AssistantFooterActionRow(
             outputTokens = outputTokens,
             cacheReadTokens = cacheReadTokens,
             cacheWriteTokens = cacheWriteTokens,
+            estimatedCost = estimatedCost,
+            costSource = costSource,
+            nonUsdCost = nonUsdCost,
             onDismiss = { showTokenUsage = false },
         )
     }
 }
 
+/** Test tag on the token usage sheet surface; tests measure the title inset against it. */
+internal const val TOKEN_USAGE_SHEET_TEST_TAG = "token_usage_sheet"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MessageTokenUsageDialog(
+internal fun MessageTokenUsageDialog(
     inputTokens: Int?,
     outputTokens: Int?,
     cacheReadTokens: Int?,
     cacheWriteTokens: Int?,
+    estimatedCost: Double,
+    costSource: String?,
+    nonUsdCost: NonUsdCost?,
     onDismiss: () -> Unit,
 ) {
     val colors = OriveoTheme.colors
     val unavailable = stringResource(R.string.chat_token_usage_unavailable)
     val formatter = remember { NumberFormat.getIntegerInstance() }
     fun format(value: Int?): String = value?.let(formatter::format) ?: unavailable
-    val rows = remember(inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens) {
-        resolveTokenUsageRows(
-            MessageTokenUsageSnapshot(
-                inputTokens = inputTokens,
-                outputTokens = outputTokens,
-                cacheReadTokens = cacheReadTokens,
-                cacheWriteTokens = cacheWriteTokens,
-            ),
+    val snapshot = remember(
+        inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens,
+        estimatedCost, costSource, nonUsdCost,
+    ) {
+        MessageTokenUsageSnapshot(
+            inputTokens = inputTokens,
+            outputTokens = outputTokens,
+            cacheReadTokens = cacheReadTokens,
+            cacheWriteTokens = cacheWriteTokens,
+            estimatedCost = estimatedCost,
+            costSource = costSource,
+            nonUsdCost = nonUsdCost,
         )
+    }
+    val rows = remember(snapshot) { resolveTokenUsageRows(snapshot) }
+    val costLocale = rememberCostLocale()
+    val costText = remember(snapshot, costLocale, unavailable) {
+        if (snapshot.showsCost) tokenUsageCostText(snapshot, costLocale, unavailable) else ""
     }
     val cacheLabel: @Composable (TokenUsageCacheRow.Kind) -> String = { kind ->
         when (kind) {
@@ -1473,28 +1523,46 @@ private fun MessageTokenUsageDialog(
         }
     }
 
+    // Matches the iOS sheet / Web dialog: bottom sheet + drag handle. The title sits
+    // 28dp below the sheet top (20dp drag handle + 8dp content inset), with a trailing close button like iOS.
     OriveoModalBottomSheet(
         onDismissRequest = onDismiss,
+        modifier = Modifier.testTag(TOKEN_USAGE_SHEET_TEST_TAG),
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         dragHandle = { OriveoSheetDragHandle() },
         containerColor = colors.surface,
     ) {
         Column(
-            modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 28.dp),
+            modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(
-                    text = stringResource(R.string.chat_token_usage_title),
-
-                    color = colors.textPrimary,
-                    style = OriveoTheme.typography.title2,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = stringResource(R.string.chat_token_usage_subtitle),
-                    color = colors.textSecondary,
-                    style = OriveoTheme.typography.footnote,
+            Row(verticalAlignment = Alignment.Top) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.chat_token_usage_title),
+                        // The primary text must pass textPrimary explicitly: this is a bare sheet Column with no M3
+                        // component providing a content color, so it would fall back to LocalContentColor, which this
+                        // repo never provides. ModalBottomSheet's contentColorFor(colors.surface) misses too, since
+                        // OriveoColors and the colorScheme are separate palettes (#1B1F2A vs #141B2D), ending at M3's
+                        // default Color.Black: black on a dark surface, measured contrast ~1.1:1, unreadable.
+                        color = colors.textPrimary,
+                        style = OriveoTheme.typography.title2,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        text = stringResource(R.string.chat_token_usage_subtitle),
+                        color = colors.textSecondary,
+                        style = OriveoTheme.typography.footnote,
+                    )
+                }
+                OriveoCloseButton(
+                    onClick = onDismiss,
+                    contentDescription = stringResource(R.string.close),
+                    // Align the icon's trailing edge with the content inset.
+                    modifier = Modifier.offset(x = OriveoBackButtonDefaults.EdgeInset),
                 )
             }
             Spacer(Modifier.height(6.dp))
@@ -1564,9 +1632,59 @@ private fun MessageTokenUsageDialog(
                 Spacer(Modifier.weight(1f))
                 Text(format(rows.total), color = colors.textPrimary, fontWeight = FontWeight.SemiBold)
             }
+
+            // Cost row in its own card under the total (F-U3 contract item 5): never a zero amount.
+            if (costText.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(tokenUsageCardFill(colors, OriveoTheme.isDark))
+                        .semantics(mergeDescendants = true) {}
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.chat_token_usage_cost),
+                        color = colors.textSecondary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    if (snapshot.isCostEstimated) {
+                        Text(
+                            text = stringResource(R.string.chat_token_usage_estimated),
+                            // Secondary, not tertiary: small text must meet AA contrast.
+                            color = colors.textSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium,
+                            maxLines = 1,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(colors.surface)
+                                // 1dp hairline keeps the chip distinguishable from the row's card fill in both themes.
+                                .border(1.dp, colors.hairline, RoundedCornerShape(6.dp))
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                    // The amount is never truncated: it wraps, right-aligned.
+                    Text(
+                        text = costText,
+                        color = colors.textPrimary,
+                        fontWeight = FontWeight.SemiBold,
+                        style = OriveoTheme.typography.body.copy(fontFeatureSettings = "tnum"),
+                        textAlign = TextAlign.End,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         }
     }
 }
+
+/** Fill of the token sheet's cost and metric cards: the elevated card surface in dark, the inset fill in light. */
+internal fun tokenUsageCardFill(colors: OriveoColors, isDark: Boolean): Color =
+    if (isDark) colors.surfaceElevated else colors.surfaceInset
 
 @Composable
 private fun TokenUsageMetric(
@@ -1579,7 +1697,7 @@ private fun TokenUsageMetric(
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(colors.surfaceInset)
+            .background(tokenUsageCardFill(colors, OriveoTheme.isDark))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
@@ -1615,7 +1733,7 @@ private fun FooterActionButton(
         Text(
             text = label,
             style = OriveoTheme.typography.footnote,
-            color = colors.primary,
+            color = colors.primaryTextSafe,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

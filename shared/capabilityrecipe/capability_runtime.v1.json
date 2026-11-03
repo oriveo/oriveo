@@ -1,507 +1,111 @@
 {
-  "$comment": "The data plane for capability runtime revision 1: recipes / controlDefinitions / sourceIndex. controlDefinitions is the envelope a recipe's controlRefs resolve against; it is empty in this snapshot, and the typed controls the clients ship are declared in the sibling file capabilityrecipe/capability_custom_controls.v2.json. Every recipe matches the recipeSchema of request_shape_contract.v2 field by field. officialUpdatedAt is always null when the official page shows no publish date — a scrape date must never stand in for an official one. A recipe id has the shape provider.transport.capability.vN; when a provider+transport+capability has two official wire shapes (Anthropic budget/adaptive, Gemini thinkingBudget/thinkingLevel), vN discriminates between the shapes and is not a registry revision. ⚠️ reviewedAt is recorded per entry, not as one shared date across the whole file — a single shared review date makes a real per-URL check and a one-time bulk-filled date look identical, and does not prove any specific URL was actually opened that day. Each recipe and each sourceIndex entry carries its own reviewedAt. What holds this file honest is the client contract suites that load it and drive their own production resolver, request builder and stream parser from it, case by case: web/apps/app/lib/core/chat/model-control-runtime-contract.test.ts and web/apps/app/lib/core/chat/capability-result-matrix.test.ts, ios/Oriveo/OriveoTests/CapabilityRuntimeRejectionTests.swift (via OriveoTests/Mocks/CapabilityRuntimeFixtures.swift), and android/app/src/test/java/ai/oriveo/community/core/provider/CapabilityRecipeRequestCompilerTest.kt. A recipe none of them can execute fails those suites.",
+  "$comment": "capability runtime revision 1 的数据面：recipes / controlDefinitions / sourceIndex。每条 recipe 逐字段符合 request_shape_contract.v2 的 recipeSchema，并在 registry_contract_test.go 里逐条过 requestpreference.ValidateRecipe。官方页没有发布时间时 officialUpdatedAt 一律 null（矩阵 §3 的硬规则：不拿抓取日冒充官方发布日）。recipe id 形如 provider.transport.capability.vN；同一 provider+transport+capability 有两种官方 wire 形态时（Anthropic budget/adaptive、Gemini thinkingBudget/thinkingLevel）用 vN 做形态判别位，vN 不是 registry revision。⚠️ reviewedAt **按条记录，不再是全局统一日**：R5 之前 47 条全写 2026-08-11，而实测那天 mistral 的两条 sourceIndex URL 已经 308 到新路径（BASE-021）——统一复核日证明不了每条 URL 当时真被打开过，只会让「全都复核过」和「一次性批量填日期」长得一模一样。现在每条 recipe 与每条 sourceIndex 各记自己的复核日，允许的日期集合由 registry.go 的 reviewedAtDates 声明并由 TestRecipeKeysAndReviewedAtAreConsistent 锁死。",
   "schemaVersion": 2,
   "sourceIndex": {
-    "openai.web_search": {
-      "kind": "official_doc",
-      "url": "https://developers.openai.com/api/docs/guides/tools-web-search",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "anthropic.web_search": {
-      "kind": "official_doc",
-      "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "gemini.interactions": {
-      "kind": "official_doc",
-      "url": "https://ai.google.dev/api/interactions-api-v1",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": "2026-07-27"
-    },
-    "gemini.google_search": {
-      "kind": "official_doc",
-      "url": "https://ai.google.dev/gemini-api/docs/google-search",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": "2026-08-04"
-    },
-    "openrouter.server_tools": {
-      "kind": "official_doc",
-      "url": "https://openrouter.ai/docs/guides/features/server-tools/web-search",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "grok.web_search": {
-      "kind": "official_doc",
-      "url": "https://docs.x.ai/developers/tools/web-search",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "grok.retirement": {
-      "kind": "official_doc",
-      "url": "https://docs.x.ai/developers/migration/may-15-retirement",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "zhipu.web_search": {
-      "kind": "official_doc",
-      "url": "https://docs.bigmodel.cn/cn/guide/tools/web-search",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "qwen.web_search": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/help/en/model-studio/web-search",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "kimi.official_tools": {
-      "kind": "official_doc",
-      "url": "https://platform.kimi.ai/docs/guide/use-official-tools",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "mistral.web_search": {
-      "kind": "official_doc",
-      "url": "https://docs.mistral.ai/studio/agents/agent-tools/websearch",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "deepseek.thinking_mode": {
-      "kind": "official_doc",
-      "url": "https://api-docs.deepseek.com/guides/thinking_mode",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": "2026-08-13"
-    },
-    "deepseek.chat_api": {
-      "kind": "official_doc",
-      "url": "https://api-docs.deepseek.com/api/create-chat-completion",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "together.chat_completions": {
-      "kind": "official_doc",
-      "url": "https://docs.together.ai/reference/chat-completions",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "fireworks.chat_completions": {
-      "kind": "official_doc",
-      "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "siliconflow.chat_completions": {
-      "kind": "official_doc",
-      "url": "https://docs.siliconflow.cn/en/api-reference/chat-completions/chat-completions",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "siliconflow.release_notes": {
-      "kind": "official_doc",
-      "url": "https://docs.siliconflow.cn/cn/release-notes/overview",
-      "reviewedAt": "2026-10-20",
-      "officialUpdatedAt": null
-    },
-    "siliconflow.models": {
-      "kind": "official_doc",
-      "url": "https://cloud.siliconflow.cn/models",
-      "reviewedAt": "2026-10-20",
-      "officialUpdatedAt": null
-    },
-    "minimax.text_api": {
-      "kind": "official_doc",
-      "url": "https://platform.minimax.io/docs/api-reference/text-post",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "openai.reasoning": {
-      "kind": "official_doc",
-      "url": "https://developers.openai.com/api/docs/guides/latest-model",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "anthropic.deprecations": {
-      "kind": "official_doc",
-      "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "openai.deprecations": {
-      "kind": "official_doc",
-      "url": "https://developers.openai.com/api/docs/deprecations",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "gemini.deprecations": {
-      "kind": "official_doc",
-      "url": "https://ai.google.dev/gemini-api/docs/deprecations",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "anthropic.effort": {
-      "kind": "official_doc",
-      "url": "https://platform.claude.com/docs/en/build-with-claude/effort",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": null
-    },
-    "gemini.thinking": {
-      "kind": "official_doc",
-      "url": "https://ai.google.dev/gemini-api/docs/generate-content/thinking",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "openrouter.reasoning_tokens": {
-      "kind": "official_doc",
-      "url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "deepseek.pricing": {
-      "kind": "official_doc",
-      "url": "https://api-docs.deepseek.com/quick_start/pricing",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "grok.reasoning": {
-      "kind": "official_doc",
-      "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": "2026-09-21"
-    },
-    "grok.models": {
-      "kind": "official_doc",
-      "url": "https://docs.x.ai/developers/models",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "mistral.reasoning": {
-      "kind": "official_doc",
-      "url": "https://docs.mistral.ai/studio/conversations/reasoning",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "mistral.deprecations": {
-      "kind": "official_doc",
-      "url": "https://docs.mistral.ai/models",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "groq.reasoning": {
-      "kind": "official_doc",
-      "url": "https://console.groq.com/docs/reasoning",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": null
-    },
-    "together.reasoning": {
-      "kind": "official_doc",
-      "url": "https://docs.together.ai/docs/inference/chat/reasoning",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": null
-    },
-    "together.deprecations": {
-      "kind": "official_doc",
-      "url": "https://docs.together.ai/docs/deprecations",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "fireworks.reasoning": {
-      "kind": "official_doc",
-      "url": "https://docs.fireworks.ai/guides/reasoning",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "fireworks.changelog": {
-      "kind": "official_doc",
-      "url": "https://docs.fireworks.ai/updates/changelog",
-      "reviewedAt": "2026-10-26",
-      "officialUpdatedAt": null
-    },
-    "fireworks.vision": {
-      "kind": "official_doc",
-      "url": "https://docs.fireworks.ai/guides/querying-vision-language-models",
-      "reviewedAt": "2026-10-26",
-      "officialUpdatedAt": null
-    },
-    "zhipu.migration": {
-      "kind": "official_doc",
-      "url": "https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-new",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "zhipu.thinking": {
-      "kind": "official_doc",
-      "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": null
-    },
-    "zhipu.thinking_mode": {
-      "kind": "official_doc",
-      "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking-mode",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "qwen.deepseek_api": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/help/en/model-studio/deepseek-api",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": null
-    },
-    "qwen.glm": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/help/en/model-studio/glm",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": null
-    },
-    "groq.browser_search": {
-      "kind": "official_doc",
-      "url": "https://console.groq.com/docs/tool-use/built-in-tools/browser-search",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": null
-    },
-    "groq.deprecations": {
-      "kind": "official_doc",
-      "url": "https://console.groq.com/docs/deprecations",
-      "reviewedAt": "2026-09-24",
-      "officialUpdatedAt": null
-    },
-    "qwen.deep_thinking": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/help/en/model-studio/deep-thinking",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "kimi.web_search": {
-      "kind": "official_doc",
-      "url": "https://platform.kimi.ai/docs/guide/use-web-search",
-      "reviewedAt": "2026-10-26",
-      "officialUpdatedAt": null
-    },
-    "kimi.thinking_models": {
-      "kind": "official_doc",
-      "url": "https://platform.kimi.ai/docs/guide/use-thinking-models",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "kimi.reasoning_effort": {
-      "kind": "official_doc",
-      "url": "https://platform.kimi.ai/docs/guide/use-reasoning-effort",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
-    },
-    "minimax.web_search_mcp": {
-      "kind": "official_doc",
-      "url": "https://platform.minimax.io/docs/token-plan/mcp-guide",
-      "reviewedAt": "2026-08-11",
-      "officialUpdatedAt": null
-    },
-    "minimax.server_tools": {
-      "kind": "official_doc",
-      "url": "https://platform.minimax.io/docs/guides/server-tools",
-      "reviewedAt": "2026-08-23",
-      "officialUpdatedAt": null
-    },
-    "openai.images_vision": {
-      "kind": "official_doc",
-      "url": "https://developers.openai.com/api/docs/guides/images-vision",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "openai.file_inputs": {
-      "kind": "official_doc",
-      "url": "https://developers.openai.com/api/docs/guides/file-inputs",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "openai.chat_create": {
-      "kind": "official_doc",
-      "url": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "anthropic.vision": {
-      "kind": "official_doc",
-      "url": "https://platform.claude.com/docs/en/build-with-claude/vision",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "anthropic.pdf_support": {
-      "kind": "official_doc",
-      "url": "https://platform.claude.com/docs/en/build-with-claude/pdf-support",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "anthropic.thinking": {
-      "kind": "official_doc",
-      "url": "https://platform.claude.com/docs/en/build-with-claude/thinking",
-      "reviewedAt": "2026-10-29",
-      "officialUpdatedAt": null
-    },
-    "gemini.generate_content": {
-      "kind": "official_doc",
-      "url": "https://ai.google.dev/api/generate-content",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "gemini.changelog": {
-      "kind": "official_doc",
-      "url": "https://ai.google.dev/gemini-api/docs/changelog",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "openrouter.images": {
-      "kind": "official_doc",
-      "url": "https://openrouter.ai/docs/guides/overview/multimodal/image-understanding",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "openrouter.pdfs": {
-      "kind": "official_doc",
-      "url": "https://openrouter.ai/docs/guides/overview/multimodal/pdfs",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "openrouter.videos": {
-      "kind": "official_doc",
-      "url": "https://openrouter.ai/docs/guides/overview/multimodal/videos",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "qwen.openai_chat": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "deepseek.vision": {
-      "kind": "official_doc",
-      "url": "https://api-docs.deepseek.com/guides/vision",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "deepseek.search": {
-      "kind": "official_doc",
-      "url": "https://api-docs.deepseek.com/guides/search",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "deepseek.updates": {
-      "kind": "official_doc",
-      "url": "https://api-docs.deepseek.com/updates",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "minimax.openai_api": {
-      "kind": "official_doc",
-      "url": "https://platform.minimax.io/docs/api-reference/text-openai-api",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "minimax.anthropic_api": {
-      "kind": "official_doc",
-      "url": "https://platform.minimax.io/docs/api-reference/text-anthropic-api",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "qwen.notice_731": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/en/notice/model_studionotice_on_the_decommissioning_of_certain_historical_mainline_models_731",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "qwen.notice_79d": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_mainline_models_79d",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "qwen.notice_79e": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_mainline_models_79e",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "qwen.notice_7d9": {
-      "kind": "official_doc",
-      "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_models_7d9",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "kimi.models": {
-      "kind": "official_doc",
-      "url": "https://platform.kimi.ai/docs/models",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    },
-    "minimax.models": {
-      "kind": "official_doc",
-      "url": "https://platform.minimax.io/docs/faq/models",
-      "reviewedAt": "2026-10-19",
-      "officialUpdatedAt": null
-    }
+    "openai.web_search": {"kind": "official_doc", "url": "https://developers.openai.com/api/docs/guides/tools-web-search", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "anthropic.web_search": {"kind": "official_doc", "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "gemini.interactions": {"kind": "official_doc", "url": "https://ai.google.dev/api/interactions-api-v1", "reviewedAt": "2026-08-11", "officialUpdatedAt": "2026-07-27"},
+    "gemini.google_search": {"kind": "official_doc", "url": "https://ai.google.dev/gemini-api/docs/google-search", "reviewedAt": "2026-08-11", "officialUpdatedAt": "2026-08-04"},
+    "openrouter.server_tools": {"kind": "official_doc", "url": "https://openrouter.ai/docs/guides/features/server-tools/web-search", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "grok.web_search": {"kind": "official_doc", "url": "https://docs.x.ai/developers/tools/web-search", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "grok.retirement": {"kind": "official_doc", "url": "https://docs.x.ai/developers/migration/may-15-retirement", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "zhipu.web_search": {"kind": "official_doc", "url": "https://docs.bigmodel.cn/cn/guide/tools/web-search", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "qwen.web_search": {"kind": "official_doc", "url": "https://www.alibabacloud.com/help/en/model-studio/web-search", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "kimi.official_tools": {"kind": "official_doc", "url": "https://platform.kimi.ai/docs/guide/use-official-tools", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "mistral.web_search": {"kind": "official_doc", "url": "https://docs.mistral.ai/studio/agents/agent-tools/websearch", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "deepseek.thinking_mode": {"kind": "official_doc", "url": "https://api-docs.deepseek.com/guides/thinking_mode", "reviewedAt": "2026-10-19", "officialUpdatedAt": "2026-08-13"},
+    "deepseek.chat_api": {"kind": "official_doc", "url": "https://api-docs.deepseek.com/api/create-chat-completion", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "together.chat_completions": {"kind": "official_doc", "url": "https://docs.together.ai/reference/chat-completions", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "fireworks.chat_completions": {"kind": "official_doc", "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "siliconflow.chat_completions": {"kind": "official_doc", "url": "https://docs.siliconflow.cn/en/api-reference/chat-completions/chat-completions", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "siliconflow.release_notes": {"kind": "official_doc", "url": "https://docs.siliconflow.cn/cn/release-notes/overview", "reviewedAt": "2026-10-20", "officialUpdatedAt": null},
+    "siliconflow.models": {"kind": "official_doc", "url": "https://cloud.siliconflow.cn/models", "reviewedAt": "2026-10-20", "officialUpdatedAt": null},
+    "minimax.text_api": {"kind": "official_doc", "url": "https://platform.minimax.io/docs/api-reference/text-post", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "openai.reasoning": {"kind": "official_doc", "url": "https://developers.openai.com/api/docs/guides/latest-model", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+
+    "anthropic.deprecations": {"kind": "official_doc", "url": "https://platform.claude.com/docs/en/about-claude/model-deprecations", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "openai.deprecations": {"kind": "official_doc", "url": "https://developers.openai.com/api/docs/deprecations", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "gemini.deprecations": {"kind": "official_doc", "url": "https://ai.google.dev/gemini-api/docs/deprecations", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "anthropic.effort": {"kind": "official_doc", "url": "https://platform.claude.com/docs/en/build-with-claude/effort", "reviewedAt": "2026-09-24", "officialUpdatedAt": null},
+    "gemini.thinking": {"kind": "official_doc", "url": "https://ai.google.dev/gemini-api/docs/generate-content/thinking", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "openrouter.reasoning_tokens": {"kind": "official_doc", "url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "deepseek.pricing": {"kind": "official_doc", "url": "https://api-docs.deepseek.com/quick_start/pricing", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "grok.reasoning": {"kind": "official_doc", "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning", "reviewedAt": "2026-09-24", "officialUpdatedAt": "2026-09-21"},
+    "grok.models": {"kind": "official_doc", "url": "https://docs.x.ai/developers/models", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "mistral.reasoning": {"kind": "official_doc", "url": "https://docs.mistral.ai/studio/conversations/reasoning", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "mistral.deprecations": {"kind": "official_doc", "url": "https://docs.mistral.ai/models", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "groq.reasoning": {"kind": "official_doc", "url": "https://console.groq.com/docs/reasoning", "reviewedAt": "2026-09-24", "officialUpdatedAt": null},
+    "together.reasoning": {"kind": "official_doc", "url": "https://docs.together.ai/docs/inference/chat/reasoning", "reviewedAt": "2026-09-24", "officialUpdatedAt": null},
+    "together.deprecations": {"kind": "official_doc", "url": "https://docs.together.ai/docs/deprecations", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "fireworks.reasoning": {"kind": "official_doc", "url": "https://docs.fireworks.ai/guides/reasoning", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "fireworks.changelog": {"kind": "official_doc", "url": "https://docs.fireworks.ai/updates/changelog", "reviewedAt": "2026-10-26", "officialUpdatedAt": null},
+    "fireworks.vision": {"kind": "official_doc", "url": "https://docs.fireworks.ai/guides/querying-vision-language-models", "reviewedAt": "2026-10-26", "officialUpdatedAt": null},
+    "zhipu.migration": {"kind": "official_doc", "url": "https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-new", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "zhipu.thinking": {"kind": "official_doc", "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking", "reviewedAt": "2026-09-24", "officialUpdatedAt": null},
+    "zhipu.thinking_mode": {"kind": "official_doc", "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking-mode", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "qwen.deepseek_api": {"kind": "official_doc", "url": "https://www.alibabacloud.com/help/en/model-studio/deepseek-api", "reviewedAt": "2026-09-24", "officialUpdatedAt": null},
+    "qwen.glm": {"kind": "official_doc", "url": "https://www.alibabacloud.com/help/en/model-studio/glm", "reviewedAt": "2026-09-24", "officialUpdatedAt": null},
+    "groq.browser_search": {"kind": "official_doc", "url": "https://console.groq.com/docs/tool-use/built-in-tools/browser-search", "reviewedAt": "2026-09-24", "officialUpdatedAt": null},
+    "groq.deprecations": {"kind": "official_doc", "url": "https://console.groq.com/docs/deprecations", "reviewedAt": "2026-09-24", "officialUpdatedAt": null},
+    "qwen.deep_thinking": {"kind": "official_doc", "url": "https://www.alibabacloud.com/help/en/model-studio/deep-thinking", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "kimi.web_search": {"kind": "official_doc", "url": "https://platform.kimi.ai/docs/guide/use-web-search", "reviewedAt": "2026-10-26", "officialUpdatedAt": null},
+    "kimi.thinking_models": {"kind": "official_doc", "url": "https://platform.kimi.ai/docs/guide/use-thinking-models", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "kimi.reasoning_effort": {"kind": "official_doc", "url": "https://platform.kimi.ai/docs/guide/use-reasoning-effort", "reviewedAt": "2026-08-15", "officialUpdatedAt": null},
+    "minimax.web_search_mcp": {"kind": "official_doc", "url": "https://platform.minimax.io/docs/token-plan/mcp-guide", "reviewedAt": "2026-08-11", "officialUpdatedAt": null},
+    "minimax.server_tools": {"kind": "official_doc", "url": "https://platform.minimax.io/docs/guides/server-tools", "reviewedAt": "2026-08-23", "officialUpdatedAt": null},
+    "openai.images_vision": {"kind": "official_doc", "url": "https://developers.openai.com/api/docs/guides/images-vision", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "openai.file_inputs": {"kind": "official_doc", "url": "https://developers.openai.com/api/docs/guides/file-inputs", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "openai.chat_create": {"kind": "official_doc", "url": "https://developers.openai.com/api/reference/resources/chat/subresources/completions/methods/create", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "anthropic.vision": {"kind": "official_doc", "url": "https://platform.claude.com/docs/en/build-with-claude/vision", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "anthropic.pdf_support": {"kind": "official_doc", "url": "https://platform.claude.com/docs/en/build-with-claude/pdf-support", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "anthropic.thinking": {"kind": "official_doc", "url": "https://platform.claude.com/docs/en/build-with-claude/thinking", "reviewedAt": "2026-10-29", "officialUpdatedAt": null},
+    "gemini.generate_content": {"kind": "official_doc", "url": "https://ai.google.dev/api/generate-content", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "gemini.changelog": {"kind": "official_doc", "url": "https://ai.google.dev/gemini-api/docs/changelog", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "openrouter.images": {"kind": "official_doc", "url": "https://openrouter.ai/docs/guides/overview/multimodal/image-understanding", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "openrouter.pdfs": {"kind": "official_doc", "url": "https://openrouter.ai/docs/guides/overview/multimodal/pdfs", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "openrouter.videos": {"kind": "official_doc", "url": "https://openrouter.ai/docs/guides/overview/multimodal/videos", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "qwen.openai_chat": {"kind": "official_doc", "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-chat-completions", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "deepseek.vision": {"kind": "official_doc", "url": "https://api-docs.deepseek.com/guides/vision", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "deepseek.search": {"kind": "official_doc", "url": "https://api-docs.deepseek.com/guides/search", "reviewedAt": "2026-10-26", "officialUpdatedAt": null},
+    "deepseek.updates": {"kind": "official_doc", "url": "https://api-docs.deepseek.com/updates", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "minimax.openai_api": {"kind": "official_doc", "url": "https://platform.minimax.io/docs/api-reference/text-openai-api", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "minimax.anthropic_api": {"kind": "official_doc", "url": "https://platform.minimax.io/docs/api-reference/text-anthropic-api", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "qwen.notice_731": {"kind": "official_doc", "url": "https://www.alibabacloud.com/en/notice/model_studionotice_on_the_decommissioning_of_certain_historical_mainline_models_731", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "qwen.notice_79d": {"kind": "official_doc", "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_mainline_models_79d", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "qwen.notice_79e": {"kind": "official_doc", "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_mainline_models_79e", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "qwen.notice_7d9": {"kind": "official_doc", "url": "https://www.alibabacloud.com/en/notice/model_studio_notice_of_retirement_for_selected_legacy_models_7d9", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "kimi.models": {"kind": "official_doc", "url": "https://platform.kimi.ai/docs/models", "reviewedAt": "2026-10-19", "officialUpdatedAt": null},
+    "minimax.models": {"kind": "official_doc", "url": "https://platform.minimax.io/docs/faq/models", "reviewedAt": "2026-10-19", "officialUpdatedAt": null}
   },
+
   "controlDefinitions": {},
+
   "recipes": {
     "openai.responses.web.v1": {
       "id": "openai.responses.web.v1",
       "providerKind": "openAI",
-      "transport": {
-        "protocol": "openai_responses",
-        "endpointClass": "responses",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_responses", "endpointClass": "responses", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "server_tool",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "web_search"
-          }
-        },
-        {
-          "op": "set",
-          "pointer": "/tool_choice",
-          "value": "auto"
-        },
-        {
-          "op": "append",
-          "intent": "force",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "web_search"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "force",
-          "pointer": "/tool_choice",
-          "value": "required"
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"type": "web_search"}},
+        {"op": "set", "pointer": "/tool_choice", "value": "auto"},
+        {"op": "append", "intent": "force", "pointer": "/tools/-", "value": {"type": "web_search"}},
+        {"op": "set", "intent": "force", "pointer": "/tool_choice", "value": "required"}
       ],
       "responseParserKind": "openai_responses_web_v1",
       "continuationKind": "previous_id",
       "continuationInstructionsMode": "resend",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openai.web_search"
-      ],
+      "sourceRefs": ["openai.web_search"],
       "reviewedAt": "2026-08-11"
     },
     "openai.chat.web_model.v1": {
-      "$comment": "gpt-5-search-api itself is a search-dedicated model on OpenAI Chat Completions. model_route does not rewrite the model the user picked here: this recipe is published only for the exact gpt-5-search-api model; after the client validates provider/transport it executes with an empty body delta, avoiding another local model-id guess. This model searches on a bare request, so requestOps must stay empty.",
+      "$comment": "gpt-5-search-api 本身就是 OpenAI Chat Completions 的搜索专用模型。model_route 在这里不改写用户所选 model：Server 只会对 exact gpt-5-search-api 下发本 recipe，客户端校验 provider/transport 后以空 body delta 执行，避免再次用本地 model-id 猜测。该模型裸发即搜索，故 requestOps 必须为空。",
       "id": "openai.chat.web_model.v1",
       "providerKind": "openAI",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "model_route",
       "requestOps": [],
@@ -509,65 +113,34 @@
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "no_fallback",
-      "sourceRefs": [
-        "openai.web_search"
-      ],
+      "sourceRefs": ["openai.web_search"],
       "reviewedAt": "2026-08-11"
     },
     "anthropic.messages.web.v1": {
       "id": "anthropic.messages.web.v1",
       "providerKind": "anthropic",
-      "transport": {
-        "protocol": "anthropic_messages",
-        "endpointClass": "messages",
-        "requiredHeaders": [
-          "anthropic-version"
-        ],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "anthropic_messages", "endpointClass": "messages", "requiredHeaders": ["anthropic-version"], "streaming": "optional"},
       "capability": "web",
       "executionKind": "server_tool",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "web_search_20250305",
-            "name": "web_search",
-            "max_uses": 5
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"type": "web_search_20250305", "name": "web_search", "max_uses": 5}}
       ],
       "responseParserKind": "anthropic_web_search_v1",
       "continuationKind": "replay_blocks",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "anthropic.web_search"
-      ],
+      "sourceRefs": ["anthropic.web_search"],
       "reviewedAt": "2026-09-24"
     },
     "minimax.messages.web.v1": {
-      "$comment": "MiniMax-M3 is an exact-model alternate route: a normal chat still goes through OpenAI Chat; only when the catalog's web control selects this recipe does the client switch, by route, to the official Anthropic Messages endpoint. The source/target protocol, method, auth/header, mapper, parser, and replay contract are all declared by the recipe — the client must never guess any of it from the model id.",
+      "$comment": "MiniMax-M3 exact alternate route：普通 chat 仍走 OpenAI Chat；只有 Server web control 选中本 recipe 时，客户端按 route 切到官方 Anthropic Messages endpoint。source/target protocol、method、auth/header、mapper、parser 与 replay contract 均由 Server 下发，客户端不得按 model id 猜。",
       "id": "minimax.messages.web.v1",
       "providerKind": "miniMax",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "endpoint_route",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "web_search_20250305",
-            "name": "web_search"
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"type": "web_search_20250305", "name": "web_search"}}
       ],
       "route": {
         "sourceProtocol": "openai_chat",
@@ -577,300 +150,163 @@
         "method": "POST",
         "authMode": "x_api_key",
         "authHeader": "x-api-key",
-        "headers": {
-          "Content-Type": "application/json",
-          "anthropic-version": "2023-06-01"
-        },
+        "headers": {"Content-Type": "application/json", "anthropic-version": "2023-06-01"},
         "requestMapper": "minimax_anthropic_messages_v1"
       },
       "responseParserKind": "minimax_anthropic_web_v1",
       "continuationKind": "replay_blocks",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "minimax.server_tools"
-      ],
+      "sourceRefs": ["minimax.server_tools"],
       "reviewedAt": "2026-08-23"
     },
     "gemini.generate_content.web.v1": {
-      "$comment": "The google_search server tool on the Core API (generateContent). This is not marked deprecated officially and is still Oriveo's current gemini transport, so it coexists with the Interactions recipe. The source review now links directly to the official Grounding with Google Search page.",
+      "$comment": "Core API（generateContent）上的 google_search server tool。矩阵 §2：官方未标 deprecated，仍是 Oriveo 当前 gemini transport，所以与 Interactions recipe 并存。P3 source review 已改为直接引用官方 Grounding with Google Search 专页。",
       "id": "gemini.generate_content.web.v1",
       "providerKind": "gemini",
-      "transport": {
-        "protocol": "gemini_generate_content",
-        "endpointClass": "generate_content",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "gemini_generate_content", "endpointClass": "generate_content", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "server_tool",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "google_search": {}
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"google_search": {}}}
       ],
       "responseParserKind": "gemini_google_search_v1",
       "continuationKind": "replay_blocks",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "gemini.google_search"
-      ],
+      "sourceRefs": ["gemini.google_search"],
       "reviewedAt": "2026-08-11"
     },
     "gemini.generate_content.web.v2": {
-      "$comment": "The older googleSearchRetrieval shape used by the 1.5 generation. It is not interchangeable with v1 (google_search): sending google_search to a 1.5 model is rejected, so routing is keyed off the exact model rather than inferred from generation. vN here is likewise a wire-shape discriminator.",
+      "$comment": "1.5 系的 googleSearchRetrieval 旧形态。与 v1（google_search）互不通用：1.5 上发 google_search 会被拒，故按 exact model 分流而不是靠代际推断。vN 在这里同样是 wire 形态判别位。",
       "id": "gemini.generate_content.web.v2",
       "providerKind": "gemini",
-      "transport": {
-        "protocol": "gemini_generate_content",
-        "endpointClass": "generate_content",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "gemini_generate_content", "endpointClass": "generate_content", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "server_tool",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "google_search_retrieval": {
-              "dynamic_retrieval_config": {
-                "mode": "MODE_DYNAMIC"
-              }
-            }
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"google_search_retrieval": {"dynamic_retrieval_config": {"mode": "MODE_DYNAMIC"}}}}
       ],
       "responseParserKind": "gemini_google_search_v1",
       "continuationKind": "replay_blocks",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "gemini.google_search"
-      ],
+      "sourceRefs": ["gemini.google_search"],
       "reviewedAt": "2026-08-11"
     },
     "gemini.interactions.web.v1": {
-      "$comment": "The Interactions API endpoint route. The default transport is still gemini_generate; this recipe is reached through the web verdict of the gemini_interactions transport, which is only reachable through an administrator transport override. continuationKind is none: store:false with the full Step[] history every turn, no previous_interaction_id. The path is /v1beta: live samples showed /v1 answering 400 for google_search and system_instruction.",
+      "$comment": "Interactions API endpoint route（矩阵 §5.5）。Oriveo 默认 transport 仍是 gemini_generate；本 recipe 由 gemini_interactions transport 的 web verdict 指向，该 transport 只经 Admin TransportOverride 可达（D-101 不切默认）。continuationKind 为 none：store:false + 每轮全量 Step[]，不用 previous_interaction_id（D-99 / D-101 ④⑤，4-4 改值，桌面会话跟随）。路径 /v1beta：2026-10-13 真样本 /v1 对 google_search 与 system_instruction 都回 400（relay2 4-4 D-103）；不发 Api-Revision 头（两路径带不带都 200，官方 2026-06-08 起忽略该头）。",
       "id": "gemini.interactions.web.v1",
       "providerKind": "gemini",
-      "transport": {
-        "protocol": "gemini_interactions",
-        "endpointClass": "interactions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "gemini_interactions", "endpointClass": "interactions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "endpoint_route",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "google_search"
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"type": "google_search"}}
       ],
-      "route": {
-        "protocol": "gemini_interactions",
-        "endpointClass": "interactions",
-        "path": "/v1beta/interactions",
-        "requestMapper": "gemini_interactions_v1"
-      },
+      "route": {"protocol": "gemini_interactions", "endpointClass": "interactions", "path": "/v1beta/interactions", "requestMapper": "gemini_interactions_v1"},
       "responseParserKind": "gemini_google_search_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "gemini.interactions"
-      ],
+      "sourceRefs": ["gemini.interactions"],
       "reviewedAt": "2026-10-13"
     },
     "openrouter.chat.web.v1": {
-      "$comment": "The current default must be the openrouter:web_search server tool. The older plugins:[{id:web}] form and the model:online variant are both deprecated; this recipe deliberately omits the /plugins request root and never rewrites the model id.",
+      "$comment": "矩阵 §5.3：当前默认必须是 openrouter:web_search server tool。旧 plugins:[{id:web}] 与 model:online variant 均已弃用，本 recipe 刻意不含 /plugins 目标根，也不改 model id。",
       "id": "openrouter.chat.web.v1",
       "providerKind": "openRouter",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "server_tool",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "openrouter:web_search"
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"type": "openrouter:web_search"}}
       ],
       "responseParserKind": "openrouter_web_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openrouter.server_tools"
-      ],
+      "sourceRefs": ["openrouter.server_tools"],
       "reviewedAt": "2026-08-11"
     },
     "grok.responses.web.v1": {
       "id": "grok.responses.web.v1",
       "providerKind": "grok",
-      "transport": {
-        "protocol": "openai_responses",
-        "endpointClass": "responses",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_responses", "endpointClass": "responses", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "server_tool",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "web_search"
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"type": "web_search"}}
       ],
       "responseParserKind": "grok_web_search_v1",
       "continuationKind": "previous_id",
       "continuationInstructionsMode": "omit",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "grok.web_search"
-      ],
+      "sourceRefs": ["grok.web_search"],
       "reviewedAt": "2026-08-15"
     },
     "zhipu.chat.web.v1": {
-      "$comment": "Reviewed field by field against the official WebSearchObject schema: the type enum is [web_search], enable is boolean (official default false, must be explicitly set true), search_engine is the only required field in the schema and its enum includes search_pro, and search_result is boolean (default false; leaving it unset omits source detail in the response) — all four fields match this recipe exactly, no change needed. The official docs do not publish a per-model web_search support matrix (the tools field description only names the GLM-4 series and GLM-4.5), so this provider's web support decision stops at the transport level, with the catalog's own capabilities flag vetoing models that don't support web search; this must never be read as \"the whole GLM family supports web search\".",
+      "$comment": "2026-08-15 逐字段对官方 WebSearchObject schema 复核：type 枚举 [web_search]、enable 布尔（官方默认 false，必须显式 true）、search_engine 是 schema 里唯一必填项且枚举含 search_pro、search_result 布尔（默认 false，不设则不返回来源详情）——四个字段与本 recipe 逐字一致，无需改动。官方**未发布按模型的 web_search 支持矩阵**（tools 字段说明只点名 GLM-4 系列与 GLM-4.5），因此本 provider 的 web 判定停在 transport 级，由目录自己的 capabilities 位否决不具备 web 的模型；不得据此对外宣称「全系列 GLM 支持联网」。",
       "id": "zhipu.chat.web.v1",
       "providerKind": "zhipu",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "server_tool",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "web_search",
-            "web_search": {
-              "enable": true,
-              "search_engine": "search_pro",
-              "search_result": true
-            }
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"type": "web_search", "web_search": {"enable": true, "search_engine": "search_pro", "search_result": true}}}
       ],
       "responseParserKind": "zhipu_web_search_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "zhipu.web_search"
-      ],
+      "sourceRefs": ["zhipu.web_search"],
       "reviewedAt": "2026-08-15"
     },
     "qwen.chat.web.v1": {
-      "$comment": "Restricted to the exact model the official docs name as still supporting enable_search on the OpenAI-compatible Chat endpoint (currently qwen3.7-plus), never inferred from generation. qwen3.6-plus is officially documented as Responses-only, so it is deliberately not covered by this recipe and must never be folded in by inferring from the model family.",
+      "$comment": "矩阵 §5.4：只给官方点名在 OpenAI 兼容 Chat 上仍支持 enable_search 的 exact model（当前是 qwen3.7-plus），不按代际推断。qwen3.6-plus 官方标注 Responses only，在 rules.go 里是显式的反向条目。",
       "id": "qwen.chat.web.v1",
       "providerKind": "qwen",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "pointer": "/enable_search",
-          "value": true
-        }
+        {"op": "set", "pointer": "/enable_search", "value": true}
       ],
       "responseParserKind": "qwen_chat_search_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "qwen.web_search"
-      ],
+      "sourceRefs": ["qwen.web_search"],
       "reviewedAt": "2026-08-11"
     },
     "qwen.chat.web.v2": {
-      "$comment": "Reviewed 2026-09-24. The support table on the web-search page gives qwen3.8-omni-flash the condition 'set the Chat Completions search strategy to agent': the request is enable_search=true plus search_options.search_strategy=agent, and v1's enable_search alone does not hold for it. The docs also say web search on multimodal models must stream (otherwise 'Non-streaming mode does not support Web Search'); chat sends on every client already stream, so streaming stays optional like every other recipe rather than introducing a required value no client has run.",
+      "$comment": "2026-09-24（巡检 #117）：web-search 页支持表对 qwen3.8-omni-flash 附带条件「set the Chat Completions search strategy to agent」，请求形态是 enable_search=true + search_options.search_strategy=agent；v1 只发 enable_search，对它不成立。官方另写多模态模型联网必须流式（否则报 Non-streaming mode does not support Web Search）；三端聊天发送本来就是流式，streaming 维持 optional 与其余 recipe 一致，不引入从未在客户端跑过的 required。",
       "id": "qwen.chat.web.v2",
       "providerKind": "qwen",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "pointer": "/enable_search",
-          "value": true
-        },
-        {
-          "op": "set",
-          "pointer": "/search_options/search_strategy",
-          "value": "agent"
-        }
+        {"op": "set", "pointer": "/enable_search", "value": true},
+        {"op": "set", "pointer": "/search_options/search_strategy", "value": "agent"}
       ],
       "responseParserKind": "qwen_chat_search_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "qwen.web_search"
-      ],
+      "sourceRefs": ["qwen.web_search"],
       "reviewedAt": "2026-09-24"
     },
     "moonshot.chat.web.v1": {
-      "$comment": "The older builtin $web_search, a bounded client tool loop (role=tool refills arguments). No model selects it from 2026-10-26: the official use-web-search page lists the builtin tool as 'Retires on October 20, 2026', and the pricing/tools page says 'expected to be deprecated on October 20, 2026 — for new integrations, please use the /v1/tools/search endpoint or the web-search official tool'; all Kimi web search goes through moonshot.formula.web.v1. The definition stays registered because the builtin parsing branches on every client and the shared fixtures still reference it. The official use-web-search page states: '$web_search works directly with each model's reasoning behavior: kimi-k3 always reasons, and kimi-k2.6 can also perform web search with thinking enabled' — meaning k2.6's thinking is **compatible** with the builtin search, not mutually exclusive with it. k2.5 is never named officially either way, and is treated as undocumented rather than assumed compatible. This recipe still does not claim ownership of the reasoning parameter.",
+      "$comment": "旧 builtin $web_search，有界 client tool loop（role=tool 回填 arguments）。⛔ 2026-10-26 起不被任何模型选用：官方 use-web-search 页对比表写 builtin 工具「Retires on October 20, 2026」，pricing/tools 页写 'expected to be deprecated on October 20, 2026 — for new integrations, please use the /v1/tools/search endpoint or the web-search official tool'；Kimi 联网全部改走 moonshot.formula.web.v1。定义暂留（四端 builtin 解析分支与共享夹具仍引用），删除另行裁定。⚠️ 2026-08-15 更正 08-11 的记载：官方 use-web-search 页原文是 '$web_search works directly with each model's reasoning behavior: kimi-k3 always reasons, and kimi-k2.6 can also perform web search with thinking enabled'——即 K2.6 的 thinking 与 builtin 搜索**兼容**，不是互斥；08-11 写的「K2.5/K2.6 thinking 暂不兼容」与官方原文相反。**K2.5 官方从未点名**，既没说兼容也没说不兼容，按留白处理，不得反向补成兼容。本 recipe 仍不越权写 reasoning owner。",
       "id": "moonshot.chat.web.v1",
       "providerKind": "moonshot",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "client_tool_loop",
       "requestOps": [
-        {
-          "op": "append",
-          "pointer": "/tools/-",
-          "value": {
-            "type": "builtin_function",
-            "function": {
-              "name": "$web_search"
-            }
-          }
-        }
+        {"op": "append", "pointer": "/tools/-", "value": {"type": "builtin_function", "function": {"name": "$web_search"}}}
       ],
       "responseParserKind": "moonshot_builtin_web_v1",
       "continuationKind": "tool_loop",
@@ -878,21 +314,14 @@
       "maxToolLoops": 4,
       "controlRefs": [],
       "fallbackPolicy": "no_fallback",
-      "sourceRefs": [
-        "kimi.web_search"
-      ],
+      "sourceRefs": ["kimi.web_search"],
       "reviewedAt": "2026-10-26"
     },
     "moonshot.formula.web.v1": {
-      "$comment": "The official Formula/Fiber tool channel and, from 2026-10-26, the only Kimi web search channel (the use-official-tools page: 'When using official tools such as web search with kimi-k3.1-pro, use the Formula API official tools channel'). Tool declarations must be read dynamically from /formulas/{uri}/tools first, never hardcoded against an assumed schema; the name and arguments the model returns are POSTed to fibers unchanged, and the encrypted_output from context.output or search is sent back as role=tool unchanged.",
+      "$comment": "官方 Formula/Fiber 工具通道（2026-10-26 起 Kimi 唯一联网通道；use-official-tools 页 'When using official tools such as web search with kimi-k3.1-pro, use the Formula API official tools channel'）。工具声明必须先从 /formulas/{uri}/tools 动态读取，不能硬编码假 schema；模型返回的 name+arguments 原样 POST fibers，context.output 或 search 的 encrypted_output 原样 role=tool 回传。",
       "id": "moonshot.formula.web.v1",
       "providerKind": "moonshot",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "web",
       "executionKind": "client_tool_loop",
       "requestOps": [],
@@ -905,1738 +334,791 @@
         "toolsPath": "/v1/formulas/moonshot/web-search:latest/tools",
         "fibersPath": "/v1/formulas/moonshot/web-search:latest/fibers",
         "argumentsMode": "verbatim",
-        "resultPaths": [
-          "context.output",
-          "context.encrypted_output"
-        ]
+        "resultPaths": ["context.output", "context.encrypted_output"]
       },
       "controlRefs": [],
       "fallbackPolicy": "no_fallback",
-      "sourceRefs": [
-        "kimi.official_tools"
-      ],
+      "sourceRefs": ["kimi.official_tools"],
       "reviewedAt": "2026-10-26"
     },
+
     "openai.responses.reasoning.v1": {
       "id": "openai.responses.reasoning.v1",
       "providerKind": "openAI",
-      "transport": {
-        "protocol": "openai_responses",
-        "endpointClass": "responses",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_responses", "endpointClass": "responses", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning/effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning/effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning/effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning/effort",
-          "value": "xhigh"
-        }
+        {"op": "set", "intent": "low", "pointer": "/reasoning/effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning/effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning/effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning/effort", "value": "xhigh"}
       ],
       "responseParserKind": "openai_responses_reasoning_v1",
       "continuationKind": "previous_id",
       "continuationInstructionsMode": "resend",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openai.reasoning"
-      ],
+      "sourceRefs": ["openai.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "openai.chat.reasoning.v1": {
       "id": "openai.chat.reasoning.v1",
       "providerKind": "openAI",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning_effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        }
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning_effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"}
       ],
       "responseParserKind": "openai_chat_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openai.reasoning"
-      ],
+      "sourceRefs": ["openai.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "anthropic.messages.reasoning.v1": {
-      "$comment": "The budget shape (thinking.type=enabled + budget_tokens), which only applies to generation 4.5 and earlier — 4.7 and later reject it with a 400 and require switching to adaptive. vN here is a wire-shape discriminator, not a revision.",
+      "$comment": "budget 形态（thinking.type=enabled + budget_tokens），只适用 4.5 及更老世代——4.7+ 对它 400 并要求改用 adaptive。vN 在这里是 wire 形态判别位，不是 revision。",
       "id": "anthropic.messages.reasoning.v1",
       "providerKind": "anthropic",
-      "transport": {
-        "protocol": "anthropic_messages",
-        "endpointClass": "messages",
-        "requiredHeaders": [
-          "anthropic-version"
-        ],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "anthropic_messages", "endpointClass": "messages", "requiredHeaders": ["anthropic-version"], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/thinking",
-          "value": {
-            "type": "enabled",
-            "budget_tokens": 2048
-          }
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/thinking",
-          "value": {
-            "type": "enabled",
-            "budget_tokens": 8192
-          }
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/thinking",
-          "value": {
-            "type": "enabled",
-            "budget_tokens": 16384
-          }
-        }
+        {"op": "set", "intent": "low", "pointer": "/thinking", "value": {"type": "enabled", "budget_tokens": 2048}},
+        {"op": "set", "intent": "balanced", "pointer": "/thinking", "value": {"type": "enabled", "budget_tokens": 8192}},
+        {"op": "set", "intent": "deep", "pointer": "/thinking", "value": {"type": "enabled", "budget_tokens": 16384}}
       ],
       "responseParserKind": "anthropic_thinking_v1",
       "continuationKind": "replay_blocks",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "anthropic.effort"
-      ],
+      "sourceRefs": ["anthropic.effort"],
       "reviewedAt": "2026-08-11"
     },
     "anthropic.messages.reasoning.v2": {
-      "$comment": "adaptive thinking + output_config.effort, the current official shape. The thinking page (Controlling thinking display) says display defaults to omitted from Claude Opus 4.7 on (Opus 4.8 / 5 / 5.5, Sonnet 5 / 5.5, Fable 5 / 5.1, Haiku 5.5), which returns an empty thinking field; only an explicit display: summarized returns the thinking summary. 4.6 already defaults to summarized, so sending it there changes nothing. Every display value is billed the same. display together with between_tools is a 400, and this recipe never sends between_tools.",
+      "$comment": "adaptive thinking + output_config.effort，官方现行形态（矩阵 §2）。2026-10-29：thinking 页「Controlling thinking display」写明 Opus 4.7 起（含 Opus 4.8 / Sonnet 5 / Sonnet 5.5 / Opus 5 / Opus 5.5 / Fable 5 / Fable 5.1 / Haiku 5.5）display 默认 omitted、thinking 字段为空，只有显式 display: summarized 才返回思考摘要；4.6 默认就是 summarized，显式写同值无副作用；各 display 值计费相同。display 与 between_tools 同发会 400，本 recipe 不发 between_tools。",
       "id": "anthropic.messages.reasoning.v2",
       "providerKind": "anthropic",
-      "transport": {
-        "protocol": "anthropic_messages",
-        "endpointClass": "messages",
-        "requiredHeaders": [
-          "anthropic-version"
-        ],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "anthropic_messages", "endpointClass": "messages", "requiredHeaders": ["anthropic-version"], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/thinking",
-          "value": {
-            "type": "adaptive",
-            "display": "summarized"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/output_config/effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/thinking",
-          "value": {
-            "type": "adaptive",
-            "display": "summarized"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/output_config/effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/thinking",
-          "value": {
-            "type": "adaptive",
-            "display": "summarized"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/output_config/effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/thinking",
-          "value": {
-            "type": "adaptive",
-            "display": "summarized"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/output_config/effort",
-          "value": "max"
-        }
+        {"op": "set", "intent": "low", "pointer": "/thinking", "value": {"type": "adaptive", "display": "summarized"}},
+        {"op": "set", "intent": "low", "pointer": "/output_config/effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/thinking", "value": {"type": "adaptive", "display": "summarized"}},
+        {"op": "set", "intent": "balanced", "pointer": "/output_config/effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/thinking", "value": {"type": "adaptive", "display": "summarized"}},
+        {"op": "set", "intent": "deep", "pointer": "/output_config/effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/thinking", "value": {"type": "adaptive", "display": "summarized"}},
+        {"op": "set", "intent": "max", "pointer": "/output_config/effort", "value": "max"}
       ],
       "responseParserKind": "anthropic_thinking_v1",
       "continuationKind": "replay_blocks",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "anthropic.effort",
-        "anthropic.thinking"
-      ],
+      "sourceRefs": ["anthropic.effort", "anthropic.thinking"],
       "reviewedAt": "2026-10-29"
     },
     "gemini.generate_content.reasoning.v1": {
-      "$comment": "The thinkingBudget shape, used by the 2.5 generation.",
+      "$comment": "thinkingBudget 形态（2.5 系）。",
       "id": "gemini.generate_content.reasoning.v1",
       "providerKind": "gemini",
-      "transport": {
-        "protocol": "gemini_generate_content",
-        "endpointClass": "generate_content",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "gemini_generate_content", "endpointClass": "generate_content", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/generationConfig/thinkingConfig/thinkingBudget",
-          "value": 1024
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/generationConfig/thinkingConfig/thinkingBudget",
-          "value": 4096
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/generationConfig/thinkingConfig/thinkingBudget",
-          "value": 16384
-        }
+        {"op": "set", "intent": "low", "pointer": "/generationConfig/thinkingConfig/thinkingBudget", "value": 1024},
+        {"op": "set", "intent": "balanced", "pointer": "/generationConfig/thinkingConfig/thinkingBudget", "value": 4096},
+        {"op": "set", "intent": "deep", "pointer": "/generationConfig/thinkingConfig/thinkingBudget", "value": 16384}
       ],
       "responseParserKind": "gemini_thinking_v1",
       "continuationKind": "replay_blocks",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "gemini.thinking"
-      ],
+      "sourceRefs": ["gemini.thinking"],
       "reviewedAt": "2026-08-11"
     },
     "gemini.generate_content.reasoning.v2": {
-      "$comment": "The thinkingLevel shape (Gemini 3 and Gemma 4): the official value range is minimal/low/medium/high. off→minimal is backed by measurement (ten out of ten runs on a hard gemma-4 problem reported zero reasoning tokens); which tiers are available for a given model is decided by that model's availableIntents, and the registry never fills in a middle tier for any model.",
+      "$comment": "thinkingLevel 形态（Gemini 3 与 Gemma 4）：官方值域 minimal/low/medium/high。off→minimal 有实测依据（gemma-4 难题 10/10 思考 token 恒为 0）；哪几档可用由每个模型的 availableIntents 决定，registry 不给任何模型补中间档。",
       "id": "gemini.generate_content.reasoning.v2",
       "providerKind": "gemini",
-      "transport": {
-        "protocol": "gemini_generate_content",
-        "endpointClass": "generate_content",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "gemini_generate_content", "endpointClass": "generate_content", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/generationConfig/thinkingConfig/thinkingLevel",
-          "value": "minimal"
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/generationConfig/thinkingConfig/thinkingLevel",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/generationConfig/thinkingConfig/thinkingLevel",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/generationConfig/thinkingConfig/thinkingLevel",
-          "value": "high"
-        }
+        {"op": "set", "intent": "off", "pointer": "/generationConfig/thinkingConfig/thinkingLevel", "value": "minimal"},
+        {"op": "set", "intent": "low", "pointer": "/generationConfig/thinkingConfig/thinkingLevel", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/generationConfig/thinkingConfig/thinkingLevel", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/generationConfig/thinkingConfig/thinkingLevel", "value": "high"}
       ],
       "responseParserKind": "gemini_thinking_v1",
       "continuationKind": "replay_blocks",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "gemini.thinking"
-      ],
+      "sourceRefs": ["gemini.thinking"],
       "reviewedAt": "2026-08-11"
     },
     "gemini.interactions.reasoning.v1": {
-      "$comment": "Thinking shape of the Interactions API (generation_config.thinking_level / thinking_summaries, checked against the official interactions thinking guide on 2026-10-13). Reached only through the reasoning verdict of the gemini_interactions transport. The base op without an intent turns thinking_summaries on (the automatic tier compiles it too); off uses minimal and turns summaries off. Field for field equal to reasoning_recipe in the shared fixture gemini_interactions.request-golden.v1.json.",
+      "$comment": "Interactions API 的思考形态（generation_config.thinking_level / thinking_summaries，官方 interactions thinking 指南 2026-10-13 复核）。只由 gemini_interactions transport 的 reasoning verdict 指向，该 transport 只经 Admin TransportOverride 可达。无 intent 的基础 op 打开 thinking_summaries=auto（自动档也编译它，D-99 ②）；off 用 minimal 并关 summaries。逐字段等于共享夹具 gemini_interactions.request-golden.v1.json 的 reasoning_recipe（availableIntents 走 verdict）。Interactions 由服务端保存会话但三端不用 previous_interaction_id，故 continuationKind 为 none。2.5 系 thinking_budget 在 Interactions 上未核，不进 exact。",
       "id": "gemini.interactions.reasoning.v1",
       "providerKind": "gemini",
-      "transport": {
-        "protocol": "gemini_interactions",
-        "endpointClass": "interactions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "gemini_interactions", "endpointClass": "interactions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "pointer": "/generation_config/thinking_summaries",
-          "value": "auto"
-        },
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/generation_config/thinking_level",
-          "value": "minimal"
-        },
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/generation_config/thinking_summaries",
-          "value": "none"
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/generation_config/thinking_level",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/generation_config/thinking_level",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/generation_config/thinking_level",
-          "value": "high"
-        }
+        {"op": "set", "pointer": "/generation_config/thinking_summaries", "value": "auto"},
+        {"op": "set", "intent": "off", "pointer": "/generation_config/thinking_level", "value": "minimal"},
+        {"op": "set", "intent": "off", "pointer": "/generation_config/thinking_summaries", "value": "none"},
+        {"op": "set", "intent": "low", "pointer": "/generation_config/thinking_level", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/generation_config/thinking_level", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/generation_config/thinking_level", "value": "high"}
       ],
       "responseParserKind": "gemini_thinking_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "gemini.interactions"
-      ],
+      "sourceRefs": ["gemini.interactions"],
       "reviewedAt": "2026-10-13"
     },
     "deepseek.chat.reasoning.v1": {
-      "$comment": "The switch is thinking.type enabled/disabled (default enabled); the tier is the top-level reasoning_effort ∈ {low, high, max}, default high. medium and xhigh are not invalid — the official docs state 'For compatibility, medium and xhigh are mapped to high', so they are legal but equivalent to high, and are therefore not declared as separate tiers (that would be a fake tier), while also never being rejected as invalid or self-healed away. The mapping table is identical for v4-pro and v4-flash per the official docs ('identical for deepseek-v4-flash and deepseek-v4-pro'), with low→low as its own tier on both models. The official vocabulary has no balanced value, so this recipe declares no balanced op. Reviewed again on 2026-09-24: the thinking_mode guide now uses deepseek-flash (DeepSeek-V4.1-Flash) as its example and no longer carries the 'identical for …' sentence, but it does not split the table by model either; the switch, low/high/max and the medium/xhigh→high mapping are unchanged. The pricing page lists only deepseek-flash and deepseek-v4-pro and notes that the old name deepseek-v4-flash is still accepted and served by V4.1-Flash. The request shape of this recipe needs no change.",
+      "$comment": "2026-08-15 重抓（官方 thinking_mode 指南于 2026-08-13 随 V4-Pro GA 更新）：开关是 thinking.type enabled/disabled（默认 enabled），档位是顶层 reasoning_effort ∈ {low, high, max}，默认 high。⚠️ 两处纠正 08-11 口径：① medium/xhigh **不是非法**，官方原文 'For compatibility, medium and xhigh are mapped to high'——它们合法但等价于 high，所以不作为独立档声明（那是假档位），但也**不得当非法参数拦截或自愈剔除**。② v4-pro 与 v4-flash 的映射表**完全相同**，官方原文 'identical for deepseek-v4-flash and deepseek-v4-pro'，low→low 是独立档；08-11 写的「pro 上 low 被映射为 high」已被官方更新推翻，pro 因此补回 low 档。2026-09-24 复核（巡检 #117）：thinking_mode 页已改用 deepseek-flash（DeepSeek-V4.1-Flash）做示例，上面那句 'identical for …' 已从页面删去，但页面不再按型号分表，开关与 low/high/max、medium/xhigh→high 的映射原样保留；定价页只列 deepseek-flash 与 deepseek-v4-pro 两个主名，并写旧名 deepseek-v4-flash 仍被接受、由 V4.1-Flash 承接。本 recipe 的请求形态无需改动。官方词表里没有 balanced，故本 recipe 不设 balanced op。",
       "id": "deepseek.chat.reasoning.v1",
       "providerKind": "deepseek",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/thinking",
-          "value": {
-            "type": "disabled"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning_effort",
-          "value": "max"
-        }
+        {"op": "set", "intent": "off", "pointer": "/thinking", "value": {"type": "disabled"}},
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning_effort", "value": "max"}
       ],
       "responseParserKind": "deepseek_reasoning_v1",
       "continuationKind": "replay_reasoning",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "deepseek.thinking_mode",
-        "deepseek.chat_api"
-      ],
+      "sourceRefs": ["deepseek.thinking_mode", "deepseek.chat_api"],
       "reviewedAt": "2026-09-24"
     },
     "openrouter.chat.reasoning.v1": {
-      "$comment": "OpenRouter's /api/v1/models.reasoning is the source of truth for a given exact model's tiers. This shape uses low and max; off sends the literal value none. The selector only emits an intent when supported_efforts actually contains the corresponding value.",
+      "$comment": "2026-08-23 复核：OpenRouter /api/v1/models.reasoning 是 exact 模型档位真源。本形态用 low/max；off 精确发 none。仅在 supported_efforts 真实包含相应值时才由 selector 下发 intent。",
       "id": "openrouter.chat.reasoning.v1",
       "providerKind": "openRouter",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/reasoning/effort",
-          "value": "none"
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning/effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning/effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning/effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning/effort",
-          "value": "max"
-        }
+        {"op": "set", "intent": "off", "pointer": "/reasoning/effort", "value": "none"},
+        {"op": "set", "intent": "low", "pointer": "/reasoning/effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning/effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning/effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning/effort", "value": "max"}
       ],
       "responseParserKind": "openrouter_reasoning_v1",
       "continuationKind": "replay_reasoning",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openrouter.reasoning_tokens"
-      ],
+      "sourceRefs": ["openrouter.reasoning_tokens"],
       "reviewedAt": "2026-08-23"
     },
     "openrouter.chat.reasoning.v2": {
-      "$comment": "Used when an OpenRouter exact model's supported_efforts contains minimal but not low; the product's lower tier sends minimal exactly, and low is never faked.",
+      "$comment": "OpenRouter exact supported_efforts 含 minimal 但不含 low 时使用；产品「较少」精确发 minimal，不伪造 low。",
       "id": "openrouter.chat.reasoning.v2",
       "providerKind": "openRouter",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/reasoning/effort",
-          "value": "none"
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning/effort",
-          "value": "minimal"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning/effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning/effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning/effort",
-          "value": "max"
-        }
+        {"op": "set", "intent": "off", "pointer": "/reasoning/effort", "value": "none"},
+        {"op": "set", "intent": "low", "pointer": "/reasoning/effort", "value": "minimal"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning/effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning/effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning/effort", "value": "max"}
       ],
       "responseParserKind": "openrouter_reasoning_v1",
       "continuationKind": "replay_reasoning",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openrouter.reasoning_tokens"
-      ],
+      "sourceRefs": ["openrouter.reasoning_tokens"],
       "reviewedAt": "2026-08-23"
     },
     "openrouter.chat.reasoning.v3": {
-      "$comment": "Used when an OpenRouter exact model's supported_efforts contains xhigh but not max; the product's highest tier sends xhigh exactly, and max is never sent when the upstream never declared it.",
+      "$comment": "OpenRouter exact supported_efforts 含 xhigh 但不含 max 时使用；产品「最高」精确发 xhigh，不发一个上游未声明的 max。",
       "id": "openrouter.chat.reasoning.v3",
       "providerKind": "openRouter",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/reasoning/effort",
-          "value": "none"
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning/effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning/effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning/effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning/effort",
-          "value": "xhigh"
-        }
+        {"op": "set", "intent": "off", "pointer": "/reasoning/effort", "value": "none"},
+        {"op": "set", "intent": "low", "pointer": "/reasoning/effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning/effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning/effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning/effort", "value": "xhigh"}
       ],
       "responseParserKind": "openrouter_reasoning_v1",
       "continuationKind": "replay_reasoning",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openrouter.reasoning_tokens"
-      ],
+      "sourceRefs": ["openrouter.reasoning_tokens"],
       "reviewedAt": "2026-08-23"
     },
     "openrouter.chat.reasoning.v4": {
-      "$comment": "Used when an OpenRouter exact model's supported_efforts has only the two endpoints minimal/xhigh; both product tiers keep the upstream's own values.",
+      "$comment": "OpenRouter exact supported_efforts 同时仅有 minimal/xhigh 两个端点时使用；两个产品档位都保持上游原值。",
       "id": "openrouter.chat.reasoning.v4",
       "providerKind": "openRouter",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/reasoning/effort",
-          "value": "none"
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning/effort",
-          "value": "minimal"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning/effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning/effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning/effort",
-          "value": "xhigh"
-        }
+        {"op": "set", "intent": "off", "pointer": "/reasoning/effort", "value": "none"},
+        {"op": "set", "intent": "low", "pointer": "/reasoning/effort", "value": "minimal"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning/effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning/effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning/effort", "value": "xhigh"}
       ],
       "responseParserKind": "openrouter_reasoning_v1",
       "continuationKind": "replay_reasoning",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openrouter.reasoning_tokens"
-      ],
+      "sourceRefs": ["openrouter.reasoning_tokens"],
       "reviewedAt": "2026-08-23"
     },
     "grok.responses.reasoning.v1": {
-      "$comment": "xhigh only exists from grok-4.6 onward (the official docs note: 'On models that do not support it, such as grok-4.5, requests with xhigh are treated as high'), so max→xhigh is added and is only ever selected by an exact model that declares max (currently only grok-4.6). grok-4.3 is officially documented to also support 'none (disables reasoning completely)' and medium, four tiers in total; this revision deliberately does not add off/balanced as separate ops — doing so would require changing the legacy grok_effort_responses tier semantics and any already-shipped client's stored tier state in the same change. Declaring fewer tiers than the provider documents is deliberate, and the official fact is recorded here so it is not mistaken for an oversight. Which tiers are available is decided entirely by availableIntents; this recipe never fills in a tier for any model.",
+      "$comment": "2026-08-15 复核。xhigh 只在 grok-4.6 及以后存在（官方 TIP：'On models that do not support it, such as grok-4.5, requests with xhigh are treated as high'），故新增 max→xhigh，它只会被声明了 max 的 exact 模型（当前唯一是 grok-4.6）选中。⚠️ 官方另写 grok-4.3 还支持 'none (disables reasoning completely)' 与 medium，共四档；本 revision **刻意不补 off/balanced 两个 op**——补了就要同轮改 legacy grok_effort_responses 与已上架客户端的存量档位语义，超出 MC-P1-024（退役 slug + 缺失主力）的范围。少声明不是说谎，这条官方事实记在这里以免下次复核重新发现。哪几档可用完全由 availableIntents 决定，本 recipe 不给任何模型补档。",
       "id": "grok.responses.reasoning.v1",
       "providerKind": "grok",
-      "transport": {
-        "protocol": "openai_responses",
-        "endpointClass": "responses",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_responses", "endpointClass": "responses", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning/effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning/effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning/effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning/effort",
-          "value": "xhigh"
-        }
+        {"op": "set", "intent": "low", "pointer": "/reasoning/effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning/effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning/effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning/effort", "value": "xhigh"}
       ],
       "responseParserKind": "grok_reasoning_v1",
       "continuationKind": "previous_id",
       "continuationInstructionsMode": "omit",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "grok.reasoning",
-        "grok.models"
-      ],
+      "sourceRefs": ["grok.reasoning", "grok.models"],
       "reviewedAt": "2026-09-24"
     },
     "grok.chat.reasoning.v1": {
-      "$comment": "No exact model currently defaults to this recipe (grok's defaultTransport only ever produces openai_responses, and the search_parameters field on /chat/completions now returns 410); no model routes here by default; the recipe is kept for the case where a model's transport is explicitly set back to openai_chat. The official summary table lists grok-4.6 as 'low / medium / high (default) / xhigh' and grok-4.5 as 'low / medium / high (default)', both noted as 'cannot be disabled' — so this recipe **provides no off**; there is no such thing as turning off thinking on Chat in the official vocabulary. max→xhigh only takes effect for an exact model that declares max.",
+      "$comment": "2026-08-22 起无 exact 模型默认命中（defaultTransport 对 grok 全系只产出 openai_responses，chat/completions 的 search_parameters 已 410），本 recipe 只在 Admin Override 把某模型 transport 改回 openai_chat 时被选中，保留以覆盖该场景。2026-08-15 复核：官方 summary table 对 grok-4.6 写 'low / medium / high (default) / xhigh'、对 grok-4.5 写 'low / medium / high (default)'，两者都标注 'cannot be disabled'——所以本 recipe **不提供 off**，Chat 侧关思考在官方词表里不存在。max→xhigh 只对声明了 max 的 exact 模型生效。",
       "id": "grok.chat.reasoning.v1",
       "providerKind": "grok",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning_effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning_effort",
-          "value": "xhigh"
-        }
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning_effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning_effort", "value": "xhigh"}
       ],
       "responseParserKind": "grok_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "grok.reasoning",
-        "grok.models"
-      ],
+      "sourceRefs": ["grok.reasoning", "grok.models"],
       "reviewedAt": "2026-08-15"
     },
     "zhipu.chat.reasoning.v1": {
-      "$comment": "GLM's thinking.type is a hard on/off switch (enabled/disabled, default enabled). reasoning_effort is officially supported only on GLM-5.2 and above; glm-5.1 does not support it. GLM-5.2's valid enum has seven values — max/xhigh/high/medium/low/minimal/none. The conclusion \"do not expose reasoning_effort as a slider\" still holds, for this reason: the official docs state that on 5.2, low and medium map to high, and xhigh maps to max, so three of the seven values are compatibility aliases, and a slider built on them would show fake tiers. One more official fact worth recording: GLM-5.3 forces thinking on, and sending thinking.type=disabled is an error per the official migration notice, so 5.3 uses zhipu.chat.reasoning.v2 and must never reuse this v1's off tier.",
+      "$comment": "GLM 的 thinking.type 是硬开关（enabled/disabled，默认 enabled）。⚠️ 2026-08-15 更正 08-11 的两处事实错误：① reasoning_effort 官方是「仅 GLM-5.2 **及以上**支持」，**glm-5.1 不支持**（08-11 写的「5.1/5.2」错）；② GLM-5.2 的合法枚举是 7 个值 max/xhigh/high/medium/low/minimal/none，不是「只有 high/max 两端」（08-11 写错）。**「不做 reasoning_effort 滑杆」这个结论仍然成立，但理由换成官方原文**：官方明写 5.2 上 'low / medium 映射为 high；xhigh 映射为 max'，7 个值里 3 个是兼容别名，做成滑杆就是假档位。另记一条官方事实防止后来人踩：**GLM-5.3 强制思考，传 thinking.type=disabled 会报错**（官方迁移提示原文），所以 5.3 走 zhipu.chat.reasoning.v2，绝不能复用本 v1 的 off 档。",
       "id": "zhipu.chat.reasoning.v1",
       "providerKind": "zhipu",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/thinking",
-          "value": {
-            "type": "disabled"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/thinking",
-          "value": {
-            "type": "enabled"
-          }
-        }
+        {"op": "set", "intent": "off", "pointer": "/thinking", "value": {"type": "disabled"}},
+        {"op": "set", "intent": "balanced", "pointer": "/thinking", "value": {"type": "enabled"}}
       ],
       "responseParserKind": "zhipu_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "zhipu.thinking",
-        "zhipu.thinking_mode"
-      ],
+      "sourceRefs": ["zhipu.thinking", "zhipu.thinking_mode"],
       "reviewedAt": "2026-08-15"
     },
     "zhipu.chat.reasoning.v2": {
-      "$comment": "The official thinking page names GLM-5.3 / GLM-5.3-FLASH as forcing thinking on (thinking.type=disabled is an error); reasoning_effort only accepts three real values, max/high/low, and anything else is an error. v1's enabled/disabled switch cannot be used for 5.3. This shape always sends thinking.type=enabled, mapping tiers low→low, deep→high, max→max; it declares no off/balanced (medium returns a 400). The official default is max.",
+      "$comment": "2026-09-04：官方 thinking 页点名 GLM-5.3 / GLM-5.3-FLASH 强制思考（thinking.type=disabled 会报错），reasoning_effort 仅 max/high/low 三个真值，其余输入报错。v1 的 enabled/disabled 开关不能给 5.3 用。本形态始终发 thinking.type=enabled，档位 low→low、deep→high、max→max；不声明 off/balanced（medium 会 400）。默认官方是 max。",
       "id": "zhipu.chat.reasoning.v2",
       "providerKind": "zhipu",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/thinking",
-          "value": {
-            "type": "enabled"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/thinking",
-          "value": {
-            "type": "enabled"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/thinking",
-          "value": {
-            "type": "enabled"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning_effort",
-          "value": "max"
-        }
+        {"op": "set", "intent": "low", "pointer": "/thinking", "value": {"type": "enabled"}},
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "deep", "pointer": "/thinking", "value": {"type": "enabled"}},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/thinking", "value": {"type": "enabled"}},
+        {"op": "set", "intent": "max", "pointer": "/reasoning_effort", "value": "max"}
       ],
       "responseParserKind": "zhipu_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "zhipu.thinking",
-        "zhipu.thinking_mode"
-      ],
+      "sourceRefs": ["zhipu.thinking", "zhipu.thinking_mode"],
       "reviewedAt": "2026-09-24"
     },
     "qwen.chat.reasoning.v1": {
-      "$comment": "The official docs only guarantee the enable_thinking switch for hybrid thinking; thinking_budget's default ceiling varies by model and region, with no single set of four tiers across the board. The unsupported 1024/4096/16384/38000 automatic budgets are removed here, keeping only the two real semantics, off and on. A numeric budget can only be exposed once a typed control declares that model's constraints.",
+      "$comment": "2026-08-23 复核：官方只保证 hybrid thinking 的 enable_thinking 开关；thinking_budget 的默认上限按具体模型与区域变化，没有统一四档。这里删除未经官方支持的 1024/4096/16384/38000 自动预算，只保留关/开两种真实语义。数值预算必须等 exact 模型约束进入 typed control 后再开放。",
       "id": "qwen.chat.reasoning.v1",
       "providerKind": "qwen",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/enable_thinking",
-          "value": false
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/enable_thinking",
-          "value": true
-        }
+        {"op": "set", "intent": "off", "pointer": "/enable_thinking", "value": false},
+        {"op": "set", "intent": "balanced", "pointer": "/enable_thinking", "value": true}
       ],
       "responseParserKind": "qwen_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "qwen.deep_thinking"
-      ],
+      "sourceRefs": ["qwen.deep_thinking"],
       "reviewedAt": "2026-08-23"
     },
     "qwen.chat.reasoning.v2": {
-      "$comment": "Reviewed 2026-09-24. The reasoning_effort shape for third-party models on Model Studio. The deepseek-api page: deepseek-v4.1-flash is hybrid thinking controlled by enable_thinking (on by default) and also accepts a top-level reasoning_effort ∈ {low, high, max} (default high; minimal→low, medium/xhigh→high, ultra→max, so no balanced tier is declared). The glm page: glm-5.3 only has a thinking mode, which cannot be turned off, with the same low/high/max reasoning_effort. This recipe sends enable_thinking=false only for the off tier; every other tier sends only reasoning_effort and relies on thinking being on by default, so glm-5.3 never receives enable_thinking and has no off tier.",
+      "$comment": "2026-09-24（巡检 #117）：百炼第三方模型的 reasoning_effort 形态。deepseek-api 页：deepseek-v4.1-flash 是 enable_thinking 控制的混合思考（默认开），并接受顶层 reasoning_effort ∈ {low, high, max}（默认 high；minimal→low，medium/xhigh→high，ultra→max，所以不声明 balanced）。glm 页：glm-5.3 只有思考模式、不可关，reasoning_effort 同为 low/high/max。本 recipe 只在 off 档发 enable_thinking=false，其余档只发 reasoning_effort、依赖默认开的思考——glm-5.3 因此永远不会收到 enable_thinking，它的档位里也没有 off。",
       "id": "qwen.chat.reasoning.v2",
       "providerKind": "qwen",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/enable_thinking",
-          "value": false
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning_effort",
-          "value": "max"
-        }
+        {"op": "set", "intent": "off", "pointer": "/enable_thinking", "value": false},
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning_effort", "value": "max"}
       ],
       "responseParserKind": "qwen_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "qwen.deepseek_api",
-        "qwen.glm",
-        "qwen.deep_thinking"
-      ],
+      "sourceRefs": ["qwen.deepseek_api", "qwen.glm", "qwen.deep_thinking"],
       "reviewedAt": "2026-09-24"
     },
     "moonshot.chat.reasoning.v1": {
-      "$comment": "K3 always reasons and **must never be sent a thinking parameter** (the official migration guide says: 'When migrating from K2.x to K3, remove the K2.x thinking configuration and use top-level reasoning_effort as needed', and elsewhere: 'you do not need to (and should not) pass the thinking parameter'), so K3's availableIntents has no off, and a thinking-family op is never selected for it; K2.x only has the binary thinking.type switch and **does not support reasoning_effort**. K3's reasoning_effort officially has three tiers, low/high/max (default max); which tiers are available is still decided entirely by each model's availableIntents.",
+      "$comment": "矩阵 §5.1：K3 始终思考且**不得发送 thinking**（官方迁移指引原文 'When migrating from K2.x to K3, remove the K2.x thinking configuration and use top-level reasoning_effort as needed'，另一处写 'you do not need to (and should not) pass the thinking parameter'），所以 K3 的 availableIntents 里没有 off，thinking 系 op 永远不会被它选中；K2.x 只有 thinking.type 二值开关且**不支持 reasoning_effort**。2026-08-15 补 deep→high：官方 K3 的 reasoning_effort 是 low/high/max **三档**（默认 max），此前只声明 low/max 的依据是本仓 2026-08-07 的自测显著性（high 与 low p=0.155），按 （「能力认定只认官方文档、禁止调 API 探测」那条依据不成立，故按官方补齐。哪几档可用仍完全由每个模型的 availableIntents 决定。",
       "id": "moonshot.chat.reasoning.v1",
       "providerKind": "moonshot",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/thinking",
-          "value": {
-            "type": "disabled"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/thinking",
-          "value": {
-            "type": "enabled"
-          }
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        },
-        {
-          "op": "set",
-          "intent": "max",
-          "pointer": "/reasoning_effort",
-          "value": "max"
-        }
+        {"op": "set", "intent": "off", "pointer": "/thinking", "value": {"type": "disabled"}},
+        {"op": "set", "intent": "balanced", "pointer": "/thinking", "value": {"type": "enabled"}},
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"},
+        {"op": "set", "intent": "max", "pointer": "/reasoning_effort", "value": "max"}
       ],
       "responseParserKind": "moonshot_reasoning_v1",
       "continuationKind": "replay_reasoning",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "kimi.thinking_models",
-        "kimi.reasoning_effort"
-      ],
+      "sourceRefs": ["kimi.thinking_models", "kimi.reasoning_effort"],
       "reviewedAt": "2026-08-15"
     },
     "mistral.chat.reasoning.v1": {
-      "$comment": "The official narrative docs only spell out two tiers, none/high, so no middle tier is invented from the OpenAPI enum. The models currently adjustable are mistral-small-latest and mistral-medium-3-5. A multi-turn request must replay the complete assistant message as-is, including ordered thinking/text content blocks and tool_calls.",
+      "$comment": "2026-08-23 复核（旧 sourceIndex URL 已 308 到 /studio/…，见 BASE-021）。官方叙述文档只明确 none/high 两档，故不从 OpenAPI enum 扩造中间档。当前可调模型是 mistral-small-latest 与 mistral-medium-3-5；旧 reasoning=true 探针不是当前 reasoning_effort wire，不能继续否决。多轮必须把完整 assistant message 原样回放，包含有序 thinking/text content 块与 tool_calls。",
       "id": "mistral.chat.reasoning.v1",
       "providerKind": "mistral",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/reasoning_effort",
-          "value": "none"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        }
+        {"op": "set", "intent": "off", "pointer": "/reasoning_effort", "value": "none"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"}
       ],
       "responseParserKind": "mistral_reasoning_v1",
       "continuationKind": "replay_reasoning",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "mistral.reasoning",
-        "mistral.deprecations"
-      ],
+      "sourceRefs": ["mistral.reasoning", "mistral.deprecations"],
       "reviewedAt": "2026-08-23"
+    },
+    "mistral.chat.reasoning.v2": {
+      "$comment": "2026-10-31 官方 reasoning 页「Mistral Large 4 reasoning effort」：Mistral Large 4（mistral-large-4 / mistral-large-4-0）supports three reasoning levels low/medium/high；迁移提示写明旧 none 改用 low，故没有 off。其余与 v1 相同：多轮原样回放 thinking/text 块与 tool_calls。",
+      "id": "mistral.chat.reasoning.v2",
+      "providerKind": "mistral",
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
+      "capability": "reasoning",
+      "executionKind": "request_overlay",
+      "requestOps": [
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning_effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"}
+      ],
+      "responseParserKind": "mistral_reasoning_v1",
+      "continuationKind": "replay_reasoning",
+      "controlRefs": [],
+      "fallbackPolicy": "remove_auto_patch_once_pre_token",
+      "sourceRefs": ["mistral.reasoning"],
+      "reviewedAt": "2026-10-31"
     },
     "siliconflow.chat.reasoning.v1": {
       "id": "siliconflow.chat.reasoning.v1",
       "providerKind": "siliconFlow",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/enable_thinking",
-          "value": true
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/thinking_budget",
-          "value": 1024
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/enable_thinking",
-          "value": true
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/thinking_budget",
-          "value": 4096
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/enable_thinking",
-          "value": true
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/thinking_budget",
-          "value": 16384
-        }
+        {"op": "set", "intent": "low", "pointer": "/enable_thinking", "value": true},
+        {"op": "set", "intent": "low", "pointer": "/thinking_budget", "value": 1024},
+        {"op": "set", "intent": "balanced", "pointer": "/enable_thinking", "value": true},
+        {"op": "set", "intent": "balanced", "pointer": "/thinking_budget", "value": 4096},
+        {"op": "set", "intent": "deep", "pointer": "/enable_thinking", "value": true},
+        {"op": "set", "intent": "deep", "pointer": "/thinking_budget", "value": 16384}
       ],
       "responseParserKind": "siliconflow_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "siliconflow.chat_completions"
-      ],
+      "sourceRefs": ["siliconflow.chat_completions"],
       "reviewedAt": "2026-08-11"
     },
     "groq.chat.reasoning.v1": {
-      "$comment": "GPT-OSS uses include_reasoning and **does not support** reasoning_format (the two are mutually exclusive). The tier still goes through reasoning_effort.",
+      "$comment": "矩阵 §2：GPT-OSS 用 include_reasoning，**不支持** reasoning_format（二者互斥）。档位仍走 reasoning_effort。",
       "id": "groq.chat.reasoning.v1",
       "providerKind": "groq",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning_effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        }
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning_effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"}
       ],
       "responseParserKind": "groq_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "groq.reasoning"
-      ],
+      "sourceRefs": ["groq.reasoning"],
       "reviewedAt": "2026-09-24"
     },
     "groq.chat.reasoning.v2": {
-      "$comment": "Reviewed 2026-09-24. The parameter table on the official reasoning page: 'none and default are only supported by Qwen 3.8 27B. low, medium, and high are only supported by GPT-OSS 20B, GPT-OSS 120B, and Qwen 3.8 27B'. v1 has no off tier; this recipe adds none for qwen3.8-27b. The two official pages contradict each other on what default means (the reasoning page says no reasoning is returned, the model card says it is the thinking mode), so it is not declared.",
+      "$comment": "2026-09-24（巡检 #117）：官方 reasoning 页参数表「none and default are only supported by Qwen 3.8 27B. low, medium, and high are only supported by GPT-OSS 20B, GPT-OSS 120B, and Qwen 3.8 27B」。v1 没有 off，qwen3.8-27b 用本 recipe 补上 none。default 的语义官方两页说法矛盾（reasoning 页说不返回推理，模型卡说是思考模式），不声明。",
       "id": "groq.chat.reasoning.v2",
       "providerKind": "groq",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/reasoning_effort",
-          "value": "none"
-        },
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning_effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        }
+        {"op": "set", "intent": "off", "pointer": "/reasoning_effort", "value": "none"},
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning_effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"}
       ],
       "responseParserKind": "groq_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "groq.reasoning"
-      ],
+      "sourceRefs": ["groq.reasoning"],
       "reviewedAt": "2026-09-24"
     },
     "togetherai.chat.reasoning.v1": {
       "id": "togetherai.chat.reasoning.v1",
       "providerKind": "togetherAI",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning_effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        }
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning_effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"}
       ],
       "responseParserKind": "together_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "together.reasoning"
-      ],
+      "sourceRefs": ["together.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "togetherai.chat.reasoning.v2": {
-      "$comment": "Reviewed 2026-09-24. The Hybrid section of the official reasoning page names MiniMax M3, DeepSeek V4 Pro 0813, GLM-5.2, Kimi K3, Qwen3.6 Plus and Qwen3.5 9B as models that 'accept reasoning={enabled: True/False}'. That switch shape and GPT-OSS's reasoning_effort (v1) do not carry over to each other, so it is a recipe of its own. Reasoning comes back in reasoning_content (DeepSeek V4 Pro 0813 uses the reasoning field instead), and the generic reasoning event produces the evidence.",
+      "$comment": "2026-09-24（巡检 #117）：官方 reasoning 页 Hybrid 小节点名 MiniMax M3、DeepSeek V4 Pro 0813、GLM-5.2、Kimi K3、Qwen3.6 Plus、Qwen3.5 9B「accept reasoning={enabled: True/False}」。开关形态与 GPT-OSS 的 reasoning_effort（v1）互不通用，所以单列。推理回在 reasoning_content（DeepSeek V4 Pro 0813 例外，用 reasoning 字段），证据由通用 reasoning 事件产出。",
       "id": "togetherai.chat.reasoning.v2",
       "providerKind": "togetherAI",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "off",
-          "pointer": "/reasoning/enabled",
-          "value": false
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning/enabled",
-          "value": true
-        }
+        {"op": "set", "intent": "off", "pointer": "/reasoning/enabled", "value": false},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning/enabled", "value": true}
       ],
       "responseParserKind": "together_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "together.reasoning"
-      ],
+      "sourceRefs": ["together.reasoning"],
       "reviewedAt": "2026-09-24"
     },
     "fireworksai.chat.reasoning.v1": {
       "id": "fireworksai.chat.reasoning.v1",
       "providerKind": "fireworksAI",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "reasoning",
       "executionKind": "request_overlay",
       "requestOps": [
-        {
-          "op": "set",
-          "intent": "low",
-          "pointer": "/reasoning_effort",
-          "value": "low"
-        },
-        {
-          "op": "set",
-          "intent": "balanced",
-          "pointer": "/reasoning_effort",
-          "value": "medium"
-        },
-        {
-          "op": "set",
-          "intent": "deep",
-          "pointer": "/reasoning_effort",
-          "value": "high"
-        }
+        {"op": "set", "intent": "low", "pointer": "/reasoning_effort", "value": "low"},
+        {"op": "set", "intent": "balanced", "pointer": "/reasoning_effort", "value": "medium"},
+        {"op": "set", "intent": "deep", "pointer": "/reasoning_effort", "value": "high"}
       ],
       "responseParserKind": "fireworks_reasoning_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "fireworks.reasoning"
-      ],
+      "sourceRefs": ["fireworks.reasoning"],
       "reviewedAt": "2026-08-11"
     },
+
     "openai.responses.generation.v1": {
-      "$comment": "A generation-family recipe carries only a transport-template reference into the v1 generation table. Parameter schema, wire mapping and typed-control definitions live in the generationProfiles payload; controlDefinitions does not carry them.",
+      "$comment": "generation 系 recipe 本阶段只承载 v1 generation 表的 transport template 引用；参数 schema、wire 映射与 typed control 定义仍在 legacy payload 的 generationProfiles 里，P3 编译器接管时才拆成 controlDefinitions。",
       "id": "openai.responses.generation.v1",
       "providerKind": "openAI",
-      "transport": {
-        "protocol": "openai_responses",
-        "endpointClass": "responses",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_responses", "endpointClass": "responses", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_responses"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_responses"}],
       "responseParserKind": "openai_responses_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openai.reasoning"
-      ],
+      "sourceRefs": ["openai.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "openai.chat.generation.v1": {
       "id": "openai.chat.generation.v1",
       "providerKind": "openAI",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openai.reasoning"
-      ],
+      "sourceRefs": ["openai.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "anthropic.messages.generation.v1": {
       "id": "anthropic.messages.generation.v1",
       "providerKind": "anthropic",
-      "transport": {
-        "protocol": "anthropic_messages",
-        "endpointClass": "messages",
-        "requiredHeaders": [
-          "anthropic-version"
-        ],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "anthropic_messages", "endpointClass": "messages", "requiredHeaders": ["anthropic-version"], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "anthropic_messages"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "anthropic_messages"}],
       "responseParserKind": "anthropic_messages_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "anthropic.effort"
-      ],
+      "sourceRefs": ["anthropic.effort"],
       "reviewedAt": "2026-08-11"
     },
     "gemini.generate_content.generation.v1": {
       "id": "gemini.generate_content.generation.v1",
       "providerKind": "gemini",
-      "transport": {
-        "protocol": "gemini_generate_content",
-        "endpointClass": "generate_content",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "gemini_generate_content", "endpointClass": "generate_content", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "gemini_generate_content"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "gemini_generate_content"}],
       "responseParserKind": "gemini_generate_content_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "gemini.thinking"
-      ],
+      "sourceRefs": ["gemini.thinking"],
       "reviewedAt": "2026-08-11"
     },
     "grok.responses.generation.v1": {
       "id": "grok.responses.generation.v1",
       "providerKind": "grok",
-      "transport": {
-        "protocol": "openai_responses",
-        "endpointClass": "responses",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_responses", "endpointClass": "responses", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_responses"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_responses"}],
       "responseParserKind": "openai_responses_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "grok.reasoning"
-      ],
+      "sourceRefs": ["grok.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "grok.chat.generation.v1": {
-      "$comment": "No exact model currently defaults to this recipe (grok's defaultTransport is openai_responses across the board); it is kept only for the case where a model's transport is explicitly set back to openai_chat.",
+      "$comment": "2026-08-22 起无 exact 模型默认命中（grok 全系 defaultTransport=openai_responses），只服务 Admin Override 回切 openai_chat 的场景，保留不退役。",
       "id": "grok.chat.generation.v1",
       "providerKind": "grok",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "grok.reasoning"
-      ],
+      "sourceRefs": ["grok.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "deepseek.chat.generation.v1": {
-      "$comment": "The official docs state that when thinking is on, temperature/top_p/presence_penalty/frequency_penalty are silently ignored (no error). The conflict warning belongs to the generation owner, which should render it as a risk label rather than leaving the user to discover it on their own.",
+      "$comment": "官方明写 thinking 开启时 temperature/top_p/presence_penalty/frequency_penalty 被静默忽略（不报错）。冲突提示归 generation owner，P3/P4 要把它渲染成风险标签，不是靠用户自己发现。",
       "id": "deepseek.chat.generation.v1",
       "providerKind": "deepseek",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "deepseek.thinking_mode"
-      ],
+      "sourceRefs": ["deepseek.thinking_mode"],
       "reviewedAt": "2026-08-11"
     },
     "openrouter.chat.generation.v1": {
       "id": "openrouter.chat.generation.v1",
       "providerKind": "openRouter",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "openrouter.reasoning_tokens"
-      ],
+      "sourceRefs": ["openrouter.reasoning_tokens"],
       "reviewedAt": "2026-08-11"
     },
     "moonshot.chat.generation.v1": {
       "id": "moonshot.chat.generation.v1",
       "providerKind": "moonshot",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "kimi.thinking_models"
-      ],
+      "sourceRefs": ["kimi.thinking_models"],
       "reviewedAt": "2026-08-11"
     },
     "mistral.chat.generation.v1": {
       "id": "mistral.chat.generation.v1",
       "providerKind": "mistral",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "mistral.reasoning"
-      ],
+      "sourceRefs": ["mistral.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "qwen.chat.generation.v1": {
       "id": "qwen.chat.generation.v1",
       "providerKind": "qwen",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "qwen.deep_thinking"
-      ],
+      "sourceRefs": ["qwen.deep_thinking"],
       "reviewedAt": "2026-08-11"
     },
     "zhipu.chat.generation.v1": {
       "id": "zhipu.chat.generation.v1",
       "providerKind": "zhipu",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "zhipu.migration"
-      ],
+      "sourceRefs": ["zhipu.migration"],
       "reviewedAt": "2026-08-11"
     },
     "minimax.chat.generation.v1": {
       "id": "minimax.chat.generation.v1",
       "providerKind": "miniMax",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "minimax.text_api"
-      ],
+      "sourceRefs": ["minimax.text_api"],
       "reviewedAt": "2026-08-11"
     },
     "siliconflow.chat.generation.v1": {
       "id": "siliconflow.chat.generation.v1",
       "providerKind": "siliconFlow",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "siliconflow.chat_completions"
-      ],
+      "sourceRefs": ["siliconflow.chat_completions"],
       "reviewedAt": "2026-08-11"
     },
     "groq.chat.generation.v1": {
       "id": "groq.chat.generation.v1",
       "providerKind": "groq",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "groq.reasoning"
-      ],
+      "sourceRefs": ["groq.reasoning"],
       "reviewedAt": "2026-08-11"
     },
     "togetherai.chat.generation.v1": {
       "id": "togetherai.chat.generation.v1",
       "providerKind": "togetherAI",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "together.chat_completions"
-      ],
+      "sourceRefs": ["together.chat_completions"],
       "reviewedAt": "2026-08-11"
     },
     "fireworksai.chat.generation.v1": {
       "id": "fireworksai.chat.generation.v1",
       "providerKind": "fireworksAI",
-      "transport": {
-        "protocol": "openai_chat",
-        "endpointClass": "chat_completions",
-        "requiredHeaders": [],
-        "streaming": "optional"
-      },
+      "transport": {"protocol": "openai_chat", "endpointClass": "chat_completions", "requiredHeaders": [], "streaming": "optional"},
       "capability": "generation",
       "executionKind": "request_overlay",
-      "requestOps": [
-        {
-          "op": "legacy_generation_template",
-          "template": "openai_chat_completions"
-        }
-      ],
+      "requestOps": [{"op": "legacy_generation_template", "template": "openai_chat_completions"}],
       "responseParserKind": "openai_chat_generation_v1",
       "continuationKind": "none",
       "controlRefs": [],
       "fallbackPolicy": "remove_auto_patch_once_pre_token",
-      "sourceRefs": [
-        "fireworks.chat_completions"
-      ],
+      "sourceRefs": ["fireworks.chat_completions"],
       "reviewedAt": "2026-08-11"
     }
   }

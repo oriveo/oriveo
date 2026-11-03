@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="studio_tab_title">สร้างภาพ</string>
+    <plurals name="studio_generating_title">
+        <item quantity="other">กำลังสร้าง %1$d ภาพ</item>
+    </plurals>
+</resources>

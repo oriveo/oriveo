@@ -209,7 +209,7 @@ struct WebSearchConnectView: View {
                         Image(systemName: "arrow.up.right").font(.system(size: 12, weight: .semibold))
                     }
                     .font(.system(size: 14, weight: .medium))
-                    .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 4)
@@ -256,7 +256,7 @@ struct WebSearchConnectView: View {
                 Button(action: { openURL(url) }) {
                     Text(WebSearchCopy.format("connect.viewTerms", name))
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 }
                 .buttonStyle(.plain)
                 .disabled(phase.isTesting)

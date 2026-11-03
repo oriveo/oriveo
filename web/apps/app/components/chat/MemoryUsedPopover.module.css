@@ -34,7 +34,7 @@
   flex-direction: column;
   gap: 8px;
   white-space: normal;
-  background: color-mix(in srgb, var(--o-surface) 92%, transparent);
+  background: var(--o-surface);
   border: 1px solid var(--o-border-strong);
   border-radius: 14px;
   box-shadow: var(--o-elevation-modal);

@@ -95,8 +95,8 @@ fun VoiceEngineSheet(
                 text = stringResource(
                     when (direction) {
                         VoiceDirection.Stt -> R.string.voice_engine_sheet_title_stt
-                        VoiceDirection.Tts -> R.string.voice_engine_sheet_title_tts
-                        VoiceDirection.Realtime -> R.string.voice_realtime_engine_title
+                        // The settings page no longer has a conversation-engine group, so Realtime no longer opens the engine sheet from production entry points.
+                        VoiceDirection.Tts, VoiceDirection.Realtime -> R.string.voice_engine_sheet_title_tts
                     },
                 ),
                 style = MaterialTheme.typography.titleLarge,
@@ -355,8 +355,8 @@ fun VoiceDisclosureSheet(
                 shape = RoundedCornerShape(14.dp),
                 contentPadding = PaddingValues(vertical = 14.dp),
                 colors = ButtonDefaults.buttonColors(
-                    // A solid button carrying text uses primaryTextSafe so it does not turn too light in dark mode
-                    containerColor = OriveoTheme.colors.primaryTextSafe,
+                    // Solid button carrying text uses primaryFillText, matching iOS
+                    containerColor = OriveoTheme.colors.primaryFillText,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
                 ),
             ) {

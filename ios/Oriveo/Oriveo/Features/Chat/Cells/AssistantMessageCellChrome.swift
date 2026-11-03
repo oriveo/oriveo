@@ -272,7 +272,7 @@ extension AssistantMessageCell {
         textView.textContainerInset = .zero
         textView.textContainer.lineFragmentPadding = 0
         textView.textColor = UIColor(OriveoTheme.Palette.textPrimary)
-        textView.linkTextAttributes = [.foregroundColor: UIColor(OriveoTheme.Palette.primary)]
+        textView.linkTextAttributes = [.foregroundColor: OriveoTheme.Palette.primaryTextOnSurfaceUIColor]
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         textView.setContentHuggingPriority(.required, for: .vertical)
         textView.setContentCompressionResistancePriority(.required, for: .vertical)

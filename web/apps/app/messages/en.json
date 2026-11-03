@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "Clear",
     "generationParameterDormantRestored": "Restored {count} parameters",
     "generationPresetName": "Preset name",
-    "capabilityControlFixedByConnection": "Set by this connection",
     "capabilityControlReasonPending": "Automatic configuration is not ready yet",
     "capabilityControlReasonUnsupported": "This request is not supported for this model",
     "capabilityControlReasonExternalConnector": "Provided by a separate external service, outside this chat request",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "The hardest problems, whatever time it takes.",
     "capabilityControlReasoningFixedLevel": "This model runs at a fixed thinking level and can’t be adjusted.",
     "capabilityControlCannotAdjustYet": "Cannot adjust yet",
+    "capabilityControlGoToParameters": "Go to Parameters",
     "customRequestFieldsNotAllowed": "This field isn’t allowed. Fields this model accepts: {fields}",
     "customRequestFieldsFooter": "Fields are added to the request exactly as written. Only fields this provider officially declares are supported; mistakes can make requests fail. Drafts stay on this device.",
     "customRequestFieldsScopeConnectionModel": "Scope: this model on this connection, used as the default for its conversations.",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "Add",
     "advancedStopSequenceRemove": "Remove {sequence}",
     "advancedMore": "More",
-    "add": "Add",
-    "capabilityControlGoToParameters": "Go to Parameters"
+    "add": "Add"
   },
   "pages": {
     "welcome": {
       "title": "Welcome to Oriveo",
       "tagline": "All Your Models, One App.",
-      "slogan": "Your Keys, Your Costs, Your Data.",
       "description": "Set up your first AI provider to get started with multi-model conversations.",
       "addProvider": "Add Provider",
       "enterHome": "Continue to App"
@@ -502,7 +500,6 @@
       "stop": "Stop generating",
       "generating": "Generating",
       "activityWebSearch": "Searching the web",
-      "activityMcpTool": "Using {server} · {tool}",
       "aiAnswering": "AI is answering…",
       "export": "Export",
       "continueAnswering": "Continue Answering",
@@ -586,7 +583,9 @@
         "cacheRead": "Cache read",
         "cacheWrite": "Cache write",
         "total": "Total",
-        "unavailable": "No data"
+        "unavailable": "No data",
+        "cost": "Cost",
+        "estimated": "Estimated"
       },
       "attachedNotesTitle": "Notes brought into this chat",
       "removeNoteContext": "Remove context: {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Via Ollama Cloud",
       "modelRemovedBanner": "This chat’s model is no longer in {connection}.",
       "modelRemovedChoose": "Choose model",
+      "connectionRemovedBanner": "The connection this chat used was deleted.",
+      "modelRetiredBanner": "{model} has been retired.",
+      "modelRetiredSwitchTo": "Switch to {model}",
+      "lastUsedModelRetiredHint": "Your last model was retired. Now using {model}.",
       "copyFailed": "Copy failed",
+      "activityMcpTool": "Using {server} · {tool}",
       "contextCompaction": {
         "summaryLine1": "{count, plural, one {Condensed {count} earlier message · {before} → {after} tokens} other {Condensed {count} earlier messages · {before} → {after} tokens}}",
         "summaryLine2": "By {model} · View summary",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "It also goes past the {line} threshold for {model}, so the whole request is billed at the long-context rate.",
         "confirmDontAsk": "Don't ask again in this chat",
         "confirmSend": "Send anyway"
-      },
-      "connectionRemovedBanner": "The connection this chat used was deleted.",
-      "modelRetiredBanner": "{model} has been retired.",
-      "modelRetiredSwitchTo": "Switch to {model}",
-      "lastUsedModelRetiredHint": "Your last model was retired. Now using {model}."
+      }
     },
     "providerSetup": {
       "title": "Add Provider",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "Switch to API key",
         "disabledFallback": "ChatGPT subscription sign-in is unavailable right now. You can switch to an API key or remove this connection."
       },
-      "subscription": "Subscription",
-      "tokenPrices": {
-        "input": "Input {count}",
-        "cacheRead": "Cache read {count}",
-        "cacheWrite": "Cache write {count}",
-        "output": "Output {count}",
-        "unit": "tokens"
-      }
+      "subscription": "Subscription"
     },
     "providers": {
       "title": "Providers",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "Privacy Policy",
-      "sourceCode": "Source Code",
       "aiSection": "AI",
       "skills": "Skills",
       "backupImportExport": "Backup & Import/Export",
-      "reportIssue": "Report an Issue",
-      "documentation": "Documentation",
       "aboutTagline": "All your models. One app.",
       "context": {
         "title": "Context",
@@ -1781,7 +1771,7 @@
       "editorCategory": "Category",
       "editorTooLong": "Up to 2,000 characters",
       "deleteConfirmTitle": "Delete this memory?",
-      "deleteConfirmBody": "It will be permanently deleted from this device.",
+      "deleteConfirmBody": "It will be removed from all your devices.",
       "actionOrganize": "Split into items",
       "rawView": "Plain text",
       "rawViewHint": "Put a line with only --- between entries.",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "Provider Error",
       "message": "The provider returned an error for this request. Please retry or switch models."
+    },
+    "emptyReply": {
+      "title": "Empty Provider Response",
+      "message": "The provider returned no assistant content for this message."
     },
     "moderationBlocked": {
       "title": "Content Blocked",
@@ -2060,14 +2054,11 @@
     "title": "Skills",
     "mySkills": "My Skills",
     "builtinSkills": "Built-in Skills",
-    "pinned": "Pinned",
     "newSkill": "New Skill",
     "editSkill": "Edit Skill",
     "deleteSkill": "Delete Skill",
     "forkSkill": "Copy as My Skill",
-    "useSkill": "Use",
-    "pinToHome": "Pin to Home",
-    "unpinFromHome": "Unpin from Home",
+    "useSkill": "Use this Skill",
     "instructions": "Prompt",
     "instructionsPlaceholder": "e.g. You are a senior code reviewer. Review code for security, performance, and readability. Reply in the user's language.",
     "starterMessages": "Conversation Starters",
@@ -2117,7 +2108,7 @@
     "knowledgeCtaSecondaryLater": "Not now",
     "knowledgeCtaSecondaryContinue": "Continue editing Skill",
     "knowledgeEmptyHint": "No knowledge base files yet",
-    "knowledgeRetryUnavailable": "Retry is only available for files added in this editing session.",
+    "knowledgeRetryUnavailable": "Retry isn't available for this file on this device.",
     "replaceKnowledgeFile": "Replace",
     "retryKnowledgeFile": "Retry",
     "deleteKnowledgeFile": "Delete",
@@ -2132,22 +2123,206 @@
     "knowledgeStatusDeleting": "Deleting",
     "knowledgeStatusDisabled": "Unavailable",
     "openai_not_configured": "Skill knowledge requires an official OpenAI API key.",
-    "openai_endpoint_not_official": "Skill knowledge only works with the official OpenAI endpoint.",
+    "openai_endpoint_not_official": "Knowledge Base requires the official OpenAI endpoint.",
     "retrieval_model_not_enabled": "Add and enable {model} in your OpenAI provider first.",
-    "knowledge_service_unavailable": "Skill knowledge is temporarily unavailable. You can still edit and save this Skill.",
-    "unsupported_file_type": "This file type isn't supported for the knowledge base.",
+    "knowledge_service_unavailable": "Knowledge Base is unavailable right now.",
+    "unsupported_file_type": "This file type isn't supported for Knowledge Base.",
     "reference_file_too_large": "Reference files must be 3 MB or smaller.",
-    "knowledge_file_too_large": "Knowledge base files must be 20 MB or smaller.",
-    "knowledge_total_size_exceeded": "A Skill can have up to 5 knowledge base files and 100 MB total.",
+    "knowledge_file_too_large": "Knowledge Base files must be 20 MB or smaller.",
+    "knowledge_total_size_exceeded": "A Skill can have up to 5 Knowledge Base files and 100 MB total.",
     "knowledge_extract_failed": "Failed to extract text from this file.",
-    "knowledge_upload_failed": "Failed to upload this knowledge file.",
-    "knowledge_index_failed": "Failed to index this knowledge file.",
+    "knowledge_upload_failed": "Failed to upload this Knowledge Base file.",
+    "knowledge_index_failed": "Failed to index this Knowledge Base file.",
     "knowledge_retrieve_failed": "Knowledge retrieval failed for this message.",
-    "knowledge_cleanup_failed": "Failed to clean up the remote knowledge file. Try again later.",
+    "knowledge_cleanup_failed": "Failed to clean up the remote Knowledge Base file. Try again later.",
     "providerRequiredTitle": "Add provider to use this Skill",
     "providerRequiredMessage": "This Skill needs an available AI provider before it can start a conversation.",
     "providerRequiredAction": "Add Provider",
-    "promptCancel": "Not now"
+    "promptCancel": "Not now",
+    "home": {
+      "autoCount": "Auto · {count}",
+      "slashHint": "Type / to use",
+      "empty": "Save how you like it done",
+      "notesRecent": "Recently edited"
+    },
+    "list": {
+      "subtitle": "Save how you like things done. AI uses it when it fits."
+    },
+    "create": {
+      "describePlaceholder": "Describe a routine and AI will write it",
+      "fromChat": "From a chat",
+      "manual": "Create manually"
+    },
+    "segment": {
+      "mine": "Mine",
+      "templates": "Templates"
+    },
+    "group": {
+      "auto": "Automatic",
+      "manual": "Manual only"
+    },
+    "card": {
+      "usageCount": "Uses: {count}"
+    },
+    "row": {
+      "slashHint": "Used when you type {slash}"
+    },
+    "auto": {
+      "needWhenTitle": "First, say when to use it",
+      "suggest": "Suggest",
+      "limitReached": "Automatic use is at its limit ({count}). Turn one off first."
+    },
+    "search": {
+      "placeholder": "Search skills"
+    },
+    "empty": {
+      "title": "No skills yet",
+      "body": "Save the way you like things done, so you don't have to explain it every time.",
+      "browseTemplates": "Browse templates"
+    },
+    "migrate": {
+      "banner": "Skills without “When to use”: {count}. Add a line and they can run automatically.",
+      "review": "Review"
+    },
+    "templates": {
+      "note": "Templates are used automatically only after you add them to Mine.",
+      "featured": "Featured",
+      "addToMine": "Add to Mine",
+      "add": "Add",
+      "added": "Added",
+      "tryOnce": "Try it once"
+    },
+    "detail": {
+      "useInNewChat": "Use in new chat",
+      "orSlash": "Or type {slash} in the message box",
+      "usage": "Uses: {count} · Last used {time}",
+      "neverUsed": "Not used yet",
+      "autoInvoke": "Use automatically",
+      "whenToUse": "When to use",
+      "whenToUseNote": "AI uses this to decide",
+      "instructions": "Instructions",
+      "showAll": "Show all",
+      "references": "Reference files",
+      "starters": "Conversation starters",
+      "recentChats": "Recent chats",
+      "try": "Try it"
+    },
+    "edit": {
+      "changeIcon": "Change icon",
+      "name": "Name",
+      "whenBadge": "Controls automatic use",
+      "whenPlaceholder": "e.g. When I ask to turn notes into a weekly report. Not for daily updates.",
+      "keywordsCaption": "Matches on these · describing the situation is enough",
+      "whenTip": "Say what it does, when to use it, and how you usually ask. Add “Not for …” to avoid wrong matches. Words in quotes are highlighted.",
+      "polish": "Polish with AI",
+      "addStarter": "Add starter",
+      "modelAndFeatures": "Model and features",
+      "followChat": "Same as chat",
+      "needWhenForAuto": "Add “When to use”, or turn off automatic use."
+    },
+    "draft": {
+      "askScenarios": "Give one or two situations where you'd use it",
+      "askQuality": "What does a good result look like?",
+      "skip": "Skip",
+      "generating": "Writing a draft…",
+      "title": "Draft",
+      "editFirst": "Edit first",
+      "suggestedIcon": "Suggested icon",
+      "failed": "Couldn't finish the draft. What we have is filled in for you."
+    },
+    "fromChat": {
+      "menuConversation": "Save as skill",
+      "menuMessage": "Save this approach as a skill",
+      "messages": "Messages: {count}",
+      "extracting": "Pulling it together…"
+    },
+    "limit": {
+      "upgrade": "Upgrade for more",
+      "draftKept": "Your draft is kept on this device."
+    },
+    "composer": {
+      "placeholder": "Type / to use a skill"
+    },
+    "picker": {
+      "title": "My skills",
+      "multi": "Pick several",
+      "auto": "Auto",
+      "manual": "Manual",
+      "manage": "Manage skills",
+      "maxReached": "Up to {count} at a time"
+    },
+    "chip": {
+      "deleted": "Deleted"
+    },
+    "message": {
+      "attached": "Using {names}"
+    },
+    "used": {
+      "chip": "Used: {names}",
+      "loading": "Using {names}…",
+      "byChoice": "Used because you chose it",
+      "why": "Why it was used",
+      "disableHere": "Don't use automatically in this chat",
+      "view": "View skill"
+    },
+    "settings": {
+      "autoToggle": "Use skills automatically",
+      "autoToggleFooter": "When off, the model won't pick skills on its own. You can still type / to use one."
+    },
+    "try": {
+      "banner": "Trying it out · Not saved to history",
+      "saveToSkill": "Save to skill",
+      "adjust": "Edit instructions",
+      "saved": "Saved to “{name}”",
+      "savedToDraft": "Copied to the editor. Save there to keep it."
+    },
+    "improve": {
+      "prompt": "Add this to “{name}”?",
+      "review": "Review change",
+      "accept": "Add to skill",
+      "dismiss": "Not now",
+      "addedLine": "Added",
+      "removedLine": "Removed",
+      "saved": "Added to “{name}”"
+    },
+    "usage": {
+      "manifestRow": "Skill list overhead"
+    },
+    "glyph": {
+      "writing": "Writing",
+      "report": "Report",
+      "code": "Code",
+      "study": "Study",
+      "travel": "Travel",
+      "health": "Health",
+      "meeting": "Meeting",
+      "idea": "Idea",
+      "translate": "Translation",
+      "email": "Email",
+      "data": "Data",
+      "design": "Design",
+      "legal": "Legal",
+      "finance": "Finance",
+      "marketing": "Marketing",
+      "support": "Support",
+      "teaching": "Teaching",
+      "research": "Research",
+      "life": "Everyday life",
+      "food": "Food",
+      "music": "Music",
+      "photo": "Photography",
+      "product": "Product",
+      "general": "General"
+    },
+    "capability": {
+      "title": "Model Preference",
+      "any": "Any",
+      "reasoning": "Reasoning",
+      "vision": "Vision",
+      "fast": "Fast",
+      "largeContext": "Large Context"
+    },
+    "saveFailed": "Couldn't save changes. Please try again."
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2636,8 +2811,7 @@
       "stepLimit": "Too many or too long documents for one research. Deselect a few and try again.",
       "notConnected": "Connect a Library source before starting research.",
       "sourceForbidden": "The source denied access due to a permission or policy restriction. Reconnecting won't fix this — check the sharing or compliance settings on the source itself.",
-      "unavailable": "Library is temporarily unavailable. Try again later.",
-      "retry": "Try again"
+      "unavailable": "Library is temporarily unavailable. Try again later."
     }
   },
   "notes": {

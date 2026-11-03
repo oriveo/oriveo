@@ -399,7 +399,7 @@
   align-items: center;
   justify-content: space-between;
   padding: var(--o-space-sm) var(--o-space-md);
-  background: var(--o-surface-raised, var(--o-surface));
+  background: var(--o-fill-muted, var(--o-surface));
   border: 1px solid var(--o-border);
   border-radius: var(--o-radius-md);
 }

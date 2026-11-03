@@ -170,7 +170,7 @@ struct RelayManualSetupQuickSetupButton: View {
                 label(.reducedSingleLine)
                 label(.reducedWrapped)
             }
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .frame(minWidth: 44, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }

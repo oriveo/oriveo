@@ -8,6 +8,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.test.performClick
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.AIModel
@@ -20,14 +23,19 @@ import ai.oriveo.community.core.voice.DictationEngineInfo
 import ai.oriveo.community.core.voice.DictationState
 import ai.oriveo.community.core.voice.DictationSubmit
 import ai.oriveo.community.feature.chat.composer.DictationHostActions
+import ai.oriveo.community.feature.chat.composer.DICTATION_GLOW_TAG
+import ai.oriveo.community.feature.chat.composer.DictationGlowCornerRadiusKey
 import ai.oriveo.community.feature.chat.composer.DictationHostCoordinator
 import ai.oriveo.community.feature.chat.composer.DictationToastSpec
+import ai.oriveo.community.feature.chat.voice.RealtimeVoiceDockKeyboardTag
+import ai.oriveo.community.feature.chat.voice.RealtimeVoiceDockOrbTag
 import ai.oriveo.community.feature.home.HomeViewModel
 import ai.oriveo.community.ui.theme.OriveoTheme
 import java.io.File
 import kotlin.math.abs
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -161,6 +169,100 @@ class NewChatBarVoiceEntryTest {
         assertTrue("voice key (right ${voice.right}) must sit left of send (left ${send.left})", voice.right <= send.left)
         // The voice key tap target sits 10dp from the up arrow (the 1dp tolerance only absorbs pixel rounding)
         assertTrue("voice key to send gap ${send.left - voice.right} must be 10dp", abs((send.left - voice.right).value - 10f) < 1f)
+    }
+
+    @Test
+    fun `recording into the home slot rings the hero card with the glow border at corner 26, idle shows none`() {
+        val commands = IdleCommands()
+        val handle = DictationHostCoordinator("draft:home", commands, NoopActions())
+        render(activeModel(ModelCapability.Text), dictation = handle) { "" }
+        composeRule.onNodeWithTag(DICTATION_GLOW_TAG, useUnmergedTree = true).assertDoesNotExist()
+
+        composeRule.runOnIdle { commands.state.value = DictationState.Recording("draft:home", startedAt = 0L) }
+        composeRule.waitForIdle()
+        val glow = composeRule.onNodeWithTag(DICTATION_GLOW_TAG, useUnmergedTree = true).fetchSemanticsNode()
+        val radius = glow.config.getOrElseNullable(DictationGlowCornerRadiusKey) { null }
+        assertNotNull("glow border must carry its corner radius", radius)
+        assertEquals(26.dp, radius)
+        assertEquals(26.dp, HOME_HERO_CORNER_RADIUS)
+    }
+
+    private class RealtimeBar {
+        var model by mutableStateOf<HomeViewModel.ActiveModel?>(null)
+        var hasProvider by mutableStateOf(false)
+        var preparing by mutableStateOf(true)
+        var stored by mutableStateOf<Pair<String, String>?>("provider-1" to "gpt-realtime")
+    }
+
+    private fun renderRealtime(bar: RealtimeBar): ComponentActivity {
+        val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        activity.setContent {
+            OriveoTheme(darkTheme = false) {
+                NewChatBar(
+                    activeModel = bar.model,
+                    hasProvider = bar.hasProvider,
+                    isDark = false,
+                    heroText = "",
+                    onHeroTextChange = {},
+                    isSendingFromHero = false,
+                    isSearchActive = false,
+                    onSend = {},
+                    onModelSelect = {},
+                    onAddProvider = {},
+                    onStartVoiceConversation = {},
+                    realtimeSelected = true,
+                    realtimePreparing = bar.preparing,
+                    realtimeStoredSelection = bar.stored,
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        return activity
+    }
+
+    /**
+     * While preparing, the pill shows the stored model id directly (no "add provider" flash). After
+     * switching to typing, the catalog arriving for the same selection does not bounce back to the voice dock.
+     * Mirrors the iOS test.
+     */
+    @Test
+    fun typingStaysWhenCatalogArrivesForSameSelection() {
+        val bar = RealtimeBar()
+        val activity = renderRealtime(bar)
+        composeRule.onNodeWithText("gpt-realtime").assertExists()
+        composeRule.onNodeWithText(activity.getString(R.string.add_provider)).assertDoesNotExist()
+
+        composeRule.onNodeWithTag(RealtimeVoiceDockKeyboardTag).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(RealtimeVoiceDockOrbTag).assertDoesNotExist()
+
+        // List and catalog arrived: activeModel goes from absent to present; the store selection did not change.
+        composeRule.runOnIdle {
+            bar.model = activeModel(ModelCapability.Text, id = "gpt-realtime")
+            bar.hasProvider = true
+            bar.preparing = false
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(RealtimeVoiceDockOrbTag).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(activity.getString(R.string.send)).assertExists()
+    }
+
+    @Test
+    fun typingResetsWhenStoredSelectionChanges() {
+        val bar = RealtimeBar().apply {
+            model = activeModel(ModelCapability.Text, id = "gpt-realtime")
+            hasProvider = true
+            preparing = false
+        }
+        renderRealtime(bar)
+        composeRule.onNodeWithTag(RealtimeVoiceDockKeyboardTag).performClick()
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(RealtimeVoiceDockOrbTag).assertDoesNotExist()
+
+        // The stored selection really changed: back to the voice dock.
+        composeRule.runOnIdle { bar.stored = "provider-1" to "gpt-realtime-mini" }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(RealtimeVoiceDockOrbTag).assertExists()
     }
 
     private class IdleCommands : DictationCommands {

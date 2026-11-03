@@ -6,9 +6,12 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.CapabilityEvidenceFacade
 import ai.oriveo.community.core.provider.RelayRuntimeSupport
+import ai.oriveo.community.core.voice.realtime.RealtimeModel
 
 /** What the composer's main button shows: stop while generating, up arrow with content, waveform key on an empty draft. */
-internal enum class ComposerActionMode { Stop, Send, Voice, Idle }
+/** [BackToStage]: a realtime voice model in typing mode, the waveform slot becomes the orb that returns to the voice stage. */
+/** [Loading]: the voice catalog has not arrived yet and the session model may be a realtime one. */
+internal enum class ComposerActionMode { Stop, Send, Voice, BackToStage, Idle, Loading }
 
 /** Home hero bottom row: the up arrow is always the primary key; the waveform key is a secondary key left of it, only on an empty draft. */
 internal data class HomeComposerActions(val sendEnabled: Boolean, val showsVoice: Boolean)
@@ -17,9 +20,18 @@ internal object ComposerVoiceEntry {
     /** The waveform key ignores taps for this long after stop turned back into the waveform key. */
     const val REARM_MILLIS = 500L
 
-    fun mode(isGenerating: Boolean, hasContent: Boolean, voiceAvailable: Boolean): ComposerActionMode = when {
+    fun mode(
+        isGenerating: Boolean,
+        hasContent: Boolean,
+        voiceAvailable: Boolean,
+        backToStage: Boolean = false,
+        awaitingCatalog: Boolean = false,
+    ): ComposerActionMode = when {
         isGenerating -> ComposerActionMode.Stop
+        awaitingCatalog -> ComposerActionMode.Loading
         hasContent -> ComposerActionMode.Send
+        offersVoice(isBusy = false, hasContent = false, voiceAvailable = voiceAvailable) && backToStage ->
+            ComposerActionMode.BackToStage
         offersVoice(isBusy = false, hasContent = false, voiceAvailable = voiceAvailable) -> ComposerActionMode.Voice
         else -> ComposerActionMode.Idle
     }
@@ -56,6 +68,16 @@ internal object ComposerVoiceEntry {
         if (model == null || providerKind == null) return false
         return !isImageOnly(model, imageGenRoute(model.id, providerKind))
     }
+
+    /**
+     * Typing mode with a realtime voice model ([RealtimeModel.capability] voiceEntry = backToStage): the ≋ slot
+     * returns to the voice stage instead of starting a cascade conversation. Text models keep ≋.
+     */
+    fun backToStage(isRealtime: Boolean): Boolean =
+        RealtimeModel.capability(
+            if (isRealtime) RealtimeModel.MODEL_KIND_REALTIME else RealtimeModel.MODEL_KIND_TEXT,
+            RealtimeModel.MODE_TYPING,
+        ).voiceEntry == "backToStage"
 
     /** imageGen route of the server catalog entry (same lookup as ChatRepository's send path). */
     fun imageGenRoute(modelId: String, providerKind: ProviderKind): String? =

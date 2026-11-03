@@ -47,6 +47,8 @@ final class AppStateRealtimeTranscriptSink: RealtimeConversationSink {
     private(set) var sessionID = UUID().uuidString
     /// Ids of messages already persisted in this session (sessionID): excluded when replanning so the session's own transcript does not change the fingerprint.
     private(set) var sessionMessageIDs: Set<UUID> = []
+    /// IDs of messages persisted during this call (including across reopens); not cleared on reopen. The list's temporary bubble uses it to tell whether a persisted row is already in the list.
+    private(set) var callMessageIDs: Set<UUID> = []
 
     init(
         conversationID: UUID?,
@@ -163,6 +165,7 @@ final class AppStateRealtimeTranscriptSink: RealtimeConversationSink {
         lastCreatedAt = createdAt
         let message = Self.message(role: role, text: text, attribution: attribution, createdAt: createdAt)
         sessionMessageIDs.insert(message.id)
+        callMessageIDs.insert(message.id)
         if emptyCreatedConversationID == conversationID { emptyCreatedConversationID = nil }
         RealtimeVoiceLog.logger.info(
             "persist write role=\(String(describing: role), privacy: .public) id=\(message.id.uuidString, privacy: .public) text=\(RealtimeVoiceLog.text(text), privacy: .public)"

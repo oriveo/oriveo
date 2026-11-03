@@ -62,6 +62,20 @@ data class UsageBreakdown(
         get() = cacheCreation1hTokens.takeIf { cacheWriteObserved || it > 0 }
 }
 
+/**
+ * Cost source tag, written to [ai.oriveo.community.core.model.ChatMessage.costSource] and used by
+ * Usage Insights / provider detail UI to tell "upstream-metered vs locally estimated vs price unknown".
+ *
+ * iOS / Web use camelCase rawValues:
+ *   - `UPSTREAM` ↔ "upstream"
+ *   - `LOCAL_ESTIMATE` ↔ "localEstimate"
+ *   - `UNKNOWN` ↔ "unknown"
+ *   - `SUBSCRIPTION` ↔ "subscription"
+ *   - `MANAGED` ↔ "managed"
+ *
+ * Android Entity / Domain store the enum name directly (PascalCase); SyncAdapter
+ * converts the format when syncing across platforms. Local queries and tests use [name] only.
+ */
 enum class CostSource {
     UPSTREAM,
     LOCAL_ESTIMATE,
@@ -79,4 +93,10 @@ enum class CostSource {
      * always better than showing a fabricated number.
      */
     SUBSCRIPTION,
+
+    /**
+     * Hosted message billed by the server: the recorded amount is the
+     * server charge, not a client estimate.
+     */
+    MANAGED,
 }

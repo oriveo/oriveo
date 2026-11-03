@@ -1,0 +1,36 @@
+{
+  "meta": {
+    "route": "xai_images",
+    "provider": "grok",
+    "op": "generate",
+    "http": 200,
+    "seconds": 8.3,
+    "captured_at": "2026-10-28T01:13:55.748Z",
+    "endpoint": "https://api.x.ai/v1/images/generations"
+  },
+  "observed": {
+    "shapes": [
+      "data[].b64_json"
+    ],
+    "images": [
+      {
+        "mime": "image/jpeg",
+        "width": 1248,
+        "height": 832,
+        "bytes": 261212,
+        "host": null
+      }
+    ]
+  },
+  "response": {
+    "data": [
+      {
+        "b64_json": "<base64 bytes=261212 sha256=bcb8b19040558120>",
+        "mime_type": "image/jpeg"
+      }
+    ],
+    "usage": {
+      "cost_in_usd_ticks": 200000000
+    }
+  }
+}

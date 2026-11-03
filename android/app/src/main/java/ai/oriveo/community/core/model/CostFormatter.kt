@@ -2,7 +2,10 @@ package ai.oriveo.community.core.model
 
 import ai.oriveo.community.core.usage.CostPart
 import ai.oriveo.community.core.usage.CostParts
+import ai.oriveo.community.core.voice.appUiLocale
+import java.math.BigDecimal
 import java.math.RoundingMode
+import java.text.DecimalFormat
 import java.text.NumberFormat
 import java.util.Currency
 import java.util.Locale
@@ -33,15 +36,58 @@ object CostFormatter {
         else -> 2
     }
 
-    fun format(value: Double): String {
+    fun format(value: Double, locale: Locale = appUiLocale()): String {
         if (!value.isFinite() || value <= COST_EPSILON) return ""
-        return "${"$"}%.${fractionDigits(value)}f".format(Locale.US, value)
+        val digits = fractionDigits(value)
+        return usd(value, minFraction = digits, maxFraction = digits, locale = locale)
     }
+
+    /**
+     * Shared USD renderer for every USD site: the platform currency format of [locale] with the symbol
+     * forced to "$" (never US$ / $US / USD), grouping on, Latin digits for Arabic. Fraction digits and
+     * rounding stay with each caller. The value is rounded from its shortest decimal form, matching the
+     * previous `%.nf` behavior.
+     */
+    fun usd(
+        value: Double,
+        minFraction: Int,
+        maxFraction: Int,
+        locale: Locale = appUiLocale(),
+        roundingMode: RoundingMode = RoundingMode.HALF_UP,
+    ): String {
+        val format = usdFormats.getOrPut(UsdFormatKey(locale, minFraction, maxFraction, roundingMode)) {
+            NumberFormat.getCurrencyInstance(latinDigitsLocale(locale)).apply {
+                currency = Currency.getInstance(CostParts.USD)
+                if (this is DecimalFormat) {
+                    decimalFormatSymbols = decimalFormatSymbols.apply { currencySymbol = "$" }
+                }
+                isGroupingUsed = true
+                minimumFractionDigits = minFraction
+                maximumFractionDigits = maxFraction
+                this.roundingMode = roundingMode
+            }
+        }
+        val amount = if (value.isFinite()) BigDecimal.valueOf(value) else return ""
+        // NumberFormat is not thread-safe: lock on the cached instance while formatting
+        return synchronized(format) { format.format(amount) }
+    }
+
+    private data class UsdFormatKey(val locale: Locale, val min: Int, val max: Int, val rounding: RoundingMode)
+
+    private val usdFormats = ConcurrentHashMap<UsdFormatKey, NumberFormat>()
+
+    /** Arabic always renders Latin digits, overriding any numbering system the locale pins (e.g. nu-arab). */
+    internal fun latinDigitsLocale(locale: Locale): Locale =
+        if (locale.language == "ar" && locale.getUnicodeLocaleType("nu") != "latn") {
+            Locale.Builder().setLocale(locale).setUnicodeLocaleKeyword("nu", "latn").build()
+        } else {
+            locale
+        }
 
     /** One currency part: USD goes through [format]; other currencies use the currency format and standard symbol of [locale], with no conversion. */
     fun formatPart(part: CostPart, locale: Locale): String {
         val code = CostParts.normalizeCode(part.currencyCode)
-        if (code == CostParts.USD) return format(part.amount)
+        if (code == CostParts.USD) return format(part.amount, locale)
         val amount = part.amount
         if (!amount.isFinite() || amount <= COST_EPSILON) return ""
         val digits = fractionDigits(amount)

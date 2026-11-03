@@ -65,6 +65,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
+import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeTint
@@ -186,8 +187,8 @@ fun LiquidGlassTabBar(
         if (!dragging) lensCenter.animateTo(liquidGlassItemCenterX(clampedSelected).value, slideSpec)
     }
 
-    val surface = OriveoTheme.colors.surface
-    val palette = remember(isDark, surface) { liquidGlassPalette(isDark, surface) }
+    val themeColors = OriveoTheme.colors
+    val palette = remember(isDark, themeColors) { liquidGlassPalette(isDark, themeColors) }
 
     Box(
         modifier = modifier
@@ -425,11 +426,21 @@ private data class LiquidGlassPalette(
     val shadowColor: Color,
 )
 
-/** [surface] = the current palette surface: the non-blurred dark fill follows the palette (95% opaque). */
-private fun liquidGlassPalette(isDark: Boolean, surface: Color): LiquidGlassPalette = if (isDark) {
+/**
+ * Fill used when blur is unavailable. Dark follows the palette surface at 95%; light is the iOS
+ * measured glass composite flattened onto `backgroundBase` so scrolled text does not show through.
+ */
+internal fun liquidGlassFallbackFill(isDark: Boolean, colors: OriveoColors): Color =
+    lightOpaqueContainerColor(
+        color = if (isDark) colors.surface.copy(alpha = 0.95f) else Color(0xF7FDFBFF),
+        isDark = isDark,
+        colors = colors,
+    )
+
+private fun liquidGlassPalette(isDark: Boolean, colors: OriveoColors): LiquidGlassPalette = if (isDark) {
     LiquidGlassPalette(
         glassTint = HazeTint(Color.White.copy(alpha = 0.06f), BlendMode.SrcOver),
-        fallbackFill = surface.copy(alpha = 0.95f),
+        fallbackFill = liquidGlassFallbackFill(isDark = true, colors = colors),
         rimTop = Color.White.copy(alpha = 0.16f),
         rimBottom = Color.White.copy(alpha = 0.06f),
         lensFill = Color.White.copy(alpha = 0.15f),
@@ -440,7 +451,7 @@ private fun liquidGlassPalette(isDark: Boolean, surface: Color): LiquidGlassPale
 } else {
     LiquidGlassPalette(
         glassTint = HazeTint(Color.White.copy(alpha = 0.65f), BlendMode.SrcOver),
-        fallbackFill = Color(0xF7FDFBFF),
+        fallbackFill = liquidGlassFallbackFill(isDark = false, colors = colors),
         rimTop = Color.White.copy(alpha = 0.9f),
         rimBottom = Color.White.copy(alpha = 0.5f),
         lensFill = Color.Black.copy(alpha = 0.07f),

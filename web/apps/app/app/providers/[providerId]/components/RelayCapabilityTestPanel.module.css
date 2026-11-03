@@ -134,7 +134,7 @@
   padding: 4px 16px;
   list-style: none;
   border-radius: var(--o-radius-modal);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
 }
 
 .row {
@@ -164,7 +164,7 @@
 }
 
 .row[data-icon='running'] .rowIcon {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   animation: spin 1s linear infinite;
 }
 
@@ -215,7 +215,7 @@
 }
 
 .row[data-icon='running'] .rowTrailing {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .footer {

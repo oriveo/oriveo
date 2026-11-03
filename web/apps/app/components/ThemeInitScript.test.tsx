@@ -331,6 +331,6 @@ describe('custom palette rendering and first frame', () => {
     expect(rootVar('--o-primary-text')).toBe(lightJson['dark-ocean'].onPrimary);
     expect(rootVar('--o-bg')).toBe(THEME_COLOR_LIGHT.toUpperCase());
     applyDarkPalette('dark');
-    expect(rootVar('--o-primary')).toBe('#8B5CF6');
+    expect(rootVar('--o-primary')).toBe(lightJson['dark'].ink);
   });
 });

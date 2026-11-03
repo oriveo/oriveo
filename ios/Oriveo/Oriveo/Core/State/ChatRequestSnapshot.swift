@@ -112,7 +112,8 @@ nonisolated struct ChatRequestSnapshot: Sendable {
     let messages: [ChatMessage]
     let preferences: ChatRequestPreferencesSnapshot
     let skill: ChatRequestSkillSnapshot?
-    let retrievedSnippets: [ChatRequestRetrievedSnippet]
+    private(set) var retrievedSnippets: [ChatRequestRetrievedSnippet]
+    /// Pinned-note content snapshot, filled in on the MainActor side after NoteManager resolves it; injected before Memory.
     private(set) var pinnedNotes: [ChatRequestPinnedNoteSnapshot]
     let sendPath: ChatRequestSendPath
     /// The tone envelope of this turn's reply: a turn sent from a voice conversation is `.voice`, shared by every leg of the turn; nil = a normal send, and assembly is byte-for-byte unchanged.
@@ -153,21 +154,28 @@ nonisolated struct ChatRequestSnapshot: Sendable {
         return snapshot
     }
 
-    func withPinnedNotes(_ notes: [ChatRequestPinnedNoteSnapshot]) -> ChatRequestSnapshot {
-        var snapshot = self
-        snapshot.pinnedNotes = notes
-        return snapshot
-    }
-
     func withWeb(_ content: String?) -> ChatRequestSnapshot {
         var snapshot = self
         snapshot.web = content
         return snapshot
     }
 
+    func withRetrievedSnippets(_ snippets: [ChatRequestRetrievedSnippet]) -> ChatRequestSnapshot {
+        var snapshot = self
+        snapshot.retrievedSnippets = snippets
+        return snapshot
+    }
+
     func withRecall(_ entries: [ContextRecallEntry]) -> ChatRequestSnapshot {
         var snapshot = self
         snapshot.recall = entries
+        return snapshot
+    }
+
+    /// Pinned notes read back in the background are filled in here (home live-conversation opening: the conversation does not exist yet, so pinned notes are only resolved read-only and never submitted).
+    func withPinnedNotes(_ notes: [ChatRequestPinnedNoteSnapshot]) -> ChatRequestSnapshot {
+        var snapshot = self
+        snapshot.pinnedNotes = notes
         return snapshot
     }
 

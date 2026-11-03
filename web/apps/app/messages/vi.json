@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "Xóa",
     "generationParameterDormantRestored": "Đã khôi phục {count} tham số",
     "generationPresetName": "Tên preset",
-    "capabilityControlFixedByConnection": "Do kết nối này đặt",
     "capabilityControlReasonPending": "Cấu hình tự động chưa sẵn sàng",
     "capabilityControlReasonUnsupported": "Mô hình này không hỗ trợ yêu cầu này",
     "capabilityControlReasonExternalConnector": "Do một dịch vụ bên ngoài riêng biệt cung cấp, ngoài yêu cầu trò chuyện này",
@@ -166,7 +165,7 @@
     "currentConversation": "Cuộc trò chuyện hiện tại",
     "restoreModelBehavior": "Khôi phục mặc định",
     "restoreModelBehaviorConfirm": "Thao tác này xóa mọi giá trị bạn đã đặt cho mô hình này. Không thể hoàn tác.",
-    "modelBehaviorScopeHint": "Chỉ áp dụng khi dùng mô hình này trong cuộc trò chuyện này. Giá trị không được sao chép khi đổi mô hình và sẽ được khôi phục khi quay lại.",
+    "modelBehaviorScopeHint": "Chỉ áp dụng khi mô hình này được dùng trong cuộc trò chuyện này. Đổi mô hình không sao chép giá trị; quay lại sẽ khôi phục chúng.",
     "controlledByReasoningShortcut": "Được điều khiển bởi lối tắt Suy nghĩ",
     "customRequestFieldsCustom": "Trường yêu cầu tùy chỉnh",
     "customRequestFieldsReasonSyntax": "Hãy kiểm tra rằng đoạn này là đối tượng JSON hợp lệ, không có khóa trùng.",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "Bài toán khó nhất, bất kể thời gian.",
     "capabilityControlReasoningFixedLevel": "Mô hình này chạy ở mức suy nghĩ cố định, không thể điều chỉnh.",
     "capabilityControlCannotAdjustYet": "Chưa thể điều chỉnh",
+    "capabilityControlGoToParameters": "Đến tham số",
     "customRequestFieldsNotAllowed": "Trường này không được phép. Các trường mô hình chấp nhận: {fields}",
     "customRequestFieldsFooter": "Các trường được thêm vào yêu cầu đúng như bạn viết. Chỉ hỗ trợ các trường nhà cung cấp khai báo chính thức; sai sót có thể làm yêu cầu thất bại. Bản nháp chỉ lưu trên thiết bị này.",
     "customRequestFieldsScopeConnectionModel": "Phạm vi: mô hình này trên kết nối này, làm mặc định cho các cuộc trò chuyện.",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "Thêm",
     "advancedStopSequenceRemove": "Xóa {sequence}",
     "advancedMore": "Thêm",
-    "add": "Thêm vào",
-    "capabilityControlGoToParameters": "Đến tham số"
+    "add": "Thêm vào"
   },
   "pages": {
     "welcome": {
       "title": "Chào mừng đến với Oriveo",
       "tagline": "Tất cả mô hình của bạn, một ứng dụng.",
-      "slogan": "Khóa API của bạn, chi phí của bạn, dữ liệu của bạn.",
       "description": "Thiết lập nhà cung cấp AI đầu tiên của bạn để bắt đầu cuộc trò chuyện đa mô hình.",
       "addProvider": "Thêm nhà cung cấp",
       "enterHome": "Vào ứng dụng"
@@ -502,7 +500,6 @@
       "stop": "Dừng tạo",
       "generating": "Đang tạo",
       "activityWebSearch": "Đang tìm kiếm trên web",
-      "activityMcpTool": "Đang dùng {server} · {tool}",
       "aiAnswering": "AI đang trả lời…",
       "export": "Xuất cuộc trò chuyện này",
       "continueAnswering": "Tiếp tục trả lời",
@@ -586,7 +583,9 @@
         "cacheRead": "Đọc cache",
         "cacheWrite": "Ghi cache",
         "total": "Tổng",
-        "unavailable": "Chưa có"
+        "unavailable": "Chưa có",
+        "cost": "Chi phí",
+        "estimated": "Ước tính"
       },
       "attachedNotesTitle": "Ghi chú đã đưa vào cuộc trò chuyện này",
       "removeNoteContext": "Xóa ngữ cảnh: {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Qua Ollama Cloud",
       "modelRemovedBanner": "Mô hình của cuộc trò chuyện này không còn trong {connection}.",
       "modelRemovedChoose": "Chọn mô hình",
+      "connectionRemovedBanner": "Kết nối mà cuộc trò chuyện này dùng đã bị xóa.",
+      "modelRetiredBanner": "{model} đã ngừng cung cấp.",
+      "modelRetiredSwitchTo": "Chuyển sang {model}",
+      "lastUsedModelRetiredHint": "Mô hình bạn dùng lần trước đã ngừng cung cấp. Hiện đang dùng {model}.",
       "copyFailed": "Sao chép thất bại",
+      "activityMcpTool": "Đang dùng {server} · {tool}",
       "contextCompaction": {
         "summaryLine1": "{count, plural, other {Đã rút gọn {count} tin nhắn trước đó · {before} → {after} token}}",
         "summaryLine2": "Bởi {model} · Xem bản tóm tắt",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "Yêu cầu này còn vượt ngưỡng tăng giá {line} của {model}, nên cả yêu cầu bị tính theo giá ngữ cảnh dài.",
         "confirmDontAsk": "Không hỏi lại trong cuộc trò chuyện này",
         "confirmSend": "Vẫn gửi"
-      },
-      "connectionRemovedBanner": "Kết nối mà cuộc trò chuyện này dùng đã bị xóa.",
-      "modelRetiredBanner": "{model} đã ngừng cung cấp.",
-      "modelRetiredSwitchTo": "Chuyển sang {model}",
-      "lastUsedModelRetiredHint": "Mô hình bạn dùng lần trước đã ngừng cung cấp. Hiện đang dùng {model}."
+      }
     },
     "providerSetup": {
       "title": "Thêm nhà cung cấp",
@@ -1118,7 +1118,7 @@
       "confirmDeleteTitle": "Xóa \"{name}\"?",
       "confirmDeleteDesc": "Kết nối này và khóa của nó, các model đã bật và thư viện model, cùng các tham số hành vi model đã lưu sẽ bị xóa. Cuộc trò chuyện của bạn không bị xóa. Tin nhắn cũ được giữ lại; model đã dùng sẽ được đánh dấu là không khả dụng.",
       "editName": "Chỉnh sửa tên",
-      "saveName": "Cứu",
+      "saveName": "Lưu",
       "privacyNote": "URL yêu cầu trong mạng nội bộ kết nối trực tiếp từ thiết bị này. URL yêu cầu công khai được chuyển qua máy chủ Oriveo để vượt qua giới hạn CORS của trình duyệt — API Key của bạn chỉ nằm trong bộ nhớ cho yêu cầu đó, không bao giờ được lưu trữ hay ghi log. Cả hai trường hợp đều yêu cầu HTTPS.",
       "testRelay": "Kiểm tra kết nối",
       "testingRelay": "Đang kiểm tra…",
@@ -1428,7 +1428,7 @@
       "saveKey": "Lưu khóa",
       "baseURL": "URL yêu cầu",
       "editBaseURL": "Chỉnh sửa URL cơ sở",
-      "saveBaseURL": "Cứu",
+      "saveBaseURL": "Lưu",
       "defaultURL": "Mặc định",
       "usage": "Thống kê sử dụng",
       "totalConversations": "Cuộc trò chuyện",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "Chuyển sang khóa API",
         "disabledFallback": "Đăng nhập bằng gói đăng ký ChatGPT hiện không dùng được. Bạn có thể chuyển sang khóa API hoặc xóa kết nối này."
       },
-      "subscription": "Gói đăng ký",
-      "tokenPrices": {
-        "input": "Đầu vào {count}",
-        "cacheRead": "Đọc cache {count}",
-        "cacheWrite": "Ghi cache {count}",
-        "output": "Đầu ra {count}",
-        "unit": "token"
-      }
+      "subscription": "Gói đăng ký"
     },
     "providers": {
       "title": "Nhà cung cấp",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "Đi vào",
       "privacyPolicy": "Chính sách bảo mật",
-      "sourceCode": "Mã nguồn",
       "aiSection": "AI",
       "skills": "Kỹ năng",
       "backupImportExport": "Sao lưu & Nhập/Xuất",
-      "reportIssue": "Báo lỗi",
-      "documentation": "Tài liệu",
       "aboutTagline": "Tất cả các mô hình của bạn. Một ứng dụng.",
       "context": {
         "title": "Ngữ cảnh",
@@ -1781,7 +1771,7 @@
       "editorCategory": "Danh mục",
       "editorTooLong": "Tối đa 2.000 ký tự",
       "deleteConfirmTitle": "Xóa mục bộ nhớ này?",
-      "deleteConfirmBody": "Mục này sẽ bị xóa vĩnh viễn khỏi thiết bị này.",
+      "deleteConfirmBody": "Mục này sẽ bị xóa trên mọi thiết bị của bạn.",
       "actionOrganize": "Tách thành các mục",
       "rawView": "Văn bản thường",
       "rawViewHint": "Ngăn cách các mục bằng một dòng chỉ có ---.",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "Lỗi nhà cung cấp",
       "message": "Nhà cung cấp đã trả lại lỗi cho yêu cầu này. Vui lòng thử lại hoặc chuyển đổi mô hình."
+    },
+    "emptyReply": {
+      "title": "Phản hồi của nhà cung cấp trống",
+      "message": "Nhà cung cấp không trả lại nội dung trợ lý nào cho tin nhắn này."
     },
     "moderationBlocked": {
       "title": "Nội dung bị chặn",
@@ -2060,14 +2054,11 @@
     "title": "Kỹ năng",
     "mySkills": "Kỹ năng của tôi",
     "builtinSkills": "Kỹ năng tích hợp",
-    "pinned": "Đã ghim",
     "newSkill": "Kỹ năng mới",
     "editSkill": "Chỉnh sửa kỹ năng",
     "deleteSkill": "Xóa kỹ năng",
     "forkSkill": "Sao chép dưới dạng kỹ năng của tôi",
-    "useSkill": "Sử dụng",
-    "pinToHome": "Ghim vào Trang chủ",
-    "unpinFromHome": "Bỏ ghim khỏi Trang chủ",
+    "useSkill": "Sử dụng kỹ năng này",
     "instructions": "Lời nhắc",
     "instructionsPlaceholder": "ví dụ. Bạn là người đánh giá mã cấp cao. Xem lại mã về tính bảo mật, hiệu suất và khả năng đọc. Trả lời bằng ngôn ngữ của người dùng.",
     "starterMessages": "Người bắt đầu cuộc trò chuyện",
@@ -2076,7 +2067,7 @@
     "referenceFiles": "Tài liệu tham khảo",
     "tipInstructions": "Viết hướng dẫn xác định cách AI hoạt động - tính cách, chuyên môn và phong cách phản ứng của nó. Chỉ AI mới thấy điều này, người dùng thì không.",
     "knowledgeSectionTitle": "Kiến thức",
-    "tipReferenceFiles": "AI đọc toàn bộ các tệp này mỗi khi trả lời — giống như ghi chú luôn mở sẵn trên bàn. Phù hợp nhất cho tài liệu ngắn và quan trọng (hướng dẫn phong cách, bảng thuật ngữ, quy tắc chính). Tệp càng lớn thì chi phí mỗi lần trả lời càng cao.",
+    "tipReferenceFiles": "AI đọc toàn bộ các tệp này mỗi lần trả lời — như ghi chú luôn mở trên bàn làm việc. Phù hợp nhất cho tài liệu ngắn, quan trọng (hướng dẫn phong cách, bảng thuật ngữ, quy tắc chính). Tệp lớn hơn sẽ tăng chi phí phản hồi.",
     "noReferenceFiles": "Chưa có tài liệu tham khảo",
     "addFile": "Thêm tập tin",
     "filesQuota": "{count} / {max}",
@@ -2086,7 +2077,7 @@
     "description": "Sự miêu tả",
     "descriptionPlaceholder": "Mô tả ngắn gọn về chức năng của Kỹ năng này",
     "color": "Màu sắc",
-    "save": "Cứu",
+    "save": "Lưu",
     "saving": "Đang lưu...",
     "newChat": "Trò chuyện mới",
     "allSkills": "Tất cả kỹ năng",
@@ -2103,7 +2094,7 @@
     "fileReadError": "Không đọc được tập tin",
     "knowledgeBaseFiles": "Tệp cơ sở tri thức",
     "tipKnowledgeBaseFiles": "AI tìm kiếm trong các tệp này và chỉ đọc những phần liên quan đến câu hỏi của bạn — giống như tra cứu trong sách thay vì đọc cả cuốn. Phù hợp nhất cho tài liệu dài hoặc nhiều tệp. Yêu cầu OpenAI API Key.",
-    "knowledgeReadyHint": "Các tệp vừa tải lên có thể mất vài phút để được lập chỉ mục trước khi có thể dùng trong cuộc trò chuyện. Nội dung đã lập chỉ mục chỉ được chèn vào khi liên quan đến tin nhắn hiện tại.",
+    "knowledgeReadyHint": "Tệp mới tải lên có thể mất vài phút để lập chỉ mục trước khi dùng được trong cuộc trò chuyện. Nội dung đã lập chỉ mục chỉ được chèn khi liên quan đến tin nhắn hiện tại.",
     "knowledgeCtaOpenAIRequired": "Cơ sở kiến thức kỹ năng yêu cầu khóa OpenAI chính thức. Bạn vẫn có thể lưu Kỹ năng nhưng chưa thể thêm tệp cơ sở kiến thức.",
     "knowledgeCtaOpenRouterOnly": "Chúng tôi phát hiện thấy bạn đang sử dụng OpenRouter. Cơ sở Kiến thức Kỹ năng chỉ hỗ trợ API OpenAI chính thức chứ không hỗ trợ OpenRouter.",
     "knowledgeCtaEndpointNotOfficial": "Cấu hình OpenAI của bạn không sử dụng điểm cuối chính thức, vì vậy Cơ sở Kiến thức Kỹ năng không khả dụng. Vui lòng chuyển sang điểm cuối OpenAI chính thức.",
@@ -2117,11 +2108,11 @@
     "knowledgeCtaSecondaryLater": "Không phải bây giờ",
     "knowledgeCtaSecondaryContinue": "Tiếp tục chỉnh sửa Kỹ năng",
     "knowledgeEmptyHint": "Chưa có tệp cơ sở tri thức nào",
-    "knowledgeRetryUnavailable": "Chỉ có thể thử lại với các tệp được thêm trong phiên chỉnh sửa hiện tại.",
+    "knowledgeRetryUnavailable": "Không thể thử lại cho tệp này trên thiết bị này.",
     "replaceKnowledgeFile": "Thay thế",
     "retryKnowledgeFile": "Thử lại",
     "deleteKnowledgeFile": "Xóa",
-    "addKnowledgeFile": "Thêm tệp cơ sở tri thức",
+    "addKnowledgeFile": "Thêm tệp kiến thức",
     "referenceFileChars": "{count} ký tự",
     "knowledgeStatusExtracting": "Đang trích xuất",
     "knowledgeStatusUploading": "Đang tải lên",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "Cơ sở tri thức yêu cầu khóa API OpenAI chính thức.",
     "openai_endpoint_not_official": "Cơ sở tri thức chỉ hoạt động với endpoint OpenAI chính thức.",
     "retrieval_model_not_enabled": "Trước tiên hãy thêm và bật {model} trong nhà cung cấp OpenAI của bạn.",
-    "knowledge_service_unavailable": "Cơ sở tri thức tạm thời không khả dụng. Bạn vẫn có thể chỉnh sửa và lưu Skill này.",
+    "knowledge_service_unavailable": "Cơ sở tri thức hiện không khả dụng.",
     "unsupported_file_type": "Loại tệp này không được hỗ trợ cho cơ sở tri thức.",
     "reference_file_too_large": "Tệp tham chiếu phải có kích thước từ 3 MB trở xuống.",
     "knowledge_file_too_large": "Tệp cơ sở tri thức phải có kích thước từ 20 MB trở xuống.",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "Thêm nhà cung cấp để dùng Kỹ năng này",
     "providerRequiredMessage": "Kỹ năng này cần một nhà cung cấp AI khả dụng trước khi bắt đầu trò chuyện.",
     "providerRequiredAction": "Thêm nhà cung cấp",
-    "promptCancel": "Để sau"
+    "promptCancel": "Để sau",
+    "home": {
+      "autoCount": "Tự động · {count}",
+      "slashHint": "Gõ / để dùng",
+      "empty": "Lưu lại cách bạn thích làm",
+      "notesRecent": "Chỉnh sửa gần đây"
+    },
+    "list": {
+      "subtitle": "Lưu lại cách làm bạn muốn, AI sẽ tự dùng khi phù hợp."
+    },
+    "create": {
+      "describePlaceholder": "Mô tả cách làm, AI sẽ viết thành kỹ năng",
+      "fromChat": "Từ cuộc trò chuyện",
+      "manual": "Tạo thủ công"
+    },
+    "segment": {
+      "mine": "Của tôi",
+      "templates": "Mẫu"
+    },
+    "group": {
+      "auto": "Tự động",
+      "manual": "Chỉ thủ công"
+    },
+    "card": {
+      "usageCount": "Lượt dùng: {count}"
+    },
+    "row": {
+      "slashHint": "Dùng khi bạn gõ {slash}"
+    },
+    "auto": {
+      "needWhenTitle": "Trước hết, hãy cho biết khi nào dùng",
+      "suggest": "Gợi ý",
+      "limitReached": "Đã đạt giới hạn tự động dùng ({count}). Hãy tắt bớt một kỹ năng trước."
+    },
+    "search": {
+      "placeholder": "Tìm kỹ năng"
+    },
+    "empty": {
+      "title": "Chưa có kỹ năng nào",
+      "body": "Lưu lại cách làm quen thuộc để không phải giải thích lại mỗi lần.",
+      "browseTemplates": "Xem mẫu"
+    },
+    "migrate": {
+      "banner": "Kỹ năng chưa có “Khi nào dùng”: {count}. Thêm một câu để chúng có thể được dùng tự động.",
+      "review": "Bổ sung lần lượt"
+    },
+    "templates": {
+      "note": "Mẫu chỉ được dùng tự động sau khi bạn thêm vào “Của tôi”.",
+      "featured": "Nổi bật",
+      "addToMine": "Thêm vào kỹ năng của tôi",
+      "add": "Thêm",
+      "added": "Đã thêm",
+      "tryOnce": "Dùng thử một lần"
+    },
+    "detail": {
+      "useInNewChat": "Dùng trong cuộc trò chuyện mới",
+      "orSlash": "Hoặc gõ {slash} vào ô tin nhắn",
+      "usage": "Lượt dùng: {count} · Lần cuối {time}",
+      "neverUsed": "Chưa dùng lần nào",
+      "autoInvoke": "Tự động dùng",
+      "whenToUse": "Khi nào dùng",
+      "whenToUseNote": "AI dựa vào đây để quyết định",
+      "instructions": "Cách làm",
+      "showAll": "Xem tất cả",
+      "references": "Tài liệu tham khảo",
+      "starters": "Câu mở đầu",
+      "recentChats": "Cuộc trò chuyện gần đây",
+      "try": "Dùng thử"
+    },
+    "edit": {
+      "changeIcon": "Đổi biểu tượng",
+      "name": "Tên",
+      "whenBadge": "Quyết định việc tự động dùng",
+      "whenPlaceholder": "VD: Khi tôi nhờ gom ghi chú thành báo cáo tuần. Không dùng cho báo cáo ngày.",
+      "keywordsCaption": "Các từ này sẽ kích hoạt · chỉ cần mô tả tình huống",
+      "whenTip": "Ghi rõ kỹ năng làm gì, khi nào dùng và bạn thường hỏi thế nào. Thêm “Không dùng cho …” để tránh dùng nhầm. Từ đặt trong dấu ngoặc kép sẽ được tô sáng.",
+      "polish": "Trau chuốt bằng AI",
+      "addStarter": "Thêm câu mở đầu",
+      "modelAndFeatures": "Mô hình và tính năng",
+      "followChat": "Theo cuộc trò chuyện",
+      "needWhenForAuto": "Hãy điền “Khi nào dùng” hoặc tắt tự động dùng."
+    },
+    "draft": {
+      "askScenarios": "Kể một hai tình huống bạn sẽ dùng nó",
+      "askQuality": "Thế nào là một kết quả tốt?",
+      "skip": "Bỏ qua",
+      "generating": "Đang viết bản nháp…",
+      "title": "Bản nháp",
+      "editFirst": "Sửa trước",
+      "suggestedIcon": "Biểu tượng gợi ý",
+      "failed": "Chưa tạo xong bản nháp. Phần dùng được đã được điền sẵn cho bạn."
+    },
+    "fromChat": {
+      "menuConversation": "Lưu thành kỹ năng",
+      "menuMessage": "Lưu cách làm này thành kỹ năng",
+      "messages": "Tin nhắn: {count}",
+      "extracting": "Đang tổng hợp…"
+    },
+    "limit": {
+      "upgrade": "Nâng cấp để có thêm",
+      "draftKept": "Bản nháp vẫn được giữ trên thiết bị này."
+    },
+    "composer": {
+      "placeholder": "Gõ / để dùng kỹ năng"
+    },
+    "picker": {
+      "title": "Kỹ năng của tôi",
+      "multi": "Có thể chọn nhiều",
+      "auto": "Tự động",
+      "manual": "Thủ công",
+      "manage": "Quản lý kỹ năng",
+      "maxReached": "Tối đa {count} cùng lúc"
+    },
+    "chip": {
+      "deleted": "Đã xóa"
+    },
+    "message": {
+      "attached": "Đã kèm: {names}"
+    },
+    "used": {
+      "chip": "Đã dùng: {names}",
+      "loading": "Đang dùng {names}…",
+      "byChoice": "Được dùng vì bạn đã chọn",
+      "why": "Vì sao được dùng",
+      "disableHere": "Không tự động dùng trong cuộc trò chuyện này",
+      "view": "Xem kỹ năng"
+    },
+    "settings": {
+      "autoToggle": "Tự động dùng kỹ năng",
+      "autoToggleFooter": "Khi tắt, mô hình sẽ không tự chọn kỹ năng. Bạn vẫn có thể gõ / để dùng."
+    },
+    "try": {
+      "banner": "Đang dùng thử · Không lưu vào lịch sử",
+      "saveToSkill": "Lưu vào kỹ năng",
+      "adjust": "Chỉnh cách làm",
+      "saved": "Đã lưu vào “{name}”",
+      "savedToDraft": "Đã chép vào trang chỉnh sửa. Hãy lưu ở đó để giữ thay đổi."
+    },
+    "improve": {
+      "prompt": "Thêm yêu cầu này vào “{name}”?",
+      "review": "Xem thay đổi",
+      "accept": "Thêm vào kỹ năng",
+      "dismiss": "Để sau",
+      "addedLine": "Đã thêm",
+      "removedLine": "Đã xóa",
+      "saved": "Đã thêm vào “{name}”"
+    },
+    "usage": {
+      "manifestRow": "Token cho danh sách kỹ năng"
+    },
+    "glyph": {
+      "writing": "Viết lách",
+      "report": "Báo cáo",
+      "code": "Mã nguồn",
+      "study": "Học tập",
+      "travel": "Du lịch",
+      "health": "Sức khỏe",
+      "meeting": "Cuộc họp",
+      "idea": "Ý tưởng",
+      "translate": "Dịch thuật",
+      "email": "Email",
+      "data": "Dữ liệu",
+      "design": "Thiết kế",
+      "legal": "Pháp lý",
+      "finance": "Tài chính",
+      "marketing": "Tiếp thị",
+      "support": "Hỗ trợ",
+      "teaching": "Giảng dạy",
+      "research": "Nghiên cứu",
+      "life": "Đời sống",
+      "food": "Ẩm thực",
+      "music": "Âm nhạc",
+      "photo": "Nhiếp ảnh",
+      "product": "Sản phẩm",
+      "general": "Chung"
+    },
+    "capability": {
+      "title": "Ưu tiên mô hình",
+      "any": "Bất kì",
+      "reasoning": "Lý luận",
+      "vision": "Tầm nhìn",
+      "fast": "Nhanh",
+      "largeContext": "Bối cảnh lớn"
+    },
+    "saveFailed": "Không thể lưu thay đổi. Vui lòng thử lại."
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2636,8 +2811,7 @@
       "stepLimit": "Bạn đã chọn quá nhiều hoặc quá dài tài liệu cho một lượt nghiên cứu. Hãy bỏ chọn bớt rồi thử lại.",
       "notConnected": "Hãy kết nối một nguồn Thư viện trước khi nghiên cứu.",
       "sourceForbidden": "Nguồn đã từ chối quyền truy cập do hạn chế về quyền hoặc chính sách. Kết nối lại sẽ không khắc phục được điều này — hãy kiểm tra cài đặt chia sẻ hoặc tuân thủ tại chính nguồn đó.",
-      "unavailable": "Thư viện tạm thời không khả dụng. Hãy thử lại sau.",
-      "retry": "Thử lại"
+      "unavailable": "Thư viện tạm thời không khả dụng. Hãy thử lại sau."
     }
   },
   "notes": {

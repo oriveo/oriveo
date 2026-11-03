@@ -243,7 +243,21 @@ struct McpUiRig {
         )
     }
 
-    func cleanUp() { database.cleanUp() }
+    func cleanUp() { database.cleanUp(after: directory) }
+}
+
+extension McpTestDatabase {
+    /// Deletes the temporary database only after the directory's background endpoint relocations
+    /// (`McpServerDirectory.store(for:)`) have landed, so no write hits an unlinked file (SQLITE_IOERR_VNODE).
+    /// Callable from `defer`: the deletion is queued behind the wait on the main actor.
+    @MainActor
+    func cleanUp(after directory: McpServerDirectory) {
+        let database = self
+        Task { @MainActor in
+            await directory.waitForPendingRelocations()
+            database.cleanUp()
+        }
+    }
 }
 
 /// Actually renders production views. PNGs are exported for visual comparison when `ORIVEO_MCP_SNAPSHOT_DIR` is set.

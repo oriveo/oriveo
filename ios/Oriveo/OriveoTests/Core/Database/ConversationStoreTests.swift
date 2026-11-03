@@ -37,6 +37,8 @@ struct ConversationStoreTests {
         let harness = try TestHarness()
         defer { harness.cleanup() }
         let (store, continuation) = try harness.makeStoreWithContinuationSweep()
+        // The sidecar pool lives under the harness root; close it before harness.cleanup() removes that directory.
+        defer { try? continuation.dbPoolForTesting.close() }
 
         let first = TestFactories.makeMessage(role: .assistant, text: "first")
         let second = TestFactories.makeMessage(role: .assistant, text: "second")
@@ -70,6 +72,8 @@ struct ConversationStoreTests {
         let conversation = TestFactories.makeConversation(messages: [message])
         try harness.store.upsertConversation(conversation)
         let continuation = try harness.makeContinuationStore()
+        // The sidecar pool lives under the harness root; close it before harness.cleanup() removes that directory.
+        defer { try? continuation.dbPoolForTesting.close() }
         #expect(try harness.dbPool.read { db in try db.tableExists("message_recipe_continuation") } == false,
                 "primary conversation database must not retain opaque continuation state")
         let localOnlyDirectory = harness.rootURL.appendingPathComponent("LocalOnly", isDirectory: true)
@@ -123,6 +127,8 @@ struct ConversationStoreTests {
         let harness = try TestHarness()
         defer { harness.cleanup() }
         let continuation = try harness.makeContinuationStore()
+        // The sidecar pool lives under the harness root; close it before harness.cleanup() removes that directory.
+        defer { try? continuation.dbPoolForTesting.close() }
         for _ in 0..<1_001 {
             try continuation.save(
                 messageID: UUID(), kind: "previous_id",
@@ -142,6 +148,8 @@ struct ConversationStoreTests {
         let message = TestFactories.makeMessage(role: .assistant, text: "partial")
         try harness.store.upsertConversation(TestFactories.makeConversation(messages: [message]))
         let continuation = try harness.makeContinuationStore()
+        // The sidecar pool lives under the harness root; close it before harness.cleanup() removes that directory.
+        defer { try? continuation.dbPoolForTesting.close() }
         try continuation.save(
             messageID: message.id, kind: "previous_id",
             state: ["previousResponseId": .string("old")]
@@ -357,6 +365,8 @@ struct ConversationStoreTests {
             path: rootURL.appendingPathComponent(DatabaseSchema.fileName).path,
             configuration: DatabaseSchema.makeConfiguration()
         )
+        // Close before the deferred directory removal above runs (defers are LIFO), so SQLite never sees its files unlinked.
+        defer { try? dbPool.close() }
         let migrator = DatabaseSchema.makeMigrator(attachmentFileStore: fileStore)
         try migrator.migrate(dbPool, upTo: "v8_add_pinned_notes")
 
@@ -579,6 +589,8 @@ struct ConversationStoreTests {
             path: rootURL.appendingPathComponent(DatabaseSchema.fileName).path,
             configuration: DatabaseSchema.makeConfiguration()
         )
+        // Close before the deferred directory removal above runs (defers are LIFO), so SQLite never sees its files unlinked.
+        defer { try? dbPool.close() }
         let migrator = DatabaseSchema.makeMigrator(
             attachmentFileStore: AttachmentFileStore(rootDirectory: rootURL)
         )
@@ -1216,7 +1228,7 @@ struct ConversationStoreTests {
         let uid = "\(prefix)-\(UUID().uuidString)"
         defer {
             harness.cleanup()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
         let store = ConversationStore(
             dbPool: harness.dbPool,

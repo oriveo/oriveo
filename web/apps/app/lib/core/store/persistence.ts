@@ -149,7 +149,7 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
         theme: 'dark',
         themeSetByUser: false,
         language: 'system',
-        sendShortcut: 'cmdEnter',
+        sendShortcut: 'enter',
       },
       expectedUID,
     );

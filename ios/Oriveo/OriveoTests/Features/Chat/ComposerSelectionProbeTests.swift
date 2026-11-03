@@ -230,12 +230,163 @@ struct ComposerSelectionProbeTests {
         #expect(box.notices == 2)
     }
 
-    @Test("end to end: real controller + host binding, the text view is replaced while recording, and after finish(.insert) the draft is inserted at the cached selection")
-    func dictation_afterTextViewReleased_insertsAtCachedSelection() async throws {
+    // MARK: Live text
+
+    /// Observation of one live-text write plus retract: the original text and selection after the write and after the retract.
+    private struct LiveTrace: Equatable {
+        let written: String?
+        let writtenRange: NSRange
+        let restored: String?
+        let restoredRange: NSRange
+    }
+
+    private static let liveSnapshot = DictationRules.livePartial(finals: ["Big"], partial: "wor")
+
+    /// Text view mounted: select `display` on the display string, then start, write a snapshot, retract.
+    private func attachedLiveTrace(text: String, display: NSRange) -> (LiveTrace, NSRange, ComposerUITextView, UIWindow) {
+        let box = Box()
+        box.text = text
+        let probe = ComposerSelectionProbe()
+        let (textView, coordinator, window) = makeView(box: box, probe: probe)
+        select(display, in: textView, coordinator)
+        let source = probe.range
+        let written = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: "ignored")
+        #expect(written.map { SoftParagraphBreaks.source(fromDisplay: textView.textStorage.string) == $0 } ?? false)
+        let writtenRange = probe.range
+        let restored = probe.restoreLive()
+        return (LiveTrace(written: written, writtenRange: writtenRange, restored: restored, restoredRange: probe.range),
+                source, textView, window)
+    }
+
+    /// Text view not mounted: cached selection `source`; start from the original text the host gave, write a snapshot, retract.
+    private func detachedLiveTrace(text: String, source: NSRange) -> LiveTrace {
+        let probe = ComposerSelectionProbe()
+        probe.update(range: source)
+        let written = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: text)
+        let writtenRange = probe.range
+        let restored = probe.restoreLive()
+        return LiveTrace(written: written, writtenRange: writtenRange, restored: restored, restoredRange: probe.range)
+    }
+
+    @Test("live-text write / retract: recomputed from the original text and selection at the start; mounted and unmounted text view give the same result")
+    func liveWriteAndRestore_sameAttachedOrDetached() {
+        let (attached, source, textView, window) = attachedLiveTrace(text: "Hello world", display: NSRange(location: 2, length: 3))
+        defer { window.isHidden = true }
+        let detached = detachedLiveTrace(text: "Hello world", source: source)
+
+        let expected = DictationRules.liveInsert(
+            finals: ["Big"], partial: "wor", into: "Hello world", selectionStart: 2, selectionEnd: 5
+        )
+        #expect(attached == detached)
+        #expect(attached.written == expected.text)
+        #expect(attached.writtenRange == NSRange(location: expected.cursor, length: 0))
+        #expect(attached.restored == "Hello world")
+        #expect(attached.restoredRange == NSRange(location: 2, length: 3))
+        #expect(textView.textStorage.string == "Hello world")
+        #expect(textView.selectedRange == NSRange(location: 2, length: 3))
+    }
+
+    @Test("soft-wrapped long text: live text lands at original-text offsets; mounted and unmounted give the same result")
+    func liveWriteAndRestore_softBreaks_sameAttachedOrDetached() throws {
+        let text = Self.chinese(utf16: 6_000)
+        let (attached, source, textView, window) = attachedLiveTrace(text: text, display: NSRange(location: 4_500, length: 0))
+        defer { window.isHidden = true }
+        try #require(source.location < 4_500, "the selection should land after the soft wrap")
+        let detached = detachedLiveTrace(text: text, source: source)
+
+        let expected = DictationRules.liveInsert(
+            finals: ["Big"], partial: "wor", into: text, selectionStart: source.location, selectionEnd: source.location
+        )
+        #expect(attached == detached)
+        #expect(attached.written == expected.text)
+        #expect(attached.restored == text)
+        #expect(attached.restoredRange == source)
+        #expect(SoftParagraphBreaks.source(fromDisplay: textView.textStorage.string) == text)
+    }
+
+    @Test("finalize: after retracting the live text, insert at the selection from the start; the caret lands after the finalized text")
+    func liveRestoreThenInsert_cursorAfterFinal() {
         let box = Box()
         box.text = "Hello world"
         let probe = ComposerSelectionProbe()
-        try attachSelectThenRelease(box: box, probe: probe, selection: NSRange(location: 2, length: 3))
+        let (textView, coordinator, window) = makeView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        select(NSRange(location: 2, length: 3), in: textView, coordinator)
+        _ = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: box.text)
+
+        #expect(probe.restoreLive() == "Hello world")
+        let returned = probe.insert(transcript: "Big word", currentText: "ignored")
+        let expected = DictationRules.insert(transcript: "Big word", into: "Hello world", selectionStart: 2, selectionEnd: 5)
+        #expect(returned == expected.text)
+        #expect(textView.selectedRange == NSRange(location: expected.cursor, length: 0))
+        #expect(probe.range == NSRange(location: expected.cursor, length: 0))
+    }
+
+    @Test("no live text written: retract leaves the original text unchanged and returns nil")
+    func liveRestoreWithoutWrite_isNoOp() {
+        let probe = ComposerSelectionProbe()
+        probe.update(range: NSRange(location: 2, length: 0))
+        #expect(probe.restoreLive() == nil)
+        #expect(probe.range == NSRange(location: 2, length: 0))
+        #expect(probe.restoreLive() == nil)
+    }
+
+    @Test("previous generation not retracted (cloud failure or silent preflight, liveDiscarded not sent): the first snapshot of the new generation is based on the user's later original text and selection")
+    func liveNewGeneration_refetchesBase() {
+        let probe = ComposerSelectionProbe()
+        probe.update(range: NSRange(location: 2, length: 3))
+        _ = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: "Hello world")
+
+        probe.update(range: NSRange(location: 3, length: 0))
+        let written = probe.writeLive(Self.liveSnapshot, generation: 2, currentText: "Bye")
+        let expected = DictationRules.liveInsert(finals: ["Big"], partial: "wor", into: "Bye", selectionStart: 3, selectionEnd: 3)
+        #expect(written == expected.text)
+        // Later snapshots in the same generation still recompute from this generation's original text instead of reading currentText.
+        let next = probe.writeLive(DictationRules.livePartial(finals: ["Big", "word"], partial: ""), generation: 2,
+                                   currentText: "stale")
+        #expect(next == DictationRules.liveInsert(
+            finals: ["Big", "word"], partial: "", into: "Bye", selectionStart: 3, selectionEnd: 3
+        ).text)
+    }
+
+    @Test("after clearing the original text (idle / failed): insert takes the normal insert path and no longer replaces the old live range")
+    func liveClear_insertFallsBackToPlainInsert() {
+        let probe = ComposerSelectionProbe()
+        probe.update(range: NSRange(location: 2, length: 3))
+        _ = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: "Hello world")
+        probe.clearLive()
+
+        probe.update(range: NSRange(location: 3, length: 0))
+        let returned = probe.insert(transcript: "big", currentText: "Bye")
+        #expect(returned == DictationRules.insert(transcript: "big", into: "Bye", selectionStart: 3, selectionEnd: 3).text)
+    }
+
+    @Test("final text too long: liveInsert(original, selection, [text], \"\") truncates and stays within the cap")
+    func liveFinalInsert_overLimit_truncatedByLiveInsert() {
+        let text = String(repeating: "\u{5B57}", count: DictationRules.maxTextLength - 2)
+        let end = text.utf16.count
+        let probe = ComposerSelectionProbe()
+        probe.update(range: NSRange(location: end, length: 0))
+        _ = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: text)
+
+        let returned = probe.insert(transcript: "Big word", currentText: "ignored")
+        let expected = DictationRules.liveInsert(
+            finals: ["Big word"], partial: "", into: text, selectionStart: end, selectionEnd: end
+        )
+        #expect(returned == expected.text)
+        #expect(returned.utf16.count <= DictationRules.maxTextLength)
+        #expect(probe.range == NSRange(location: expected.cursor, length: 0))
+    }
+
+    @Test("end to end: real controller and host binding, the text view stays mounted while recording, and after finish(.insert) the draft is inserted at the selection")
+    func dictation_withTextViewMounted_insertsAtSelection() async throws {
+        let box = Box()
+        box.text = "Hello world"
+        let probe = ComposerSelectionProbe()
+        let (textView, coordinator, window) = makeView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        select(NSRange(location: 2, length: 3), in: textView, coordinator)
+        try #require(probe.range == NSRange(location: 2, length: 3))
 
         let root = FileManager.default.temporaryDirectory
             .appending(path: "ComposerSelectionProbeTests-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -268,10 +419,186 @@ struct ComposerSelectionProbeTests {
         capture.feed(seconds: 1, amplitude: 0.1)
         await controller.finish(.insert)
         withExtendedLifetime(host) {}
+        withExtendedLifetime(textView) {}
 
         let expected = DictationRules.insert(transcript: "big", into: "Hello world", selectionStart: 2, selectionEnd: 5)
         #expect(box.text == expected.text)
         #expect(box.text == "Hello big world")
         #expect(controller.state == .idle)
+    }
+
+    // MARK: Unfinalized light style and undo history
+
+    /// Close the group that the undo stack opened automatically per event: steps registered afterwards form their own group.
+    private func endEvent() {
+        RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+    }
+
+    /// Text view mounted and first responder; type " there" (one user-undoable step), then select `selection`.
+    private func typedView(probe: ComposerSelectionProbe, box: Box, selection: NSRange)
+        throws -> (ComposerUITextView, ComposerTextView.Coordinator, UIWindow, UndoManager) {
+        box.text = "Hello"
+        let (textView, coordinator, window) = makeView(box: box, probe: probe)
+        window.makeKeyAndVisible()
+        _ = textView.becomeFirstResponder()
+        textView.selectedRange = NSRange(location: 5, length: 0)
+        textView.insertText(" there")
+        endEvent()
+        let undoManager = try #require(textView.undoManager)
+        try #require(textView.textStorage.string == "Hello there")
+        try #require(undoManager.canUndo, "typing should leave one undoable step")
+        select(selection, in: textView, coordinator)
+        return (textView, coordinator, window, undoManager)
+    }
+
+    @Test("text view mounted, live text written: the unfinalized range uses the dictationVolatile light color, the rest is body text color")
+    func liveWrite_volatileRangeUsesDictationVolatileColor() throws {
+        let box = Box()
+        box.text = "Hello world"
+        let probe = ComposerSelectionProbe()
+        let (textView, coordinator, window) = makeView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        select(NSRange(location: 11, length: 0), in: textView, coordinator)
+
+        let written = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: "ignored")
+        let expected = DictationRules.liveInsert(
+            finals: ["Big"], partial: "wor", into: "Hello world", selectionStart: 11, selectionEnd: 11
+        )
+        try #require(written == expected.text)
+        try #require(!expected.volatile.isEmpty)
+        let storage = textView.textStorage
+        try #require(storage.string == expected.text)
+        for index in 0..<storage.length {
+            let color = storage.attribute(.foregroundColor, at: index, effectiveRange: nil) as? UIColor
+            if expected.volatile.contains(index) {
+                #expect(color === ComposerTextView.Coordinator.dictationVolatileColor, "offset \(index) should be the light color")
+            } else {
+                #expect(color == UIColor.label, "offset \(index) should be the body text color")
+            }
+        }
+        let light = ComposerTextView.Coordinator.dictationVolatileColor.resolvedColor(
+            with: UITraitCollection(userInterfaceStyle: .light))
+        let dark = ComposerTextView.Coordinator.dictationVolatileColor.resolvedColor(
+            with: UITraitCollection(userInterfaceStyle: .dark))
+        #expect(light == UIColor(oriveoHex: 0x71717A, alpha: 1))
+        #expect(dark == UIColor(oriveoHex: 0x8E8E96, alpha: 1))
+
+        // After finalizing, the whole range is body text color.
+        _ = probe.insert(transcript: "Big word", currentText: "ignored")
+        for index in 0..<textView.textStorage.length {
+            let color = textView.textStorage.attribute(.foregroundColor, at: index, effectiveRange: nil) as? UIColor
+            #expect(color == UIColor.label)
+        }
+    }
+
+    @Test("after dictation ends: one undo returns to the original text and selection from before recording, redo returns to the result, typing steps from before recording are still undoable")
+    func liveFinish_registersOneUndoStep_keepsEarlierSteps() throws {
+        let box = Box()
+        let probe = ComposerSelectionProbe()
+        let selection = NSRange(location: 0, length: 5)
+        let (textView, coordinator, window, undoManager) = try typedView(probe: probe, box: box, selection: selection)
+        defer { window.isHidden = true }
+        defer { withExtendedLifetime(coordinator) {} }
+
+        _ = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: "ignored")
+        let returned = probe.insert(transcript: "Big word", currentText: "ignored")
+        box.text = returned
+        endEvent()
+        let expected = DictationRules.liveInsert(
+            finals: ["Big word"], partial: "", into: "Hello there", selectionStart: 0, selectionEnd: 5
+        )
+        #expect(returned == expected.text)
+        #expect(undoManager.undoActionName.isEmpty)
+
+        undoManager.undo()
+        #expect(textView.textStorage.string == "Hello there")
+        #expect(textView.selectedRange == selection)
+        #expect(box.text == "Hello there")
+        #expect(probe.range == selection)
+
+        endEvent()
+        undoManager.redo()
+        #expect(textView.textStorage.string == expected.text)
+        #expect(textView.selectedRange == NSRange(location: expected.cursor, length: 0))
+        #expect(box.text == expected.text)
+
+        endEvent()
+        undoManager.undo()
+        endEvent()
+        #expect(undoManager.canUndo, "the typing step from before recording should still be present")
+        undoManager.undo()
+        #expect(textView.textStorage.string == "Hello")
+    }
+
+    @Test("during recording (live text written) undo and redo do not run; abandoning live text does not register an undo step")
+    func liveWriting_suspendsUndo_restoreRegistersNothing() throws {
+        let box = Box()
+        let probe = ComposerSelectionProbe()
+        let (textView, coordinator, window, undoManager) = try typedView(
+            probe: probe, box: box, selection: NSRange(location: 11, length: 0)
+        )
+        defer { window.isHidden = true }
+        defer { withExtendedLifetime(coordinator) {} }
+
+        let written = try #require(probe.writeLive(Self.liveSnapshot, generation: 1, currentText: "ignored"))
+        endEvent()
+        let recording = try #require(textView.undoManager)
+        #expect(!recording.canUndo)
+        #expect(!recording.canRedo)
+        recording.undo()
+        #expect(textView.textStorage.string == written)
+
+        #expect(probe.restoreLive() == "Hello there")
+        endEvent()
+        // After abandoning, the stack top is still the typing step from before recording: one undo goes back to before the typing.
+        #expect(undoManager.canUndo)
+        undoManager.undo()
+        #expect(textView.textStorage.string == "Hello")
+    }
+
+    // MARK: Read-only text view
+
+    @Test("read-only text view (isEditable = false): live text is still written, unfinalized light color; after finalizing the whole range is one undoable step")
+    func readOnlyView_liveWriteAndFinish_writeTextAndRegisterUndo() throws {
+        let box = Box()
+        let probe = ComposerSelectionProbe()
+        let selection = NSRange(location: 11, length: 0)
+        let (textView, coordinator, window, undoManager) = try typedView(probe: probe, box: box, selection: selection)
+        defer { window.isHidden = true }
+        defer { withExtendedLifetime(coordinator) {} }
+        textView.isEditable = false
+        endEvent()
+
+        let written = probe.writeLive(Self.liveSnapshot, generation: 1, currentText: "ignored")
+        let live = DictationRules.liveInsert(
+            finals: ["Big"], partial: "wor", into: "Hello there", selectionStart: 11, selectionEnd: 11
+        )
+        #expect(written == live.text)
+        #expect(textView.textStorage.string == live.text)
+        try #require(!live.volatile.isEmpty)
+        for index in 0..<textView.textStorage.length {
+            let color = textView.textStorage.attribute(.foregroundColor, at: index, effectiveRange: nil) as? UIColor
+            if live.volatile.contains(index) {
+                #expect(color === ComposerTextView.Coordinator.dictationVolatileColor, "offset \(index) should be the light color")
+            } else {
+                #expect(color == UIColor.label, "offset \(index) should be the body text color")
+            }
+        }
+        #expect(!textView.isEditable, "restored to read-only after writing")
+
+        let returned = probe.insert(transcript: "Big word", currentText: "ignored")
+        box.text = returned
+        endEvent()
+        let expected = DictationRules.liveInsert(
+            finals: ["Big word"], partial: "", into: "Hello there", selectionStart: 11, selectionEnd: 11
+        )
+        #expect(returned == expected.text)
+        #expect(textView.textStorage.string == expected.text)
+        #expect(!textView.isEditable, "restored to read-only after finalizing")
+
+        #expect(undoManager.canUndo, "the whole dictation should register one undo step")
+        undoManager.undo()
+        #expect(textView.textStorage.string == "Hello there")
+        #expect(box.text == "Hello there")
     }
 }

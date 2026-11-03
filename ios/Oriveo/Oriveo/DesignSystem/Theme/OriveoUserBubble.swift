@@ -43,6 +43,20 @@ nonisolated enum OriveoUserBubble {
         }
     }
 
+    /// The top colour keeps only the original's lightness and chroma and takes the hue of the bottom colour (ported from `sameHueTop`): the viewport gradient varies only in lightness, not hue,
+    /// so a cross-hue palette (pure-black accent to primary) never shows two colours in the same conversation. When the bottom is nearly grey, the top keeps its original colour.
+    static func sameHueTop(top: UInt, bottom: UInt) -> UInt {
+        let t = OriveoCustomPalette.oklch(top)
+        let b = OriveoCustomPalette.oklch(bottom)
+        if b.c < achromaticChroma { return top }
+        return OriveoCustomPalette.fromOklch(t.l, t.c, b.h)
+    }
+
+    /// Bubble colour stops: the top passes through `sameHueTop` first, then OKLCH-interpolates to the bottom colour (`bubbleFor`).
+    static func bubbleStops(top: UInt, bottom: UInt, count: Int = stopCount) -> [UInt] {
+        stops(top: sameHueTop(top: top, bottom: bottom), bottom: bottom, count: count)
+    }
+
     private struct Key: Hashable {
         let choice: OriveoDarkPaletteChoice
         let dark: Bool
@@ -58,10 +72,10 @@ nonisolated enum OriveoUserBubble {
         let result: [UInt]
         if dark {
             let palette = choice.palette
-            result = stops(top: palette.accent, bottom: palette.primary)
+            result = bubbleStops(top: palette.accent, bottom: palette.primary)
         } else {
             let brand = choice.lightBrand
-            result = stops(top: brand.gradEnd, bottom: brand.gradStart)
+            result = bubbleStops(top: brand.gradEnd, bottom: brand.gradStart)
         }
         cache.withLock { $0[key] = result }
         return result

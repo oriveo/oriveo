@@ -14,14 +14,14 @@ interface SkillDao {
     @Query(
         """SELECT * FROM skills
         WHERE accountId = :accountId AND source = :source
-        ORDER BY isPinned DESC, pinOrder ASC, sortOrder ASC, usageCount DESC"""
+        ORDER BY sortOrder ASC, usageCount DESC"""
     )
     fun observeBySource(accountId: String, source: String): Flow<List<SkillEntity>>
 
     @Query(
         """SELECT * FROM skills
         WHERE accountId = :accountId
-        ORDER BY isPinned DESC, pinOrder ASC, sortOrder ASC, usageCount DESC"""
+        ORDER BY sortOrder ASC, usageCount DESC"""
     )
     fun observeAll(accountId: String): Flow<List<SkillEntity>>
 
@@ -32,14 +32,14 @@ interface SkillDao {
     @Query(
         """SELECT * FROM skills
         WHERE accountId = :accountId
-        ORDER BY isPinned DESC, pinOrder ASC, sortOrder ASC, usageCount DESC"""
+        ORDER BY sortOrder ASC, usageCount DESC"""
     )
     suspend fun getAll(accountId: String): List<SkillEntity>
 
     @Query(
         """SELECT * FROM skills
         WHERE accountId = :accountId AND source = :source
-        ORDER BY isPinned DESC, pinOrder ASC, sortOrder ASC, usageCount DESC"""
+        ORDER BY sortOrder ASC, usageCount DESC"""
     )
     suspend fun getBySource(accountId: String, source: String): List<SkillEntity>
 

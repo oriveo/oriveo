@@ -136,7 +136,7 @@ struct MemoryUsedSheet: View {
                 } label: {
                     Text(L10n.tr("memory_used_wrong", table: .chat))
                         .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(OriveoTheme.Palette.primarySoft, in: Capsule())

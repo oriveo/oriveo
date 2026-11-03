@@ -86,6 +86,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "METADATA_BASE_URL", quoted(metadataBaseUrl))
         buildConfigField("String", "MCP_CLIENT_METADATA_URL", quoted(mcpClientMetadataUrl))
+        // Studio compile switch: off by default (release / benchmark inherit false), debug overrides to true.
+        // Read only through StudioAvailability.compiledIn.
+        buildConfigField("boolean", "STUDIO_ENABLED", "false")
     }
 
     bundle {
@@ -109,6 +112,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "STUDIO_ENABLED", "true")
+        }
         create("benchmark") {
             initWith(getByName("release"))
             signingConfig = getByName("debug").signingConfig
@@ -341,6 +347,9 @@ dependencies {
     implementation(libs.jlatexmath.android)
     implementation(libs.jlatexmath.android.font.cyrillic)
     implementation(libs.jlatexmath.android.font.greek)
+
+    // On-device Silero VAD inference: ONNX Runtime and the Silero model are both MIT licensed
+    implementation(libs.onnxruntime.android)
 
     implementation(libs.androidx.metrics.performance)
     implementation(libs.androidx.profileinstaller)

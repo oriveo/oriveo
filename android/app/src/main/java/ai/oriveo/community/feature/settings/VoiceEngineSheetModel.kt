@@ -33,7 +33,7 @@ sealed interface VoiceEngineSheetFooter {
     data class PendingProviders(val kinds: List<ProviderKind>) : VoiceEngineSheetFooter
 }
 
-/** [systemTitle] / [systemSubtitle]: copy of the system row; for the conversation engine direction they read "follow the current model" and "dictation -> current model -> read aloud". */
+/** Copy for the [systemTitle] / [systemSubtitle] system row. */
 data class VoiceEngineSheetModel(
     val rows: List<VoiceEngineSheetRow>,
     val footer: VoiceEngineSheetFooter,
@@ -58,16 +58,6 @@ object VoiceEngineSheetModels {
             ?: listOf(VoiceEngineOption.System)
         return VoiceEngineSheetModel(
             rows = rows(options, selection, connectionNames),
-            systemTitle = UiText.Resource(
-                if (direction == VoiceDirection.Realtime) R.string.voice_realtime_follow_model else R.string.voice_engine_system,
-            ),
-            systemSubtitle = UiText.Resource(
-                if (direction == VoiceDirection.Realtime) {
-                    R.string.voice_realtime_follow_model_subtitle
-                } else {
-                    R.string.voice_engine_system_subtitle
-                },
-            ),
             footer = when (catalogState) {
                 null -> VoiceEngineSheetFooter.None
                 VoiceCatalogState.Unavailable -> VoiceEngineSheetFooter.CatalogEmpty

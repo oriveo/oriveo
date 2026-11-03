@@ -501,14 +501,14 @@ class DeliveredCostResolverTest {
                 DeliveredCost(0.02, "USD", unknown = false, CostSource.UPSTREAM.name),
             ),
         )
-        val merged = DeliveredCostResolver.addMessageCost(0.01, NonUsdCost("CNY", 0.2, CostSource.LOCAL_ESTIMATE.name), round)
+        val merged = DeliveredCostResolver.addMessageCost(0.01, CostSource.LOCAL_ESTIMATE.name, NonUsdCost("CNY", 0.2, CostSource.LOCAL_ESTIMATE.name), round)
         assertEquals(0.03, merged.estimatedCost, 1e-12)
         assertEquals(CostSource.UPSTREAM.name, merged.costSource)
         assertEquals("CNY", merged.nonUsdCost?.currencyCode)
         assertEquals(0.5, merged.nonUsdCost!!.amount, 1e-12)
 
-        // Originally empty (the first turn was interrupted and recorded no cost) -> equals this turn
-        assertEquals(round, DeliveredCostResolver.addMessageCost(0.0, null, round))
+        // Existing cost is empty (the first round was interrupted before recording a cost), so it equals this round
+        assertEquals(round, DeliveredCostResolver.addMessageCost(0.0, null, null, round))
     }
 
     @Test

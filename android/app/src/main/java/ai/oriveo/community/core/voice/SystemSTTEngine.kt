@@ -7,13 +7,18 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
 import android.os.Parcelable
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import androidx.core.content.ContextCompat
+import java.io.FileOutputStream
 import java.io.IOException
-import java.io.OutputStream
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
 import kotlin.coroutines.cancellation.CancellationException
@@ -21,10 +26,18 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /** Recognizer callbacks (a subset of RecognitionListener); production implementations call back on the main thread. */
 interface SystemSTTCallbacks {
@@ -39,6 +52,15 @@ interface SystemSTTCallbacks {
 
     fun onEndOfSegmentedSession()
 
+    /** Recognizer is ready and starts listening (the recognition service can lag several seconds on cold start). */
+    fun onReadyForSpeech() = Unit
+
+    /** Recognizer has heard speech and speech starts. */
+    fun onBeginningOfSpeech() = Unit
+
+    /** Recognizer has decided the speech has ended. */
+    fun onEndOfSpeech() = Unit
+
     /** [error] is a SpeechRecognizer.ERROR_* code. */
     fun onError(error: Int)
 
@@ -50,7 +72,7 @@ interface SystemSTTCallbacks {
 interface SystemSTTPipe {
     val source: Parcelable
 
-    /** May block; throws IOException when the write end is closed or the recognizer side is gone. */
+    /** May block; throws IOException if the write end is closed or the recognizer side has disconnected, and also when the write end is closed or the write thread interrupted while blocked. */
     @Throws(IOException::class)
     fun write(bytes: ByteArray, offset: Int, length: Int)
 
@@ -114,6 +136,8 @@ class SystemSTTEngine(
     private val sleeper: SystemSTTSleeper = MainThreadSTTSleeper,
     /** Scope used to reopen the recognizer when falling back to DEFAULT (recognizer callbacks run on the main thread; start in place without switching threads). */
     private val fallbackScope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+    /** Upper bound for file recognition = duration × 1.5 + this margin. */
+    private val fileTimeoutGraceMs: Long = FILE_TIMEOUT_GRACE_MS,
 ) : STTEngine {
     override val engineName: String = ENGINE_NAME
 
@@ -127,22 +151,48 @@ class SystemSTTEngine(
         return transcribeFile(segment, route)
     }
 
+    /**
+     * The whole segment's recognition (decoding + waiting for the result) is capped at duration × 1.5 + [fileTimeoutGraceMs]; on timeout it ends with [TIMEOUT_RESULT].
+     * The duration comes from [STTSegment.range]; a whole segment (empty range) is computed from the decoded PCM, and as decoding advances the cap moves later with it.
+     */
     private suspend fun transcribeFile(segment: STTSegment, route: SystemSTTRoute.Pipe): STTResult {
         val session = startPipeSession(route)
+        val decodedBytes = AtomicLong()
         try {
-            val decoded = try {
-                // Decoding and enqueueing may both block (waiting for the writer thread when the queue is full); the thread is interrupted when the coroutine is cancelled.
-                runInterruptible(Dispatchers.IO) { decoder.decode(segment.aac, segment.range, session::offerFilePcm) }
-                true
-            } catch (_: IOException) {
-                false
+            // Timing uses the real clock (Default); decoding runs on the IO thread.
+            return withContext(Dispatchers.Default) {
+                val work = async {
+                    val decoded = try {
+                        // Decoding and enqueueing can both block (when the queue is full, wait for the write thread); on coroutine cancellation, interrupt this thread.
+                        runInterruptible(Dispatchers.IO) {
+                            decoder.decode(segment.aac, segment.range) { bytes ->
+                                session.offerFilePcm(bytes).also { if (it) decodedBytes.addAndGet(bytes.size.toLong()) }
+                            }
+                        }
+                        true
+                    } catch (_: IOException) {
+                        false
+                    }
+                    if (decoded) {
+                        session.stop()
+                    } else {
+                        session.end(STTResult.Failed(DictationFailure.ExportFailed, DictationPrimaryAction.Retry))
+                    }
+                    session.awaitOutcome()
+                }
+                val startedNs = System.nanoTime()
+                while (true) {
+                    val durationSec = segment.range?.let { it.endInclusive - it.start }
+                        ?: (decodedBytes.get().toDouble() / PCM_BYTES_PER_SEC)
+                    val limitMs = (durationSec * FILE_TIMEOUT_FACTOR * 1_000).toLong() + fileTimeoutGraceMs
+                    val remainingMs = limitMs - (System.nanoTime() - startedNs) / 1_000_000
+                    if (remainingMs <= 0) break
+                    withTimeoutOrNull(remainingMs) { work.await() }?.let { return@withContext it }
+                }
+                work.cancel()
+                session.end(TIMEOUT_RESULT)
+                session.awaitOutcome()
             }
-            if (decoded) {
-                session.stop()
-            } else {
-                session.end(STTResult.Failed(DictationFailure.ExportFailed, DictationPrimaryAction.Retry))
-            }
-            return session.await()
         } finally {
             // On cancellation, close the pipe and destroy the recognizer; no-op when a result already exists.
             session.end(STTResult.Success(""))
@@ -213,7 +263,7 @@ class SystemSTTEngine(
     internal companion object {
         const val ENGINE_NAME = "system"
 
-        /** Pipe recognition intent: the segmented session ends when the audio source ends; audio is 16 kHz mono PCM_16BIT. */
+        /** Pipe recognition intent: a segmented session ends at the audio source's end; the audio is 16 kHz mono PCM_16BIT, and intermediate results (live text) are wanted. */
         fun pipeIntent(languageTag: String, source: Parcelable): Intent =
             Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
@@ -223,6 +273,7 @@ class SystemSTTEngine(
                 .putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
                 .putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
                 .putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, AudioRecordCapture.SAMPLE_RATE)
+                .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
 
         /** Self-record recognition intent: the recognizer opens the microphone itself, with no audio source or segmented session, and partial results are requested. */
         fun selfRecordIntent(languageTag: String): Intent =
@@ -250,28 +301,76 @@ class SystemSTTEngine(
 
         /** When a self-record restart hits a busy recognizer, wait this long and restart once more. */
         const val BUSY_RESTART_DELAY_MS = 300L
+
+        /** Upper bound for the recognizer's result after stopping; on timeout it ends with [TIMEOUT_RESULT]. */
+        const val STOP_RESULT_TIMEOUT_MS = 1_500L
+
+        /** Upper bound for file recognition = duration × [FILE_TIMEOUT_FACTOR] + [FILE_TIMEOUT_GRACE_MS]. */
+        const val FILE_TIMEOUT_FACTOR = 1.5
+        const val FILE_TIMEOUT_GRACE_MS = 5_000L
+
+        /** Bytes per second of 16 kHz mono 16-bit PCM. */
+        private const val PCM_BYTES_PER_SEC = AudioRecordCapture.SAMPLE_RATE * 2.0
+
+        /** Waiting for the recognizer's result exceeded the upper bound. */
+        val TIMEOUT_RESULT: STTResult = STTResult.Failed(DictationFailure.Timeout, DictationPrimaryAction.Retry)
     }
 }
 
-/** One system recognition session: the user stops it with [stop], then [await] returns the result. */
+/** Live text during an ongoing session: [finals] are the finalized segments (as-is), [partial] is the latest intermediate result of the current segment (trimmed of leading and trailing whitespace). */
+/**
+ * Finalizing one recognition segment: a non-blank result (judged by [DictationRules.trim]) keeps the original finalized text; if it is blank or null, the current non-blank live text (already trimmed) is promoted to the final text;
+ * if both are blank, returns null (state unchanged).
+ */
+internal fun finalOrPromotedPartial(text: String?, partial: String): String? = when {
+    text != null && DictationRules.trim(text).isNotEmpty() -> text
+    partial.isNotEmpty() -> partial
+    else -> null
+}
+
+data class LiveTranscript(val finals: List<String> = emptyList(), val partial: String = "")
+
+/** One system recognition session: the user calls [stop], then [await] fetches the result; [live] emits text as the user speaks. */
 sealed interface SystemSTTSession {
+    val live: StateFlow<LiveTranscript>
+
     fun stop()
 
+    /** After stopping, wait at most [SystemSTTEngine.STOP_RESULT_TIMEOUT_MS]; on timeout it ends with [SystemSTTEngine.TIMEOUT_RESULT]. */
     suspend fun await(): STTResult
+}
+
+/** Waits for [outcome] to produce a result; after [stopped] completes (the user has stopped), wait at most another [SystemSTTEngine.STOP_RESULT_TIMEOUT_MS]; on timeout call [onTimeout]. */
+private suspend fun awaitWithStopLimit(
+    outcome: CompletableDeferred<STTResult>,
+    stopped: CompletableDeferred<Unit>,
+    onTimeout: () -> Unit,
+): STTResult {
+    select<Unit> {
+        outcome.onAwait {}
+        stopped.onAwait {}
+    }
+    if (!outcome.isCompleted && withTimeoutOrNull(SystemSTTEngine.STOP_RESULT_TIMEOUT_MS) { outcome.await() } == null) {
+        onTimeout()
+    }
+    return outcome.await()
 }
 
 /**
  * One pipe recognition session: recorded PCM is written to the pipe as-is in little-endian 16-bit, and segment results are joined into one text with [DictationRules.join].
  *
- * Pipe writes happen on a dedicated writer thread: the recording thread only enqueues into a bounded queue (about [maxQueuedBytes] bytes, 2 s of audio by default).
- * When the recognizer reads slowly and the queue is full, the oldest chunk is dropped and counted in [droppedChunks]; this only affects recognition and never stalls recording or disk writes.
- * Stop = stop accepting PCM; the writer thread drains the queue, closes the write end (the recognizer reads end of stream), then calls stopListening.
- * When the session ends or fails, the queue is cleared immediately, both pipe ends are closed and the recognizer is destroyed.
+ * The write pipe runs on a dedicated write thread: the recording thread only enqueues into a bounded queue (about [maxQueuedBytes] bytes, default 2 s of audio);
+ * if the recognizer reads slowly and the queue is full, the oldest chunk is dropped and counted in [droppedChunks]; this only affects recognition and never stalls recording or disk writes.
+ * Before the recognizer's onReadyForSpeech (recognition service cold start), the cap is relaxed to [maxQueuedBytesBeforeReady] (default 10 s); after ready, it reverts to normal.
+ * Each write on the write thread writes at most one chunk of [WRITE_PIECE_BYTES], and checks whether shutdown has begun before writing.
+ * Stop = stop taking PCM; the write thread drains the queue, closes the write end (so the recognizer reads to the end), and then calls stopListening;
+ * when the session ends or errors, the queue is cleared immediately, the write and read ends are closed, the write thread is interrupted (so it can exit even if the recognition service is stuck or the write is blocked), and the recognizer is destroyed.
  */
 class SystemSTTPipeSession internal constructor(
     private var pipe: SystemSTTPipe,
     private val maxQueuedBytes: Int = MAX_QUEUED_BYTES,
-    /** Reopen with DEFAULT (new pipe + new recognizer) when the on-device recognizer reports a missing language at session start; null means no fallback. */
+    private val maxQueuedBytesBeforeReady: Int = MAX_QUEUED_BYTES_BEFORE_READY,
+    /** If the recognizer reports a missing language at segment start, it is swapped for DEFAULT and reopened (new pipe + new recognizer); null means no fallback. */
     private val reopen: Reopen? = null,
 ) : SystemSTTSession, PcmSink, SystemSTTCallbacks {
     /** For fallback: creates a new pipe in [scope] and starts listening with the DEFAULT recognizer, with callbacks routed back to this session. */
@@ -281,8 +380,12 @@ class SystemSTTPipeSession internal constructor(
     )
 
     private val outcome = CompletableDeferred<STTResult>()
+    private val stopped = CompletableDeferred<Unit>()
     private val lock = ReentrantLock()
     private val changed = lock.newCondition()
+    private val liveState = MutableStateFlow(LiveTranscript())
+
+    override val live: StateFlow<LiveTranscript> = liveState.asStateFlow()
 
     // All state below is guarded by lock.
     private val queue = ArrayDeque<ByteArray>()
@@ -296,6 +399,12 @@ class SystemSTTPipeSession internal constructor(
     private var writerDone = false
     private var shutDown = false
     private var sinkClosed = false
+
+    /** The current recognizer has reported onReadyForSpeech (after a fallback swap, wait again). */
+    private var ready = false
+
+    /** The current write thread (on fallback reopen it may be a new one). */
+    private var writer: Thread? = null
     private var listening: SystemSTTListening? = null
     private val segments = mutableListOf<String>()
     private var dropped = 0
@@ -315,15 +424,17 @@ class SystemSTTPipeSession internal constructor(
     /** Bytes pending replay on fallback (for tests). */
     internal val replayBufferedBytes: Int get() = lock.withLock { sentBytes }
 
+    /** The current write thread (for tests: after shutdown it should exit within a bounded time). */
+    internal val writerThread: Thread? get() = lock.withLock { writer }
+
     init {
         startWriter()
     }
 
     private fun startWriter() {
-        Thread(::writeLoop, WRITER_THREAD_NAME).apply {
-            isDaemon = true
-            start()
-        }
+        val thread = Thread(::writeLoop, WRITER_THREAD_NAME).apply { isDaemon = true }
+        lock.withLock { writer = thread }
+        thread.start()
     }
 
     /** Called on the recording thread; only enqueues without blocking; discarded after stop or finish. */
@@ -339,7 +450,8 @@ class SystemSTTPipeSession internal constructor(
             if (!accepting) return
             queue.addLast(bytes)
             queuedBytes += bytes.size
-            while (queuedBytes > maxQueuedBytes && queue.size > 1) {
+            val limit = if (ready) maxQueuedBytes else maxQueuedBytesBeforeReady
+            while (queuedBytes > limit && queue.size > 1) {
                 queuedBytes -= queue.removeFirst().size
                 dropped += 1
             }
@@ -372,27 +484,49 @@ class SystemSTTPipeSession internal constructor(
             changed.signalAll()
             writerDone
         }
-        // The writer thread already exited early (pipe broken): close the write end and call stopListening here.
+        stopped.complete(Unit)
+        // The write thread has exited early (pipe broken): close the write end and call stopListening here.
         if (stopNow) closeSinkThenStopListening()
     }
 
-    override suspend fun await(): STTResult = outcome.await()
+    override suspend fun await(): STTResult = awaitWithStopLimit(outcome, stopped) { finish(SystemSTTEngine.TIMEOUT_RESULT) }
+
+    /** Waits for the result with no upper bound after stopping (file recognition has its own whole-segment cap). */
+    internal suspend fun awaitOutcome(): STTResult = outcome.await()
 
     override fun onSegmentResult(text: String?) {
         lock.withLock {
             gotResult = true
-            if (text != null) segments += text
+            // A blank or all-whitespace finalized result promotes the current non-blank live text to this segment's final text; if there is no live text, nothing changes.
+            val final = finalOrPromotedPartial(text, liveState.value.partial) ?: return
+            segments += final
+            if (!outcome.isCompleted) {
+                liveState.update { LiveTranscript(it.finals + final, "") }
+            }
         }
     }
 
     /** Segmented session results all go through [onSegmentResult]. */
     override fun onResults(text: String?) = Unit
 
-    /** The pipe intent does not request partial results. */
-    override fun onPartialResult(text: String?) = Unit
+    /** The latest intermediate result of the current segment (a result with no text or all-whitespace does not overwrite); once text exists a result has been produced, and it never falls back after that. */
+    override fun onPartialResult(text: String?) {
+        lock.withLock {
+            if (outcome.isCompleted || text == null) return
+            val trimmed = DictationRules.trim(text)
+            if (trimmed.isEmpty()) return
+            gotResult = true
+            liveState.update { it.copy(partial = trimmed) }
+        }
+    }
 
     override fun onEndOfSegmentedSession() {
         finish(STTResult.Success(joined()))
+    }
+
+    /** Recognizer ready: from here on the queue drops the oldest chunks at [maxQueuedBytes] as usual. */
+    override fun onReadyForSpeech() {
+        lock.withLock { ready = true }
     }
 
     override fun onError(error: Int) {
@@ -415,7 +549,9 @@ class SystemSTTPipeSession internal constructor(
             }
             fellBack = true
             reopening = true
-            // Put the chunks most recently sent into the old pipe back at the front of the queue in their original order (total still within the limit), so the new pipe receives them before the queued data.
+            // The new recognizer has to cold start again; until ready, nothing is dropped as before.
+            ready = false
+            // Put the chunks recently sent to the old pipe back at the front of the queue in their original order (total still within the cap), so the new pipe receives them before the queued data.
             while (sent.isNotEmpty() && queuedBytes + sent.last().size <= maxQueuedBytes) {
                 val chunk = sent.removeLast()
                 queue.addFirst(chunk)
@@ -484,12 +620,17 @@ class SystemSTTPipeSession internal constructor(
         shutDownWriter()
         closeSink()
         closeSource()
+        interruptWriter()
     }
 
     private fun writeLoop() {
-        while (true) {
+        loop@ while (true) {
             val next = lock.withLock {
-                while (!shutDown && (reopening || (queue.isEmpty() && !stopRequested))) changed.await()
+                try {
+                    while (!shutDown && (reopening || (queue.isEmpty() && !stopRequested))) changed.await()
+                } catch (_: InterruptedException) {
+                    // Interrupt only on shutdown; below, exit by shutDown.
+                }
                 if (shutDown) {
                     null
                 } else {
@@ -505,12 +646,20 @@ class SystemSTTPipeSession internal constructor(
             } ?: break
             val (chunk, target) = next
             try {
-                target.write(chunk, 0, chunk.size)
-            } catch (_: IOException) {
-                // Fallback to DEFAULT swapped the pipe: drop this chunk and keep writing to the new pipe.
-                val swapped = lock.withLock { reopening || pipe !== target }
+                var offset = 0
+                while (offset < chunk.size) {
+                    if (lock.withLock { shutDown }) break@loop
+                    val length = minOf(WRITE_PIECE_BYTES, chunk.size - offset)
+                    target.write(chunk, offset, length)
+                    offset += length
+                }
+            } catch (failure: Exception) {
+                // Shutdown while blocked on the write closes the write end and interrupts this thread: IOException (including ClosedByInterrupt) or InterruptedException.
+                if (failure !is IOException && failure !is InterruptedException) throw failure
+                // The fallback to DEFAULT swapped the pipe: drop this chunk and continue writing to the new pipe.
+                val swapped = lock.withLock { !shutDown && (reopening || pipe !== target) }
                 if (swapped) continue
-                // The recognizer side is gone: stop writing and wait for the recognizer callbacks for the result.
+                // The recognizer side has disconnected or shut down: stop writing; the result comes from the recognizer's callback.
                 break
             }
         }
@@ -536,12 +685,14 @@ class SystemSTTPipeSession internal constructor(
     private fun finish(result: STTResult) {
         val handle = lock.withLock {
             if (outcome.isCompleted) return
-            outcome.complete(result)
+            // A successful result that dropped chunks is marked droppedAudio; dictationOutcome decides whether to use the recording file instead.
+            outcome.complete(if (result is STTResult.Success && dropped > 0) result.copy(droppedAudio = true) else result)
             listening
         }
         shutDownWriter()
         closeSink()
         closeSource()
+        interruptWriter()
         handle?.destroy()
     }
 
@@ -568,6 +719,12 @@ class SystemSTTPipeSession internal constructor(
         }
     }
 
+    /** If the write thread is still blocked writing to the pipe (recognition service stuck, and closing the write end did not return the write): interrupt it; it exits within a bounded time after shutdown. */
+    private fun interruptWriter() {
+        val thread = lock.withLock { writer } ?: return
+        if (thread !== Thread.currentThread()) thread.interrupt()
+    }
+
     private fun closeSink() {
         val current = lock.withLock {
             if (sinkClosed) return
@@ -586,6 +743,12 @@ class SystemSTTPipeSession internal constructor(
     internal companion object {
         /** 2 s of 16 kHz mono 16-bit PCM. */
         const val MAX_QUEUED_BYTES = AudioRecordCapture.SAMPLE_RATE * 2 * 2
+
+        /** Queue cap before the recognizer is ready: 10 s (on a real device the recognition service's cold-start onStartListening was measured lagging about 6.4 s). */
+        const val MAX_QUEUED_BYTES_BEFORE_READY = AudioRecordCapture.SAMPLE_RATE * 2 * 10
+
+        /** Upper bound for each write to the pipe on the write thread: 100 ms of audio. */
+        const val WRITE_PIECE_BYTES = AudioRecordCapture.SAMPLE_RATE * 2 / 10
         private const val WRITER_THREAD_NAME = "oriveo-stt-pipe-writer"
     }
 }
@@ -601,10 +764,15 @@ class SystemSTTPipeSession internal constructor(
  */
 class SystemSTTSelfRecordSession internal constructor(
     private val sleeper: SystemSTTSleeper = MainThreadSTTSleeper,
-    /** One round of a voice conversation: finish as soon as the recognizer decides the user is done and there is text, without restarting (a round with no text restarts and keeps listening as usual). */
+    /**
+     * One turn of voice conversation: when the recognizer decides the speaker is done and there is text, it ends without restarting; with no text but speech was heard (onBeginningOfSpeech), it also ends with an empty result;
+     * for the speech duration see [voicedMs]; a turn with no speech at all restarts and keeps listening as usual.
+     */
     private val singleRound: Boolean = false,
     /** Reopen with DEFAULT when the on-device recognizer reports a missing language at session start; null means no fallback. */
     private val reopen: Reopen? = null,
+    /** Monotonic clock (milliseconds) for measuring the speech duration. */
+    private val clock: () -> Long = { SystemClock.elapsedRealtime() },
 ) : SystemSTTSession, SystemSTTCallbacks {
     /** For fallback: starts listening with the DEFAULT recognizer in [scope], with callbacks routed back to this session. */
     internal class Reopen(
@@ -613,7 +781,11 @@ class SystemSTTSelfRecordSession internal constructor(
     )
 
     private val outcome = CompletableDeferred<STTResult>()
+    private val stopped = CompletableDeferred<Unit>()
     private val lock = ReentrantLock()
+    private val liveState = MutableStateFlow(LiveTranscript())
+
+    override val live: StateFlow<LiveTranscript> = liveState.asStateFlow()
 
     // All state below is guarded by lock.
     private var listening: SystemSTTListening? = null
@@ -641,7 +813,18 @@ class SystemSTTSelfRecordSession internal constructor(
     /** Already fell back once. */
     private var fellBack = false
 
-    /** Text accumulated so far (kept on failure as well). */
+    /** The moment of the first onBeginningOfSpeech in the current turn; null if no speech was heard. */
+    private var speechBeganAt: Long? = null
+
+    /** The moment of the most recent onEndOfSpeech after the current turn's speech started; null if none was received (counted as the moment the turn ends). */
+    private var speechEndedAt: Long? = null
+
+    private var voicedMsValue = 0
+
+    /** Speech duration the recognizer heard in the final turn (first onBeginningOfSpeech → onEndOfSpeech); 0 if there was no speech. */
+    val voicedMs: Int get() = lock.withLock { voicedMsValue }
+
+    /** Text accumulated so far (kept even when the session ends in failure). */
     val transcript: String get() = lock.withLock { DictationRules.join(segments) }
 
     /** Receiver of the input volume (dB) reported by the recognizer; invoked on the recognizer callback thread (the main thread). */
@@ -664,6 +847,7 @@ class SystemSTTSelfRecordSession internal constructor(
                 listening?.stopListening()
             }
         }
+        stopped.complete(Unit)
     }
 
     /** Interrupted (incoming call, app sent to background, etc.): cancel the current round, merge its latest partial result into the accumulated text and finish. */
@@ -671,28 +855,54 @@ class SystemSTTSelfRecordSession internal constructor(
         lock.withLock {
             if (outcome.isCompleted) return
             listening?.cancel()
-            latestPartial?.let { segments += it }
+            latestPartial?.let { partial ->
+                segments += partial
+                liveState.update { LiveTranscript(it.finals + partial, "") }
+            }
             latestPartial = null
             finishLocked(STTResult.Success(DictationRules.join(segments)))
         }
     }
 
-    override suspend fun await(): STTResult = outcome.await()
+    override suspend fun await(): STTResult = awaitWithStopLimit(outcome, stopped) {
+        lock.withLock { if (!outcome.isCompleted) finishLocked(SystemSTTEngine.TIMEOUT_RESULT) }
+    }
 
     override fun onResults(text: String?) {
         lock.withLock {
             if (outcome.isCompleted) return
             gotResult = true
-            if (text != null) segments += text
+            // A blank or all-whitespace finalized result promotes the turn's non-blank live text to this turn's final text; if there is no live text, nothing changes.
+            finalOrPromotedPartial(text, liveState.value.partial)?.let { final ->
+                segments += final
+                liveState.update { LiveTranscript(it.finals + final, "") }
+            }
             roundEndedLocked()
+        }
+    }
+
+    override fun onBeginningOfSpeech() {
+        lock.withLock {
+            if (outcome.isCompleted || speechBeganAt != null) return
+            speechBeganAt = clock()
+        }
+    }
+
+    override fun onEndOfSpeech() {
+        lock.withLock {
+            if (outcome.isCompleted || speechBeganAt == null) return
+            speechEndedAt = clock()
         }
     }
 
     override fun onPartialResult(text: String?) {
         lock.withLock {
             if (outcome.isCompleted || text == null) return
+            val trimmed = DictationRules.trim(text)
+            if (trimmed.isEmpty()) return
             gotResult = true
             latestPartial = text
+            liveState.update { it.copy(partial = trimmed) }
         }
     }
 
@@ -700,7 +910,11 @@ class SystemSTTSelfRecordSession internal constructor(
         lock.withLock {
             if (outcome.isCompleted) return
             when {
-                SystemSTTEngine.isNoSpeech(error) -> roundEndedLocked()
+                SystemSTTEngine.isNoSpeech(error) -> {
+                    // Not heard / no speech: this turn's intermediate result is not merged into the result, and the live text is cleared with it.
+                    liveState.update { it.copy(partial = "") }
+                    roundEndedLocked()
+                }
                 error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY && restarted && !busyRetried && !stopRequested -> {
                     busyRetried = true
                     busyWaiting = true
@@ -766,14 +980,22 @@ class SystemSTTSelfRecordSession internal constructor(
         }
     }
 
+    /** The turn ends: no longer merges this turn's intermediate results; live text is cleared by [onResults]'s final text (or the promoted live text), and by [onError] when nothing was heard / no speech. */
     private fun roundEndedLocked() {
         latestPartial = null
         val handle = listening
+        val voiced = speechBeganAt?.let { began ->
+            ((speechEndedAt ?: clock()) - began).coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+        } ?: 0
         when {
-            stopRequested || (singleRound && segments.isNotEmpty()) ->
+            stopRequested || (singleRound && (segments.isNotEmpty() || speechBeganAt != null)) -> {
+                voicedMsValue = voiced
                 finishLocked(STTResult.Success(DictationRules.join(segments)))
+            }
             handle == null -> roundEndedBeforeAttach = true
             else -> {
+                speechBeganAt = null
+                speechEndedAt = null
                 restarted = true
                 busyRetried = false
                 handle.restartListening()
@@ -787,7 +1009,10 @@ class SystemSTTSelfRecordSession internal constructor(
     }
 }
 
-/** Production [SystemSTTSessionBackend]: pipes use ParcelFileDescriptor.createPipe, and recognizers are created and called only on the main thread. */
+/**
+ * Production [SystemSTTSessionBackend]: the pipe uses ParcelFileDescriptor.createPipe, and the recognizer is created and called only on the main thread;
+ * it takes the [AndroidSystemSTTBackend.gate] when created (waits for the previous instance to be destroyed on the main thread), and releases the next one once destroy() has finished.
+ */
 class AndroidSystemSTTSessionBackend(
     context: Context,
     private val recognizers: AndroidSystemSTTBackend = AndroidSystemSTTBackend(context),
@@ -805,24 +1030,45 @@ class AndroidSystemSTTSessionBackend(
         recognizer: SystemSTTRecognizer,
         intent: Intent,
         callbacks: SystemSTTCallbacks,
-    ): SystemSTTListening = withContext(Dispatchers.Main.immediate) {
-        val speech = recognizers.createRecognizer(recognizer)
+    ): SystemSTTListening {
+        // Take the number synchronously: on fallback reopen it queues behind the old instance that was just destroy()'ed.
+        val ticket = recognizers.gate.enqueue()
+        // Hold the already-built instance outside the block: even if it is cancelled after being built inside the block (withContext throws cancellation on return), it can still be destroyed and no live instance is left behind with the number released.
+        var created: SpeechRecognizer? = null
         try {
-            speech.setRecognitionListener(Listener(callbacks))
-            speech.startListening(intent)
+            return withContext(Dispatchers.Main.immediate) {
+                ticket.awaitTurn()
+                val speech = recognizers.createRecognizer(recognizer).also { created = it }
+                try {
+                    speech.setRecognitionListener(Listener(callbacks))
+                    speech.startListening(intent)
+                } catch (error: Throwable) {
+                    if (error is CancellationException) throw error
+                    throw IOException("startListening failed: ${error.message}", error)
+                }
+                MainThreadListening(speech, intent, callbacks, ticket)
+            }
         } catch (error: Throwable) {
-            speech.destroy()
-            if (error is CancellationException) throw error
-            throw IOException("startListening failed: ${error.message}", error)
+            // withContext's return throws cancellation to a cancelled caller, so the number release is written in finally.
+            try {
+                created?.let { speech ->
+                    withContext(NonCancellable + Dispatchers.Main.immediate) { runCatching { speech.destroy() } }
+                }
+            } finally {
+                ticket.release()
+            }
+            throw error
         }
-        MainThreadListening(speech, intent, callbacks)
     }
 
     private inner class MainThreadListening(
         private val speech: SpeechRecognizer,
         private val intent: Intent,
         private val callbacks: SystemSTTCallbacks,
+        private val ticket: SystemSTTRecognizerGate.Ticket,
     ) : SystemSTTListening {
+        private val destroyed = AtomicBoolean(false)
+
         override fun stopListening() {
             ContextCompat.getMainExecutor(appContext).execute { runCatching { speech.stopListening() } }
         }
@@ -838,8 +1084,16 @@ class AndroidSystemSTTSessionBackend(
             ContextCompat.getMainExecutor(appContext).execute { runCatching { speech.cancel() } }
         }
 
+        /** Destroys only once; releases the next recognizer in the serial gate only after destroy() has actually run on the main thread. */
         override fun destroy() {
-            ContextCompat.getMainExecutor(appContext).execute { runCatching { speech.destroy() } }
+            if (!destroyed.compareAndSet(false, true)) return
+            ContextCompat.getMainExecutor(appContext).execute {
+                try {
+                    runCatching { speech.destroy() }
+                } finally {
+                    ticket.release()
+                }
+            }
         }
     }
 
@@ -847,11 +1101,17 @@ class AndroidSystemSTTSessionBackend(
         private val read: ParcelFileDescriptor,
         write: ParcelFileDescriptor,
     ) : SystemSTTPipe {
-        private val sink: OutputStream = ParcelFileDescriptor.AutoCloseOutputStream(write)
+        private val sink: FileOutputStream = ParcelFileDescriptor.AutoCloseOutputStream(write)
+
+        /** Written through an interruptible channel: if the write end is closed or the write thread interrupted while blocked, it throws and returns instead of hanging the write thread. */
+        private val channel: FileChannel = sink.channel
 
         override val source: Parcelable get() = read
 
-        override fun write(bytes: ByteArray, offset: Int, length: Int) = sink.write(bytes, offset, length)
+        override fun write(bytes: ByteArray, offset: Int, length: Int) {
+            val buffer = ByteBuffer.wrap(bytes, offset, length)
+            while (buffer.hasRemaining()) channel.write(buffer)
+        }
 
         override fun closeSink() = sink.close()
 
@@ -867,15 +1127,15 @@ class AndroidSystemSTTSessionBackend(
 
         override fun onError(error: Int) = callbacks.onError(error)
 
-        override fun onReadyForSpeech(params: Bundle?) = Unit
+        override fun onReadyForSpeech(params: Bundle?) = callbacks.onReadyForSpeech()
 
-        override fun onBeginningOfSpeech() = Unit
+        override fun onBeginningOfSpeech() = callbacks.onBeginningOfSpeech()
 
         override fun onRmsChanged(rmsdB: Float) = callbacks.onRmsChanged(rmsdB)
 
         override fun onBufferReceived(buffer: ByteArray?) = Unit
 
-        override fun onEndOfSpeech() = Unit
+        override fun onEndOfSpeech() = callbacks.onEndOfSpeech()
 
         override fun onResults(results: Bundle?) {
             callbacks.onResults(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull())

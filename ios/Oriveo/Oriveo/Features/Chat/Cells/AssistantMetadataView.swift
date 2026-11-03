@@ -47,9 +47,27 @@ final class AssistantMetadataView: UIStackView {
     private var hasConfiguredFooterActions = false
     private var isVisualRenderPending = false
 
+    #if DEBUG
+    /// Shots only: the message whose token-usage dialog opens once its metadata row is on screen.
+    private static var tokenUsageShotMessageID: UUID?
+
+    /// Shots only: open the token-usage dialog of `messageID` the first time its row is configured in a window.
+    static func presentTokenUsageForShots(messageID: UUID) {
+        tokenUsageShotMessageID = messageID
+    }
+    #endif
+
+    /// Test seam: probes whether the latest `configure` of `actionRow` (copy / save note / more / continue) was
+    /// captured by a CoreAnimation implicit animation. See the `UIView.performWithoutAnimation` comment in
+    /// `ChatListViewController.applyIncrementalUpdate`: toggling `isHidden` inside an animation context makes
+    /// UIStackView animate a never-laid-out arranged subview from a zero frame, so the buttons briefly flew in
+    /// from the left screen edge on device before settling.
     var _testActionRowHasImplicitAnimation: Bool {
         actionRow.layer.animationKeys()?.isEmpty == false
     }
+
+    /// Whether the action row (copy / save note / read aloud / more / continue) is currently hidden.
+    var isActionRowHidden: Bool { actionRow.isHidden }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -73,7 +91,9 @@ final class AssistantMetadataView: UIStackView {
         onOpenNoteReferences: (() -> Void)? = nil,
         onCrosscheck: (() -> Void)? = nil,
         onOpenMemoryUsed: (() -> Void)? = nil,
-        isVisualRenderPending: Bool = false
+        isVisualRenderPending: Bool = false,
+        // false = live temporary bubble: header only (provider / model name), no action row.
+        showsActions: Bool = true
     ) {
         self.onRetry = onRetry
         self.onRegenerateWithSearch = onRegenerateWithSearch
@@ -117,6 +137,18 @@ final class AssistantMetadataView: UIStackView {
 
         currentMessageText = model.message.text
         currentTokenUsage = MessageTokenUsageSnapshot(message: model.message)
+        #if DEBUG
+        if Self.tokenUsageShotMessageID == model.message.id {
+            let messageID = model.message.id
+            // Wait for the chat push to settle; the flag is cleared only when this row actually presents.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let self, Self.tokenUsageShotMessageID == messageID, self.window != nil,
+                      self.nearestViewController() != nil else { return }
+                Self.tokenUsageShotMessageID = nil
+                self.presentTokenUsage()
+            }
+        }
+        #endif
         currentCapabilityExecution = model.message.capabilityExecution
         let capabilityStatusText = Self.capabilityExecutionText(currentCapabilityExecution)
         capabilityExecutionLabel.text = capabilityStatusText
@@ -146,10 +178,14 @@ final class AssistantMetadataView: UIStackView {
 
         let showMore = true
         moreButton.isHidden = !showMore
-        configureMoreMenu(showRetry: showRetry, showCrosscheck: showCrosscheck)
+        configureMoreMenu(
+            showRetry: showRetry,
+            showCrosscheck: showCrosscheck
+        )
 
         messageStateAllowsFooterActions = model.message.state != .generating
-        hasConfiguredFooterActions = showCopy || showSaveNote || showReadAloud || showMore || !continueButton.isHidden
+        hasConfiguredFooterActions = showsActions
+            && (showCopy || showSaveNote || showReadAloud || showMore || !continueButton.isHidden)
         self.isVisualRenderPending = isVisualRenderPending
         updateActionRowVisibility()
 
@@ -434,7 +470,7 @@ final class AssistantMetadataView: UIStackView {
             foreground = UIColor(OriveoTheme.Palette.textTertiary)
             softBackground = UIColor(OriveoTheme.Palette.surfaceInset)
         case .accent:
-            foreground = UIColor(OriveoTheme.Palette.primary)
+            foreground = OriveoTheme.Palette.primaryTextOnSurfaceUIColor
             softBackground = UIColor(OriveoTheme.Palette.primarySoft)
         }
         let restBackground: UIColor = filled ? softBackground : .clear
@@ -474,7 +510,10 @@ final class AssistantMetadataView: UIStackView {
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
     }
 
-    private func configureMoreMenu(showRetry: Bool, showCrosscheck: Bool) {
+    private func configureMoreMenu(
+        showRetry: Bool,
+        showCrosscheck: Bool
+    ) {
         var actions: [UIMenuElement] = []
         actions.append(UIAction(
             title: L10n.tr("Token usage", table: .chat),
@@ -698,6 +737,8 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
     var costSource: CostSource?
     var nonUsdCost: NonUsdCost?
     var isPlatformPaid: Bool
+    /// Hosted provider message: billed by the server.
+    var isHostedProvider: Bool
 
     nonisolated init(
         inputTokens: Int? = nil,
@@ -707,7 +748,8 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
         estimatedCost: Double = 0,
         costSource: CostSource? = nil,
         nonUsdCost: NonUsdCost? = nil,
-        isPlatformPaid: Bool = false
+        isPlatformPaid: Bool = false,
+        isHostedProvider: Bool = false
     ) {
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -717,6 +759,7 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
         self.costSource = costSource
         self.nonUsdCost = nonUsdCost
         self.isPlatformPaid = isPlatformPaid
+        self.isHostedProvider = isHostedProvider || isPlatformPaid
     }
 
     nonisolated init(message: ChatMessage) {
@@ -737,16 +780,30 @@ nonisolated struct MessageTokenUsageSnapshot: Equatable, Sendable {
         return inputTokens + outputTokens
     }
 
-    /// A cost deserves its own line only when it is not platform-paid and a positive value was actually computed.
+    /// Cost row rule: platform-paid hides the row; a USD amount above epsilon shows; an unknown USD price on a
+    /// non-hosted message without a non-USD part shows the No data label; managed / subscription / unrecorded zero amounts hide.
     nonisolated var showsCost: Bool {
         guard !isPlatformPaid else { return false }
         if estimatedCost > CostFormatter.costEpsilon { return true }
-        guard let nonUsdCost else { return false }
+        guard let nonUsdCost else {
+            return costSource == .unknown && !isHostedProvider
+        }
         return nonUsdCost.costSource == .unknown || nonUsdCost.amount > CostFormatter.costEpsilon
     }
 
+    /// Cost row value: formatted parts, or the No data label alone when the USD price is unknown on a
+    /// non-hosted message that has nothing else to show.
+    @MainActor var costRowText: String {
+        let text = CostFormatter.messageText(estimatedCost: estimatedCost, nonUsdCost: nonUsdCost)
+        guard text.isEmpty, nonUsdCost == nil, costSource == .unknown, !isHostedProvider else { return text }
+        return L10n.tr("No data", table: .chat)
+    }
+
+    /// The Estimated tag shows unless the cost is upstream-exact or server-billed (managed). Legacy hosted
+    /// rows read as managed only at or below epsilon, where the row is hidden; above it the stored source
+    /// is taken literally.
     nonisolated var isCostEstimated: Bool {
-        costSource != .upstream
+        costSource != .upstream && costSource != .managed
     }
 }
 
@@ -762,6 +819,15 @@ private struct MessageTokenUsageSheet: View {
     }
 }
 
+/// Color roles of the Estimated badge in the token usage sheet: panel background, 1pt border, secondary text.
+enum MessageTokenUsageBadgeStyle {
+    static let estimatedFill = OriveoTheme.Palette.background
+    static let estimatedStroke = OriveoTheme.Palette.border
+    static let estimatedText = OriveoTheme.Palette.textSecondary
+}
+
+/// Split out of `MessageTokenUsageSheet` so that `presentTokenUsage` can size the detent with `sizeThatFits`
+/// to get the content's natural height; a ScrollView fills the given height, so the outer view cannot measure it.
 private struct MessageTokenUsageContent: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -863,10 +929,8 @@ private struct MessageTokenUsageContent: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .background(
-            OriveoTheme.Palette.primarySoft,
-            in: RoundedRectangle(cornerRadius: OriveoTheme.Radius.inset, style: .continuous)
-        )
+        // Same neutral inset surface as the Input / Output / Cost cells; brand color is for interactive elements only.
+        .modelControlSurface(cornerRadius: OriveoTheme.Radius.inset)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(title)
         .accessibilityValue(value)
@@ -874,7 +938,7 @@ private struct MessageTokenUsageContent: View {
 
     private var cost: some View {
         let title = L10n.tr("Cost", table: .chat)
-        let value = CostFormatter.messageText(estimatedCost: usage.estimatedCost, nonUsdCost: usage.nonUsdCost)
+        let value = usage.costRowText
         let estimatedTag = usage.isCostEstimated ? L10n.tr("Estimated", table: .chat) : nil
         return HStack(spacing: 8) {
             Text(title)
@@ -883,12 +947,16 @@ private struct MessageTokenUsageContent: View {
             if let estimatedTag {
                 Text(estimatedTag)
                     .font(.caption2.weight(.medium))
-                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                    .foregroundStyle(MessageTokenUsageBadgeStyle.estimatedText)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(
-                        OriveoTheme.Palette.surfaceInset,
+                        MessageTokenUsageBadgeStyle.estimatedFill,
                         in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(MessageTokenUsageBadgeStyle.estimatedStroke, lineWidth: 1)
                     )
             }
             Spacer(minLength: 12)

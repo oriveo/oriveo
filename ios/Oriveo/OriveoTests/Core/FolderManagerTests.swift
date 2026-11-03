@@ -193,12 +193,11 @@ struct FolderManagerTests {
 
     @Test("conversations(in:) reads the authoritative store, not the mirror cache")
     @MainActor
-    func conversationsInFolderReadAuthoritativeStore() throws {
+    func conversationsInFolderReadAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState()
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -225,12 +224,11 @@ struct FolderManagerTests {
 
     @Test("conversations(in:) reads only the runtime mirror while it is non-empty, so stored leftovers are not merged back")
     @MainActor
-    func conversationsInFolderUseRuntimeMirrorOnlyBeforePersistenceCompletes() throws {
+    func conversationsInFolderUseRuntimeMirrorOnlyBeforePersistenceCompletes() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-runtime-merge-")
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -265,12 +263,11 @@ struct FolderManagerTests {
 
     @Test("searchConversations(in:matching:) searches the authoritative store and returns a lightweight projection")
     @MainActor
-    func searchConversationsInFolderReadAuthoritativeStore() throws {
+    func searchConversationsInFolderReadAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState()
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -299,12 +296,11 @@ struct FolderManagerTests {
 
     @Test("searchConversations(in:matching:) keeps folder draft conversations in the authoritative store")
     @MainActor
-    func searchConversationsInFolderIncludesDraftsFromAuthoritativeStore() throws {
+    func searchConversationsInFolderIncludesDraftsFromAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-search-draft-visible-")
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -333,12 +329,11 @@ struct FolderManagerTests {
 
     @Test("moveConversation reads the authoritative store, not the mirror cache")
     @MainActor
-    func moveConversationReadsAuthoritativeStore() throws {
+    func moveConversationReadsAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-move-auth-")
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -365,12 +360,11 @@ struct FolderManagerTests {
 
     @Test("moveConversation must not overwrite the authoritative thread with a stale mirror")
     @MainActor
-    func moveConversationPreservesAuthoritativeThreadWhenMirrorIsStale() throws {
+    func moveConversationPreservesAuthoritativeThreadWhenMirrorIsStale() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-move-stale-mirror-")
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -411,12 +405,11 @@ struct FolderManagerTests {
 
     @Test("batchMove reads the authoritative store, not the mirror cache")
     @MainActor
-    func batchMoveReadsAuthoritativeStore() throws {
+    func batchMoveReadsAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-batch-auth-")
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -443,12 +436,11 @@ struct FolderManagerTests {
 
     @Test("deleteFolder cascades cleanup of authoritative conversations, not the mirror cache")
     @MainActor
-    func deleteFolderCascadesAuthoritativeStore() throws {
+    func deleteFolderCascadesAuthoritativeStore() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-delete-auth-")
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -474,12 +466,11 @@ struct FolderManagerTests {
 
     @Test("deleteFolder must not overwrite the authoritative thread with a stale mirror")
     @MainActor
-    func deleteFolderPreservesAuthoritativeThreadsWhenMirrorIsStale() throws {
+    func deleteFolderPreservesAuthoritativeThreadsWhenMirrorIsStale() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-delete-stale-mirror-")
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -519,13 +510,11 @@ struct FolderManagerTests {
 
     @Test("Moving a conversation right after truncation: the loaded in-memory thread wins, and unpersisted old messages are not read back and written again")
     @MainActor
-    func moveRightAfterTruncationDoesNotResurrectMessages() throws {
+    func moveRightAfterTruncationDoesNotResurrectMessages() async throws {
         let (state, uid) = makeIsolatedAppState(prefix: "folder-move-truncated-")
 
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()

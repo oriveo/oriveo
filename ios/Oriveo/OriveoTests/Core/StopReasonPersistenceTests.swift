@@ -78,6 +78,48 @@ final class StopReasonURLProtocol: URLProtocol, @unchecked Sendable {
     override func stopLoading() {}
 }
 
+/// Counts provider requests so a scripted reply can differ per leg.
+nonisolated final class StopReasonRequestCounter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = 0
+    var count: Int { lock.withLock { value } }
+    func next() -> Int { lock.withLock { value += 1; return value } }
+}
+
+/// Reported usage of the finished legs in the multi-leg stop cases.
+private let stopReasonFinishedInput = 5_000
+private let stopReasonFinishedOutput = 300
+private let stopReasonUsageFrame =
+    #"{"choices":[],"usage":{"prompt_tokens":5000,"completion_tokens":300,"total_tokens":5300}}"#
+/// Long finished-leg text / reasoning: estimating it again would add far more than the stopped leg's own text.
+private let stopReasonLongText = String(repeating: "The user wants a careful answer. ", count: 24)
+
+/// One read-only `get_weather` MCP tool enabled for the conversation.
+private func seedStopReasonMcpServer(_ database: McpTestDatabase, conversationID: UUID) throws {
+    let store = database.store
+    let schema = JSONValue.object(JSONObject([
+        ("type", .string("object")),
+        ("properties", .object(JSONObject([("city", .object(JSONObject([("type", .string("string"))])))]))),
+    ]))
+    try store.addServer(
+        McpServerAddition(
+            id: stopReasonMcpServerID, name: "Weather", url: "https://mcp.example.com/mcp", authKind: .auto,
+            localOnly: false, iconURL: nil, createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            snapshots: [McpToolSnapshot(
+                serverId: stopReasonMcpServerID, toolName: "get_weather", title: "Get weather",
+                description: "Weather lookup", inputSchema: schema,
+                annotations: .object(JSONObject([("readOnlyHint", .bool(true))])),
+                contentHash: sha256Hex("stop-reason:get_weather"), readOnly: true,
+                pendingReview: false, oversized: false
+            )],
+            permissions: [:],
+            connectionState: McpConnectionState(serverId: stopReasonMcpServerID, status: .connected, generation: .stateless)
+        ),
+        maxServers: 20
+    )
+    try store.setServerEnabled(true, conversationId: conversationID, serverId: stopReasonMcpServerID)
+}
+
 nonisolated private func stopReasonChatSSE(_ frames: [String]) -> String {
     frames.map { "data: \($0)\n\n" }.joined() + "data: [DONE]\n\n"
 }
@@ -188,6 +230,261 @@ struct StopReasonPersistenceTests {
         #expect(stored.stopReason == .interrupted)
     }
 
+    /// Priced model plus one auto skill, so the stopped turn sends a skill manifest and its cost is derivable.
+    /// The user-skill cache is keyed by the global active UID; callers must clear it with `clearUserSkills`.
+    private func pricedSkillSetup(_ state: AppState) {
+        state.providers = state.providers.map { provider in
+            var provider = provider
+            provider.models = provider.models.map {
+                TestFactories.makeModel(
+                    id: $0.id, name: $0.name, isDefault: true, promptPrice: 0.000002, completionPrice: 0.000008
+                )
+            }
+            return provider
+        }
+        state.skillManager.replaceUserSkills([
+            Skill(
+                id: UUID(), name: "Poet", systemPrompt: "Answer in verse.",
+                whenToUse: "The user asks for a poem.", autoInvoke: true, source: .user
+            ),
+        ])
+    }
+
+    private func clearUserSkills(_ state: AppState) {
+        state.skillManager.replaceUserSkills([])
+    }
+
+    /// A stop after visible text records the estimated usage like a completion and keeps the message interrupted
+    ///.
+    @Test func user_stop_records_estimated_usage() async throws {
+        defer { StopReasonURLProtocol.reset() }
+        let ledger = try FixedRhoLedger()
+        let (state, uid, conversationID) = try await sendOpenRouter(
+            prefix: "user-stop-usage", beforeSend: { state in
+                pricedSkillSetup(state)
+                try ledger.inject(into: state)
+            }
+        ) { _ in
+            .hang(text: "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n")
+        }
+        defer { clearUserSkills(state) }
+        try await waitUntil("stream delivered first chunk") { StopReasonURLProtocol.hangDelivered }
+        try await Task.sleep(nanoseconds: 150_000_000)
+        state.chatManager.cancelGeneration(in: conversationID)
+        _ = try await waitSettled(state, conversationID)
+        try await waitUntil("stopped usage written") { lastAssistant(state, conversationID)?.outputTokens != nil }
+        let message = try #require(lastAssistant(state, conversationID))
+        #expect(message.state == .interrupted)
+        #expect(message.stopReason == .interrupted)
+        // Input = the request estimate at rhoHi 0.46; output = ceil(14 UTF-8 bytes of "Partial answer" x 0.46) = 7.
+        #expect(message.inputTokens == 273, "input is the request estimate, got \(String(describing: message.inputTokens))")
+        #expect(message.outputTokens == 7, "output is the visible text estimate, got \(String(describing: message.outputTokens))")
+        #expect(message.costSource == .localEstimate)
+        // Priced at the catalog rate for openai/gpt-4o-mini ($0.15 / $0.60 per 1M): 273 x 0.15e-6 + 7 x 0.6e-6.
+        #expect(abs(message.estimatedCost - 4.515e-05) < 1e-12, "cost got \(message.estimatedCost)")
+        #expect(message.skillManifestTokens == 262, "the turn sent a skill manifest, got \(String(describing: message.skillManifestTokens))")
+        let stored = try #require(try storedMessage(state, uid: uid, conversationID: conversationID, messageID: message.id))
+        #expect(stored.state == .interrupted)
+        #expect(stored.outputTokens == message.outputTokens)
+        #expect(stored.costSource == .localEstimate)
+    }
+
+    /// Nothing visible at the stop: no tokens, cost unknown, no skill manifest tokens
+    ///.
+    @Test func user_stop_before_output_records_nothing() async throws {
+        defer { StopReasonURLProtocol.reset() }
+        let (state, uid, conversationID) = try await sendOpenRouter(
+            prefix: "user-stop-nothing", beforeSend: { pricedSkillSetup($0) }
+        ) { _ in
+            .hang(text: "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\"}}]}\n\n")
+        }
+        defer { clearUserSkills(state) }
+        try await waitUntil("stream delivered first chunk") { StopReasonURLProtocol.hangDelivered }
+        try await Task.sleep(nanoseconds: 150_000_000)
+        state.chatManager.cancelGeneration(in: conversationID)
+        _ = try await waitSettled(state, conversationID)
+        try await Task.sleep(nanoseconds: 300_000_000)
+        let message = try #require(lastAssistant(state, conversationID))
+        #expect(message.state == .interrupted)
+        #expect(message.inputTokens == nil)
+        #expect(message.outputTokens == nil)
+        #expect(message.costSource != .localEstimate)
+        #expect(message.skillManifestTokens == nil)
+        let stored = try #require(try storedMessage(state, uid: uid, conversationID: conversationID, messageID: message.id))
+        #expect(stored.outputTokens == nil)
+        #expect(stored.skillManifestTokens == nil)
+    }
+
+    /// D-251: a thinking first leg with empty text and a propose_memory call is billed, then the plain resend is
+    /// stopped. The resend's single delta arrives inside the 40 ms flush window and no later event follows; the tail
+    /// flush still surfaces it, so the stop records the first leg's reported usage plus the resend's visible text
+    ///.
+    @Test func user_stop_after_propose_leg_keeps_its_usage() async throws {
+        defer { StopReasonURLProtocol.reset() }
+        StopReasonURLProtocol.reset()
+        let firstLeg = stopReasonChatSSE([
+            #"{"choices":[{"delta":{"reasoning_content":"The user wants brevity."}}]}"#,
+            #"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_p1","type":"function","function":{"name":"\#(MemoryPropose.toolName)","arguments":"{\"proposition\":\"Prefers short answers\",\"sourceQuote\":\"I like short answers\",\"kind\":\"preference\",\"scope\":\"global\"}"}}]}}]}"#,
+            #"{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+            #"{"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12}}"#,
+        ])
+        let requests = StopReasonRequestCounter()
+        StopReasonURLProtocol.reply = { request in
+            guard request.url?.path.hasSuffix("/chat/completions") == true else { return nil }
+            return requests.next() == 1
+                ? .body(status: 200, text: firstLeg)
+                : .hang(text: "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n")
+        }
+        let uid = "stop-reason-propose-\(UUID().uuidString)"
+        let state = AppState(
+            seedDemoData: false, sessionUID: uid, providerSession: StopReasonURLProtocol.session(),
+            toolCallMemory: try makeR4MemoryStore()
+        )
+        let (provider, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
+        state.providers = [provider]
+        var conversation = TestFactories.makeConversation(
+            hasCustomTitle: true, providerID: provider.id, modelID: model.id, messages: []
+        )
+        conversation.useMemory = true
+        state.upsertConversationProjection(conversation)
+        let ledger = try FixedRhoLedger()
+        try ledger.inject(into: state, provider: provider, model: model)
+        // Same setup as the delivered D-251 case: web on, so the turn makes exactly the first leg and the resend.
+        RelayWebSwitch.write(true, provider: provider, model: model, conversationID: conversation.id)
+        defer {
+            RelayWebFragmentStore.shared.deleteConnection(provider.id)
+            RelayWebProbeStore.shared.clearConnection(provider.id.uuidString)
+            Task { await TestPartitionCleanup.remove(uid) }
+        }
+        _ = await state.sendMessage("Remember that I like short answers", in: conversation.id)
+
+        try await waitUntil("resend streaming") { requests.count == 2 && StopReasonURLProtocol.hangDelivered }
+        try await waitUntil("stalled resend delta flushed") {
+            state.chatManager.streamingText(in: conversation.id) == "Partial answer"
+        }
+        state.chatManager.cancelGeneration(in: conversation.id)
+        _ = try await waitSettled(state, conversation.id)
+        try await waitUntil("stopped usage written") { lastAssistant(state, conversation.id)?.outputTokens != nil }
+        let message = try #require(lastAssistant(state, conversation.id))
+        #expect(requests.count == 2, "first leg and the plain resend, got \(requests.count) requests")
+        #expect(message.state == .interrupted)
+        #expect(message.text == "Partial answer")
+        // First leg reports 10 / 2; the resend adds its request estimate (20) and ceil(14 x 0.46) = 7 output.
+        // This case sets no user skill. The earlier 296 (ab1abfe2d3) was recorded while another case's auto skill
+        // leaked through the global-UID user-skill cache and added a skill manifest to the resend.
+        #expect(message.inputTokens == 30, "the first leg plus the resend's request estimate, got \(String(describing: message.inputTokens))")
+        #expect(message.outputTokens == 9, "the first leg plus the resend's visible text estimate, got \(String(describing: message.outputTokens))")
+    }
+
+    /// The stopped message carries the finished legs' reported usage plus an estimate for the stopped leg's own
+    /// visible text only: the estimate stays far below what the finished legs' long text / reasoning would add.
+    private func expectFinishedLegsPlusStoppedEstimate(_ message: ChatMessage) {
+        #expect(message.state == .interrupted)
+        let addedInput = (message.inputTokens ?? 0) - stopReasonFinishedInput
+        let addedOutput = (message.outputTokens ?? 0) - stopReasonFinishedOutput
+        #expect(addedInput > 0 && addedInput < stopReasonFinishedInput, "finished input once plus the request estimate, added \(addedInput)")
+        #expect(addedOutput > 0 && addedOutput < 40, "finished output plus the stopped leg's visible text only, added \(addedOutput)")
+    }
+
+    /// MCP loop: the tool-call leg (long reasoning, reported usage) finished, the answer leg is stopped after text
+    ///.
+    @Test func user_stop_during_mcp_tool_loop_keeps_finished_leg_usage() async throws {
+        defer { StopReasonURLProtocol.reset() }
+        let database = try McpTestDatabase.make()
+        let mcpDirectory = McpServerDirectory(
+            credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
+            openStore: { _ in database.store }
+        )
+        defer { database.cleanUp(after: mcpDirectory) }
+        McpScriptedURLProtocol.reset()
+        try McpScriptedURLProtocol.enqueue([
+            McpClientFixture.stub("protocol/stateless/tools-list.response.json"),
+            McpClientFixture.stub("protocol/stateless/tools-call.response.json"),
+        ])
+        StopReasonURLProtocol.reset()
+        let requests = StopReasonRequestCounter()
+        let callLeg = stopReasonChatSSE([
+            #"{"choices":[{"delta":{"reasoning_content":"\#(stopReasonLongText)"}}]}"#,
+            #"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_w1","type":"function","function":{"name":"mcp_weather_get_weather","arguments":"{\"city\":\"Melbourne\"}"}}]}}]}"#,
+            #"{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+            stopReasonUsageFrame,
+        ])
+        StopReasonURLProtocol.reply = { request in
+            guard request.url?.path.hasSuffix("/chat/completions") == true else { return nil }
+            return requests.next() == 1
+                ? .body(status: 200, text: callLeg)
+                : .hang(text: "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n")
+        }
+        let state = AppState(
+            seedDemoData: true,
+            providerSession: StopReasonURLProtocol.session(),
+            toolCallMemory: try makeToolLoopMemoryStore(),
+            mcpServerDirectory: mcpDirectory
+        )
+        let (relay, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
+        let conversationID = UUID()
+        try seedStopReasonMcpServer(database, conversationID: conversationID)
+        state.providers = [relay]
+        state.conversations = [TestFactories.makeConversation(id: conversationID, providerID: relay.id, modelID: model.id, messages: [])]
+        state.chatManager.debugUseMcpClientFactoryForTesting { McpClient(endpoint: $0, session: McpScriptedURLProtocol.session()) }
+
+        _ = await state.chatManager.sendMessage("Weather?", in: conversationID, capabilitySelection: ChatCapabilitySelection())
+        try await waitUntil("answer leg text visible") {
+            state.chatManager.streamingText(in: conversationID) == "Partial answer"
+        }
+        state.chatManager.cancelGeneration(in: conversationID)
+        _ = try await waitSettled(state, conversationID)
+        try await waitUntil("stopped usage written") { lastAssistant(state, conversationID)?.outputTokens != nil }
+        let message = try #require(lastAssistant(state, conversationID))
+        #expect(requests.count == 2, "tool-call leg and answer leg, got \(requests.count) requests")
+        expectFinishedLegsPlusStoppedEstimate(message)
+    }
+
+    /// Memory tail: the first leg (long text plus a propose_memory call, reported usage) is held for its tail; the
+    /// tail is stopped after text and only the tail's own text is estimated
+    ///.
+    @Test func user_stop_after_memory_tail_first_leg_keeps_its_usage() async throws {
+        defer { StopReasonURLProtocol.reset() }
+        StopReasonURLProtocol.reset()
+        let requests = StopReasonRequestCounter()
+        let firstLeg = stopReasonChatSSE([
+            #"{"choices":[{"delta":{"content":"\#(stopReasonLongText)"}}]}"#,
+            #"{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_p1","type":"function","function":{"name":"\#(MemoryPropose.toolName)","arguments":"{\"proposition\":\"Prefers short answers\",\"sourceQuote\":\"I like short answers\",\"kind\":\"preference\",\"scope\":\"global\"}"}}]}}]}"#,
+            #"{"choices":[{"delta":{},"finish_reason":"tool_calls"}]}"#,
+            stopReasonUsageFrame,
+        ])
+        StopReasonURLProtocol.reply = { request in
+            guard request.url?.path.hasSuffix("/chat/completions") == true else { return nil }
+            return requests.next() == 1
+                ? .body(status: 200, text: firstLeg)
+                : .hang(text: "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n")
+        }
+        let uid = "stop-reason-tail-\(UUID().uuidString)"
+        let state = AppState(
+            seedDemoData: false, sessionUID: uid, providerSession: StopReasonURLProtocol.session(),
+            toolCallMemory: try makeR4MemoryStore()
+        )
+        let (provider, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
+        state.providers = [provider]
+        var conversation = TestFactories.makeConversation(
+            hasCustomTitle: true, providerID: provider.id, modelID: model.id, messages: []
+        )
+        conversation.useMemory = true
+        state.upsertConversationProjection(conversation)
+        defer { Task { await TestPartitionCleanup.remove(uid) } }
+        _ = await state.sendMessage("Remember that I like short answers", in: conversation.id)
+
+        try await waitUntil("tail text visible") {
+            state.chatManager.streamingText(in: conversation.id).hasSuffix("Partial answer")
+        }
+        state.chatManager.cancelGeneration(in: conversation.id)
+        _ = try await waitSettled(state, conversation.id)
+        try await waitUntil("stopped usage written") { lastAssistant(state, conversation.id)?.outputTokens != nil }
+        let message = try #require(lastAssistant(state, conversation.id))
+        #expect(requests.count == 2, "first leg and the tail, got \(requests.count) requests")
+        expectFinishedLegsPlusStoppedEstimate(message)
+    }
+
     @Test func system_interrupt_incomplete() async throws {
         defer { StopReasonURLProtocol.reset() }
         let (state, uid, conversationID) = try await sendOpenRouter(prefix: "forced-stop") { _ in
@@ -272,7 +569,11 @@ struct StopReasonPersistenceTests {
     @Test func mcp_send_delivered_records_stop_reason() async throws {
         defer { StopReasonURLProtocol.reset() }
         let database = try McpTestDatabase.make()
-        defer { database.cleanUp() }
+        let mcpDirectory = McpServerDirectory(
+            credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
+            openStore: { _ in database.store }
+        )
+        defer { database.cleanUp(after: mcpDirectory) }
         StopReasonURLProtocol.reset()
         StopReasonURLProtocol.reply = { request in
             guard request.url?.path.hasSuffix("/chat/completions") == true else { return nil }
@@ -281,39 +582,15 @@ struct StopReasonPersistenceTests {
                 #"{"choices":[{"delta":{},"finish_reason":"length"}]}"#,
             ]))
         }
-        let store = database.store
         let state = AppState(
             seedDemoData: true,
             providerSession: StopReasonURLProtocol.session(),
             toolCallMemory: try makeToolLoopMemoryStore(),
-            mcpServerDirectory: McpServerDirectory(
-                credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
-                openStore: { _ in store }
-            )
+            mcpServerDirectory: mcpDirectory
         )
         let (relay, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
         let conversationID = UUID()
-        let schema = JSONValue.object(JSONObject([
-            ("type", .string("object")),
-            ("properties", .object(JSONObject([("city", .object(JSONObject([("type", .string("string"))])))]))),
-        ]))
-        try store.addServer(
-            McpServerAddition(
-                id: stopReasonMcpServerID, name: "Weather", url: "https://mcp.example.com/mcp", authKind: .auto,
-                localOnly: false, iconURL: nil, createdAt: Date(timeIntervalSince1970: 1_700_000_000),
-                snapshots: [McpToolSnapshot(
-                    serverId: stopReasonMcpServerID, toolName: "get_weather", title: "Get weather",
-                    description: "Weather lookup", inputSchema: schema,
-                    annotations: .object(JSONObject([("readOnlyHint", .bool(true))])),
-                    contentHash: sha256Hex("stop-reason:get_weather"), readOnly: true,
-                    pendingReview: false, oversized: false
-                )],
-                permissions: [:],
-                connectionState: McpConnectionState(serverId: stopReasonMcpServerID, status: .connected, generation: .stateless)
-            ),
-            maxServers: 20
-        )
-        try store.setServerEnabled(true, conversationId: conversationID, serverId: stopReasonMcpServerID)
+        try seedStopReasonMcpServer(database, conversationID: conversationID)
         state.providers = [relay]
         state.conversations = [TestFactories.makeConversation(id: conversationID, providerID: relay.id, modelID: model.id, messages: [])]
 
@@ -409,5 +686,59 @@ struct StopReasonPersistenceTests {
         let restored = try #require(parsed.data.conversations.first { $0.id == conversation.id })
         #expect(restored.messages.first { $0.id == capped.id }?.stopReason == .length)
         #expect(restored.messages.first { $0.id == legacy.id }?.stopReason == nil, "legacy messages stay nil")
+    }
+}
+
+/// Context ledger with a fixed calibration for the conversation's provider / model, injected through
+/// `ChatManager.contextLedgerResolver`. The injected store is read-only, so a finished leg cannot recalibrate rho
+/// and the stopped leg is estimated with exactly `rhoHi`.
+final class FixedRhoLedger: @unchecked Sendable {
+    static let calibration = RhoCalibration(n: 3, rho: 0.4, seeds: [0.4, 0.4, 0.4])
+    /// 0.4 x 1.15 in IEEE double (0.45999999999999996).
+    static let rhoHi = calibration.rhoHi
+
+    private let directory: URL
+    private let writer: DatabasePool
+    private var reader: DatabasePool?
+
+    init() throws {
+        directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("oriveo-fixed-rho-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var configuration = Configuration()
+        configuration.foreignKeysEnabled = false
+        writer = try DatabasePool(path: directory.appendingPathComponent("ledger.sqlite").path, configuration: configuration)
+        try writer.write { db in try ContextLedgerStore.createTables(in: db) }
+    }
+
+    /// Seeds the calibration for the state's first provider and its default model, then injects the read-only store.
+    @MainActor
+    func inject(into state: AppState) throws {
+        let provider = try #require(state.providers.first)
+        let model = try #require(provider.models.first { $0.isDefault } ?? provider.models.first)
+        try inject(into: state, provider: provider, model: model)
+    }
+
+    @MainActor
+    func inject(into state: AppState, provider: Provider, model: AIModel) throws {
+        try ContextLedgerStore(dbPool: writer).saveRho(
+            RhoCalibrationKey(transportInstanceId: provider.id.uuidString, modelId: model.id), Self.calibration
+        )
+        var configuration = Configuration()
+        configuration.readonly = true
+        configuration.foreignKeysEnabled = false
+        let reader = try DatabasePool(path: directory.appendingPathComponent("ledger.sqlite").path, configuration: configuration)
+        self.reader = reader
+        let store = ContextLedgerStore(dbPool: reader)
+        #expect(ContextLedgerStore.currentRhoHi(
+            for: RhoCalibrationKey(transportInstanceId: provider.id.uuidString, modelId: model.id), in: store
+        ) == Self.rhoHi)
+        state.chatManager.contextLedgerResolver = { _ in store }
+    }
+
+    deinit {
+        try? reader?.close()
+        try? writer.close()
+        try? FileManager.default.removeItem(at: directory)
     }
 }

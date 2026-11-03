@@ -76,6 +76,32 @@ class UserBubbleGradientContractTest {
         }
     }
 
+    /**
+     * Only lightness changes, not hue: the first stop equals the fixture's first stop and shares the hue of the bottom color (dark primary / light gradStart).
+     * Pure black palettes (accent blue to primary pink) must no longer produce a two-color bubble.
+     */
+    @Test
+    fun bubbleStopsKeepPrimaryHue() {
+        val presets = DarkPaletteContract.root.getValue("userBubbleStops").jsonObject
+        for ((id, value) in presets) {
+            val choice = DarkPaletteChoice.Preset(DarkPaletteId.fromId(id))
+            for (isDark in listOf(true, false)) {
+                val label = "$id.${if (isDark) "dark" else "light"}"
+                val stops = OriveoUserBubble.stops(choice, isDark)
+                val expected = value.jsonObject.hexList(if (isDark) "dark" else "light")
+                assertStopsClose("$label first stop", expected.take(1), stops.take(1))
+                val bottom = if (isDark) choice.colors.primary else choice.lightBrand.gradStart
+                val b = OriveoCustomPalette.oklch(rgb(bottom))
+                val t = OriveoCustomPalette.oklch(rgb(stops.first()))
+                if (b[1] >= 0.05 && t[1] >= 0.05) {
+                    var dh = abs(t[2] - b[2])
+                    if (dh > 180) dh = 360 - dh
+                    assertTrue("$label first stop hue ${t[2]} deviates from bottom ${b[2]}", dh <= 3.0)
+                }
+            }
+        }
+    }
+
     @Test
     fun `spec constants match fixture`() {
         assertEquals("viewport", spec.getValue("anchor").jsonPrimitive.content)

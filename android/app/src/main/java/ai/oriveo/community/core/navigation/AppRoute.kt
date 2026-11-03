@@ -112,4 +112,11 @@ sealed interface AppRoute {
     @Serializable data object Backup : AppRoute
     @Serializable data object Skills : AppRoute
     @Serializable data class SkillEdit(val skillId: String? = null) : AppRoute
+    @Serializable data class SkillDetail(val skillId: String) : AppRoute
+    /** Skill trial; its arguments are parked in `SkillViewModel.setTrialHandoff` right before navigating. */
+    @Serializable data object SkillTrial : AppRoute
+    /** Notice center (entered from the home bell). */
+    @Serializable data object Notices : AppRoute
+    /** In-app feedback (shared by the bottom entry on the notices page and the settings page). */
+    @Serializable data object Feedback : AppRoute
 }

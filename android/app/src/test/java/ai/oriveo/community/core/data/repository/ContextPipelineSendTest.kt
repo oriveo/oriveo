@@ -361,7 +361,9 @@ class ContextPipelineSendTest {
         private val sendCoordinator = ChatSendCoordinator(
             chatStreamingManager = streamingManager,
             applicationScope = scope,
-            skillProvider = { id -> skill?.takeIf { it.id == id } },
+            skillDependencies = object : ai.oriveo.community.core.skills.SkillTurnDependencies {
+                override suspend fun skill(id: String) = skill?.takeIf { it.id == id }
+            },
             providersProvider = { listOf(provider) },
             untitledNoteFallback = "Untitled",
             pinnedNotesResolver = { ids -> pinnedNotes.filter { it.id in ids } },

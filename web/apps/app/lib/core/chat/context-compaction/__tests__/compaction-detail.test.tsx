@@ -111,6 +111,22 @@ describe('CompactionDetailDialog', () => {
     mocks.showToast.mockReset();
   });
 
+  it('compaction_cost_uses_cost_tiers', () => {
+    renderDialog(row({ cost: 0.00002 }));
+    expect(screen.getByText('$0.00002')).toBeTruthy();
+    cleanup();
+    renderDialog(row({ cost: 0.0123 }));
+    expect(screen.getByText('$0.01')).toBeTruthy();
+  });
+
+  it('compaction_zero_cost_shows_unavailable', () => {
+    renderDialog(row({ cost: 0 }));
+    expect(screen.getByText(`${NS}.detailCostUnavailable`)).toBeTruthy();
+    cleanup();
+    renderDialog(row({ cost: 0.00001 }));
+    expect(screen.getByText(`${NS}.detailCostUnavailable`)).toBeTruthy();
+  });
+
   it('detail_actions_wired', async () => {
     // Compact again -> fallback toast, close after running
     mocks.recompact.mockResolvedValue('fallback');

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="studio_tab_title">生图</string>
+    <plurals name="studio_generating_title">
+        <item quantity="other">正在生成 %1$d 张</item>
+    </plurals>
+</resources>

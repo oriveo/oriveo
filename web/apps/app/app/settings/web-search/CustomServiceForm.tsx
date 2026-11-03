@@ -35,9 +35,6 @@ export function CustomServiceForm({ values, onChange, feedback, catalog, showKey
     return key ? <span className={styles.fieldError} role="alert">{t(`form.${key}`)}</span> : null;
   };
   const presetsAvailable = !!catalog?.available && catalog.entries.length > 0;
-  const sameAsRegions = values.protocol === 'same_as' && presetsAvailable && values.sameAsId
-    ? catalog!.entries.find((e) => e.id === values.sameAsId)?.regions ?? []
-    : [];
 
   const textField = (key: CustomFormKey, label: string, field: CustomFormField, opts: { placeholder?: string; optional?: boolean; secure?: boolean } = {}) => {
     const id = `${baseId}-${key}`;
@@ -142,28 +139,14 @@ export function CustomServiceForm({ values, onChange, feedback, catalog, showKey
               className={styles.formInput}
               value={values.sameAsId ?? ''}
               disabled={disabled}
-              onChange={(e) => {
-                onChange('sameAsId', e.target.value || null);
-                onChange('sameAsRegionId', null);
-              }}
+              onChange={(e) => onChange('sameAsId', e.target.value || null)}
             >
               <option value="" disabled>{t('custom.protocolSameAsPick')}</option>
               {catalog!.entries.map((entry) => <option key={entry.id} value={entry.id}>{entry.displayName}</option>)}
             </select>
           </div>
         ) : null}
-        {sameAsRegions.length > 1 ? (
-          <div className={styles.formRow}>
-            <span className={styles.formLabel}>{t('region.label')}</span>
-            <Segmented
-              options={sameAsRegions.map((r) => ({ value: r.id, label: r.id === 'cn' || r.id === 'intl' ? t(`region.${r.id}`) : r.id }))}
-              value={values.sameAsRegionId ?? sameAsRegions[0].id}
-              disabled={disabled}
-              onChange={(v) => onChange('sameAsRegionId', v)}
-              label={t('region.label')}
-            />
-          </div>
-        ) : null}
+
         {error('protocol')}
       </div>
 

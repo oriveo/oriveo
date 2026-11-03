@@ -49,7 +49,7 @@ struct RealtimeGACodecContractTests {
 
     @Test func open_cases() throws {
         let cases = try Self.gaCases("openCases")
-        #expect(cases.count == 3)
+        #expect(cases.count == 10)
         for c in cases {
             let plan = try #require(c.input["plan"] as? [String: Any], "\(c.id)")
             let entry = try #require(c.input["entry"] as? [String: Any], "\(c.id)")
@@ -60,10 +60,29 @@ struct RealtimeGACodecContractTests {
                 instructions: try #require(plan["instructions"] as? String),
                 history: history,
                 voice: try #require(c.input["voice"] as? String),
-                inputTranscriptionModel: entry["inputTranscriptionModel"] as? String
+                inputTranscriptionModel: entry["inputTranscriptionModel"] as? String,
+                route: VoiceConversationLogic.Route(wire: try #require(c.input["route"] as? String, "\(c.id)")),
+                language: c.input["language"] as? String
             )
             let actual: [String: Any] = ["beforeReady": opening.beforeReady, "afterReady": opening.afterReady]
             #expect(try Self.canonical(actual) == Self.canonical(c.expected), "\(c.id)")
+        }
+    }
+
+    /// Shared transcription language hint pure function for all three providers; fixture expected null ↔ nil.
+    @Test func language_cases() throws {
+        let all = try #require(try Self.fixture()["languageCases"] as? [[String: Any]])
+        #expect(all.count == 105)
+        for item in all {
+            let id = item["id"] as? String ?? "?"
+            let input = try #require(item["input"] as? [String: Any], "\(id)")
+            let transport = try #require((input["transport"] as? String).flatMap(RealtimeTransportKind.init(rawValue:)), "\(id)")
+            let actual = RealtimeTranscriptionLanguage.transcriptionLanguage(transport: transport, tag: input["language"] as? String)
+            if item["expected"] is NSNull {
+                #expect(actual == nil, "\(id)")
+            } else {
+                #expect(actual == item["expected"] as? String, "\(id)")
+            }
         }
     }
 

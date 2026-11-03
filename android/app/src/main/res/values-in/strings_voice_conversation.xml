@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">Akhiri</string>
     <string name="voice_conversation_start_failed_toast">Percakapan suara tidak dapat dimulai. Coba lagi.</string>
     <string name="voice_conversation_background_paused_toast">Percakapan suara dijeda selama Oriveo berjalan di latar belakang.</string>
+    <string name="voice_conversation_status_say_again">Kurang jelas, ulangi lagi</string>
+    <string name="voice_conversation_status_check_language">Kurang jelas</string>
+    <string name="voice_conversation_prompt_say_again">Maaf, kurang jelas. Bisa diulangi?</string>
+    <string name="voice_conversation_prompt_check_language">Masih kurang jelas. Jika berbicara dalam bahasa lain, ketuk “Bahasa pengenalan” untuk menggantinya.</string>
+    <string name="voice_conversation_prompt_echo_hint">Speaker menimbulkan gema. Lebih baik pakai headphone.</string>
+    <string name="voice_conversation_language_chip">Bahasa pengenalan: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">Mengganti bahasa pengenalan</string>
 </resources>

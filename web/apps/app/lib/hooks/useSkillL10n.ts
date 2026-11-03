@@ -4,21 +4,27 @@ import type { Skill, SkillCategory } from '@oriveo/shared';
 
 export function useSkillL10n() {
   const t = useTranslations('builtinSkills');
+  // next-intl logs and returns the key path for a missing message instead of throwing,
+  // so check presence explicitly and fall back to the server-provided text.
+  const tr = useCallback(
+    (key: string, fallback: string): string => (t.has(key as any) ? t(key as any) : fallback),
+    [t],
+  );
 
   const localizedName = useCallback(
     (skill: Skill): string => {
       if (skill.source !== 'builtin' || !skill.key) return skill.name;
-      try { return t(`${skill.key}.name` as any); } catch { return skill.name; }
+      return tr(`${skill.key}.name`, skill.name);
     },
-    [t],
+    [tr],
   );
 
   const localizedDescription = useCallback(
     (skill: Skill): string => {
       if (skill.source !== 'builtin' || !skill.key) return skill.description;
-      try { return t(`${skill.key}.description` as any); } catch { return skill.description; }
+      return tr(`${skill.key}.description`, skill.description);
     },
-    [t],
+    [tr],
   );
 
   const localizedStarterMessages = useCallback(
@@ -27,17 +33,17 @@ export function useSkillL10n() {
         return skill.starterMessages;
       }
       return skill.starterMessages.map((fallback, i) => {
-        try { return t(`${skill.key}.starters.${i}` as any); } catch { return fallback; }
+        return tr(`${skill.key}.starters.${i}`, fallback);
       });
     },
-    [t],
+    [tr],
   );
 
   const localizedCategoryName = useCallback(
     (category: SkillCategory): string => {
-      try { return t(`category.${category.id}` as any); } catch { return category.name; }
+      return tr(`category.${category.id}`, category.name);
     },
-    [t],
+    [tr],
   );
 
   return { localizedName, localizedDescription, localizedStarterMessages, localizedCategoryName };

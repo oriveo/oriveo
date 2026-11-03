@@ -103,6 +103,15 @@ describe('backup local-only message fields', () => {
     expect(message).not.toHaveProperty('memoryItemIds');
   });
 
+  it('export strips the local-only skillManifestTokens estimate', async () => {
+    await putConversationsBatch([conversation([assistant({ skillManifestTokens: 715 })])]);
+
+    const exported = await readDataJson(await exportBackup({ includeApiKeys: false }));
+    const [message] = exported.data.conversations[0].messages;
+    expect(message.text).toBe('Balance is not enough.');
+    expect(message).not.toHaveProperty('skillManifestTokens');
+  });
+
   it('import ignores local-only keys carried by a foreign backup', async () => {
     await importHandWritten([conversation([assistant({ memoryItemIds: LOCAL_ITEM_IDS })])], 'replaceAll');
 

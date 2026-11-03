@@ -39,6 +39,7 @@ class ProviderSoftColorContractTest {
             "border",
             "borderStrong",
             "cardHighlight",
+            "cardSheen",
             "hairline",
             "glassHighlight",
             "surfaceChrome",

@@ -10,6 +10,8 @@ nonisolated struct STTError: Error, Sendable, Hashable {
     var autoRetried: Bool = false
     /// The slot recording itself could not be read (file cannot be opened / read error), as opposed to a recognizer error.
     var audioUnreadable: Bool = false
+    /// Classification basis for a system recognizer failure: the NSError the recognizer reports (domain, code) or a precheck condition; nil when the failure did not come from the system recognizer.
+    var systemFailure: SystemRecognizerFailure? = nil
 }
 
 /// Dictation engine shared by system and cloud recognition. The recording is the closed `.aac` in the slot

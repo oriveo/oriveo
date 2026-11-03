@@ -97,6 +97,8 @@ export interface AppState {
   imageGenMode: boolean;
   /** Draft instructions (already normalized) for a conversation that has no row yet; written onto the object when the first message creates the conversation, cleared on conversation switch or creation. */
   draftConversationInstructions: string;
+  /** Composer skill chips of the not-yet-created conversation; written on the first send, cleared with the draft instructions. */
+  draftConversationSkillIds: string[];
 
   /* Pin & order */
   pinnedConversationIds: string[];
@@ -161,6 +163,8 @@ export interface AppState {
   skillCategories: SkillCategory[];
   skillUsage: SkillUsage | null;
   catalogVersion: number | null;
+  /** Templates catalog fetch state; the cached catalog stays in catalogSkills whatever this says. */
+  catalogLoadState: SkillsCatalogLoadState;
 
   /* Library (per-account; never written to local persistence) */
   libraryConnections: LibraryConnection[];
@@ -227,6 +231,7 @@ export interface AppActions {
   /* Image generation */
   setImageGenMode: (mode: boolean) => void;
   setDraftConversationInstructions: (text: string) => void;
+  setDraftConversationSkillIds: (ids: string[]) => void;
 
   /* Pin & order */
   togglePinConversation: (id: string, limit?: number) => boolean;
@@ -277,6 +282,7 @@ export interface AppActions {
 
   /* Skills */
   setCatalogSkills: (skills: Skill[], categories: SkillCategory[], version: number) => void;
+  setCatalogLoadState: (state: SkillsCatalogLoadState) => void;
   setUserSkills: (skills: Skill[], usage: SkillUsage) => void;
   updateSkillInStore: (id: string, patch: Partial<Skill>) => void;
   addUserSkill: (skill: Skill) => void;
@@ -301,6 +307,9 @@ export interface AppActions {
 
 export type AppStore = AppState & AppActions;
 
+/** Templates catalog fetch: idle before the first fetch, failed after a network / server error. */
+export type SkillsCatalogLoadState = 'idle' | 'loading' | 'loaded' | 'failed';
+
 /* ── Default state ───────────────────────────────────── */
 
 export const defaultState: AppState = {
@@ -323,6 +332,7 @@ export const defaultState: AppState = {
   searchMatchIndex: 0,
   imageGenMode: false,
   draftConversationInstructions: '',
+  draftConversationSkillIds: [],
   pinnedConversationIds: [],
   pinnedConversationIdsUpdatedAt: undefined,
   conversationOrder: [],
@@ -346,6 +356,7 @@ export const defaultState: AppState = {
   skillCategories: [],
   skillUsage: null,
   catalogVersion: null,
+  catalogLoadState: 'idle',
   libraryConnections: [],
   libraryQuota: null,
   libraryConnectionQuota: null,

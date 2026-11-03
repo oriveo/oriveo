@@ -172,7 +172,7 @@ struct RelayEditBoardView: View {
                 rowBody(row) {
                     Text(L10n.tr("Change", table: .providers))
                         .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     PhosphorIcon.caretRight.image(.regular)
                         .resizable()
                         .renderingMode(.template)
@@ -302,7 +302,7 @@ struct RelayEditBoardView: View {
             HStack(spacing: OriveoTheme.Spacing.sm) {
                 Text(verbatim: Board.explicitScheme(in: endpoint) ?? Board.defaultScheme(for: securityMode))
                     .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                     .background(
@@ -589,7 +589,7 @@ struct RelayEditBoardView: View {
                 Text(rowTitle(row))
                     .font(OriveoTheme.Typography.footnote.weight(.semibold))
             }
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .padding(.horizontal, 14)
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .contentShape(Rectangle())

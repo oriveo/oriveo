@@ -1,0 +1,328 @@
+{
+  "$comment": "Shared sample-screen manifest for the skills family (shots tool). One source for page names, demo skills, templates, conversations, per-page presets, theme seeds and the clock across the iOS, Android debug and Web dev shot entries. Every end builds in-memory skills / conversations from this file through its production models and never writes a real store, signs in or touches the network (AI draft and fork are not exercised). Skill fields follow the Server Skill DTO; omitted fields take the decoder defaults. Keys starting with '$' are documentation and ignored by readers.",
+  "schema": "oriveo.shots.skills/v1",
+  "clock": "2026-10-30T09:41:00Z",
+  "$themeSeed": "null = the app's default palette; otherwise a custom seed colour run through each end's production theme derivation (the same path the theme settings page uses). Pages ending in Amber / Teal are the theme-tier check from the acceptance list.",
+  "usage": { "count": 4, "limit": null, "isPro": true },
+  "skills": [
+    {
+      "id": "8f1c2a10-0000-4000-8000-000000000001",
+      "name": "Weekly report",
+      "source": "user",
+      "iconKey": "glyph:report",
+      "whenToUse": "When I paste a week of scattered notes or ask for a \"weekly report\". Not for daily standups.",
+      "autoInvoke": true,
+      "systemPrompt": "1. Group items by project.\n2. Lead with outcomes, then risks, then next week.\n3. At most 5 bullets per section.\n4. Keep my wording for names and numbers.",
+      "starterMessages": ["Here are this week's notes", "Turn this into a weekly report"],
+      "usageCount": 12,
+      "lastUsedAt": "2026-10-29T17:20:00Z",
+      "createdAt": "2026-10-01T08:00:00Z",
+      "updatedAt": "2026-10-29T17:20:00Z"
+    },
+    {
+      "id": "8f1c2a10-0000-4000-8000-000000000002",
+      "name": "My writing tone",
+      "source": "user",
+      "iconKey": "glyph:writing",
+      "whenToUse": "When I ask you to \"polish\" an email or a post so it sounds like me.",
+      "autoInvoke": true,
+      "systemPrompt": "1. Short sentences.\n2. No exclamation marks.\n3. Keep it warm but direct.",
+      "starterMessages": [],
+      "usageCount": 5,
+      "lastUsedAt": "2026-10-27T10:05:00Z",
+      "createdAt": "2026-10-03T08:00:00Z",
+      "updatedAt": "2026-10-27T10:05:00Z"
+    },
+    {
+      "id": "8f1c2a10-0000-4000-8000-000000000003",
+      "name": "Code review",
+      "source": "user",
+      "iconKey": "glyph:code",
+      "whenToUse": "Before I merge: review a diff for bugs, security risks and readability.",
+      "autoInvoke": true,
+      "systemPrompt": "1. List blocking issues first.\n2. Then suggestions.\n3. Quote the exact line.",
+      "starterMessages": [],
+      "usageCount": 0,
+      "createdAt": "2026-10-20T08:00:00Z",
+      "updatedAt": "2026-10-20T08:00:00Z"
+    },
+    {
+      "id": "8f1c2a10-0000-4000-8000-000000000004",
+      "name": "Weekend workout plan",
+      "source": "user",
+      "iconKey": "glyph:health",
+      "whenToUse": "",
+      "autoInvoke": false,
+      "systemPrompt": "Plan a 45-minute home workout with no equipment.",
+      "starterMessages": [],
+      "usageCount": 2,
+      "lastUsedAt": "2026-10-19T08:30:00Z",
+      "createdAt": "2026-09-10T08:00:00Z",
+      "updatedAt": "2026-10-19T08:30:00Z"
+    }
+  ],
+  "templates": [
+    {
+      "id": "7a000000-0000-4000-8000-000000000001",
+      "key": "meeting_notes",
+      "name": "Meeting notes",
+      "source": "builtin",
+      "category": "work",
+      "iconKey": "glyph:meeting",
+      "whenToUse": "Use when I paste a meeting \"transcript\" or rough notes and want a summary, decisions, and action items.",
+      "whenToUseTranslations": {
+        "en": "Use when I paste a meeting \"transcript\" or rough notes and want a summary, decisions, and action items.",
+        "zh-Hans": "我贴上会议「录音转写」或零散笔记，想要摘要、决议和待办事项时使用。",
+        "zh-Hant": "貼上會議「逐字稿」或零散筆記，想整理出摘要、決議與待辦事項時使用。",
+        "ja": "会議の「文字起こし」やメモを貼って、要約・決定事項・ToDo をまとめてほしいときに使う。",
+        "ko": "회의 “녹취록”이나 메모를 붙여 넣고 요약, 결정 사항, 할 일을 정리하고 싶을 때 사용.",
+        "de": "Wenn ich ein \"Protokoll\" oder lose Notizen einfüge und Zusammenfassung, Beschlüsse und Aufgaben brauche.",
+        "fr": "Quand je colle une \"transcription\" de réunion ou des notes et que je veux un résumé, les décisions et les actions.",
+        "es": "Cuando pego una \"transcripción\" de reunión o notas sueltas y quiero un resumen, decisiones y tareas.",
+        "pt-BR": "Quando eu colar a \"transcrição\" de uma reunião ou anotações soltas e quiser resumo, decisões e tarefas.",
+        "ru": "Когда вставляю \"стенограмму\" встречи или черновые заметки и хочу получить итоги, решения и задачи.",
+        "tr": "Bir toplantı \"dökümü\" ya da dağınık notlar yapıştırıp özet, kararlar ve yapılacaklar istediğimde.",
+        "id": "Saat aku menempelkan \"transkrip\" rapat atau catatan mentah dan ingin ringkasan, keputusan, serta tugas lanjutan.",
+        "vi": "Khi tôi dán \"bản ghi\" cuộc họp hoặc ghi chú rời rạc và cần tóm tắt, quyết định cùng việc cần làm.",
+        "th": "ใช้เมื่อฉันวาง \"บันทึกการประชุม\" หรือโน้ตคร่าว ๆ แล้วอยากได้สรุป มติ และสิ่งที่ต้องทำต่อ",
+        "hi": "जब मैं मीटिंग की \"ट्रांसक्रिप्ट\" या कच्चे नोट्स चिपकाऊँ और सारांश, फ़ैसले व काम की सूची चाहूँ।",
+        "ar": "عندما ألصق \"تفريغ\" اجتماع أو ملاحظات متفرقة وأريد ملخصًا والقرارات والمهام المطلوبة."
+      },
+      "previewUser": {
+        "en": "Summarize this standup transcript.",
+        "zh-Hans": "整理一下这次周会的记录",
+        "zh-Hant": "幫我整理這次週會紀錄",
+        "ja": "この定例会議の議事録をまとめて",
+        "ko": "이번 주간 회의록 정리해 줘",
+        "de": "Fass dieses Stand-up-Protokoll zusammen.",
+        "fr": "Résume ce compte rendu de réunion.",
+        "es": "Resume la transcripción de esta reunión.",
+        "pt-BR": "Resuma a transcrição dessa reunião.",
+        "ru": "Подведи итоги этой планёрки.",
+        "tr": "Bu toplantı notlarını özetle.",
+        "id": "Ringkas transkrip rapat ini.",
+        "vi": "Tóm tắt biên bản cuộc họp này giúp tôi.",
+        "th": "ช่วยสรุปบันทึกประชุมนี้หน่อย",
+        "hi": "इस मीटिंग के नोट्स का सार बताओ",
+        "ar": "لخّص محضر هذا الاجتماع"
+      },
+      "previewAssistant": {
+        "en": "Decision: ship Friday. Action items: Lee fixes login, Ana updates the docs.",
+        "zh-Hans": "决议：周五上线。待办：小李修登录，小王更新文档。",
+        "zh-Hant": "決議：週五上線。待辦：小李修登入，小王更新文件。",
+        "ja": "決定：金曜リリース。ToDo：田中さんがログイン修正、佐藤さんが資料更新。",
+        "ko": "결정: 금요일 출시. 할 일: 민수 로그인 수정, 지영 문서 업데이트.",
+        "de": "Beschluss: Release am Freitag. Aufgaben: Lea fixt Login, Tom pflegt die Doku.",
+        "fr": "Décision : sortie vendredi. À faire : Léa → connexion, Tom → doc.",
+        "es": "Decisión: lanzar el viernes. Tareas: Ana, el login; Luis, la documentación.",
+        "pt-BR": "Decisão: lançar na sexta. Tarefas: Ana corrige o login, Léo atualiza a doc.",
+        "ru": "Решение: релиз в пятницу. Задачи: Олег чинит вход, Аня обновляет документацию.",
+        "tr": "Karar: cuma yayın. Yapılacaklar: Ali giriş hatası, Ece dokümantasyon.",
+        "id": "Keputusan: rilis Jumat. Tugas: Budi perbaiki login, Sari perbarui dokumen.",
+        "vi": "Chốt: ra mắt thứ Sáu. Việc: Minh sửa đăng nhập, Lan cập nhật tài liệu.",
+        "th": "มติ: เปิดตัววันศุกร์ งานต่อไป: ต้น – แก้ระบบล็อกอิน, ฝน – อัปเดตเอกสาร",
+        "hi": "फ़ैसला: शुक्रवार को लॉन्च। काम: रवि – लॉगिन, नेहा – डॉक्स।",
+        "ar": "القرار: الإطلاق الجمعة. المهام: سامي لتسجيل الدخول، وليلى للوثائق."
+      },
+      "systemPrompt": "Summarise decisions and action items.",
+      "sortOrder": 1
+    },
+    {
+      "id": "7a000000-0000-4000-8000-000000000002",
+      "key": "travel_planner",
+      "name": "Travel planner",
+      "source": "builtin",
+      "category": "life",
+      "iconKey": "glyph:travel",
+      "whenToUse": "Use when I'm planning a \"trip\" and want a day-by-day itinerary that fits my dates, budget, and interests.",
+      "whenToUseTranslations": {
+        "en": "Use when I'm planning a \"trip\" and want a day-by-day itinerary that fits my dates, budget, and interests.",
+        "zh-Hans": "我在计划「旅行」，想按日期、预算和兴趣排出每天行程时使用。",
+        "zh-Hant": "在規劃「旅行」，想依日期、預算與興趣排出每日行程時使用。",
+        "ja": "「旅行」を計画していて、日程・予算・興味に合わせた日ごとのプランがほしいときに使う。",
+        "ko": "“여행”을 계획하면서 날짜, 예산, 관심사에 맞춘 일자별 일정이 필요할 때 사용.",
+        "de": "Wenn ich eine \"Reise\" plane und einen Plan Tag für Tag passend zu Reisezeit, Budget und Interessen möchte.",
+        "fr": "Quand je prépare un \"voyage\" et que je veux un programme jour par jour selon mes dates, mon budget et mes envies.",
+        "es": "Cuando planeo un \"viaje\" y quiero un itinerario día a día según mis fechas, presupuesto e intereses.",
+        "pt-BR": "Quando eu estiver planejando uma \"viagem\" e quiser um roteiro dia a dia para minhas datas, orçamento e interesses.",
+        "ru": "Когда планирую \"поездку\" и нужен план по дням с учётом дат, бюджета и интересов.",
+        "tr": "Bir \"seyahat\" planlarken tarihlerime, bütçeme ve ilgi alanlarıma uygun gün gün bir program istediğimde.",
+        "id": "Saat aku merencanakan \"liburan\" dan ingin jadwal harian yang pas dengan tanggal, bujet, dan minatku.",
+        "vi": "Khi tôi lên kế hoạch \"du lịch\" và cần lịch trình từng ngày hợp với thời gian, ngân sách và sở thích.",
+        "th": "ใช้เมื่อฉันกำลังวางแผน \"เที่ยว\" และอยากได้แผนรายวันที่เข้ากับวันเดินทาง งบประมาณ และความสนใจ",
+        "hi": "जब मुझे किसी \"यात्रा\" के लिए अपनी तारीख़ों, बजट और रुचियों के हिसाब से दिन-ब-दिन प्लान चाहिए।",
+        "ar": "عندما أخطط لـ\"رحلة\" وأريد برنامجًا يوميًا يناسب مواعيدي وميزانيتي واهتماماتي."
+      },
+      "previewUser": {
+        "en": "Plan 3 days in Kyoto, mid budget.",
+        "zh-Hans": "京都三天，预算中等，帮我排行程",
+        "zh-Hant": "京都三天、預算中等，幫我排行程",
+        "ja": "京都2泊3日のプランを組んで。予算は普通で",
+        "ko": "교토 3일 일정, 예산은 보통으로",
+        "de": "3 Tage Kyoto, mittleres Budget.",
+        "fr": "3 jours à Kyoto, budget moyen.",
+        "es": "3 días en Kioto, presupuesto medio.",
+        "pt-BR": "3 dias em Kyoto, orçamento médio.",
+        "ru": "3 дня в Киото, средний бюджет.",
+        "tr": "Kyoto'da 3 gün, orta bütçe.",
+        "id": "3 hari di Kyoto, bujet menengah.",
+        "vi": "3 ngày ở Kyoto, ngân sách vừa phải.",
+        "th": "เที่ยวเกียวโต 3 วัน งบกลาง ๆ",
+        "hi": "क्योटो में 3 दिन, मध्यम बजट",
+        "ar": "3 أيام في كيوتو بميزانية متوسطة"
+      },
+      "previewAssistant": {
+        "en": "Day 1: Fushimi Inari at 7 am to beat crowds, then Gion. Day 2: Arashiyama…",
+        "zh-Hans": "第1天：早7点去伏见稻荷避开人流，下午逛祇园。第2天：岚山……",
+        "zh-Hant": "第1天：早上7點去伏見稻荷避開人潮，下午逛祇園。第2天：嵐山……",
+        "ja": "1日目：朝7時に伏見稲荷で混雑回避、午後は祇園へ。2日目：嵐山…",
+        "ko": "1일차: 아침 7시 후시미 이나리, 오후 기온. 2일차: 아라시야마…",
+        "de": "Tag 1: Fushimi Inari um 7 Uhr vor dem Ansturm, danach Gion. Tag 2: Arashiyama…",
+        "fr": "J1 : Fushimi Inari à 7 h pour éviter la foule, puis Gion. J2 : Arashiyama…",
+        "es": "Día 1: Fushimi Inari a las 7, sin multitudes; luego Gion. Día 2: Arashiyama…",
+        "pt-BR": "Dia 1: Fushimi Inari às 7h, antes das multidões, depois Gion. Dia 2: Arashiyama…",
+        "ru": "День 1: Фусими Инари в 7 утра, пока нет толп, потом Гион. День 2: Арасияма…",
+        "tr": "1. gün: Kalabalıktan önce 7'de Fushimi Inari, sonra Gion. 2. gün: Arashiyama…",
+        "id": "Hari 1: Fushimi Inari jam 7 pagi biar sepi, lalu Gion. Hari 2: Arashiyama…",
+        "vi": "Ngày 1: Fushimi Inari lúc 7 giờ cho vắng, chiều dạo Gion. Ngày 2: Arashiyama…",
+        "th": "วันที่ 1: ฟูชิมิอินาริ 7 โมงเช้า บ่ายไปกิออน วันที่ 2: อาราชิยามะ…",
+        "hi": "दिन 1: सुबह 7 बजे फ़ुशिमी इनारी, फिर गियोन। दिन 2: अराशियामा…",
+        "ar": "اليوم 1: فوشيمي إيناري صباحًا قبل الزحام ثم غيون. اليوم 2: أراشيياما…"
+      },
+      "systemPrompt": "Plan trips day by day.",
+      "sortOrder": 2
+    },
+    {
+      "id": "7a000000-0000-4000-8000-000000000003",
+      "key": "math_tutor",
+      "name": "Math tutor",
+      "source": "builtin",
+      "category": "learning",
+      "iconKey": "glyph:data",
+      "whenToUse": "",
+      "systemPrompt": "Explain maths step by step.",
+      "sortOrder": 3
+    }
+  ],
+  "conversations": [
+    {
+      "id": "c0000000-0000-4000-8000-000000000001",
+      "title": "This week's report",
+      "skillIds": ["8f1c2a10-0000-4000-8000-000000000001"],
+      "updatedAt": "2026-10-29T17:20:00Z",
+      "messages": [
+        { "id": "m1", "role": "user", "text": "Here are this week's notes: fixed the sign-in loss on Monday, reviewed the new home with design on Wednesday, push certificate expires mid November.", "attachedSkillIds": ["8f1c2a10-0000-4000-8000-000000000002"] },
+        { "id": "m2", "role": "assistant", "text": "Done this week\n- Fixed sign-in loss for about 2% of returning users\n- Agreed the new two-card home with design\n\nRisks\n- iOS push certificate expires mid November", "usedSkills": [
+          { "id": "8f1c2a10-0000-4000-8000-000000000002", "name": "My writing tone", "via": "manual" },
+          { "id": "8f1c2a10-0000-4000-8000-000000000001", "name": "Weekly report", "via": "auto", "reason": "You pasted a week of notes, which is what it is for." }
+        ], "tokenUsage": { "inputTokens": 3120, "outputTokens": 486, "estimatedCost": 0.0124, "costSource": "localEstimate" }, "skillManifestTokens": 1840 }
+      ]
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000002",
+      "title": "Release week report",
+      "skillIds": ["8f1c2a10-0000-4000-8000-000000000001"],
+      "updatedAt": "2026-10-30T09:20:00Z",
+      "messages": [
+        { "id": "m11", "role": "user", "text": "Notes: shipped 3.4 on Tuesday, crash rate down to 0.2%, App Store review took two days, translator for Thai is late, Android build cache keeps breaking, docs site needs new screenshots." },
+        { "id": "m12", "role": "assistant", "text": "Done this week\n- Shipped 3.4 on Tuesday\n- Crash rate down to 0.2%\n\nRisks\n- Thai translation is late\n- Android build cache keeps breaking\n- Docs screenshots are out of date\n- App Store review took two days", "usedSkills": [
+          { "id": "8f1c2a10-0000-4000-8000-000000000001", "name": "Weekly report", "via": "auto", "reason": "You pasted a week of notes, which is what it is for." }
+        ], "skillManifestTokens": 2210 },
+        { "id": "m13", "role": "user", "text": "Too long again. Three bullets per section at most, and put the risks first." },
+        { "id": "m14", "role": "assistant", "text": "Risks\n- Thai translation is late\n- Android build cache keeps breaking\n- Docs screenshots are out of date\n\nDone this week\n- Shipped 3.4 on Tuesday\n- Crash rate down to 0.2%", "usedSkills": [
+          { "id": "8f1c2a10-0000-4000-8000-000000000001", "name": "Weekly report", "via": "auto", "reason": "You pasted a week of notes, which is what it is for." }
+        ], "skillManifestTokens": 2350 }
+      ]
+    },
+    {
+      "id": "c0000000-0000-4000-8000-000000000003",
+      "title": "Polish this email",
+      "skillIds": [],
+      "updatedAt": "2026-10-30T09:35:00Z",
+      "messages": [
+        { "id": "m21", "role": "user", "text": "Polish this: hi team, the launch moves to friday because review is slow, sorry!!", "attachedSkillIds": ["8f1c2a10-0000-4000-8000-000000000002"] },
+        { "id": "m22", "role": "assistant", "text": "", "state": "failed", "error": "empty_response" }
+      ]
+    }
+  ],
+  "$messageFields": "Optional message fields beyond id / role / text / attachedSkillIds / usedSkills: tokenUsage = the token-usage dialog inputs (inputTokens, outputTokens, estimatedCost in USD, costSource as in provider-pricing/token-usage-cost-row.v1; providerKind is the shot chat connection's); skillManifestTokens = the local-only manifest overhead column the usage page sums (summarizeManifestOverhead); state = \"failed\" with error = \"empty_response\" is an assistant reply that ended with no visible content, shown with each end's production empty-reply error mapping (no retry happens).",
+  "$improve": "Pending improve suggestion for the improvePrompt / improveDiff pages: conversation + the user correction message; the prompt hangs under the first assistant reply after it. Each end computes diff = buildImproveDiff(skill.systemPrompt, rule, replaces) with its production function (here: replaces line 3, keeping the '3. ' prefix).",
+  "improve": {
+    "conversationId": "c0000000-0000-4000-8000-000000000002",
+    "userMessageId": "m13",
+    "skillId": "8f1c2a10-0000-4000-8000-000000000001",
+    "rule": "At most 3 bullets per section, risks first.",
+    "replaces": "At most 5 bullets per section."
+  },
+  "$trial": "Try-it session for the trial page: the saved skill under trial (entered from detail, not the editor) and finished messages shown in the in-memory session; trialSystemPrompt differs from the saved systemPrompt so the Save to skill button shows (trialWriteBack action = put).",
+  "trial": {
+    "skillId": "8f1c2a10-0000-4000-8000-000000000001",
+    "trialSystemPrompt": "1. Group items by project.\n2. Lead with outcomes, then risks, then next week.\n3. At most 3 bullets per section.\n4. Keep my wording for names and numbers.",
+    "messages": [
+      { "role": "user", "text": "Mon: fixed sign-in loss. Wed: new home review. Fri: push cert renewal started." },
+      { "role": "assistant", "text": "Outcomes\n- Fixed sign-in loss\n- New home reviewed with design\n\nRisks\n- Push certificate renewal in progress\n\nNext week\n- Finish the renewal" }
+    ]
+  },
+  "$usagePage": "Usage page preset for the usage page: the period the page shows (month, UTC, inclusive end per E-67). The manifest row sums skillManifestTokens of assistant messages in this period (1840 + 2210 + 2350 = 6400, shown as about 6.4K); everything else on the page uses each end's existing sample data for that page.",
+  "usagePage": { "granularity": "month", "start": "2026-10-01", "end": "2026-10-31" },
+  "$notes": "Notes for the home Notes card (count + latest title on the top sheet). Seeded through each end's production note model into the in-memory store; updatedAt decides the latest.",
+  "notes": [
+    { "id": "d0000000-0000-4000-8000-000000000001", "title": "Kyoto trip memo", "content": "Day two: Nara in the morning, Todai-ji, then the deer park.", "updatedAt": "2026-10-30T08:10:00Z" },
+    { "id": "d0000000-0000-4000-8000-000000000002", "title": "Coffee shop names", "content": "Slow Pour, Second Cup, Morning Ritual.", "updatedAt": "2026-10-29T12:00:00Z" },
+    { "id": "d0000000-0000-4000-8000-000000000003", "title": "Release checklist", "content": "Bump versions, store notes in 16 languages, tag.", "updatedAt": "2026-10-28T16:30:00Z" }
+  ],
+  "$states": "Inputs for the page state variants (page field state). draftDescription = what the user typed in the Skills page describe box, shown in the draft flow while generating. needWhen = a new skill's form with auto-invoke on and an empty when-to-use. trialFailedMessages = the try-it session after one failed request; state = \"failed\" with error = \"rate_limited\" is an assistant reply the provider rejected with HTTP 429, shown through each end's production chat failure mapping (no retry happens).",
+  "states": {
+    "draftDescription": "Turn my daily standup notes into a weekly report for my manager",
+    "needWhen": { "name": "Meeting notes", "instructions": "1. List decisions first.\n2. Then owners and due dates.\n3. Keep it under 10 lines." },
+    "trialFailedMessages": [
+      { "role": "user", "text": "Mon: fixed sign-in loss. Wed: new home review. Fri: push cert renewal started." },
+      { "role": "assistant", "text": "", "state": "failed", "error": "rate_limited" }
+    ]
+  },
+  "$pages": "subject: home = home screen (iOS / Android only), mine / templates = Skills page segments, detail / edit = the first skill, composer = the conversation with the picker open on query 'we' and one chip, used = the conversation with the reply's used chip expanded, homePicker = home with the picker open on query 'we' and the same one chip as composer (iOS / Android only), improvePrompt = the improve conversation with the improve prompt under the reply, improveDiff = the same with the diff panel open, trial = the try-it session page, usage = the usage page with the skill manifest row, tokenCost = the first conversation with the token-usage dialog of its reply open, emptyReply = the empty-reply conversation. Optional page fields: data = \"empty\" seeds no user skills and no notes (first-run state; templates and conversations unchanged); autoInvoke = false turns the global auto-invoke switch off (home subtitle falls back to the slash hint, E-45). Both default to the full manifest with auto-invoke on. Optional page field state refines the subject (unknown values refuse the page like data): mine + draftGenerating = the Skills page with the draft flow open on its generating step for states.draftDescription (the request never finishes); edit + draftFailed = the editor for a new skill after the draft request failed with nothing parsed, with the draft-failed banner (each end's production failure path hands the editor the parsed partial draft, here empty; the description is not carried); edit + needWhen = the editor for a new skill from states.needWhen with auto-invoke on and when-to-use empty, showing the needs-when error as it appears on that end (after a save attempt where the end shows it only then); composer + full = composer with the conversation's skills replaced by the first three user skills (each end's current picker header); trial + empty = the trial page before any message (saved instructions, no Save to skill button); trial + failed = the trial page with states.trialFailedMessages and saved instructions. templates + state loading = Templates segment with no catalog cache and the catalog fetch still in flight (never resolves): three skeleton blocks, no text; templates + state failed = no catalog cache and the fetch failed: skeleton gone, one line of secondary text plus a Retry text button.",
+  "pages": [
+    { "name": "skillsHome", "subject": "home", "themeSeed": null, "ends": ["ios", "android"] },
+    { "name": "skillsHomeAmber", "subject": "home", "themeSeed": "#FBBF24", "ends": ["ios", "android"] },
+    { "name": "skillsHomeTeal", "subject": "home", "themeSeed": "#2DD4BF", "ends": ["ios", "android"] },
+    { "name": "skillsHomeEmpty", "subject": "home", "themeSeed": null, "data": "empty", "ends": ["ios", "android"] },
+    { "name": "skillsHomeEmptyNoCatalog", "subject": "home", "themeSeed": null, "data": "emptyNoCatalog", "ends": ["ios", "android"] },
+    { "name": "skillsHomeAutoOff", "subject": "home", "themeSeed": null, "autoInvoke": false, "ends": ["ios", "android"] },
+    { "name": "skillsMine", "subject": "mine", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsMineAmber", "subject": "mine", "themeSeed": "#FBBF24", "ends": ["ios", "android", "web"] },
+    { "name": "skillsMineTeal", "subject": "mine", "themeSeed": "#2DD4BF", "ends": ["ios", "android", "web"] },
+    { "name": "skillsMineEmpty", "subject": "mine", "themeSeed": null, "data": "empty", "ends": ["ios", "android", "web"] },
+    { "name": "skillsDraftGenerating", "subject": "mine", "themeSeed": null, "state": "draftGenerating", "ends": ["ios", "android", "web"] },
+    { "name": "skillsTemplates", "subject": "templates", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsTemplatesLoading", "subject": "templates", "themeSeed": null, "state": "loading", "ends": ["ios", "android", "web"] },
+    { "name": "skillsTemplatesFailed", "subject": "templates", "themeSeed": null, "state": "failed", "ends": ["ios", "android", "web"] },
+    { "name": "skillsDetail", "subject": "detail", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsDetailAmber", "subject": "detail", "themeSeed": "#FBBF24", "ends": ["ios", "android", "web"] },
+    { "name": "skillsDetailTeal", "subject": "detail", "themeSeed": "#2DD4BF", "ends": ["ios", "android", "web"] },
+    { "name": "skillsEdit", "subject": "edit", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsEditAmber", "subject": "edit", "themeSeed": "#FBBF24", "ends": ["ios", "android", "web"] },
+    { "name": "skillsEditTeal", "subject": "edit", "themeSeed": "#2DD4BF", "ends": ["ios", "android", "web"] },
+    { "name": "skillsEditDraftFailed", "subject": "edit", "themeSeed": null, "state": "draftFailed", "ends": ["ios", "android", "web"] },
+    { "name": "skillsEditNeedWhen", "subject": "edit", "themeSeed": null, "state": "needWhen", "ends": ["ios", "android", "web"] },
+    { "name": "skillsComposer", "subject": "composer", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsComposerFull", "subject": "composer", "themeSeed": null, "state": "full", "ends": ["ios", "android", "web"] },
+    { "name": "skillsUsed", "subject": "used", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsHomePicker", "subject": "homePicker", "themeSeed": null, "ends": ["ios", "android"] },
+    { "name": "skillsImprovePrompt", "subject": "improvePrompt", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsImprovePromptAmber", "subject": "improvePrompt", "themeSeed": "#FBBF24", "ends": ["ios", "android", "web"] },
+    { "name": "skillsImprovePromptTeal", "subject": "improvePrompt", "themeSeed": "#2DD4BF", "ends": ["ios", "android", "web"] },
+    { "name": "skillsImproveDiff", "subject": "improveDiff", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsImproveDiffAmber", "subject": "improveDiff", "themeSeed": "#FBBF24", "ends": ["ios", "android", "web"] },
+    { "name": "skillsImproveDiffTeal", "subject": "improveDiff", "themeSeed": "#2DD4BF", "ends": ["ios", "android", "web"] },
+    { "name": "skillsTrial", "subject": "trial", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsTrialAmber", "subject": "trial", "themeSeed": "#FBBF24", "ends": ["ios", "android", "web"] },
+    { "name": "skillsTrialTeal", "subject": "trial", "themeSeed": "#2DD4BF", "ends": ["ios", "android", "web"] },
+    { "name": "skillsTrialEmpty", "subject": "trial", "themeSeed": null, "state": "empty", "ends": ["ios", "android", "web"] },
+    { "name": "skillsTrialFailed", "subject": "trial", "themeSeed": null, "state": "failed", "ends": ["ios", "android", "web"] },
+    { "name": "skillsUsageManifest", "subject": "usage", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsUsageManifestAmber", "subject": "usage", "themeSeed": "#FBBF24", "ends": ["ios", "android", "web"] },
+    { "name": "skillsUsageManifestTeal", "subject": "usage", "themeSeed": "#2DD4BF", "ends": ["ios", "android", "web"] },
+    { "name": "skillsTokenCost", "subject": "tokenCost", "themeSeed": null, "ends": ["ios", "android", "web"] },
+    { "name": "skillsEmptyReply", "subject": "emptyReply", "themeSeed": null, "ends": ["ios", "android", "web"] }
+  ]
+}

@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">आपके सभी मॉडल, एक ऐप</string>
-    <string name="provider_disclosure_ack_failed">प्रदाता की सूचना की पुष्टि नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।</string>
     <string name="tab_home">होम</string>
     <string name="tab_providers">प्रोवाइडर</string>
     <string name="tab_settings">सेटिंग्स</string>
@@ -21,7 +20,6 @@
     <string name="copy">कॉपी करें</string>
     <string name="copied">कॉपी किया गया</string>
     <string name="share">शेयर करें</string>
-    <string name="legal_consent_notice">जारी रखकर, आप नीचे दी गई कानूनी शर्तों से सहमत हैं।</string>
     <string name="get_started">शुरू करें</string>
     <string name="api_key">API key</string>
     <string name="validating">सत्यापन किया जा रहा है...</string>
@@ -60,6 +58,7 @@
     <string name="new_chat">नई चैट</string>
     <string name="send">भेजें</string>
     <string name="stop">रोकें</string>
+    <string name="generation_parameter_name_stop">स्टॉप सीक्वेंस</string>
     <string name="type_a_message">एक संदेश टाइप करें...</string>
     <string name="ai_is_answering">AI उत्तर दे रहा है...</string>
     <string name="regenerate">दोबारा जेनरेट करें</string>
@@ -101,6 +100,7 @@
     <string name="chat_model_removed_choose">मॉडल चुनें</string>
     <string name="chat_model_retired_banner">%1$s अब बंद हो चुका है।</string>
     <string name="chat_model_retired_switch_to">%1$s पर स्विच करें</string>
+    <string name="chat_last_used_model_retired_hint">पिछली बार इस्तेमाल किया गया मॉडल बंद हो चुका है। अब %1$s इस्तेमाल हो रहा है।</string>
     <string name="conversations">बात चिट</string>
     <string name="no_conversations">अभी तक कोई बातचीत नहीं</string>
     <string name="search_conversation_titles_or_content">वार्तालाप शीर्षक या सामग्री खोजें</string>
@@ -150,6 +150,7 @@
     <string name="provider_detail_add_model_finish_setup">सेटअप पूरा करने के लिए मॉडल आईडी जोड़ें</string>
     <string name="provider_detail_add_model_manually">+ मॉडल आईडी मैन्युअल रूप से जोड़ें</string>
     <string name="provider_detail_available_models">%d उपलब्ध मॉडल</string>
+    <string name="default_model_short">डिफ़ॉल्ट</string>
     <string name="provider_detail_relay_empty_description">अभी तक कोई मॉडल नहीं जोड़ा गया. मॉडल आईडी जोड़ने के लिए नीचे दिए गए बटन का उपयोग करें।</string>
     <string name="provider_detail_badge_recent">हाल ही का</string>
     <string name="provider_detail_removed_model">%s हटाया गया</string>
@@ -165,7 +166,6 @@
     <string name="theme_light">लाइट</string>
     <string name="theme_dark">डार्क</string>
     <string name="theme_section_palettes">पैलेट</string>
-    <string name="default_model_short">डिफ़ॉल्ट</string>
     <string name="theme_palette_purple">पर्पल</string>
     <string name="theme_palette_graphite">ग्रेफ़ाइट</string>
     <string name="theme_palette_black">ब्लैक</string>
@@ -202,8 +202,6 @@
     <string name="backup_and_export">बैकअप और निर्यात</string>
     <string name="privacy_policy">गोपनीयता नीति</string>
     <string name="terms_of_service">सेवा की शर्तें</string>
-    <string name="settings_source_code">सोर्स कोड</string>
-    <string name="settings_report_issue">समस्या की रिपोर्ट करें</string>
     <string name="snackbar_provider_ready">प्रोवाइडर तैयार है। अब आप चैट करना शुरू कर सकते हैं।</string>
     <string name="snackbar_model_added">%1$s जोड़ा गया</string>
     <string name="snackbar_model_enable_failed">यह मॉडल चालू नहीं हो सका। कृपया फिर से कोशिश करें।</string>
@@ -391,7 +389,7 @@
     <string name="share_failed">छवि साझा करने में विफल</string>
     <string name="file">फ़ाइल</string>
     <string name="file_unavailable">केवल मूल डिवाइस पर उपलब्ध है</string>
-        <string name="error_generic_title">कुछ गलत हो गया</string>
+    <string name="error_generic_title">कुछ गलत हो गया</string>
     <string name="error_generic_message">एक अप्रत्याशित त्रुटि हुई।</string>
     <string name="hide_details">विवरण छिपाएँ</string>
     <string name="manual_model_save_failed_title">सहेजें विफल</string>
@@ -460,11 +458,9 @@
     <string name="skills_newSkill">नया कौशल</string>
     <string name="skills_editSkill">कौशल संपादित करें</string>
     <string name="skills_useSkill">इस कौशल का प्रयोग करें</string>
-    <string name="skills_pinToHome">होम पर पिन करें</string>
     <string name="pin_conversation">बातचीत पिन करें</string>
     <string name="unpin_conversation">बातचीत अनपिन करें</string>
     <string name="pinned_section">पिन की गई</string>
-    <string name="skills_unpin">घर से अनपिन करें</string>
     <string name="skills_instructions">तत्पर</string>
     <string name="skills_knowledgeFiles">संदर्भ सामग्री</string>
     <string name="skills_advancedSettings">एडवांस सेटिंग</string>
@@ -487,13 +483,13 @@
     <string name="skills_addFile">फ़ाइल जोड़ें</string>
     <string name="skills_noKnowledgeFiles">अभी तक कोई संदर्भ सामग्री नहीं</string>
     <string name="skills_useMemoryDescription">बातचीत में अपनी व्यक्तिगत प्राथमिकताओं को शामिल करें</string>
-    <string name="skills_tipInstructions">ऐसे निर्देश लिखें जो परिभाषित करें कि एआई कैसे व्यवहार करता है - इसका व्यक्तित्व, विशेषज्ञता और प्रतिक्रिया शैली। इसे केवल AI ही देखता है, उपयोगकर्ता नहीं देखेंगे।</string>
-    <string name="skills_tipKnowledgeFiles">AI हर बार जवाब देते समय इन फ़ाइलों को पूरा पढ़ता है — जैसे उसकी डेस्क पर हमेशा खुले नोट्स। छोटे, ज़रूरी दस्तावेज़ों (स्टाइल गाइड, शब्दावली, मुख्य नियम) के लिए सबसे अच्छा। बड़ी फ़ाइलें जवाब की लागत बढ़ाएँगी।</string>
+    <string name="skills_tipInstructions">ऐसे निर्देश लिखें जो परिभाषित करें कि एआई कैसे व्यवहार करता है - इसका व्यक्तित्व, विशेषज्ञता और प्रतिक्रिया शैली। केवल AI इसे देखता है, उपयोगकर्ता नहीं देखेंगे।</string>
+    <string name="skills_tipKnowledgeFiles">AI हर बार जवाब देते समय इन फ़ाइलों को पूरा पढ़ता है — जैसे उसकी मेज़ पर हमेशा खुले नोट्स। छोटे, ज़रूरी दस्तावेज़ों के लिए सबसे अच्छा (स्टाइल गाइड, शब्दावली, मुख्य नियम)। बड़ी फ़ाइलें प्रतिक्रिया लागत बढ़ाएँगी।</string>
     <string name="skills_tipAdvanced">मॉडल प्राथमिकताएँ और मेमोरी इंजेक्शन कॉन्फ़िगर करें।</string>
     <string name="skills_filesQuota">%1$d / %2$d</string>
     <string name="skills_fileTooLarge">फ़ाइल सामग्री 8,000 वर्ण सीमा से अधिक है</string>
     <string name="skills_emojiIcon">इमोजी आइकन</string>
-    <string name="skills_nChars">%d वर्ण</string>
+    <string name="skills_nChars">%1$d अक्षर</string>
     <string name="skills_skillName">कौशल का नाम</string>
     <string name="skills_briefDescription">संक्षिप्त विवरण</string>
     <string name="skills_discardMessage">आपके पास सहेजे नहीं गए परिवर्तन हैं. क्या आप वाकई उन्हें त्यागना चाहते हैं?</string>
@@ -706,18 +702,24 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">Query पैरामीटर कुंजी</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">आप %1$s का उपयोग करने वाले हैं</string>
     <string name="provider_disclosure_body_default">प्रतिक्रिया उत्पन्न करने के लिए आपका संदेश %1$s पर भेजा जाएगा। Oriveo आपके संदेशों या एपीआई कुंजियों को हमारे सर्वर पर संग्रहीत नहीं करता है।</string>
     <string name="provider_disclosure_body_relay">आपका संदेश आपके द्वारा कॉन्फ़िगर की गई मॉडल सेवा को भेजा जाएगा। Oriveo उस सेवा की गोपनीयता प्रथाओं को सत्यापित नहीं कर सकता।</string>
     <string name="provider_disclosure_view_policy">%1$s गोपनीयता नीति देखें</string>
     <string name="provider_disclosure_continue">जारी रखें</string>
     <string name="provider_disclosure_cancel">रद्द करें</string>
+    <string name="provider_disclosure_ack_failed">प्रदाता की सूचना की पुष्टि नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">वेब खोज समर्थन</string>
     <string name="relay_advanced_web_search_profile">वेब खोज प्रोफ़ाइल</string>
     <string name="relay_profile_auto">ऑटो</string>
     <string name="relay_test_connection">कनेक्शन का परीक्षण करें</string>
     <string name="relay_test_connection_missing_fields">अपना अनुरोध URL और API key इस्तेमाल करें</string>
     <string name="relay_value_label">मान</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">एक मान्य HTTPS अनुरोध URL दर्ज करें.</string>
     <string name="greeting_morning">सुप्रभात</string>
     <string name="greeting_afternoon">शुभ दोपहर</string>
@@ -727,22 +729,22 @@
     <string name="greeting_afternoon_with_name">शुभ दोपहर, %1$s</string>
     <string name="greeting_evening_with_name">शुभ संध्या, %1$s</string>
     <string name="greeting_still_up_with_name">अभी तक नींद नहीं आई, %1$s?</string>
-<string name="greeting_morning_2">गुड मॉर्निंग</string>
-<string name="greeting_morning_3">नमस्ते</string>
-<string name="greeting_morning_4">हैलो</string>
-<string name="greeting_morning_5">आपको देखकर अच्छा लगा</string>
-<string name="greeting_afternoon_2">दिन कैसा चल रहा है?</string>
-<string name="greeting_afternoon_3">हैलो</string>
-<string name="greeting_afternoon_4">आपको देखकर अच्छा लगा</string>
-<string name="greeting_afternoon_5">नमस्ते</string>
-<string name="greeting_evening_2">गुड ईवनिंग</string>
-<string name="greeting_evening_3">आपको देखकर अच्छा लगा</string>
-<string name="greeting_evening_4">नमस्ते</string>
-<string name="greeting_evening_5">हैलो</string>
-<string name="greeting_night_2">काफ़ी रात हो गई</string>
-<string name="greeting_night_3">हैलो</string>
-<string name="greeting_night_4">आपको देखकर अच्छा लगा</string>
-<string name="greeting_night_5">नमस्ते</string>
+    <string name="greeting_morning_2">गुड मॉर्निंग</string>
+    <string name="greeting_morning_3">नमस्ते</string>
+    <string name="greeting_morning_4">हैलो</string>
+    <string name="greeting_morning_5">आपको देखकर अच्छा लगा</string>
+    <string name="greeting_afternoon_2">दिन कैसा चल रहा है?</string>
+    <string name="greeting_afternoon_3">हैलो</string>
+    <string name="greeting_afternoon_4">आपको देखकर अच्छा लगा</string>
+    <string name="greeting_afternoon_5">नमस्ते</string>
+    <string name="greeting_evening_2">गुड ईवनिंग</string>
+    <string name="greeting_evening_3">आपको देखकर अच्छा लगा</string>
+    <string name="greeting_evening_4">नमस्ते</string>
+    <string name="greeting_evening_5">हैलो</string>
+    <string name="greeting_night_2">काफ़ी रात हो गई</string>
+    <string name="greeting_night_3">हैलो</string>
+    <string name="greeting_night_4">आपको देखकर अच्छा लगा</string>
+    <string name="greeting_night_5">नमस्ते</string>
     <string name="tagline_morning_1">आराम से, कोई जल्दी नहीं</string>
     <string name="tagline_morning_2">आज अपनी रफ़्तार से चलिए</string>
     <string name="tagline_morning_3">कोई भी सवाल छोटा नहीं होता</string>
@@ -759,23 +761,25 @@
     <string name="tagline_night_2">रात लंबी लगे तो चलिए बातें करें</string>
     <string name="tagline_night_3">अब चारों ओर शांति है</string>
     <string name="tagline_night_4">जितना समय चाहिए, लीजिए</string>
-<string name="tagline_morning_5">आज कुछ नया आज़माने का अच्छा दिन है</string>
-<string name="tagline_morning_6">यहाँ सोचते-सोचते लिखिए</string>
-<string name="tagline_morning_7">एक समय में एक काम</string>
-<string name="tagline_morning_8">अपने विचारों को सुलझाइए</string>
-<string name="tagline_afternoon_5">जहाँ छोड़ा था, वहीं से आगे बढ़ें</string>
-<string name="tagline_afternoon_6">जब तैयार हों, पूछ लीजिए</string>
-<string name="tagline_afternoon_7">नए नज़रिए से सोचकर देखिए</string>
-<string name="tagline_afternoon_8">सब कुछ परफ़ेक्ट होना ज़रूरी नहीं</string>
-<string name="tagline_evening_5">बाकी काम कल भी हो सकता है</string>
-<string name="tagline_evening_6">बस यूँ ही बातें करना भी अच्छा है</string>
-<string name="tagline_evening_7">शांत शाम, सोचने का अच्छा समय</string>
-<string name="tagline_evening_8">दिन को सुकून से विदा करें</string>
-<string name="tagline_night_5">मन में जो है, उसे लिख डालिए</string>
-<string name="tagline_night_6">आराम करना भी न भूलें</string>
-<string name="tagline_night_7">शांत रात में विचार साफ़ होते हैं</string>
-<string name="tagline_night_8">आज रात कोई जल्दी नहीं</string>
+    <string name="tagline_morning_5">आज कुछ नया आज़माने का अच्छा दिन है</string>
+    <string name="tagline_morning_6">यहाँ सोचते-सोचते लिखिए</string>
+    <string name="tagline_morning_7">एक समय में एक काम</string>
+    <string name="tagline_morning_8">अपने विचारों को सुलझाइए</string>
+    <string name="tagline_afternoon_5">जहाँ छोड़ा था, वहीं से आगे बढ़ें</string>
+    <string name="tagline_afternoon_6">जब तैयार हों, पूछ लीजिए</string>
+    <string name="tagline_afternoon_7">नए नज़रिए से सोचकर देखिए</string>
+    <string name="tagline_afternoon_8">सब कुछ परफ़ेक्ट होना ज़रूरी नहीं</string>
+    <string name="tagline_evening_5">बाकी काम कल भी हो सकता है</string>
+    <string name="tagline_evening_6">बस यूँ ही बातें करना भी अच्छा है</string>
+    <string name="tagline_evening_7">शांत शाम, सोचने का अच्छा समय</string>
+    <string name="tagline_evening_8">दिन को सुकून से विदा करें</string>
+    <string name="tagline_night_5">मन में जो है, उसे लिख डालिए</string>
+    <string name="tagline_night_6">आराम करना भी न भूलें</string>
+    <string name="tagline_night_7">शांत रात में विचार साफ़ होते हैं</string>
+    <string name="tagline_night_8">आज रात कोई जल्दी नहीं</string>
     <string name="aurora_placeholder_what_can_i_help">बताइए, क्या मदद करूँ?</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">ऑटो / खाली छोड़ें</string>
     <string name="relay_disable_response_storage_footnote">केवल OpenAI Responses · store: false सेट करता है</string>
     <string name="relay_disable_response_storage_short">जवाब क्लाउड में सेव न करें</string>
@@ -832,10 +836,16 @@
     <string name="relay_security_mode_option_unknown_disabled">इस कनेक्शन प्रकार को चुनने से पहले लोकल, LAN या निजी VPN पता दर्ज करें।</string>
     <string name="relay_connection_no_key_required_cleartext">इस कनेक्शन को कुंजी की ज़रूरत नहीं है · अनएन्क्रिप्टेड कनेक्शन कभी क्रेडेंशियल नहीं भेजते।</string>
     <string name="relay_remove_api_key">कुंजी हटाएँ</string>
-<string name="streaming_pulse_a11y">उत्पन्न हो रहा है</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">उत्पन्न हो रहा है</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">इस माह सक्रिय</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">इस माह सक्रिय</string>
     <string name="providers_all_providers">सभी प्रोवाइडर</string>
     <string name="providers_today">आज</string>
     <string name="providers_all_synced">सभी सिंक हो गए</string>
@@ -844,6 +854,8 @@
     <string name="providers_delete_this_question">इस प्रोवाइडर को हटाएं?</string>
     <string name="providers_delete_this_message">इस प्रोवाइडर को हटाने से इससे जुड़ी चैट और डिफ़ॉल्ट मॉडल कॉन्फ़िगरेशन भी हट जाते हैं।</string>
     <string name="manual_model_clear">साफ़ करें</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">API key चाहिए</string>
     <string name="tap_to_view">देखने के लिए टैप करें</string>
     <string name="tap_to_set">सेट करने के लिए टैप करें</string>
@@ -859,6 +871,8 @@
     <string name="code_block_expand">पूरा देखें</string>
     <string name="chat_show_full_message">पूरा संदेश देखें</string>
     <string name="code_block_lines">%d लाइनें</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">इंटरनेट कनेक्शन नहीं है</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -868,6 +882,7 @@
     <string name="reasoning_hide">सोच छिपाएँ</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">%1$s से टेक्स्ट नहीं निकाला जा सका (यह स्कैन किया गया PDF लगता है)।</string>
@@ -879,7 +894,6 @@
     <string name="file_extraction_error_generic">%1$s को प्रोसेस नहीं किया जा सका। दोबारा प्रयास करें या कोई अन्य फ़ाइल चुनें।</string>
     <string name="file_extraction_truncated_notice">%1$s लंबी फ़ाइल है, इसलिए %3$d में से सिर्फ़ पहली %2$d पंक्तियाँ जोड़ी गईं।</string>
     <string name="file_extraction_send_blocked_text_budget">संदेश नहीं भेजा गया: %1$s को मिलाकर, जुड़ी फ़ाइलों का टेक्स्ट इस मॉडल की सीमा से ज़्यादा हो जाता है। कोई फ़ाइल हटाएँ या मॉडल बदलें।</string>
-    <string name="error_attachment_not_accepted_title">अटैचमेंट स्वीकार नहीं</string>
     <string name="file_extraction_text_budget_exceeded">%1$s नहीं जोड़ी गई: इसे जोड़ने पर इस संदेश के साथ जुड़ा टेक्स्ट सीमा से ज़्यादा हो जाता।</string>
     <string name="file_extraction_chip_extracted_lines">%1$d पंक्तियाँ निकाली गईं</string>
     <string name="file_attachment_count_limit_reached">इस मॉडल के लिए आप अधिकतम %1$d फ़ाइलें जोड़ सकते हैं।</string>
@@ -889,6 +903,8 @@
     <string name="empty_greeting_mind">मन में क्या चल रहा है?</string>
     <string name="empty_greeting_together">मिलकर क्या सुलझाएँ?</string>
     <string name="empty_chat_ask_anything">कुछ भी पूछिए, या सीधे लिखना शुरू कीजिए।</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">फ्लैगशिप GPT मॉडल</string>
     <string name="provider_tagline_anthropic">Claude मॉडल</string>
     <string name="provider_tagline_gemini">टेक्स्ट, इमेज और वीडियो</string>
@@ -904,6 +920,8 @@
     <string name="provider_tagline_groq">अल्ट्रा-फ़ास्ट इन्फ़रेंस</string>
     <string name="provider_tagline_together">ओपन-सोर्स मॉडल</string>
     <string name="provider_tagline_fireworks">तेज़ और किफ़ायती</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">प्रोवाइडर कनेक्ट करें</string>
     <string name="provider_setup_hero_subtitle">अपना AI प्रोवाइडर चुनें, फिर अपनी API key दर्ज करें</string>
     <string name="provider_category_all">सभी</string>
@@ -916,12 +934,13 @@
     <string name="provider_already_connected_subtitle">मौजूदा कनेक्शन प्रबंधित करें, या किसी अन्य API key से दूसरा खाता जोड़ें।</string>
     <string name="provider_manage_existing">मौजूदा प्रबंधित करें</string>
     <string name="provider_add_another_account">दूसरा खाता जोड़ें</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="capability_video">वीडियो</string>
     <string name="citations_section_title">स्रोत</string>
     <string name="citations_view_all">सभी %1$d स्रोत देखें</string>
     <string name="citations_collapse">कम दिखाएँ</string>
     <string name="api_endpoint">API समापन बिंदु</string>
-    <string name="api_endpoint_not_configured">कॉन्फ़िगर नहीं किया गया</string>
     <string name="relay_guidance_codex_identity_switch_type">इस कनेक्शन को Codex क्लाइंट पहचान चाहिए। प्रोवाइडर → यह कनेक्शन → मॉडल लाइब्रेरी → यह मॉडल → उन्नत खोलें, प्रोटोकॉल को OpenAI Responses पर सेट करें और फिर से कोशिश करें।</string>
     <string name="relay_guidance_codex_identity_still_rejected">यह कनेक्शन अभी भी Oriveo की Codex क्लाइंट पहचान अस्वीकार करता है। प्रोवाइडर → यह कनेक्शन → कनेक्शन संपादित करें → हेडर और क्वेरी पैरामीटर खोलें, कस्टम User-Agent या हेडर सेट करें, या कोई दूसरा कनेक्शन चुनें।</string>
     <string name="relay_guidance_responses_only_endpoint">यह कनेक्शन सिर्फ़ /v1/responses देता है और /chat/completions को अस्वीकार करता है। प्रोवाइडर → यह कनेक्शन → मॉडल लाइब्रेरी → यह मॉडल → उन्नत खोलें, प्रोटोकॉल को OpenAI Responses पर सेट करें और फिर से कोशिश करें।</string>
@@ -972,10 +991,17 @@
     <string name="outline_nav_label">वार्तालाप रूपरेखा</string>
     <string name="outline_jump_to">यहाँ जाएँ: %1$s</string>
     <string name="outline_attachment_only">(अनुलग्नक)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">नोट्स</string>
     <string name="notes_subtitle">चैट सामग्री को नोट्स में सहेजें</string>
     <string name="notes_untitled">बिना शीर्षक नोट</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="one">%1$d नोट</item>
+        <item quantity="other">%1$d नोट्स</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">नोट्स</string>
     <string name="notes_tab_trash">ट्रैश</string>
     <!-- Actions -->
@@ -1038,7 +1064,7 @@
     <string name="notes_toast_export_failed">निर्यात विफल</string>
     <string name="notes_toast_folder_created">फ़ोल्डर \"%1$s\" बनाया गया</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">नोट के रूप में सहेजें</string>
     <string name="notes_chat_replace_current_note">चयन से नोट अपडेट करें</string>
     <string name="notes_chat_return_to_note">नोट पर वापस</string>
@@ -1070,13 +1096,19 @@
     <string name="notes_detail_delete_this">यह नोट हटाएं</string>
     <string name="notes_nothing_written">अभी कुछ नहीं लिखा गया।</string>
     <!-- अपडेट जांचें (केवल Android · Play In-App Updates) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">कीमत अज्ञात</string>
     <string name="pricing_non_standard">अमानक बिलिंग</string>
     <string name="pricing_free">मुक्त</string>
     <string name="enabled_models_help">जोड़े गए मॉडल होम स्क्रीन के मॉडल पिकर में दिखते हैं।</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">यह बातचीत लोड नहीं हो सकी</string>
     <string name="chat_load_stalled_message">इस बातचीत के संदेश अभी इस डिवाइस पर नहीं हैं। क्लाउड से लाने के लिए फिर से कोशिश करें।</string>
     <string name="chat_bootstrap_in_progress">बातचीत लोड हो रही है…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">आपके सारे मॉडल, {एक ही ऐप}</string>
     <string name="onboarding_title_models">हर सवाल के लिए {सही मॉडल}</string>
     <string name="onboarding_title_byok">आपकी keys, {आपका बिल}</string>
@@ -1093,6 +1125,8 @@
     <string name="onboarding_legal">जारी रखने पर आप [सेवा की शर्तें](oriveo://terms) और [गोपनीयता नीति](oriveo://privacy) से सहमत होते हैं।</string>
     <string name="developer_options">डेवलपर विकल्प</string>
     <string name="replay_onboarding">परिचय फिर से देखें</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">शीघ्र व्यवस्थित</string>
     <string name="relay_quick_subtitle">अनुरोध URL और एपीआई कुंजी दर्ज करें। Oriveo आपके लिए कनेक्शन सेटिंग्स का पता लगाएगा।</string>
     <string name="relay_models_found">कैटलॉग में %1$d मॉडल मिले।</string>
@@ -1160,9 +1194,8 @@
     <string name="generation_empty_not_verified">इस मॉडल के लिए अभी कोई समायोज्य पैरामीटर नहीं है</string>
     <string name="generation_empty_not_verified_detail">हम नियंत्रण तभी सक्षम करते हैं जब हम जाँच लेते हैं कि पैरामीटर वाकई असर करता है, और इस कनेक्शन पर इस मॉडल को हमने अभी तक परखा नहीं है। इससे इसकी तर्क क्षमता पर कोई असर नहीं पड़ता।</string>
     <string name="generation_empty_catalog_managed">इस मॉडल के पैरामीटर अब आधिकारिक कैटलॉग द्वारा प्रबंधित किए जाते हैं और यहां कस्टमाइज़ नहीं किए जा सकते।</string>
-    <string name="generation_empty_runtime_locked">इस कनेक्शन पर रनटाइम पैरामीटर समायोजित नहीं किए जा सकते.</string>
     <string name="generation_empty_all_unsupported">इस कनेक्शन पर यह मॉडल समायोज्य पैरामीटर स्वीकार नहीं करता।</string>
-<string name="generation_parameter_unverified_badge">असत्यापित</string>
+    <string name="generation_parameter_unverified_badge">असत्यापित</string>
     <string name="generation_parameter_unverified_group_note">ये पैरामीटर आपके चुने हुए प्रोटोकॉल से अनुमानित हैं। Oriveo ने यह सत्यापित नहीं किया कि ये इस कनेक्शन पर असर करते हैं।</string>
     <string name="generation_parameter_dormant_summary">आपके द्वारा सेट किए गए %1$d पैरामीटर सहेजे गए हैं और अभी नहीं भेजे जाएंगे।</string>
     <string name="generation_parameter_dormant_view">देखें</string>
@@ -1180,6 +1213,8 @@
     <string name="chat_token_usage_cache_write">कैश राइट</string>
     <string name="chat_token_usage_total">कुल</string>
     <string name="chat_token_usage_unavailable">कोई डेटा नहीं</string>
+    <string name="chat_token_usage_cost">लागत</string>
+    <string name="chat_token_usage_estimated">अनुमानित</string>
     <string name="generation_conversation_scope_hint">यह केवल तब लागू होता है जब इस बातचीत में यही मॉडल इस्तेमाल हो। मॉडल बदलने पर मान कॉपी नहीं होते; वापस आने पर वे बहाल हो जाते हैं।</string>
     <string name="generation_parameter_self_healed">इस मॉडल ने %1$s को अस्वीकार किया। डिफ़ॉल्ट सेटिंग के साथ फिर कोशिश की गई।</string>
     <string name="relay_transport_llamacpp_native">llama.cpp नेटिव completion</string>
@@ -1379,28 +1414,22 @@
     <string name="tool_call_unhandled_multiple">मॉडल ने इस कनेक्शन पर अनुपलब्ध टूल (%1$s) का उपयोग करने का प्रयास किया।</string>
     <string name="tool_call_arguments_truncated">2 KB पर छोटा किया गया</string>
     <string name="tool_fallback_library_not_searched">यह कनेक्शन टूल का समर्थन नहीं करता, इसलिए लाइब्रेरी में खोज नहीं की गई।</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">स्टोरेज खाली नहीं है</string>
     <string name="storage_blocked_message">आपके डिवाइस में कोई खाली जगह नहीं बची है, इसलिए Oriveo अपना लोकल डेटा नहीं खोल पा रहा। कुछ जगह खाली करके फिर कोशिश करें — आपकी चैट इसी डिवाइस पर सुरक्षित हैं, वे नहीं खोएंगी।</string>
     <string name="storage_blocked_action_free_space">जगह खाली करें</string>
     <string name="database_unavailable_title">लोकल डेटा नहीं खुल सका</string>
     <string name="database_unavailable_message">Oriveo इस डिवाइस पर अपना लोकल डेटा नहीं खोल सका। फिर से कोशिश करें, या बार-बार ऐसा हो तो सहायता से संपर्क करें।</string>
     <string name="link_open_failed_message">लिंक नहीं खुल सका। ब्राउज़र चालू करें और फिर कोशिश करें।</string>
-    <string name="contact_support">सहायता से संपर्क करें</string>
-    <string name="price_input">इनपुट</string>
-    <string name="price_output">आउटपुट</string>
-    <string name="price_cache_read">कैश रीड</string>
-    <string name="price_cache_write">कैश राइट</string>
     <string name="external_app_unavailable">इसे खोलने वाला कोई ऐप नहीं है। कोई ऐप इंस्टॉल या चालू करें।</string>
-    <plurals name="notes_count">
-        <item quantity="one">%1$d नोट</item>
-        <item quantity="other">%1$d नोट्स</item>
-    </plurals>
     <string name="secure_field_show">अक्षर दिखाएँ</string>
     <string name="secure_field_hide">अक्षर छिपाएँ</string>
-    <string name="generation_parameter_name_stop">स्टॉप सीक्वेंस</string>
     <string name="generation_diagnostics_section">जनरेशन सेटिंग निदान</string>
     <string name="generation_diagnostics_empty">आपके पास अभी कोई निदान रिकॉर्ड नहीं है</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">इस खाते से फ़ीडबैक नहीं भेजा जा सकता।</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">टूल्स</string>
     <string name="mcp_tools_chip_state_on">%d सर्वर चालू</string>
     <string name="mcp_tools_chip_state_off">बंद</string>
@@ -1479,6 +1508,8 @@
     <string name="mcp_detail_seconds">%s से.</string>
     <string name="mcp_detail_third_party_note">नतीजे किसी तीसरे पक्ष के सर्वर से आए हैं। सिर्फ़ पहले 2 KB दिखाए गए हैं। Oriveo ने इस सामग्री की जाँच नहीं की है।</string>
     <string name="mcp_detail_not_on_device">विवरण सिर्फ़ उसी डिवाइस पर रहता है जिसने यह चरण चलाया था।</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">टूल और कनेक्शन</string>
     <string name="mcp_servers_title">MCP सर्वर</string>
     <plurals name="mcp_settings_entry_count">
@@ -1621,109 +1652,162 @@
     <string name="mcp_reauth_failed_body">साइन इन पेज बंद कर दिया गया, या सेवा ने अनुरोध मंज़ूर नहीं किया। कुछ भी नहीं बदला।</string>
     <string name="mcp_reauth_unreachable_body">देखें कि यह डिवाइस अभी उस तक पहुँच सकता है, फिर दोबारा कोशिश करें।</string>
     <string name="mcp_reauth_token_title">नया ऐक्सेस टोकन पेस्ट करें</string>
-    <string name="additional_body_attachments_filled">अटैचमेंट Oriveo खुद जोड़ता है।</string>
-    <string name="additional_body_cannot_change">बदला नहीं जा सकता</string>
-    <string name="additional_body_check">अतिरिक्त अनुरोध बॉडी जाँचें</string>
-    <string name="additional_body_conversation_filled">बातचीत की सामग्री Oriveo भरता है।</string>
-    <string name="additional_body_device_only">सिर्फ़ इस डिवाइस पर सहेजा जाता है, सिंक नहीं होता</string>
-    <string name="additional_body_docs_link">देखें कि %1$s किन फ़ील्ड को सपोर्ट करता है</string>
-    <string name="additional_body_field_filled">यह फ़ील्ड Oriveo भरता है।</string>
-    <string name="additional_body_field_name_invalid">यह नाम फ़ील्ड के नाम के रूप में इस्तेमाल नहीं हो सकता।</string>
-    <string name="additional_body_footer">यहाँ के फ़ील्ड जैसे लिखे हैं, वैसे ही अनुरोध में जोड़े जाते हैं; Oriveo यह नहीं जाँचता कि आपका सर्वर उन्हें स्वीकार करता है या नहीं। अगर किसी फ़ील्ड का नाम किसी एडवांस सेटिंग जैसा ही है, तो यहाँ वाला इस्तेमाल होता है और आपकी बाकी सेटिंग्स हमेशा की तरह भेजी जाती हैं।</string>
-    <string name="additional_body_included">शामिल</string>
-    <string name="additional_body_model_chosen">मॉडल वही है जो आपने Oriveo में चुना है।</string>
-    <string name="additional_body_paste">पेस्ट करें</string>
-    <string name="additional_body_paste_replace_body">पेस्ट करने पर मौजूदा सामग्री की जगह क्लिपबोर्ड की सामग्री आ जाएगी।</string>
-    <string name="additional_body_paste_replace_title">मौजूदा सामग्री बदलें?</string>
-    <string name="additional_body_reason_blocked_segment">“%1$s” को अतिरिक्त अनुरोध बॉडी में फ़ील्ड के नाम के रूप में इस्तेमाल नहीं किया जा सकता।</string>
-    <string name="additional_body_reason_invalid_json">अतिरिक्त अनुरोध बॉडी मान्य JSON नहीं है।</string>
-    <string name="additional_body_reason_not_object">अतिरिक्त अनुरोध बॉडी { } में लिखा एक JSON ऑब्जेक्ट होनी चाहिए।</string>
-    <string name="additional_body_reason_protected_field">“%1$s” Oriveo भरता है, इसलिए इसे अतिरिक्त अनुरोध बॉडी में सेट नहीं किया जा सकता।</string>
-    <string name="additional_body_reason_too_deep">अतिरिक्त अनुरोध बॉडी 32 से ज़्यादा स्तरों तक नेस्टेड है।</string>
-    <string name="additional_body_reason_too_large">अतिरिक्त अनुरोध बॉडी 64 KB से बड़ी है।</string>
-    <string name="additional_body_rejected_upstream">अतिरिक्त अनुरोध बॉडी वाला अनुरोध अस्वीकार हो गया</string>
-    <string name="additional_body_remove_line">%1$s भेजने के लिए पंक्ति %2$d हटाएँ।</string>
-    <string name="additional_body_retry_without">अतिरिक्त अनुरोध बॉडी के बिना फिर कोशिश करें</string>
-    <string name="additional_body_send_toggle">अनुरोधों के साथ भेजें</string>
-    <string name="additional_body_send_toggle_note">बंद होने पर सामग्री बनी रहती है, पर भेजी नहीं जाती</string>
-    <string name="additional_body_switch_blocked_invalid">अतिरिक्त अनुरोध बॉडी में कोई समस्या है, इसलिए यह स्विच उसे नहीं बदल सकता। पहले वहाँ जाकर ठीक करें।</string>
-    <string name="additional_body_switch_blocked_off">अतिरिक्त अनुरोध बॉडी अभी अनुरोधों के साथ नहीं भेजी जा रही। पहले वहाँ जाकर इसे चालू करें।</string>
-    <string name="additional_body_system_prompt_filled">सिस्टम प्रॉम्प्ट Oriveo भरता है।</string>
-    <string name="additional_body_tidy">व्यवस्थित करें</string>
-    <string name="additional_body_tidy_invalid">यह अभी मान्य JSON नहीं है, इसलिए कुछ नहीं बदला गया।</string>
-    <string name="additional_body_title">अतिरिक्त अनुरोध बॉडी</string>
-    <string name="additional_body_when_sending">भेजते समय</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">क्षमताएँ</string>
+    <string name="model_options_local">लोकल</string>
+    <string name="model_options_web_note">ज़रूरत होने पर जवाब से पहले वेब पर खोजता है</string>
+    <string name="model_options_always_thinks">जवाब देने से पहले हमेशा सोचता है</string>
+    <string name="model_options_thinks_first_note">पहले अच्छी तरह सोचता है, इसलिए जवाब में थोड़ा ज़्यादा समय लगता है</string>
+    <string name="model_options_higher_levels_note">ऊँचे स्तर पर ज़्यादा समय लगता है और खर्च भी बढ़ सकता है।</string>
+    <string name="model_options_template_thinking_note">चैट टेम्पलेट के ज़रिए सोच चालू या बंद करता है। यह काम करेगा या नहीं, यह आपके सर्वर पर निर्भर है।</string>
+    <string name="model_options_connection_cannot">यह कनेक्शन ऐसा नहीं कर सकता</string>
+    <string name="model_options_uses_model_default">मॉडल का डिफ़ॉल्ट इस्तेमाल होता है</string>
+    <string name="model_options_reasoning_not_catalogued">Oriveo में इस मॉडल की सोच सेटिंग्स अभी नहीं हैं, इसलिए यह अपने डिफ़ॉल्ट पर चलता है।</string>
+    <string name="model_options_web_not_catalogued">Oriveo में इस मॉडल की वेब खोज सेटिंग्स अभी नहीं हैं, इसलिए इसे यहाँ चालू नहीं किया जा सकता।</string>
+    <string name="model_options_see_adjustable_models">देखें कौन-से मॉडल समायोजित हो सकते हैं</string>
+    <string name="model_options_no_thinking_mode">इस मॉडल में सोच मोड नहीं है</string>
+    <string name="model_options_shows_thinking_fixed">अपनी सोच दिखाता है · बदला नहीं जा सकता</string>
+    <string name="model_options_cannot_search">यह मॉडल वेब पर खोज नहीं कर सकता</string>
+    <string name="model_options_always_on">हमेशा चालू</string>
+    <string name="model_options_subscription_always_searches">इस सब्सक्रिप्शन में यह मॉडल हमेशा वेब पर खोज करता है।</string>
+    <string name="model_options_web_when_needed">ज़रूरत होने पर</string>
+    <string name="model_options_web_every_message">हर संदेश पर</string>
+    <string name="model_options_needs_manual_setup">मैन्युअल सेटअप ज़रूरी</string>
+    <string name="model_options_reasoning_no_generic_switch">इस प्रोवाइडर के पास सोच का कोई मानक स्विच नहीं है। इसके फ़ील्ड अतिरिक्त अनुरोध बॉडी में जोड़ें।</string>
+    <string name="model_options_web_no_generic_switch">इस प्रोवाइडर के पास वेब खोज का कोई मानक स्विच नहीं है। इसके फ़ील्ड अतिरिक्त अनुरोध बॉडी में जोड़ें।</string>
+    <string name="model_options_open_additional_body">अतिरिक्त अनुरोध बॉडी खोलें</string>
+    <string name="model_options_choose_protocol_first">पहले इस कनेक्शन का प्रोटोकॉल चुनें</string>
+    <string name="model_options_protocol_auto_note">प्रोटोकॉल अभी भी “ऑटो” पर है, इसलिए Oriveo तय नहीं कर पा रहा कि वेब खोज और सोच की सेटिंग्स कैसे भेजे।</string>
+    <string name="model_options_choose_protocol">प्रोटोकॉल चुनें</string>
+    <string name="model_options_tier_rejected_title">“%1$s” अस्वीकार हुआ</string>
+    <string name="model_options_tier_rejected_body">यह मॉडल अभी “%1$s” स्वीकार नहीं कर रहा, इसलिए इसे “%2$s” पर वापस कर दिया गया है। मॉडल के फिर से सपोर्ट करने पर यह स्तर अपने आप लौट आएगा।</string>
+    <string name="model_options_more_count">और %1$d</string>
+    <string name="model_options_cant_switch_here">यहाँ अभी स्विच नहीं हो सकता</string>
+    <string name="model_options_not_available_yet">अभी उपलब्ध नहीं</string>
+    <string name="model_options_web_and_thinking_fields">वेब खोज और सोच के फ़ील्ड</string>
+    <string name="model_options_vision_available">उपलब्ध · इनपुट में फ़ोटो चुनने का विकल्प दिखता है</string>
+    <string name="model_options_vision_unknown">अज्ञात · भेजने के बाद याद रखा जाएगा</string>
+    <string name="model_options_vision_hidden">उपलब्ध नहीं · इनपुट में फ़ोटो चुनने का विकल्प नहीं दिखता</string>
+    <string name="model_options_file_pdf_native">PDF मूल रूप में · बाकी टेक्स्ट के रूप में</string>
+    <string name="model_options_file_native_when_supported">समर्थित फ़ॉर्मैट मूल रूप में · बाकी टेक्स्ट के रूप में</string>
+    <string name="model_options_file_text">टेक्स्ट के रूप में भेजा जाता है</string>
+    <string name="model_options_turn_summary">इस बार भेजा जाएगा: %1$s</string>
+    <string name="model_options_summary_web_on">वेब खोज चालू</string>
+    <string name="model_options_summary_thinking_level">सोच: %1$s</string>
+    <string name="model_options_summary_thinking_on">सोच चालू</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="one">%d स्तर</item>
+        <item quantity="other">%d स्तर</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">सिर्फ़ यह बातचीत</string>
+    <string name="advanced_reset">रीसेट</string>
+    <string name="advanced_reset_conversation_title">इस बातचीत की सेटिंग्स रीसेट करें?</string>
+    <string name="advanced_reset_conversation_body">यह सिर्फ़ वे पैरामीटर साफ़ करता है जो आपने इस बातचीत में बदले हैं। मॉडल डिफ़ॉल्ट और अतिरिक्त अनुरोध बॉडी जैसे हैं, वैसे ही रहेंगे।</string>
+    <string name="advanced_reset_conversation_action">इस बातचीत के बदलाव रीसेट करें</string>
+    <string name="advanced_reset_model_title">इस मॉडल के डिफ़ॉल्ट रीसेट करें?</string>
+    <string name="advanced_reset_model_body">यह वे डिफ़ॉल्ट पैरामीटर साफ़ करता है जो आपने इस कनेक्शन पर इस मॉडल के लिए सेट किए हैं। अलग-अलग बातचीत में किए गए बदलाव जैसे हैं, वैसे ही रहेंगे।</string>
+    <string name="advanced_reset_model_action">मॉडल डिफ़ॉल्ट रीसेट करें</string>
+    <string name="advanced_more">अधिक</string>
+    <string name="advanced_not_adjusted">समायोजित नहीं</string>
+    <string name="advanced_entries_count">प्रविष्टियाँ: %1$d</string>
+    <string name="advanced_fields_count">फ़ील्ड: %1$d</string>
+    <string name="advanced_random_each_time">हर बार रैंडम</string>
+    <string name="advanced_plain_text">सादा टेक्स्ट</string>
+    <string name="advanced_write_your_own">खुद लिखें</string>
     <string name="advanced_additional_body_subtitle">जो फ़ील्ड ऊपर नहीं हैं, उन्हें JSON में जोड़ें</string>
+    <string name="advanced_not_in_use">उपयोग में नहीं</string>
+    <string name="advanced_changed_in_conversation">इस बातचीत में बदला गया</string>
+    <string name="advanced_using_your_default">आपका सेट किया मॉडल डिफ़ॉल्ट लागू है</string>
+    <string name="advanced_model_defaults">मॉडल डिफ़ॉल्ट</string>
+    <string name="advanced_your_default">मॉडल डिफ़ॉल्ट</string>
+    <string name="advanced_state_set">सेट है</string>
+    <string name="advanced_state_on">चालू</string>
+    <string name="advanced_use_model_default">मॉडल डिफ़ॉल्ट इस्तेमाल करें</string>
+    <string name="advanced_dont_send">यह सेटिंग न भेजें</string>
     <string name="advanced_allowed_range">अनुमत सीमा: %1$s</string>
     <string name="advanced_also_covers">%1$s भी शामिल</string>
-    <string name="advanced_changed_in_conversation">इस बातचीत में बदला गया</string>
-    <string name="advanced_crossed_out_legend">काटी गई सेटिंग्स अभी %1$s के नियंत्रण में हैं।</string>
-    <string name="advanced_diagnostics_delete_body">इस मॉडल के लिए दिखाए गए डायग्नोस्टिक रिकॉर्ड हट जाएँगे। दूसरे मॉडलों के रिकॉर्ड बने रहेंगे।</string>
-    <string name="advanced_diagnostics_delete_title">ये डायग्नोस्टिक रिकॉर्ड हटाएँ?</string>
-    <string name="advanced_dont_send">यह सेटिंग न भेजें</string>
+    <string name="advanced_no_limit">कोई सीमा नहीं</string>
+    <string name="advanced_stop_sequences">स्टॉप सीक्वेंस</string>
+    <string name="advanced_new_stop_sequence">नया स्टॉप सीक्वेंस</string>
+    <string name="advanced_stop_sequences_note">इनमें से कोई भी लिखते ही मॉडल रुक जाता है। किसी सीक्वेंस में कॉमा, स्पेस और लाइन ब्रेक भी हो सकते हैं।</string>
+    <string name="advanced_remove_item">%1$s हटाएँ</string>
+    <string name="advanced_error_max_tokens">यह मॉडल ज़्यादा से ज़्यादा %1$s लिख सकता है। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_error_number">कोई संख्या दर्ज करें। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_error_integer">पूर्ण संख्या दर्ज करें। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_error_highest">यह मॉडल ज़्यादा से ज़्यादा %1$s स्वीकार करता है। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_error_lowest">यह मॉडल कम से कम %1$s स्वीकार करता है। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_error_greater_than">यह %1$s से बड़ा होना चाहिए। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_error_less_than">यह %1$s से छोटा होना चाहिए। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_error_json_schema">यह मान्य JSON Schema नहीं है। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_error_value_rejected">यह मॉडल यह मान स्वीकार नहीं करता। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
+    <string name="advanced_dropped_thinking">सोच चालू रहने पर मॉडल इसे स्वीकार नहीं करता, इसलिए यह नहीं भेजी जाती।</string>
     <string name="advanced_dropped_conflict">किसी दूसरी सेटिंग से टकराव है, इसलिए यह सेटिंग छोड़ दी गई है।</string>
     <string name="advanced_dropped_conflict_with">%1$s के साथ नहीं भेजी जा सकती, इसलिए यह सेटिंग छोड़ दी गई है।</string>
     <string name="advanced_dropped_depends">यह किसी ऐसी सेटिंग पर निर्भर है जो अभी सेट नहीं है, इसलिए नहीं भेजी जाती।</string>
-    <string name="advanced_dropped_reasoning_budget">रीज़निंग बजट से छोटा है, इसलिए इसकी जगह डिफ़ॉल्ट भेजा जाता है।</string>
-    <string name="advanced_dropped_required_default">इस मॉडल के लिए यह फ़ील्ड ज़रूरी है, इसलिए डिफ़ॉल्ट अब भी भेजा जाता है।</string>
     <string name="advanced_dropped_requires">सिर्फ़ तब भेजी जाती है जब %1$s भी सेट हो।</string>
-    <string name="advanced_dropped_thinking">सोच चालू रहने पर मॉडल इसे स्वीकार नहीं करता, इसलिए यह नहीं भेजी जाती।</string>
     <string name="advanced_dropped_value">यह मॉडल यह मान स्वीकार नहीं करता, इसलिए यह सेटिंग नहीं भेजी जाती।</string>
+    <string name="advanced_dropped_required_default">इस मॉडल के लिए यह फ़ील्ड ज़रूरी है, इसलिए डिफ़ॉल्ट अब भी भेजा जाता है।</string>
+    <string name="advanced_dropped_reasoning_budget">रीज़निंग बजट से छोटा है, इसलिए इसकी जगह डिफ़ॉल्ट भेजा जाता है।</string>
+    <string name="advanced_taken_over">%1$s चालू है, इसलिए यह सेटिंग इस्तेमाल नहीं होती।</string>
+    <string name="advanced_crossed_out_legend">काटी गई सेटिंग्स अभी %1$s के नियंत्रण में हैं।</string>
+    <string name="advanced_grey_defaults_legend">ग्रे संख्याएँ %1$s के अपने डिफ़ॉल्ट हैं। जब तक आप इन्हें न बदलें, ये नहीं भेजी जातीं।</string>
+    <string name="advanced_mirostat_note">आउटपुट की रैंडमनेस को एक लक्ष्य के आसपास स्थिर रखता है; Top K और Top P की जगह इस्तेमाल होता है।</string>
+    <string name="advanced_target_entropy">लक्ष्य एन्ट्रॉपी</string>
+    <string name="advanced_learning_rate">लर्निंग रेट</string>
+    <string name="advanced_repetition">दोहराव</string>
     <string name="advanced_dry_note">पिछले टेक्स्ट के पूरे-पूरे हिस्से दोहराने से रोकता है</string>
+    <string name="advanced_more_sampling">अन्य सैंपलिंग</string>
+    <string name="advanced_xtc_note">कभी-कभी सबसे संभावित शब्द छोड़ देता है, ताकि शब्दों में विविधता आए</string>
     <string name="advanced_dynamic_temperature">डायनेमिक तापमान</string>
     <string name="advanced_dynamic_temperature_note">मॉडल कितना आश्वस्त है, उसके हिसाब से तापमान बदलता है</string>
-    <string name="advanced_entries_count">प्रविष्टियाँ: %1$d</string>
-    <string name="advanced_error_greater_than">यह %1$s से बड़ा होना चाहिए। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_error_highest">यह मॉडल ज़्यादा से ज़्यादा %1$s स्वीकार करता है। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_error_integer">पूर्ण संख्या दर्ज करें। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_error_json_schema">यह मान्य JSON Schema नहीं है। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_error_less_than">यह %1$s से छोटा होना चाहिए। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_error_lowest">यह मॉडल कम से कम %1$s स्वीकार करता है। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_error_max_tokens">यह मॉडल ज़्यादा से ज़्यादा %1$s लिख सकता है। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_error_number">कोई संख्या दर्ज करें। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_error_value_rejected">यह मॉडल यह मान स्वीकार नहीं करता। ठीक होने तक यह सेटिंग नहीं भेजी जाएगी; आपकी बाकी सेटिंग्स पर कोई असर नहीं पड़ेगा।</string>
-    <string name="advanced_fields_count">फ़ील्ड: %1$d</string>
-    <string name="advanced_grey_defaults_legend">ग्रे संख्याएँ %1$s के अपने डिफ़ॉल्ट हैं। जब तक आप इन्हें न बदलें, ये नहीं भेजी जातीं।</string>
-    <string name="advanced_learning_rate">लर्निंग रेट</string>
-    <string name="advanced_mirostat_note">आउटपुट की रैंडमनेस को एक लक्ष्य के आसपास स्थिर रखता है; Top K और Top P की जगह इस्तेमाल होता है।</string>
-    <string name="advanced_model_defaults">मॉडल डिफ़ॉल्ट</string>
-    <string name="advanced_more">अधिक</string>
-    <string name="advanced_more_sampling">अन्य सैंपलिंग</string>
-    <string name="advanced_new_stop_sequence">नया स्टॉप सीक्वेंस</string>
-    <string name="advanced_no_limit">कोई सीमा नहीं</string>
-    <string name="advanced_not_adjusted">समायोजित नहीं</string>
-    <string name="advanced_not_in_use">उपयोग में नहीं</string>
-    <string name="advanced_plain_text">सादा टेक्स्ट</string>
-    <string name="advanced_preset_apply">प्रीसेट लागू करें</string>
-    <string name="advanced_preset_apply_body">“%1$s” इस मॉडल के लिए आपकी सेट की हुई सभी वैल्यू बदल देगा: %2$s।</string>
-    <string name="advanced_preset_apply_title">यह प्रीसेट लागू करें?</string>
-    <string name="advanced_random_each_time">हर बार रैंडम</string>
-    <string name="advanced_reasoning_set_by_thinking">इस मॉडल की सोच \"मॉडल विकल्प\" › \"सोच\" में सेट होती है। किसी स्तर को डिफ़ॉल्ट रखने के लिए उसे वहीं चुनें और \"इस मॉडल के लिए डिफ़ॉल्ट बनाएं\" पर टैप करें। यह पंक्ति अनुरोध के साथ नहीं भेजी जाती।</string>
-    <string name="advanced_remove_item">%1$s हटाएँ</string>
-    <string name="advanced_repetition">दोहराव</string>
-    <string name="advanced_reset">रीसेट</string>
-    <string name="advanced_reset_conversation_action">इस बातचीत के बदलाव रीसेट करें</string>
-    <string name="advanced_reset_conversation_body">यह सिर्फ़ वे पैरामीटर साफ़ करता है जो आपने इस बातचीत में बदले हैं। मॉडल डिफ़ॉल्ट और अतिरिक्त अनुरोध बॉडी जैसे हैं, वैसे ही रहेंगे।</string>
-    <string name="advanced_reset_conversation_title">इस बातचीत की सेटिंग्स रीसेट करें?</string>
-    <string name="advanced_reset_model_action">मॉडल डिफ़ॉल्ट रीसेट करें</string>
-    <string name="advanced_reset_model_body">यह वे डिफ़ॉल्ट पैरामीटर साफ़ करता है जो आपने इस कनेक्शन पर इस मॉडल के लिए सेट किए हैं। अलग-अलग बातचीत में किए गए बदलाव जैसे हैं, वैसे ही रहेंगे।</string>
-    <string name="advanced_reset_model_title">इस मॉडल के डिफ़ॉल्ट रीसेट करें?</string>
-    <string name="advanced_state_on">चालू</string>
-    <string name="advanced_state_set">सेट है</string>
-    <string name="advanced_stop_sequences">स्टॉप सीक्वेंस</string>
-    <string name="advanced_stop_sequences_note">इनमें से कोई भी लिखते ही मॉडल रुक जाता है। किसी सीक्वेंस में कॉमा, स्पेस और लाइन ब्रेक भी हो सकते हैं।</string>
-    <string name="advanced_taken_over">%1$s चालू है, इसलिए यह सेटिंग इस्तेमाल नहीं होती।</string>
-    <string name="advanced_target_entropy">लक्ष्य एन्ट्रॉपी</string>
-    <string name="advanced_this_conversation_only">सिर्फ़ यह बातचीत</string>
-    <string name="advanced_use_model_default">मॉडल डिफ़ॉल्ट इस्तेमाल करें</string>
-    <string name="advanced_using_your_default">आपका सेट किया मॉडल डिफ़ॉल्ट लागू है</string>
-    <string name="advanced_write_your_own">खुद लिखें</string>
-    <string name="advanced_xtc_note">कभी-कभी सबसे संभावित शब्द छोड़ देता है, ताकि शब्दों में विविधता आए</string>
-    <string name="advanced_your_default">मॉडल डिफ़ॉल्ट</string>
+    <string name="additional_body_title">अतिरिक्त अनुरोध बॉडी</string>
+    <string name="additional_body_send_toggle">अनुरोधों के साथ भेजें</string>
+    <string name="additional_body_send_toggle_note">बंद होने पर सामग्री बनी रहती है, पर भेजी नहीं जाती</string>
+    <string name="additional_body_device_only">सिर्फ़ इस डिवाइस पर सहेजा जाता है, सिंक नहीं होता</string>
+    <string name="additional_body_paste">पेस्ट करें</string>
+    <string name="additional_body_tidy">व्यवस्थित करें</string>
+    <string name="additional_body_when_sending">भेजते समय</string>
+    <string name="additional_body_included">शामिल</string>
+    <string name="additional_body_cannot_change">बदला नहीं जा सकता</string>
+    <string name="additional_body_footer">यहाँ के फ़ील्ड जैसे लिखे हैं, वैसे ही अनुरोध में जोड़े जाते हैं; Oriveo यह नहीं जाँचता कि आपका सर्वर उन्हें स्वीकार करता है या नहीं। अगर किसी फ़ील्ड का नाम किसी एडवांस सेटिंग जैसा ही है, तो यहाँ वाला इस्तेमाल होता है और आपकी बाकी सेटिंग्स हमेशा की तरह भेजी जाती हैं।</string>
+    <string name="additional_body_docs_link">देखें कि %1$s किन फ़ील्ड को सपोर्ट करता है</string>
+    <string name="additional_body_remove_line">%1$s भेजने के लिए पंक्ति %2$d हटाएँ।</string>
+    <string name="additional_body_conversation_filled">बातचीत की सामग्री Oriveo भरता है।</string>
+    <string name="additional_body_attachments_filled">अटैचमेंट Oriveo खुद जोड़ता है।</string>
+    <string name="additional_body_system_prompt_filled">सिस्टम प्रॉम्प्ट Oriveo भरता है।</string>
+    <string name="additional_body_tools_managed">टूल Oriveo मैनेज करता है।</string>
+    <string name="additional_body_model_chosen">मॉडल वही है जो आपने Oriveo में चुना है।</string>
+    <string name="additional_body_streaming_by_oriveo">जवाब किस तरह स्ट्रीम होगा, यह Oriveo तय करता है।</string>
+    <string name="additional_body_field_filled">यह फ़ील्ड Oriveo भरता है।</string>
+    <string name="additional_body_field_name_invalid">यह नाम फ़ील्ड के नाम के रूप में इस्तेमाल नहीं हो सकता।</string>
+    <string name="additional_body_paste_replace_title">मौजूदा सामग्री बदलें?</string>
+    <string name="additional_body_paste_replace_body">पेस्ट करने पर मौजूदा सामग्री की जगह क्लिपबोर्ड की सामग्री आ जाएगी।</string>
+    <string name="additional_body_tidy_invalid">यह अभी मान्य JSON नहीं है, इसलिए कुछ नहीं बदला गया।</string>
+    <string name="additional_body_switch_blocked_invalid">अतिरिक्त अनुरोध बॉडी में कोई समस्या है, इसलिए यह स्विच उसे नहीं बदल सकता। पहले वहाँ जाकर ठीक करें।</string>
+    <string name="additional_body_switch_blocked_off">अतिरिक्त अनुरोध बॉडी अभी अनुरोधों के साथ नहीं भेजी जा रही। पहले वहाँ जाकर इसे चालू करें।</string>
+    <string name="additional_body_check">अतिरिक्त अनुरोध बॉडी जाँचें</string>
+    <string name="additional_body_rejected_upstream">अतिरिक्त अनुरोध बॉडी वाला अनुरोध अस्वीकार हो गया</string>
+    <string name="additional_body_reason_too_large">अतिरिक्त अनुरोध बॉडी 64 KB से बड़ी है।</string>
+    <string name="additional_body_reason_invalid_json">अतिरिक्त अनुरोध बॉडी मान्य JSON नहीं है।</string>
+    <string name="additional_body_reason_not_object">अतिरिक्त अनुरोध बॉडी { } में लिखा एक JSON ऑब्जेक्ट होनी चाहिए।</string>
+    <string name="additional_body_reason_too_deep">अतिरिक्त अनुरोध बॉडी 32 से ज़्यादा स्तरों तक नेस्टेड है।</string>
+    <string name="additional_body_reason_blocked_segment">“%1$s” को अतिरिक्त अनुरोध बॉडी में फ़ील्ड के नाम के रूप में इस्तेमाल नहीं किया जा सकता।</string>
+    <string name="additional_body_reason_protected_field">“%1$s” Oriveo भरता है, इसलिए इसे अतिरिक्त अनुरोध बॉडी में सेट नहीं किया जा सकता।</string>
+    <string name="additional_body_retry_without">अतिरिक्त अनुरोध बॉडी के बिना फिर कोशिश करें</string>
+    <string name="local_request_line_format">पंक्ति %1$d: %2$s</string>
+    <string name="local_request_custom_line_format">%1$s फ़ील्ड, पंक्ति %2$d: %3$s</string>
+    <string name="local_request_custom_format">%1$s फ़ील्ड: %2$s</string>
+    <string name="local_request_not_sent">यह संदेश नहीं भेजा गया।</string>
     <string name="generation_parameter_name_grammar">व्याकरण बाध्यता (GBNF)</string>
     <string name="generation_parameter_name_min_tokens">न्यूनतम आउटपुट टोकन</string>
     <string name="generation_parameter_name_skip_special_tokens">आउटपुट में विशेष टोकन छिपाएँ</string>
     <string name="generation_parameter_omitted_value">नहीं भेजा जाएगा</string>
+    <string name="advanced_reasoning_set_by_thinking">इस मॉडल की सोच \"मॉडल विकल्प\" › \"सोच\" में सेट होती है। किसी स्तर को डिफ़ॉल्ट रखने के लिए उसे वहीं चुनें और \"इस मॉडल के लिए डिफ़ॉल्ट बनाएं\" पर टैप करें। यह पंक्ति अनुरोध के साथ नहीं भेजी जाती।</string>
+    <string name="advanced_preset_apply">प्रीसेट लागू करें</string>
+    <string name="advanced_preset_apply_title">यह प्रीसेट लागू करें?</string>
+    <string name="advanced_preset_apply_body">“%1$s” इस मॉडल के लिए आपकी सेट की हुई सभी वैल्यू बदल देगा: %2$s।</string>
+    <string name="advanced_diagnostics_delete_title">ये डायग्नोस्टिक रिकॉर्ड हटाएँ?</string>
+    <string name="advanced_diagnostics_delete_body">इस मॉडल के लिए दिखाए गए डायग्नोस्टिक रिकॉर्ड हट जाएँगे। दूसरे मॉडलों के रिकॉर्ड बने रहेंगे।</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">कस्टम LLM · कस्टम रिले</string>
     <string name="relay_setup_hero_title">कस्टम रिले कनेक्ट करें</string>
@@ -1798,6 +1882,7 @@
     <string name="relay_relative_minutes_ago">%d मिनट पहले</string>
     <string name="relay_relative_hours_ago">%d घंटा पहले</string>
     <string name="relay_detail_default_model">डिफ़ॉल्ट मॉडल</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">पता और कुंजी डालें, फिर अगले चरण में इस्तेमाल होने वाले मॉडल चुनें। हर मॉडल का प्रोटोकॉल और क्षमताएँ अलग-अलग पहचानी जाती हैं।</string>
     <string name="relay_setup_will_request">अनुरोध यहाँ जाएगा: %1$s</string>
     <string name="relay_setup_key_name">नाम (वैकल्पिक)</string>
@@ -1897,6 +1982,15 @@
     <string name="relay_catalog_status_denied">मौजूदा कुंजी के पास पहुँच नहीं है</string>
     <string name="relay_catalog_unreachable_title">कनेक्ट न होने की वजह</string>
     <string name="relay_catalog_enable_hint">चालू करने पर यह पक्का करने के लिए 1 बहुत छोटा अनुरोध भेजा जाता है कि मॉडल काम करता है। पहले “उन्नत” देखने के लिए कैटलॉग में किसी मॉडल पर टैप करें, इससे कोई अनुरोध नहीं भेजा जाता।</string>
+    <string name="relay_catalog_add_all">सभी जोड़ें</string>
+    <string name="relay_catalog_enable_hint_explicit">पहले “उन्नत” देखने के लिए कैटलॉग में किसी मॉडल पर टैप करें, इससे कोई अनुरोध नहीं भेजा जाता।</string>
+    <string name="relay_catalog_remove_last_reason">इस कनेक्शन में कम से कम एक मॉडल होना ज़रूरी है।</string>
+    <string name="relay_model_advanced_auto_equals_connection">ऑटो = इस कनेक्शन का डिफ़ॉल्ट प्रोटोकॉल (%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">बदलाव तुरंत लागू होते हैं और सिर्फ़ इसी डिवाइस पर सेव होते हैं।</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="one">%1$d मॉडल जोड़ा गया</item>
+        <item quantity="other">%1$d मॉडल जोड़े गए</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">मॉडल सूची नहीं मिल सकी</string>
     <string name="relay_catalog_group_other">अन्य</string>
     <string name="relay_advanced_key_section">कुंजी</string>
@@ -1989,6 +2083,7 @@
     <string name="relay_web_chat_note">Chat Completions में वेब खोज के लिए कोई मानक फ़ील्ड नहीं है। टेम्पलेट सिर्फ़ सर्च मॉडल के साथ काम करता है; सेवा के दस्तावेज़ देखें।</string>
     <string name="relay_web_other_protocols">अन्य प्रोटोकॉल</string>
     <string name="relay_web_template_replace_body">इस प्रोटोकॉल के लिए आपने जो भरा है, टेम्पलेट उसे बदल देगा।</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">प्रमाणीकरण, हेडर और क्वेरी पैरामीटर</string>
     <string name="relay_manual_connection_name">कनेक्शन का नाम</string>
     <string name="relay_manual_model_footnote">मॉडल ID ठीक वैसा ही डालें जैसा आपके कस्टम रिले में दिखता है। बाद में मॉडल लाइब्रेरी से और मॉडल जोड़े जा सकते हैं।</string>
@@ -2002,66 +2097,6 @@
     <string name="relay_manual_model_entry_note_exact">मॉडल ID ठीक वैसा ही डालें जैसा आपके कस्टम रिले में दिखता है।</string>
     <string name="relay_manual_model_entry_note_capabilities">यह मॉडल क्या-क्या कर सकता है, यह संदेश भेजने के बाद याद रखा जाता है। आप इसे “उन्नत” में भी जाँच सकते हैं।</string>
     <string name="relay_connection_not_verified">कनेक्शन सत्यापित नहीं किया गया है.</string>
-    <string name="local_request_custom_format">%1$s फ़ील्ड: %2$s</string>
-    <string name="local_request_custom_line_format">%1$s फ़ील्ड, पंक्ति %2$d: %3$s</string>
-    <string name="local_request_line_format">पंक्ति %1$d: %2$s</string>
-    <string name="local_request_not_sent">यह संदेश नहीं भेजा गया।</string>
-    <string name="model_options_always_thinks">जवाब देने से पहले हमेशा सोचता है</string>
-    <string name="model_options_cannot_search">यह मॉडल वेब पर खोज नहीं कर सकता</string>
-    <string name="model_options_always_on">हमेशा चालू</string>
-    <string name="model_options_subscription_always_searches">इस सब्सक्रिप्शन में यह मॉडल हमेशा वेब पर खोज करता है।</string>
-    <string name="model_options_cant_switch_here">यहाँ अभी स्विच नहीं हो सकता</string>
-    <string name="model_options_capabilities">क्षमताएँ</string>
-    <string name="model_options_choose_protocol">प्रोटोकॉल चुनें</string>
-    <string name="model_options_choose_protocol_first">पहले इस कनेक्शन का प्रोटोकॉल चुनें</string>
-    <string name="model_options_connection_cannot">यह कनेक्शन ऐसा नहीं कर सकता</string>
-    <string name="model_options_higher_levels_note">ऊँचे स्तर पर ज़्यादा समय लगता है और खर्च भी बढ़ सकता है।</string>
-    <string name="model_options_local">लोकल</string>
-    <string name="model_options_more_count">और %1$d</string>
-    <string name="model_options_needs_manual_setup">मैन्युअल सेटअप ज़रूरी</string>
-    <string name="model_options_no_thinking_mode">इस मॉडल में सोच मोड नहीं है</string>
-    <string name="model_options_not_available_yet">अभी उपलब्ध नहीं</string>
-    <string name="model_options_open_additional_body">अतिरिक्त अनुरोध बॉडी खोलें</string>
-    <string name="model_options_protocol_auto_note">प्रोटोकॉल अभी भी “ऑटो” पर है, इसलिए Oriveo तय नहीं कर पा रहा कि वेब खोज और सोच की सेटिंग्स कैसे भेजे।</string>
-    <string name="model_options_reasoning_no_generic_switch">इस प्रोवाइडर के पास सोच का कोई मानक स्विच नहीं है। इसके फ़ील्ड अतिरिक्त अनुरोध बॉडी में जोड़ें।</string>
-    <string name="model_options_reasoning_not_catalogued">Oriveo में इस मॉडल की सोच सेटिंग्स अभी नहीं हैं, इसलिए यह अपने डिफ़ॉल्ट पर चलता है।</string>
-    <string name="model_options_see_adjustable_models">देखें कौन-से मॉडल समायोजित हो सकते हैं</string>
-    <string name="model_options_template_thinking_note">चैट टेम्पलेट के ज़रिए सोच चालू या बंद करता है। यह काम करेगा या नहीं, यह आपके सर्वर पर निर्भर है।</string>
-    <string name="model_options_thinks_first_note">पहले अच्छी तरह सोचता है, इसलिए जवाब में थोड़ा ज़्यादा समय लगता है</string>
-    <string name="model_options_tier_rejected_body">यह मॉडल अभी “%1$s” स्वीकार नहीं कर रहा, इसलिए इसे “%2$s” पर वापस कर दिया गया है। मॉडल के फिर से सपोर्ट करने पर यह स्तर अपने आप लौट आएगा।</string>
-    <string name="model_options_tier_rejected_title">“%1$s” अस्वीकार हुआ</string>
-    <string name="model_options_uses_model_default">मॉडल का डिफ़ॉल्ट इस्तेमाल होता है</string>
-    <string name="model_options_web_and_thinking_fields">वेब खोज और सोच के फ़ील्ड</string>
-    <string name="model_options_vision_available">उपलब्ध · इनपुट में फ़ोटो चुनने का विकल्प दिखता है</string>
-    <string name="model_options_vision_unknown">अज्ञात · भेजने के बाद याद रखा जाएगा</string>
-    <string name="model_options_vision_hidden">उपलब्ध नहीं · इनपुट में फ़ोटो चुनने का विकल्प नहीं दिखता</string>
-    <string name="model_options_file_pdf_native">PDF मूल रूप में · बाकी टेक्स्ट के रूप में</string>
-    <string name="model_options_file_native_when_supported">समर्थित फ़ॉर्मैट मूल रूप में · बाकी टेक्स्ट के रूप में</string>
-    <string name="model_options_file_text">टेक्स्ट के रूप में भेजा जाता है</string>
-    <string name="model_options_turn_summary">इस बार भेजा जाएगा: %1$s</string>
-    <string name="model_options_summary_web_on">वेब खोज चालू</string>
-    <string name="model_options_summary_thinking_level">सोच: %1$s</string>
-    <string name="model_options_summary_thinking_on">सोच चालू</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="one">%d स्तर</item>
-        <item quantity="other">%d स्तर</item>
-    </plurals>
-    <string name="model_options_web_every_message">हर संदेश पर</string>
-    <string name="model_options_web_no_generic_switch">इस प्रोवाइडर के पास वेब खोज का कोई मानक स्विच नहीं है। इसके फ़ील्ड अतिरिक्त अनुरोध बॉडी में जोड़ें।</string>
-    <string name="model_options_web_not_catalogued">Oriveo में इस मॉडल की वेब खोज सेटिंग्स अभी नहीं हैं, इसलिए इसे यहाँ चालू नहीं किया जा सकता।</string>
-    <string name="model_options_web_note">ज़रूरत होने पर जवाब से पहले वेब पर खोजता है</string>
-    <string name="model_options_web_when_needed">ज़रूरत होने पर</string>
-    <string name="additional_body_tools_managed">टूल Oriveo मैनेज करता है।</string>
-    <string name="additional_body_streaming_by_oriveo">जवाब किस तरह स्ट्रीम होगा, यह Oriveo तय करता है।</string>
-    <string name="relay_catalog_add_all">सभी जोड़ें</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="one">%1$d मॉडल जोड़ा गया</item>
-        <item quantity="other">%1$d मॉडल जोड़े गए</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">इस कनेक्शन में कम से कम एक मॉडल होना ज़रूरी है।</string>
-    <string name="relay_catalog_enable_hint_explicit">पहले “उन्नत” देखने के लिए कैटलॉग में किसी मॉडल पर टैप करें, इससे कोई अनुरोध नहीं भेजा जाता।</string>
-    <string name="relay_model_advanced_changes_apply">बदलाव तुरंत लागू होते हैं और सिर्फ़ इसी डिवाइस पर सेव होते हैं।</string>
-    <string name="relay_model_advanced_auto_equals_connection">ऑटो = इस कनेक्शन का डिफ़ॉल्ट प्रोटोकॉल (%1$s)</string>
     <string name="relay_avatar_change_icon">आइकन बदलें</string>
     <string name="relay_avatar_letter">अक्षर</string>
     <string name="relay_avatar_icon_paper_plane">कागज़ का हवाई जहाज़</string>
@@ -2281,7 +2316,7 @@
     <string name="memory_editor_category">श्रेणी</string>
     <string name="memory_editor_too_long">ज़्यादा से ज़्यादा 2,000 अक्षर</string>
     <string name="memory_delete_confirm_title">यह मेमोरी हटाएँ?</string>
-    <string name="memory_delete_confirm_body">यह इस डिवाइस से हमेशा के लिए हट जाएगी।</string>
+    <string name="memory_delete_confirm_body">यह आपके सभी डिवाइस से हट जाएगी।</string>
     <string name="memory_action_organize">अलग-अलग आइटम में बाँटें</string>
     <string name="memory_raw_view">सादा टेक्स्ट</string>
     <string name="memory_raw_view_hint">हर दो आइटम के बीच एक अलग पंक्ति में सिर्फ़ --- लिखें।</string>
@@ -2311,8 +2346,165 @@
     <string name="context_confirm_also_price_line">यह अनुरोध %1$s की %2$s वाली ऊँची दर की रेखा से भी ऊपर जाता है, इसलिए पूरे अनुरोध का बिल लॉन्ग कॉन्टेक्स्ट की दर से बनेगा।</string>
     <string name="context_confirm_dont_ask">इस चैट में दोबारा न पूछें</string>
     <string name="context_confirm_send">फिर भी भेजें</string>
-    <string name="chat_last_used_model_retired_hint">पिछली बार इस्तेमाल किया गया मॉडल बंद हो चुका है। अब %1$s इस्तेमाल हो रहा है।</string>
-    <string name="model_options_shows_thinking_fixed">अपनी सोच दिखाता है · बदला नहीं जा सकता</string>
     <string name="settings_section_general">सामान्य</string>
     <string name="settings_section_help_about">सहायता और जानकारी</string>
+    <string name="settings_footer_poem">अनगिनत मॉडलों के बीच, वह एक जवाब जो सिर्फ़ आपका है।</string>
+    <string name="skills_home_autoCount">स्वचालित · %1$d</string>
+    <string name="skills_home_slashHint">इस्तेमाल के लिए / टाइप करें</string>
+    <string name="skills_home_empty">अपना पसंदीदा तरीका सेव करें</string>
+    <string name="skills_list_subtitle">काम करने का अपना पसंदीदा तरीका सेव करें — सही मौके पर AI उसका इस्तेमाल करेगा।</string>
+    <string name="skills_create_describePlaceholder">कोई तरीका बताएं, AI उसे कौशल के रूप में लिख देगा</string>
+    <string name="skills_create_fromChat">चैट से</string>
+    <string name="skills_create_manual">खुद बनाएं</string>
+    <string name="skills_segment_mine">मेरे कौशल</string>
+    <string name="skills_segment_templates">टेम्पलेट</string>
+    <string name="skills_group_auto">स्वचालित</string>
+    <string name="skills_group_manual">सिर्फ़ मैन्युअल</string>
+    <string name="skills_card_usageCount">उपयोग: %1$d</string>
+    <string name="skills_row_slashHint">%1$s टाइप करने पर इस्तेमाल होता है</string>
+    <string name="skills_auto_needWhenTitle">पहले बताएं कि इसे कब इस्तेमाल करना है</string>
+    <string name="skills_auto_suggest">सुझाव लें</string>
+    <string name="skills_auto_limitReached">स्वचालित उपयोग की सीमा (%1$d) पूरी हो गई है। पहले कोई एक बंद करें।</string>
+    <string name="skills_search_placeholder">कौशल खोजें</string>
+    <string name="skills_empty_title">अभी कोई कौशल नहीं</string>
+    <string name="skills_empty_body">अक्सर इस्तेमाल होने वाले तरीके सेव करें, ताकि हर बार समझाना न पड़े।</string>
+    <string name="skills_empty_browseTemplates">टेम्पलेट देखें</string>
+    <string name="skills_migrate_banner">“कब इस्तेमाल करें” के बिना कौशल: %1$d। एक पंक्ति जोड़ें, फिर इनका अपने-आप इस्तेमाल हो सकेगा।</string>
+    <string name="skills_migrate_review">एक-एक करके भरें</string>
+    <string name="skills_templates_note">टेम्पलेट “मेरे कौशल” में जोड़ने के बाद ही अपने-आप इस्तेमाल होते हैं।</string>
+    <string name="skills_templates_featured">चुनिंदा</string>
+    <string name="skills_templates_addToMine">मेरे कौशल में जोड़ें</string>
+    <string name="skills_templates_add">जोड़ें</string>
+    <string name="skills_templates_added">जोड़ा गया</string>
+    <string name="skills_templates_tryOnce">एक बार आज़माएं</string>
+    <string name="skills_detail_useInNewChat">नई चैट में इस्तेमाल करें</string>
+    <string name="skills_detail_orSlash">या मैसेज बॉक्स में %1$s टाइप करें</string>
+    <string name="skills_detail_usage">उपयोग: %1$d · पिछली बार %2$s</string>
+    <string name="skills_detail_neverUsed">अभी तक इस्तेमाल नहीं हुआ</string>
+    <string name="skills_detail_autoInvoke">अपने-आप इस्तेमाल करें</string>
+    <string name="skills_detail_whenToUse">कब इस्तेमाल करें</string>
+    <string name="skills_detail_whenToUseNote">AI इसी से तय करता है</string>
+    <string name="skills_detail_instructions">निर्देश</string>
+    <string name="skills_detail_showAll">सब देखें</string>
+    <string name="skills_detail_references">संदर्भ सामग्री</string>
+    <string name="skills_detail_starters">शुरुआती संदेश</string>
+    <string name="skills_detail_recentChats">हाल की चैट</string>
+    <string name="skills_detail_try">आज़माएं</string>
+    <string name="skills_edit_changeIcon">आइकन बदलें</string>
+    <string name="skills_edit_name">नाम</string>
+    <string name="skills_edit_whenBadge">स्वचालित उपयोग तय करता है</string>
+    <string name="skills_edit_whenPlaceholder">उदाहरण: जब मैं नोट्स को साप्ताहिक रिपोर्ट में बदलने को कहूं। रोज़ाना अपडेट के लिए नहीं।</string>
+    <string name="skills_edit_keywordsCaption">इन शब्दों से चलता है · स्थिति बताना काफ़ी है</string>
+    <string name="skills_edit_whenTip">बताएं कि यह क्या करता है, कब इस्तेमाल हो और आप आमतौर पर कैसे कहते हैं। गलत मिलान से बचने के लिए “… के लिए नहीं” जोड़ें। उद्धरण चिह्नों में लिखे शब्द हाइलाइट होंगे।</string>
+    <string name="skills_edit_polish">AI से निखारें</string>
+    <string name="skills_edit_addStarter">शुरुआती संदेश जोड़ें</string>
+    <string name="skills_edit_modelAndFeatures">मॉडल और फ़ीचर</string>
+    <string name="skills_edit_followChat">चैट के अनुसार</string>
+    <string name="skills_edit_needWhenForAuto">“कब इस्तेमाल करें” भरें या स्वचालित उपयोग बंद करें।</string>
+    <string name="skills_draft_askScenarios">एक-दो स्थितियां बताएं जब आप इसे इस्तेमाल करेंगे</string>
+    <string name="skills_draft_askQuality">अच्छा नतीजा कैसा होना चाहिए?</string>
+    <string name="skills_draft_skip">छोड़ें</string>
+    <string name="skills_draft_generating">ड्राफ़्ट लिखा जा रहा है…</string>
+    <string name="skills_draft_title">ड्राफ़्ट</string>
+    <string name="skills_draft_editFirst">पहले बदलाव करें</string>
+    <string name="skills_draft_suggestedIcon">सुझाया गया आइकन</string>
+    <string name="skills_draft_failed">ड्राफ़्ट पूरा नहीं हो सका। जितना काम का था, वह भर दिया गया है।</string>
+    <string name="skills_fromChat_menuConversation">कौशल के रूप में सेव करें</string>
+    <string name="skills_fromChat_menuMessage">इस तरीके को कौशल के रूप में सेव करें</string>
+    <string name="skills_fromChat_messages">संदेश: %1$d</string>
+    <string name="skills_fromChat_extracting">सार निकाला जा रहा है…</string>
+    <string name="skills_limit_upgrade">ज़्यादा के लिए अपग्रेड करें</string>
+    <string name="skills_limit_draftKept">आपका ड्राफ़्ट इसी डिवाइस पर सेव है।</string>
+    <string name="skills_composer_placeholder">कौशल इस्तेमाल करने के लिए / टाइप करें</string>
+    <string name="skills_picker_title">मेरे कौशल</string>
+    <string name="skills_picker_multi">कई चुन सकते हैं</string>
+    <string name="skills_picker_auto">स्वचालित</string>
+    <string name="skills_picker_manual">मैन्युअल</string>
+    <string name="skills_picker_manage">कौशल प्रबंधित करें</string>
+    <string name="skills_picker_maxReached">एक बार में ज़्यादा से ज़्यादा %1$d</string>
+    <string name="skills_chip_deleted">हटाया गया</string>
+    <string name="skills_message_attached">%1$s के साथ</string>
+    <string name="skills_used_chip">इस्तेमाल हुआ: %1$s</string>
+    <string name="skills_used_loading">%1$s का उपयोग जारी है…</string>
+    <string name="skills_used_byChoice">आपने चुना था, इसलिए इस्तेमाल हुआ</string>
+    <string name="skills_used_why">क्यों इस्तेमाल हुआ</string>
+    <string name="skills_used_disableHere">इस चैट में अपने-आप इस्तेमाल न करें</string>
+    <string name="skills_used_view">कौशल देखें</string>
+    <string name="skills_settings_autoToggle">कौशल अपने-आप इस्तेमाल करें</string>
+    <string name="skills_settings_autoToggleFooter">बंद होने पर मॉडल खुद कौशल नहीं चुनेगा। फिर भी / टाइप करके आप कोई कौशल इस्तेमाल कर सकते हैं।</string>
+    <string name="skills_try_banner">आज़माया जा रहा है · इतिहास में सेव नहीं होगा</string>
+    <string name="skills_try_saveToSkill">कौशल में सेव करें</string>
+    <string name="skills_try_adjust">निर्देश बदलें</string>
+    <string name="skills_try_saved">“%1$s” में सेव हो गया</string>
+    <string name="skills_try_savedToDraft">एडिटर में कॉपी हो गया। इसे बनाए रखने के लिए वहाँ सेव करें।</string>
+    <string name="skills_improve_prompt">इसे “%1$s” में जोड़ें?</string>
+    <string name="skills_improve_review">बदलाव देखें</string>
+    <string name="skills_improve_accept">कौशल में जोड़ें</string>
+    <string name="skills_improve_dismiss">अभी नहीं</string>
+    <string name="skills_improve_addedLine">जोड़ा गया</string>
+    <string name="skills_improve_removedLine">हटाया गया</string>
+    <string name="skills_improve_saved">“%1$s” में जोड़ दिया गया</string>
+    <string name="skills_saveFailed">बदलाव सहेजे नहीं जा सके। कृपया पुनः प्रयास करें।</string>
+    <string name="skills_usage_manifestRow">कौशल सूची के अतिरिक्त टोकन</string>
+    <string name="skills_glyph_writing">लेखन</string>
+    <string name="skills_glyph_report">रिपोर्ट</string>
+    <string name="skills_glyph_code">कोड</string>
+    <string name="skills_glyph_study">पढ़ाई</string>
+    <string name="skills_glyph_travel">यात्रा</string>
+    <string name="skills_glyph_health">स्वास्थ्य</string>
+    <string name="skills_glyph_meeting">मीटिंग</string>
+    <string name="skills_glyph_idea">विचार</string>
+    <string name="skills_glyph_translate">अनुवाद</string>
+    <string name="skills_glyph_email">ईमेल</string>
+    <string name="skills_glyph_data">डेटा</string>
+    <string name="skills_glyph_design">डिज़ाइन</string>
+    <string name="skills_glyph_legal">क़ानून</string>
+    <string name="skills_glyph_finance">वित्त</string>
+    <string name="skills_glyph_marketing">मार्केटिंग</string>
+    <string name="skills_glyph_support">सहायता</string>
+    <string name="skills_glyph_teaching">शिक्षण</string>
+    <string name="skills_glyph_research">शोध</string>
+    <string name="skills_glyph_life">दिनचर्या</string>
+    <string name="skills_glyph_food">खाना</string>
+    <string name="skills_glyph_music">संगीत</string>
+    <string name="skills_glyph_photo">फ़ोटोग्राफ़ी</string>
+    <string name="skills_glyph_product">प्रोडक्ट</string>
+    <string name="skills_glyph_general">सामान्य</string>
+    <string name="skills_home_notesRecent">हाल ही में संपादित</string>
+    <string name="skills_search_noResults">कोई परिणाम नहीं</string>
+    <string name="generic_error_try_again">कुछ गलत हुआ। फिर से कोशिश करें।</string>
+    <string name="loading_usage_trends">उपयोग के रुझान लोड हो रहे हैं...</string>
+    <string name="usage_vs_last_month">बनाम पिछले महीने</string>
+    <string name="usage_section_insights">इनसाइट्स</string>
+    <string name="usage_section_budgets">बजट</string>
+    <string name="usage_sample_report">नमूना रिपोर्ट</string>
+    <string name="usage_clear">साफ़ करें</string>
+    <string name="usage_monthly_budget_eyebrow">मासिक बजट</string>
+    <string name="skills_knowledgeErrorOpenAI">पहले एक OpenAI प्रोवाइडर जोड़ें और कॉन्फ़िगर करें।</string>
+    <string name="skills_knowledgeErrorEndpoint">नॉलेज बेस केवल आधिकारिक OpenAI एंडपॉइंट के साथ काम करता है।</string>
+    <string name="skills_knowledgeErrorModelDisabled">पहले अपने OpenAI प्रोवाइडर में %1$s जोड़ें और सक्षम करें।</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">नॉलेज बेस अभी उपलब्ध नहीं है।</string>
+    <string name="skills_knowledgeErrorFileTooLarge">नॉलेज बेस फ़ाइलें 20 एमबी या उससे छोटी होनी चाहिए।</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">एक कौशल में अधिकतम 5 नॉलेज बेस फ़ाइलें हो सकती हैं, और उनका कुल आकार 100 MB से ज़्यादा नहीं हो सकता।</string>
+    <string name="skills_knowledgeErrorExtractFailed">इस फ़ाइल से पाठ निकालने में विफल.</string>
+    <string name="skills_knowledgeErrorUploadFailed">यह फ़ाइल अपलोड करने में विफल रहा.</string>
+    <string name="skills_knowledgeErrorIndexFailed">इस फ़ाइल को अनुक्रमित करने में विफल.</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">इस संदेश के लिए ज्ञान पुनर्प्राप्ति विफल रही.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">दूरस्थ फ़ाइल साफ़ करने में विफल. बाद में पुन: प्रयास।</string>
+    <string name="custom_llm_connection_method">कनेक्शन का तरीका</string>
+    <string name="local_compute_pairing_code">पेयरिंग कोड</string>
+    <string name="local_compute_scan_qr">QR कोड स्कैन करें</string>
+    <string name="api_endpoint_not_configured">कॉन्फ़िगर नहीं किया गया</string>
+    <string name="contact_support">सहायता से संपर्क करें</string>
+    <string name="error_attachment_not_accepted_title">अटैचमेंट स्वीकार नहीं</string>
+    <string name="generation_empty_runtime_locked">इस कनेक्शन पर रनटाइम पैरामीटर समायोजित नहीं किए जा सकते.</string>
+    <string name="legal_consent_notice">जारी रखकर, आप नीचे दी गई कानूनी शर्तों से सहमत हैं।</string>
+    <string name="price_cache_read">कैश रीड</string>
+    <string name="price_cache_write">कैश राइट</string>
+    <string name="price_input">इनपुट</string>
+    <string name="price_output">आउटपुट</string>
+    <string name="settings_report_issue">समस्या की रिपोर्ट करें</string>
+    <string name="settings_source_code">सोर्स कोड</string>
+    <string name="skills_pinToHome">होम पर पिन करें</string>
+    <string name="skills_unpin">घर से अनपिन करें</string>
 </resources>

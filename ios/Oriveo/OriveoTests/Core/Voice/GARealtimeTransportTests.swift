@@ -16,6 +16,9 @@ struct GARealtimeTransportTests {
         private var _sent: [String] = []
         private var _closed = false
         var failSends: Error?
+        /// When true, the send-completion callback is held until released by completeHeld() (simulates the socket being unable to send).
+        var holdCompletions = false
+        private var held: [@Sendable (Error?) -> Void] = []
 
         var sent: [[String: Any]] {
             lock.withLock { _sent }.compactMap {
@@ -26,11 +29,20 @@ struct GARealtimeTransportTests {
         var closed: Bool { lock.withLock { _closed } }
 
         func send(_ text: String, completion: @escaping @Sendable (Error?) -> Void) {
-            let failure = lock.withLock { () -> Error? in
+            let (failure, hold) = lock.withLock { () -> (Error?, Bool) in
                 _sent.append(text)
-                return failSends
+                if holdCompletions { held.append(completion) }
+                return (failSends, holdCompletions)
             }
-            completion(failure)
+            if !hold { completion(failure) }
+        }
+
+        func completeHeld() {
+            let pending = lock.withLock { () -> [@Sendable (Error?) -> Void] in
+                defer { held = [] }
+                return held
+            }
+            pending.forEach { $0(nil) }
         }
 
         func receive() async throws -> String? {
@@ -100,7 +112,7 @@ struct GARealtimeTransportTests {
 
     private static let endpoint = RealtimeEndpoint(
         host: "api.openai.com", apiKey: "sk-test-secret", model: "gpt-realtime 1",
-        path: "/v1/realtime", voice: "marin", inputTranscriptionModel: "gpt-4o-transcribe"
+        path: "/v1/realtime", voice: "marin", inputTranscriptionModel: "gpt-4o-transcribe", language: "zh-Hans-CN"
     )
 
     /// Opening input as the production path produces it: ChatMessage → realtimeSessionInput → assembleRealtimeSession → transportInput.
@@ -120,10 +132,82 @@ struct GARealtimeTransportTests {
         return planned.transportInput()
     }
 
-    private static func make(_ kind: RealtimeTransportKind = .openaiRealtime) throws -> (GARealtimeTransport, SocketBox) {
+    private static func make(
+        _ kind: RealtimeTransportKind = .openaiRealtime,
+        route: @escaping RealtimeRouteProvider = { .speaker }
+    ) throws -> (GARealtimeTransport, SocketBox) {
         let box = SocketBox()
-        let transport = try #require(GARealtimeTransport(kind: kind, endpoint: endpoint, makeSocket: box.make))
+        let transport = try #require(GARealtimeTransport(kind: kind, endpoint: endpoint, route: route, makeSocket: box.make))
         return (transport, box)
+    }
+
+    @Test func headphones_route_sends_near_field() throws {
+        let (headphones, box) = try Self.make(route: { .headphones })
+        let stream = headphones.openRealtimeSession(transport: try Self.input())
+        let session = try #require(box.socket.sent.first?["session"] as? [String: Any])
+        let audio = try #require(session["audio"] as? [String: Any])
+        let input = try #require(audio["input"] as? [String: Any])
+        #expect((input["noise_reduction"] as? [String: Any])?["type"] as? String == "near_field")
+        headphones.close()
+        _ = stream
+
+        let (speaker, speakerBox) = try Self.make(route: { .speaker })
+        let speakerStream = speaker.openRealtimeSession(transport: try Self.input())
+        let speakerSession = try #require(speakerBox.socket.sent.first?["session"] as? [String: Any])
+        let speakerInput = try #require((speakerSession["audio"] as? [String: Any])?["input"] as? [String: Any])
+        #expect((speakerInput["noise_reduction"] as? [String: Any])?["type"] as? String == "far_field")
+        speaker.close()
+        _ = speakerStream
+    }
+
+    /// A route change sends a single session.update containing only audio.input.noise_reduction.
+    @Test func route_change_speaker_to_headphones_sends_noise_reduction_update() throws {
+        let (transport, box) = try Self.make(route: { .speaker })
+        let stream = transport.openRealtimeSession(transport: try Self.input())
+        let opening = box.socket.sent.count
+        transport.updateOutputRoute(.headphones)
+        let sent = box.socket.sent
+        #expect(sent.count == opening + 1)
+        let update = try #require(sent.last)
+        #expect(update["type"] as? String == "session.update")
+        let session = try #require(update["session"] as? [String: Any])
+        #expect(Set(session.keys) == ["type", "audio"])
+        #expect(session["type"] as? String == "realtime")
+        let audio = try #require(session["audio"] as? [String: Any])
+        #expect(Set(audio.keys) == ["input"])
+        let input = try #require(audio["input"] as? [String: Any])
+        #expect(Set(input.keys) == ["noise_reduction"])
+        #expect((input["noise_reduction"] as? [String: Any])?["type"] as? String == "near_field")
+        transport.close()
+        _ = stream
+    }
+
+    /// Value dedup: headphones → Bluetooth are both near_field, so nothing is sent.
+    @Test func route_change_headphones_to_bluetooth_sends_nothing() throws {
+        let (transport, box) = try Self.make(route: { .speaker })
+        let stream = transport.openRealtimeSession(transport: try Self.input())
+        transport.updateOutputRoute(.headphones)
+        let afterHeadphones = box.socket.sent.count
+        transport.updateOutputRoute(.bluetooth)
+        #expect(box.socket.sent.count == afterHeadphones)
+        transport.close()
+        _ = stream
+    }
+
+    /// The noise reduction value fetched by route at start, equal to the value at first change: not sent.
+    @Test func route_change_same_as_opening_sends_nothing() throws {
+        let (transport, box) = try Self.make(route: { .headphones })
+        let stream = transport.openRealtimeSession(transport: try Self.input())
+        let opening = box.socket.sent.count
+        transport.updateOutputRoute(.bluetooth)
+        #expect(box.socket.sent.count == opening)
+        transport.updateOutputRoute(.speaker)
+        #expect(box.socket.sent.count == opening + 1)
+        let input = (((box.socket.sent.last?["session"] as? [String: Any])?["audio"] as? [String: Any])?["input"]
+            as? [String: Any])
+        #expect((input?["noise_reduction"] as? [String: Any])?["type"] as? String == "far_field")
+        transport.close()
+        _ = stream
     }
 
     @Test func connects_with_bearer_and_url() throws {
@@ -147,7 +231,9 @@ struct GARealtimeTransportTests {
         let input = try Self.input(history: [(.user, "Typed question"), (.assistant, "Typed answer")])
         let stream = transport.openRealtimeSession(transport: input)
         let codec = try #require(GARealtimeCodec(transport: .openaiRealtime))
-        let expected = codec.openingMessages(input: input, voice: "marin", inputTranscriptionModel: "gpt-4o-transcribe").beforeReady
+        let expected = codec.openingMessages(
+            input: input, voice: "marin", inputTranscriptionModel: "gpt-4o-transcribe", language: "zh-Hans-CN"
+        ).beforeReady
         #expect(box.socket.sentTypes == ["session.update", "conversation.item.create", "conversation.item.create"])
         #expect(box.socket.sent.map { NSDictionary(dictionary: $0) } == expected.map { NSDictionary(dictionary: $0) })
 
@@ -255,6 +341,127 @@ struct GARealtimeTransportTests {
         consumer.cancel()
         await cancelledBox.socket.waitClosed()
         #expect(cancelledBox.socket.closed)
+    }
+
+    /// 1 s of 24 kHz PCM16.
+    private static let oneSecond = Data(count: GARealtimeCodec.inputSampleRateHz * 2)
+
+    private static func readyHeld() async throws -> (GARealtimeTransport, SocketBox, AsyncThrowingStream<RealtimeSessionEvent, Error>.AsyncIterator) {
+        let (transport, box) = try Self.make()
+        var iterator = transport.openRealtimeSession(transport: try Self.input()).makeAsyncIterator()
+        try box.socket.push(["type": "session.created"])
+        #expect(try await iterator.next() == .ready)
+        box.socket.holdCompletions = true
+        return (transport, box, iterator)
+    }
+
+    @Test func uplink_backlog_counts_until_send_completes() async throws {
+        let (transport, box, iterator) = try await Self.readyHeld()
+        // Hold the iterator: releasing it terminates the stream and closes the socket.
+        defer { withExtendedLifetime(iterator) {} }
+        #expect(transport.uplinkBacklogMs == 0)
+        transport.sendAudio(Data(count: 4_800))
+        transport.sendText("hi")
+        #expect(transport.uplinkBacklogMs == 100)
+        box.socket.completeHeld()
+        #expect(transport.uplinkBacklogMs == 0)
+        #expect(!box.socket.closed)
+        transport.close()
+    }
+
+    @Test func uplink_backlog_over_8s_closes_as_stalled() async throws {
+        let (transport, box, ready) = try await Self.readyHeld()
+        var iterator = ready
+        for _ in 0..<8 { transport.sendAudio(Self.oneSecond) }
+        let sentBefore = box.socket.sent.count
+        transport.sendAudio(Data([0, 0]))
+        // The chunk over the limit is not sent; the connection closes and the stream ends due to backlog overflow.
+        #expect(box.socket.sent.count == sentBefore)
+        #expect(box.socket.closed)
+        await #expect(throws: GARealtimeTransportError.uplinkStalled) { _ = try await iterator.next() }
+        // After ending, the reading does not fall back with late completion callbacks; the host uses this to classify as network.
+        box.socket.completeHeld()
+        let backlog = try #require(transport.uplinkBacklogMs)
+        #expect(backlog > 8_000)
+        let signal = RealtimeModelPolicy.FailureSignal(elapsedSec: 30, uplinkBacklogMs: transport.uplinkBacklogMs)
+        #expect(RealtimeModelPolicy.classifyFailure(signal).category == .network)
+    }
+
+    @Test func uplink_backlog_exactly_8s_does_not_stall() async throws {
+        let (transport, box, iterator) = try await Self.readyHeld()
+        // Hold the iterator: releasing it terminates the stream and closes the socket.
+        defer { withExtendedLifetime(iterator) {} }
+        for _ in 0..<8 { transport.sendAudio(Self.oneSecond) }
+        #expect(transport.uplinkBacklogMs == 8_000)
+        #expect(!box.socket.closed)
+        #expect(box.socket.sentTypes.filter { $0 == "input_audio_buffer.append" }.count == 8)
+        box.socket.completeHeld()
+        #expect(transport.uplinkBacklogMs == 0)
+        // Sending another 1 s after fallback does not trigger.
+        transport.sendAudio(Self.oneSecond)
+        #expect(!box.socket.closed)
+        transport.close()
+    }
+
+    /// After ready, push response.created, then push a transcript frame and wait until it arrives, confirming created has been handled.
+    private static func readyWithActiveResponse() async throws -> (GARealtimeTransport, SocketBox, AsyncThrowingStream<RealtimeSessionEvent, Error>.AsyncIterator) {
+        let (transport, box) = try Self.make()
+        var iterator = transport.openRealtimeSession(transport: try Self.input()).makeAsyncIterator()
+        try box.socket.push(["type": "session.created"])
+        #expect(try await iterator.next() == .ready)
+        try box.socket.push(["type": "response.created", "response": ["id": "resp_1"]])
+        try box.socket.push(["type": "response.output_audio_transcript.delta", "item_id": "a1", "delta": "Hi"])
+        #expect(try await iterator.next() == .assistantTranscript(itemId: "a1", text: "Hi", final: false))
+        return (transport, box, iterator)
+    }
+
+    @Test func typed_text_during_active_response_cancels_then_creates_after_done() async throws {
+        let (transport, box, started) = try await Self.readyWithActiveResponse()
+        var iterator = started
+        transport.sendText("stop")
+        transport.truncate(itemId: "a1", contentIndex: 0, playedMs: 300)
+        transport.sendText("and this")
+        // cancel before, truncate after; response.create is not sent before done, the second sentence only appends an item.
+        let typed = Array(box.socket.sent.dropFirst(1))
+        #expect(typed.map { $0["type"] as? String ?? "?" } == [
+            "response.cancel", "conversation.item.create", "conversation.item.truncate", "conversation.item.create",
+        ])
+        let item = try #require(typed[1]["item"] as? [String: Any])
+        #expect(item["role"] as? String == "user")
+        #expect((item["content"] as? [[String: Any]])?.first?["text"] as? String == "stop")
+
+        try box.socket.push(["type": "response.done", "response": ["id": "resp_1", "status": "cancelled"]])
+        #expect(try await iterator.next() == .assistantTurnDone(itemId: "a1", status: .interrupted, text: "Hi"))
+        #expect(box.socket.sentTypes.dropFirst(5) == ["response.create"])
+
+        // No response in progress afterward: as before, item + create.
+        transport.sendText("next")
+        #expect(box.socket.sentTypes.dropFirst(6) == ["conversation.item.create", "response.create"])
+        transport.close()
+        _ = try await iterator.next()
+    }
+
+    @Test func typed_text_when_idle_sends_create_immediately() async throws {
+        let (transport, box) = try Self.make(.xaiRealtime)
+        var iterator = transport.openRealtimeSession(transport: try Self.input()).makeAsyncIterator()
+        try box.socket.push(["type": "session.created"])
+        #expect(try await iterator.next() == .ready)
+        transport.sendText("hello")
+        #expect(box.socket.sentTypes.dropFirst(1) == ["conversation.item.create", "response.create"])
+        let codec = try #require(GARealtimeCodec(transport: .xaiRealtime))
+        #expect(NSDictionary(dictionary: box.socket.sent[1]) == NSDictionary(dictionary: codec.userTextItem("hello")))
+        transport.close()
+    }
+
+    @Test func pending_create_dropped_on_close() async throws {
+        let (transport, box, started) = try await Self.readyWithActiveResponse()
+        var iterator = started
+        transport.sendText("stop")
+        #expect(box.socket.sentTypes.dropFirst(1) == ["response.cancel", "conversation.item.create"])
+        transport.close()
+        #expect(try await iterator.next() == nil)
+        try box.socket.push(["type": "response.done", "response": ["id": "resp_1", "status": "cancelled"]])
+        #expect(!box.socket.sentTypes.contains("response.create"))
     }
 
     @Test func binary_frame_ignored() {

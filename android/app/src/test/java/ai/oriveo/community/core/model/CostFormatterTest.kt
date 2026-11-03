@@ -79,9 +79,32 @@ class CostFormatterTest {
     }
 
     @Test
-    fun `USD part keeps dollar rendering regardless of locale`() {
-        assertEquals("$1.20", CostFormatter.formatPart(CostPart("usd", 1.2), Locale.GERMANY))
+    fun `USD part follows locale currency format`() {
+        assertEquals("1,20 $", normalize(CostFormatter.formatPart(CostPart("usd", 1.2), Locale.GERMANY)))
     }
+
+    @Test
+    fun `usd uses German grouping and trailing dollar`() {
+        assertEquals("1.234,50 $", normalize(CostFormatter.usd(1234.5, 2, 2, Locale.GERMANY)))
+    }
+
+    @Test
+    fun `usd renders Latin digits for Arabic with plain dollar`() {
+        assertEquals("1.20 $", normalize(CostFormatter.usd(1.2, 2, 2, Locale("ar"))))
+    }
+
+    @Test
+    fun `usd renders Latin digits for Arabic even when the locale pins Arabic-Indic digits`() {
+        assertEquals("1.20 $", normalize(CostFormatter.usd(1.2, 2, 2, Locale.forLanguageTag("ar-u-nu-arab"))))
+    }
+
+    @Test
+    fun `usd drops US prefix for Brazilian Portuguese`() {
+        assertEquals("$ 1,20", normalize(CostFormatter.usd(1.2, 2, 2, Locale.forLanguageTag("pt-BR"))))
+    }
+
+    private fun normalize(text: String): String =
+        text.replace(Regex("[\u200E\u200F\u061C]"), "").replace('\u00A0', ' ').replace('\u202F', ' ')
 
     @Test
     fun `parts joined with plus and not available text appended`() {

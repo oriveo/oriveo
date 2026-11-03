@@ -110,6 +110,18 @@ internal class ChatScrollController {
         // the generation-state effect just set, causing an incorrect follow.
     }
 
+    /**
+     * Voice-session entry: releases the reserve left by the previous typed turn's question pin.
+     * Realtime turns use the follow-to-bottom paradigm, while the reserve is blank space sized
+     * against the typing input area. With the taller voice dock, following to the content end
+     * would leave that blank space at the bottom and scroll the whole history out of the viewport.
+     */
+    fun releasePin() {
+        pinnedTurnUserId = null
+        reservePx = 0
+        pinnedAssistantFloorPx = 0
+    }
+
     /** Resumes following (after the scroll-to-bottom-on-entry completes, or from the FAB's jump-to-latest). */
     fun resumeFollowing() {
         following = true
@@ -190,6 +202,16 @@ internal class ChatScrollController {
     ) {
         if (!canFollowImeInset(deltaPx, wasAtLatestBeforeIme, isPointerDown)) return
         listState.scrollBy(deltaPx.toFloat())
+    }
+
+    /**
+     * When a new realtime round lands and the last item sits entirely below the viewport, jump to it (the list clamps at its end, i.e. sticks to the bottom).
+     * Yields under the same conditions as [followToBottom]; if the last item is taller than the viewport, [followToBottom]'s overflow follows the rest.
+     */
+    suspend fun followToLatestItem(listState: LazyListState, isPointerDown: Boolean) {
+        if (streamingMode || !following || isPointerDown || isPinning) return
+        val lastIndex = listState.layoutInfo.totalItemsCount - 1
+        if (lastIndex >= 0) listState.scrollToItem(lastIndex)
     }
 
     /**
@@ -276,6 +298,18 @@ internal class ChatScrollController {
         if (overflow > 0) listState.scrollBy(overflow.toFloat())
     }
 
+    /**
+     * Precise scroll-to-bottom (entering a conversation, switching conversations, FAB jump-to-latest).
+     * **The only place that calls `scrollToItem` and runs the scroll-to-bottom loop.**
+     * Multi-frame fallback: lets items outside the viewport and the metadata/footer compose their
+     * real contentSize frame by frame before settling, so a frame with unsettled layout followed by
+     * a rich block growing taller does not leave the view short of the real bottom (matches the
+     * iOS multi-frame convergence).
+     *
+     * Landing point = the last **message** bottom aligned to the real bottom ([bottomAlignDelta]).
+     * Compose's afterContentPadding is not counted as body space, so the initial scroll and the FAB
+     * jump do not stop under the input overlay or overshoot the real bottom.
+     */
     suspend fun scrollToBottom(listState: LazyListState, messageCount: Int) {
         if (messageCount <= 0) return
         val lastIndex = (messageCount - 1).coerceAtLeast(0)

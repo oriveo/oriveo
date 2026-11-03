@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "Borrar",
     "generationParameterDormantRestored": "Se restauraron {count} parámetros",
     "generationPresetName": "Nombre del preset",
-    "capabilityControlFixedByConnection": "Definido por esta conexión",
     "capabilityControlReasonPending": "La configuración automática aún no está lista",
     "capabilityControlReasonUnsupported": "Este modelo no admite esta solicitud",
     "capabilityControlReasonExternalConnector": "Lo proporciona un servicio externo independiente, fuera de esta solicitud de chat",
@@ -166,7 +165,7 @@
     "currentConversation": "Conversación actual",
     "restoreModelBehavior": "Restaurar valores",
     "restoreModelBehaviorConfirm": "Esto borra todos los valores que definiste para este modelo. No se puede deshacer.",
-    "modelBehaviorScopeHint": "Solo se aplica al usar este modelo en esta conversación. Los valores no se copian al cambiar de modelo y se restauran al volver.",
+    "modelBehaviorScopeHint": "Solo se aplica mientras se use este modelo en esta conversación. Cambiar de modelo no copia los valores; al volver se restauran.",
     "controlledByReasoningShortcut": "Controlado por el acceso directo Razonamiento",
     "customRequestFieldsCustom": "Campos de solicitud personalizados",
     "customRequestFieldsReasonSyntax": "Comprueba que el fragmento sea un objeto JSON válido sin claves duplicadas.",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "Los problemas más difíciles, sin límite de tiempo.",
     "capabilityControlReasoningFixedLevel": "Este modelo usa un nivel de razonamiento fijo que no se puede ajustar.",
     "capabilityControlCannotAdjustYet": "Aún no ajustable",
+    "capabilityControlGoToParameters": "Ir a parámetros",
     "customRequestFieldsNotAllowed": "Este campo no está permitido. Campos que acepta este modelo: {fields}",
     "customRequestFieldsFooter": "Los campos se agregan a la solicitud tal como se escriben. Solo se admiten campos declarados oficialmente por el proveedor; los errores pueden hacer fallar la solicitud. Los borradores permanecen en este dispositivo.",
     "customRequestFieldsScopeConnectionModel": "Ámbito: este modelo en esta conexión, como valor predeterminado de sus conversaciones.",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "Agregar",
     "advancedStopSequenceRemove": "Quitar {sequence}",
     "advancedMore": "Más",
-    "add": "Agregar",
-    "capabilityControlGoToParameters": "Ir a parámetros"
+    "add": "Agregar"
   },
   "pages": {
     "welcome": {
       "title": "Bienvenido a Oriveo",
       "tagline": "Todos tus modelos, una sola app.",
-      "slogan": "Tus claves, tus costos, tus datos.",
       "description": "Configura tu primer proveedor de IA para comenzar conversaciones multimodelo.",
       "addProvider": "Agregar proveedor",
       "enterHome": "Ir a la app"
@@ -502,7 +500,6 @@
       "stop": "Detener generación",
       "generating": "Generando",
       "activityWebSearch": "Buscando en la web",
-      "activityMcpTool": "Usando {server} · {tool}",
       "aiAnswering": "La IA está respondiendo…",
       "export": "Exportar",
       "continueAnswering": "Continuar respondiendo",
@@ -586,7 +583,9 @@
         "cacheRead": "Lectura de caché",
         "cacheWrite": "Escritura de caché",
         "total": "Total",
-        "unavailable": "Sin datos"
+        "unavailable": "Sin datos",
+        "cost": "Costo",
+        "estimated": "Estimado"
       },
       "attachedNotesTitle": "Notas traídas a este chat",
       "removeNoteContext": "Quitar contexto: {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Mediante Ollama Cloud",
       "modelRemovedBanner": "El modelo de este chat ya no está en {connection}.",
       "modelRemovedChoose": "Elegir modelo",
+      "connectionRemovedBanner": "La conexión que usaba este chat se eliminó.",
+      "modelRetiredBanner": "{model} fue retirado.",
+      "modelRetiredSwitchTo": "Cambiar a {model}",
+      "lastUsedModelRetiredHint": "El último modelo que usaste fue retirado. Ahora se usa {model}.",
       "copyFailed": "No se pudo copiar",
+      "activityMcpTool": "Usando {server} · {tool}",
       "contextCompaction": {
         "summaryLine1": "{count, plural, one {Se condensó {count} mensaje anterior · {before} → {after} tokens} many {Se condensaron {count} de mensajes anteriores · {before} → {after} tokens} other {Se condensaron {count} mensajes anteriores · {before} → {after} tokens}}",
         "summaryLine2": "Por {model} · Ver resumen",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "Además, supera el umbral de precio de {model}, fijado en {line}, así que toda la solicitud se cobra al precio de contexto largo.",
         "confirmDontAsk": "No volver a preguntar en este chat",
         "confirmSend": "Enviar de todos modos"
-      },
-      "connectionRemovedBanner": "La conexión que usaba este chat se eliminó.",
-      "modelRetiredBanner": "{model} fue retirado.",
-      "modelRetiredSwitchTo": "Cambiar a {model}",
-      "lastUsedModelRetiredHint": "El último modelo que usaste fue retirado. Ahora se usa {model}."
+      }
     },
     "providerSetup": {
       "title": "Agregar proveedor",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "Cambiar a clave API",
         "disabledFallback": "El inicio de sesión con la suscripción de ChatGPT no está disponible ahora mismo. Puedes cambiar a una clave API o eliminar esta conexión."
       },
-      "subscription": "Suscripción",
-      "tokenPrices": {
-        "input": "Entrada {count}",
-        "cacheRead": "Lectura de caché {count}",
-        "cacheWrite": "Escritura de caché {count}",
-        "output": "Salida {count}",
-        "unit": "tokens"
-      }
+      "subscription": "Suscripción"
     },
     "providers": {
       "title": "Proveedores",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "Política de privacidad",
-      "sourceCode": "Código fuente",
       "aiSection": "IA",
       "skills": "Habilidades",
       "backupImportExport": "Copia de seguridad e importar/exportar",
-      "reportIssue": "Informar de un problema",
-      "documentation": "Documentación",
       "aboutTagline": "Todos tus modelos. Una app.",
       "context": {
         "title": "Contexto",
@@ -1781,7 +1771,7 @@
       "editorCategory": "Categoría",
       "editorTooLong": "Máximo 2000 caracteres",
       "deleteConfirmTitle": "¿Eliminar este recuerdo?",
-      "deleteConfirmBody": "Se eliminará de forma permanente de este dispositivo.",
+      "deleteConfirmBody": "Se eliminará de todos tus dispositivos.",
       "actionOrganize": "Dividir en entradas",
       "rawView": "Texto sin formato",
       "rawViewHint": "Separa las entradas con una línea que solo contenga ---.",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "Error del proveedor",
       "message": "El proveedor devolvió un error para esta solicitud. Reintenta o cambia de modelo."
+    },
+    "emptyReply": {
+      "title": "Respuesta vacía del proveedor",
+      "message": "El proveedor no devolvió contenido del asistente para este mensaje."
     },
     "moderationBlocked": {
       "title": "Contenido bloqueado",
@@ -2060,24 +2054,21 @@
     "title": "Habilidades",
     "mySkills": "Mis habilidades",
     "builtinSkills": "Habilidades integradas",
-    "pinned": "Fijada",
     "newSkill": "Nueva habilidad",
     "editSkill": "Editar habilidad",
     "deleteSkill": "Eliminar habilidad",
     "forkSkill": "Copiar como mi habilidad",
-    "useSkill": "Usar",
-    "pinToHome": "Fijar en inicio",
-    "unpinFromHome": "Desfijar",
-    "instructions": "Instrucción",
+    "useSkill": "Usar esta habilidad",
+    "instructions": "Prompt",
     "instructionsPlaceholder": "Ej.: Eres un revisor de código sénior. Revisa el código por seguridad, rendimiento y legibilidad. Responde en el idioma del usuario.",
     "starterMessages": "Frases de inicio",
     "useMemory": "Recordar preferencias",
-    "useMemoryHint": "Incluye tus preferencias personales en las conversaciones",
+    "useMemoryHint": "Incluir tus preferencias personales en las conversaciones",
     "referenceFiles": "Materiales de referencia",
     "tipInstructions": "Define cómo se comporta la IA — su personalidad, experiencia y estilo de respuesta. Solo la IA lo ve, los usuarios no.",
     "knowledgeSectionTitle": "Conocimiento",
-    "tipReferenceFiles": "La IA lee estos archivos completos cada vez que responde, como notas que siempre tiene abiertas en su escritorio. Ideal para documentos breves y esenciales (guías de estilo, glosarios, reglas clave). Los archivos más grandes aumentarán el costo de cada respuesta.",
-    "noReferenceFiles": "Aún no hay materiales de referencia",
+    "tipReferenceFiles": "La IA lee estos archivos completos cada vez que responde, como notas que siempre tiene abiertas en su escritorio. Ideal para documentos breves y esenciales (guías de estilo, glosarios, reglas clave). Los archivos más grandes aumentarán el costo de respuesta.",
+    "noReferenceFiles": "Sin materiales de referencia aún",
     "addFile": "Agregar archivo",
     "filesQuota": "{count} / {max}",
     "icon": "Icono",
@@ -2092,7 +2083,7 @@
     "allSkills": "Todas las habilidades",
     "greeting": "¿En qué puedo ayudarte?",
     "greetingSub": "Pregunta cualquier cosa o simplemente empieza a escribir.",
-    "noCustomSkills": "Aún no tienes habilidades personalizadas",
+    "noCustomSkills": "Aún no hay habilidades personalizadas",
     "createFirst": "Crear una",
     "deleteConfirmTitle": "¿Eliminar «{name}»?",
     "deleteConfirmMessage": "Las conversaciones existentes no se verán afectadas.",
@@ -2117,7 +2108,7 @@
     "knowledgeCtaSecondaryLater": "Ahora no",
     "knowledgeCtaSecondaryContinue": "Continuar editando Habilidad",
     "knowledgeEmptyHint": "Aún no hay archivos de la base de conocimientos",
-    "knowledgeRetryUnavailable": "Reintentar solo está disponible para archivos agregados en esta sesión de edición.",
+    "knowledgeRetryUnavailable": "No se puede reintentar este archivo en este dispositivo.",
     "replaceKnowledgeFile": "Reemplazar",
     "retryKnowledgeFile": "Reintentar",
     "deleteKnowledgeFile": "Eliminar",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "La base de conocimientos requiere una clave API oficial de OpenAI.",
     "openai_endpoint_not_official": "La base de conocimientos solo funciona con el punto final oficial de OpenAI.",
     "retrieval_model_not_enabled": "Primero agrega y habilita {model} en tu proveedor de OpenAI.",
-    "knowledge_service_unavailable": "La base de conocimientos no está disponible temporalmente. Aún puedes editar y guardar esta habilidad.",
+    "knowledge_service_unavailable": "La base de conocimientos no está disponible en este momento.",
     "unsupported_file_type": "Este tipo de archivo no es compatible con la base de conocimientos.",
     "reference_file_too_large": "Los archivos de referencia deben tener un tamaño de 3 MB o menos.",
     "knowledge_file_too_large": "Los archivos de la base de conocimientos deben tener 20 MB o menos.",
@@ -2147,12 +2138,196 @@
     "providerRequiredTitle": "Agrega un proveedor para usar esta habilidad",
     "providerRequiredMessage": "Esta habilidad necesita un proveedor de IA disponible antes de iniciar una conversación.",
     "providerRequiredAction": "Agregar proveedor",
-    "promptCancel": "Ahora no"
+    "promptCancel": "Ahora no",
+    "home": {
+      "autoCount": "Automáticas · {count}",
+      "slashHint": "Escribe / para usarlas",
+      "empty": "Guarda tu forma de hacer las cosas",
+      "notesRecent": "Última edición"
+    },
+    "list": {
+      "subtitle": "Guarda cómo te gusta que se hagan las cosas y la IA lo usará cuando venga al caso."
+    },
+    "create": {
+      "describePlaceholder": "Describe una rutina y la IA la escribirá",
+      "fromChat": "Desde un chat",
+      "manual": "Crear manualmente"
+    },
+    "segment": {
+      "mine": "Mis habilidades",
+      "templates": "Plantillas"
+    },
+    "group": {
+      "auto": "Automáticas",
+      "manual": "Solo manuales"
+    },
+    "card": {
+      "usageCount": "Usos: {count}"
+    },
+    "row": {
+      "slashHint": "Se usa al escribir {slash}"
+    },
+    "auto": {
+      "needWhenTitle": "Primero, di cuándo usarla",
+      "suggest": "Sugerir",
+      "limitReached": "El uso automático llegó al límite ({count}). Desactiva una primero."
+    },
+    "search": {
+      "placeholder": "Buscar habilidades"
+    },
+    "empty": {
+      "title": "Aún no hay habilidades",
+      "body": "Guarda cómo te gusta que se hagan las cosas y no tendrás que explicarlo cada vez.",
+      "browseTemplates": "Ver plantillas"
+    },
+    "migrate": {
+      "banner": "Habilidades sin «Cuándo usarla»: {count}. Agrega una frase y podrán usarse automáticamente.",
+      "review": "Completar una a una"
+    },
+    "templates": {
+      "note": "Las plantillas solo se usan automáticamente después de agregarlas a «Mis habilidades».",
+      "featured": "Destacadas",
+      "addToMine": "Agregar a mis habilidades",
+      "add": "Agregar",
+      "added": "Agregada",
+      "tryOnce": "Probar una vez"
+    },
+    "detail": {
+      "useInNewChat": "Usar en un chat nuevo",
+      "orSlash": "O escribe {slash} en el cuadro de mensaje",
+      "usage": "Usos: {count} · Último uso {time}",
+      "neverUsed": "Aún sin usar",
+      "autoInvoke": "Usar automáticamente",
+      "whenToUse": "Cuándo usarla",
+      "whenToUseNote": "La IA lo usa para decidir",
+      "instructions": "Instrucciones",
+      "showAll": "Ver todo",
+      "references": "Archivos de referencia",
+      "starters": "Mensajes para empezar",
+      "recentChats": "Chats recientes",
+      "try": "Probar"
+    },
+    "edit": {
+      "changeIcon": "Cambiar icono",
+      "name": "Nombre",
+      "whenBadge": "Controla el uso automático",
+      "whenPlaceholder": "p. ej., Cuando pido convertir notas en un informe semanal. No para resúmenes diarios.",
+      "keywordsCaption": "Se activa con estas palabras · basta con describir la situación",
+      "whenTip": "Di qué hace, cuándo usarla y cómo sueles pedirlo. Agrega «No para…» para evitar usos equivocados. Las palabras entre comillas se resaltan.",
+      "polish": "Mejorar con IA",
+      "addStarter": "Agregar mensaje",
+      "modelAndFeatures": "Modelo y funciones",
+      "followChat": "Igual que el chat",
+      "needWhenForAuto": "Completa «Cuándo usarla» o desactiva el uso automático."
+    },
+    "draft": {
+      "askScenarios": "Da uno o dos ejemplos de cuándo la usarías",
+      "askQuality": "¿Cómo sería un buen resultado?",
+      "skip": "Omitir",
+      "generating": "Escribiendo un borrador…",
+      "title": "Borrador",
+      "editFirst": "Editar primero",
+      "suggestedIcon": "Icono sugerido",
+      "failed": "No se pudo terminar el borrador. Ya completamos lo que estaba listo."
+    },
+    "fromChat": {
+      "menuConversation": "Guardar como habilidad",
+      "menuMessage": "Guardar este enfoque como habilidad",
+      "messages": "Mensajes: {count}",
+      "extracting": "Resumiendo…"
+    },
+    "limit": {
+      "upgrade": "Mejora tu plan",
+      "draftKept": "Tu borrador se guarda en este dispositivo."
+    },
+    "composer": {
+      "placeholder": "Escribe / para usar una habilidad"
+    },
+    "picker": {
+      "title": "Mis habilidades",
+      "multi": "Puedes elegir varias",
+      "auto": "Automática",
+      "manual": "Manual",
+      "manage": "Administrar habilidades",
+      "maxReached": "Hasta {count} a la vez"
+    },
+    "chip": {
+      "deleted": "Eliminada"
+    },
+    "message": {
+      "attached": "Con {names}"
+    },
+    "used": {
+      "chip": "Usó {names}",
+      "loading": "Usando {names}…",
+      "byChoice": "Se usó porque la elegiste",
+      "why": "Por qué se usó",
+      "disableHere": "No usar automáticamente en este chat",
+      "view": "Ver habilidad"
+    },
+    "settings": {
+      "autoToggle": "Usar habilidades automáticamente",
+      "autoToggleFooter": "Si está desactivado, el modelo no elegirá habilidades por su cuenta. Aún puedes escribir / para usar una."
+    },
+    "try": {
+      "banner": "Probando · No se guarda en el historial",
+      "saveToSkill": "Guardar en la habilidad",
+      "adjust": "Editar instrucciones",
+      "saved": "Guardado en «{name}»",
+      "savedToDraft": "Copiado al editor. Guárdalo allí para conservarlo."
+    },
+    "improve": {
+      "prompt": "¿Agregar esto a «{name}»?",
+      "review": "Ver el cambio",
+      "accept": "Agregar a la habilidad",
+      "dismiss": "Ahora no",
+      "addedLine": "Agregado",
+      "removedLine": "Eliminado",
+      "saved": "Agregado a «{name}»"
+    },
+    "usage": {
+      "manifestRow": "Costo de la lista de habilidades"
+    },
+    "glyph": {
+      "writing": "Escritura",
+      "report": "Informe",
+      "code": "Código",
+      "study": "Estudio",
+      "travel": "Viajes",
+      "health": "Salud",
+      "meeting": "Reunión",
+      "idea": "Idea",
+      "translate": "Traducción",
+      "email": "Correo",
+      "data": "Datos",
+      "design": "Diseño",
+      "legal": "Jurídico",
+      "finance": "Finanzas",
+      "marketing": "Marketing",
+      "support": "Soporte",
+      "teaching": "Enseñanza",
+      "research": "Investigación",
+      "life": "Vida diaria",
+      "food": "Comida",
+      "music": "Música",
+      "photo": "Fotografía",
+      "product": "Producto",
+      "general": "General"
+    },
+    "capability": {
+      "title": "Preferencia de modelo",
+      "any": "Cualquiera",
+      "reasoning": "Razonamiento",
+      "vision": "Visión",
+      "fast": "Rápido",
+      "largeContext": "Contexto amplio"
+    },
+    "saveFailed": "No se pudieron guardar los cambios. Vuelve a intentarlo."
   },
   "builtinSkills": {
     "code_assistant": {
       "name": "Asistente de código",
-      "description": "Programación, generación de código, depuración",
+      "description": "Preguntas de programación, generación de código, depuración",
       "starters": {
         "0": "Ayúdame a depurar este código",
         "1": "Escribe una función que...",
@@ -2162,7 +2337,7 @@
     },
     "code_review": {
       "name": "Revisión de código",
-      "description": "Calidad, seguridad y rendimiento del código",
+      "description": "Revisión de calidad, seguridad y rendimiento del código",
       "starters": {
         "0": "Revisa este código por problemas de seguridad",
         "1": "Comprueba si este PR tiene problemas de rendimiento",
@@ -2192,7 +2367,7 @@
     },
     "writing_coach": {
       "name": "Coach de escritura",
-      "description": "Mejora el estilo, la estructura y la claridad",
+      "description": "Mejorar el estilo, la estructura y la claridad de la escritura",
       "starters": {
         "0": "Mejora este párrafo",
         "1": "Hazlo más conciso",
@@ -2202,7 +2377,7 @@
     },
     "email_assistant": {
       "name": "Asistente de email",
-      "description": "Redacta emails profesionales y personales",
+      "description": "Redactar correos electrónicos profesionales y personales",
       "starters": {
         "0": "Redacta un email de seguimiento",
         "1": "Escribe una negativa cortés",
@@ -2212,7 +2387,7 @@
     },
     "copywriting": {
       "name": "Copywriting",
-      "description": "Textos publicitarios, redes sociales y mensajes de marca",
+      "description": "Textos de marketing, redes sociales y mensajes de marca",
       "starters": {
         "0": "Escribe una descripción de producto para...",
         "1": "Crea publicaciones en redes sociales sobre...",
@@ -2222,7 +2397,7 @@
     },
     "blog_writer": {
       "name": "Escritor de blog",
-      "description": "Contenido largo atractivo y publicaciones de blog",
+      "description": "Contenido extenso atractivo y publicaciones de blog",
       "starters": {
         "0": "Escribe un post de blog sobre...",
         "1": "Crea un esquema para un artículo sobre...",
@@ -2232,7 +2407,7 @@
     },
     "translation_expert": {
       "name": "Experto en traducción",
-      "description": "Traducción precisa preservando tono y matices",
+      "description": "Traducción precisa preservando el tono y los matices",
       "starters": {
         "0": "Traduce esto al inglés",
         "1": "Traduce esto al chino",
@@ -2242,7 +2417,7 @@
     },
     "proofreader": {
       "name": "Corrector",
-      "description": "Corrige gramática, ortografía y mejora la claridad",
+      "description": "Corregir gramática, ortografía y mejorar la claridad",
       "starters": {
         "0": "Corrige este texto",
         "1": "Arregla la gramática de este párrafo",
@@ -2272,7 +2447,7 @@
     },
     "language_teacher": {
       "name": "Profesor de idiomas",
-      "description": "Practica y aprende idiomas",
+      "description": "Practicar y aprender idiomas extranjeros",
       "starters": {
         "0": "Practiquemos conversación en...",
         "1": "Explica esta regla gramatical",
@@ -2282,7 +2457,7 @@
     },
     "data_analyst": {
       "name": "Analista de datos",
-      "description": "Interpretación de datos, visualización e insights",
+      "description": "Interpretación de datos, visualización e información",
       "starters": {
         "0": "Analiza estos datos y encuentra insights",
         "1": "¿Qué gráfico debería usar para estos datos?",
@@ -2302,7 +2477,7 @@
     },
     "document_summarizer": {
       "name": "Resumidor de documentos",
-      "description": "Resume documentos y extrae puntos clave",
+      "description": "Resumir documentos y extraer puntos clave",
       "starters": {
         "0": "Resume este documento",
         "1": "Extrae las decisiones clave de esto",
@@ -2312,7 +2487,7 @@
     },
     "brainstorm": {
       "name": "Lluvia de ideas",
-      "description": "Genera ideas y explora posibilidades",
+      "description": "Generar ideas y explorar posibilidades",
       "starters": {
         "0": "Ayúdame a generar ideas para...",
         "1": "Dame 10 enfoques creativos para...",
@@ -2322,7 +2497,7 @@
     },
     "story_creator": {
       "name": "Creador de historias",
-      "description": "Escritura de ficción, narrativa y construcción de mundos",
+      "description": "Escritura de ficción, narración y creación de mundos",
       "starters": {
         "0": "Ayúdame a desarrollar este personaje",
         "1": "Continúa esta historia",
@@ -2332,7 +2507,7 @@
     },
     "meeting_notes": {
       "name": "Notas de reunión",
-      "description": "Transforma transcripciones en resúmenes estructurados",
+      "description": "Transformar transcripciones de reuniones en resúmenes estructurados",
       "starters": {
         "0": "Convierte estas notas en un resumen de reunión",
         "1": "Extrae las tareas pendientes de esta transcripción",
@@ -2342,7 +2517,7 @@
     },
     "interview_coach": {
       "name": "Coach de entrevistas",
-      "description": "Preparación y simulación de entrevistas",
+      "description": "Preparación para entrevistas de trabajo y simulacros",
       "starters": {
         "0": "Hazme una entrevista simulada para ingeniero de software",
         "1": "Ayúdame a responder 'Cuéntame sobre ti'",
@@ -2352,7 +2527,7 @@
     },
     "presentation_outliner": {
       "name": "Esquema de presentación",
-      "description": "Esquemas de presentación, puntos clave y contenido",
+      "description": "Esquemas de presentación, puntos clave y contenido de diapositivas",
       "starters": {
         "0": "Crea un esquema de presentación para...",
         "1": "Ayúdame a estructurar una charla de 10 minutos",
@@ -2372,7 +2547,7 @@
     },
     "travel_planner": {
       "name": "Planificador de viajes",
-      "description": "Itinerarios de viaje y recomendaciones",
+      "description": "Itinerarios de viaje y recomendaciones de destinos",
       "starters": {
         "0": "Planifica un viaje de 5 días a...",
         "1": "¿Qué debería ver en...?",
@@ -2382,7 +2557,7 @@
     },
     "fitness_coach": {
       "name": "Coach de fitness",
-      "description": "Planes de ejercicio, rutinas y guía nutricional",
+      "description": "Planes de entrenamiento, ejercicios y guía de nutrición",
       "starters": {
         "0": "Crea un plan de ejercicios para...",
         "1": "Sugiere ejercicios para...",
@@ -2392,7 +2567,7 @@
     },
     "image_analyst": {
       "name": "Analista de imágenes",
-      "description": "Describe, analiza y extrae información de imágenes",
+      "description": "Describir, analizar y extraer información de imágenes",
       "starters": {
         "0": "Describe esta imagen en detalle",
         "1": "Extrae el texto de esta imagen",
@@ -2636,8 +2811,7 @@
       "stepLimit": "Demasiados documentos, o demasiado largos, para una sola investigación. Deselecciona algunos e inténtalo de nuevo.",
       "notConnected": "Conecta una fuente de la Biblioteca antes de investigar.",
       "sourceForbidden": "La fuente denegó el acceso debido a una restricción de permisos o políticas. Reconectar no solucionará esto: revisa la configuración de uso compartido o cumplimiento de la propia fuente.",
-      "unavailable": "La Biblioteca no está disponible temporalmente. Inténtalo más tarde.",
-      "retry": "Reintentar"
+      "unavailable": "La Biblioteca no está disponible temporalmente. Inténtalo más tarde."
     }
   },
   "notes": {

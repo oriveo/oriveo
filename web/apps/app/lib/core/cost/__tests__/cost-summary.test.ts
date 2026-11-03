@@ -8,6 +8,8 @@ import {
   buildMonthlyCostSummary,
   buildMonthlyCostByProvider,
   buildMonthlyNonUsdCostByProvider,
+  resolveMonthlyCostSummary,
+  type MonthlyCostSummary,
 } from '../cost-summary';
 
 function message(overrides: Partial<ChatMessage>): ChatMessage {
@@ -341,5 +343,34 @@ describe('buildMonthlyBilledMessageCountByProvider', () => {
       }),
     ], now);
     expect(Object.fromEntries(counts)).toEqual({ 'provider-1': 1, 'provider-2': 1 });
+  });
+});
+
+interface ManagedBilledCase {
+  id: string;
+  message: { providerKind: ProviderKind; estimatedCost: number; costSource: ChatMessage['costSource'] | null };
+  expect: { billed: boolean };
+}
+
+const managedCostSourceBilledCases = (JSON.parse(readFileSync(
+  resolve(ROOT, '\u5171\u4eab/test-fixtures/provider-pricing/managed-cost-source.v1.json'), 'utf8',
+)) as { billedCases: ManagedBilledCase[] }).billedCases;
+
+describe('managedCostSourceBilledCases', () => {
+  it.each(managedCostSourceBilledCases.map((entry) => [entry.id, entry] as const))('%s', (_id, entry) => {
+    const base = message({
+      providerID: 'provider-1',
+      providerKind: entry.message.providerKind,
+      estimatedCost: entry.message.estimatedCost,
+      createdAt: '2026-03-05T00:00:00Z',
+    });
+    const fixture: ChatMessage = entry.message.costSource === null
+      ? base
+      : { ...base, costSource: entry.message.costSource };
+    const counts = buildMonthlyBilledMessageCountByProvider(
+      [conversation({ messages: [fixture] })],
+      new Date('2026-03-20T00:00:00Z'),
+    );
+    expect(counts.get('provider-1') ?? 0).toBe(entry.expect.billed ? 1 : 0);
   });
 });

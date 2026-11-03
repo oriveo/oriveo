@@ -1,0 +1,1646 @@
+{
+  "$comment": "Parameter normalization cases (方案 §5.2, E-07, E-08). Pure function normalize(profile, request) → aspect / resolution / quality / wire body keys (dotted) / batches / adjustments. Every route and every sizeParam of image_profile.v2.json has at least one case (reverse gate). request.aspect null means the user picked nothing; the wire still carries an explicit ratio (explicitAspect.defaultAspect). adjustments are what the UI shows in the blue notice bar. Algorithm: aspect = nearest by |ln ratio| (ties keep the earlier list entry); resolution = highest available tier not above the request, else the lowest; wxh: long edge = resolutions[tier], short edge from the ratio, each rounded to the nearest multipleOf, then clamp maxLongEdge → maxPixels (floor) → minPixels (ceil); n > maxNPerCall splits; nParam false sends n single requests; a quality tier missing from qualityMap is never sent. Result is either the normalized object or {error: invalid_profile | invalid_request} (P5·U4a ruling), profile checked first: a request value that is set but outside the closed set (aspect not W:H with sides 1-9999 and no leading zero, tier not 1K/2K/4K, quality not draft/standard/fine, n not a positive integer; n = 0 counts as unset) is invalid_request; a profile with an empty or malformed aspectRatios, maxNPerCall < 1, or no available tier is invalid_profile. null / missing / empty string all mean unset; unset request fields take defaults and never produce adjustments. Tier tables are read per entry: a qualityMap or resolutionValues entry that is not a non-empty string is a missing tier (for aspect_resolution / gemini_image_config a tier needs both resolutions and resolutionValues); sizeConstraints is read per sub-field (non-positive-integer = absent, multipleOf defaults to 1). nParam missing or null = true. Size adjustments always write WxH. After every size step each edge is at least one multipleOf. maxLongEdge clamp uses integer math floor(edge * maxLongEdge / longEdge / multipleOf) * multipleOf. Executable reference: scripts/lib/studio-image-reference.mjs normalizeParams.",
+  "contractId": "image_param_normalization.v1",
+  "version": 1,
+  "defaultAspect": "1:1",
+  "profiles": {
+    "openai_gpt_image": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "openai_images",
+      "editTransport": "multipart",
+      "maxReferenceImages": 16,
+      "aspectRatios": [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "16:9",
+        "9:16"
+      ],
+      "sizeParam": "wxh",
+      "resolutions": {
+        "1K": 1024,
+        "2K": 2048,
+        "4K": 3840
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 655360,
+        "maxPixels": 8294400,
+        "maxLongEdge": 3840,
+        "ratioRange": [
+          0.333,
+          3
+        ]
+      },
+      "qualityMap": {
+        "draft": "low",
+        "standard": "medium",
+        "fine": "high"
+      },
+      "maxNPerCall": 10,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        15,
+        60
+      ],
+      "source": "verified_allowlist",
+      "verifiedAt": "2026-10-28"
+    },
+    "siliconflow_qwen_edit": {
+      "imageOutput": true,
+      "operations": [
+        "edit"
+      ],
+      "route": "openai_images",
+      "editTransport": "json_image",
+      "maxReferenceImages": 1,
+      "aspectRatios": [
+        "1:1"
+      ],
+      "sizeParam": "wxh",
+      "resolutions": {
+        "1K": 1024
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 262144,
+        "maxPixels": 4194304,
+        "maxLongEdge": 2048
+      },
+      "maxNPerCall": 1,
+      "nParam": false,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        15,
+        40
+      ],
+      "source": "verified_allowlist",
+      "verifiedAt": "2026-10-28"
+    },
+    "together_flux_kontext": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "openai_images",
+      "editTransport": "json_image_url",
+      "maxReferenceImages": 1,
+      "aspectRatios": [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "16:9",
+        "9:16"
+      ],
+      "sizeParam": "wxh",
+      "resolutions": {
+        "1K": 1024
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 262144,
+        "maxPixels": 4194304,
+        "maxLongEdge": 2048
+      },
+      "maxNPerCall": 4,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        5,
+        20
+      ],
+      "source": "verified_allowlist",
+      "verifiedAt": "2026-10-28"
+    },
+    "xai_grok_imagine": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "xai_images",
+      "editTransport": "json_image_object",
+      "maxReferenceImages": 5,
+      "aspectRatios": [
+        "1:1",
+        "3:4",
+        "4:3",
+        "9:16",
+        "16:9",
+        "2:3",
+        "3:2",
+        "1:2",
+        "2:1",
+        "21:9"
+      ],
+      "sizeParam": "aspect_resolution",
+      "resolutions": {
+        "1K": 1024,
+        "2K": 2048
+      },
+      "resolutionValues": {
+        "1K": "1k",
+        "2K": "2k"
+      },
+      "maxNPerCall": 10,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        5,
+        20
+      ],
+      "source": "official_api",
+      "verifiedAt": "2026-10-28"
+    },
+    "gemini_flash_image": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "gemini_generate_content",
+      "editTransport": "inline",
+      "maxReferenceImages": 14,
+      "aspectRatios": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9"
+      ],
+      "sizeParam": "gemini_image_config",
+      "resolutions": {
+        "1K": 1024,
+        "2K": 2048,
+        "4K": 4096
+      },
+      "resolutionValues": {
+        "1K": "1K",
+        "2K": "2K",
+        "4K": "4K"
+      },
+      "maxNPerCall": 1,
+      "nParam": false,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        5,
+        40
+      ],
+      "source": "official_api",
+      "verifiedAt": "2026-10-28"
+    },
+    "openrouter_gemini_chat": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "chat_modalities",
+      "editTransport": "inline",
+      "maxReferenceImages": 3,
+      "aspectRatios": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9"
+      ],
+      "sizeParam": "chat_image_config",
+      "resolutions": {
+        "1K": 1024
+      },
+      "maxNPerCall": 1,
+      "nParam": false,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        5,
+        40
+      ],
+      "source": "openrouter",
+      "verifiedAt": "2026-10-28"
+    },
+    "openrouter_gpt_images": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "openrouter_images",
+      "editTransport": "input_references",
+      "maxReferenceImages": 16,
+      "aspectRatios": [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "16:9",
+        "9:16"
+      ],
+      "sizeParam": "wxh",
+      "resolutions": {
+        "1K": 1024,
+        "2K": 2048,
+        "4K": 3840
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 655360,
+        "maxPixels": 8294400,
+        "maxLongEdge": 3840,
+        "ratioRange": [
+          0.333,
+          3
+        ]
+      },
+      "qualityMap": {
+        "draft": "low",
+        "standard": "medium",
+        "fine": "high"
+      },
+      "maxNPerCall": 10,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        15,
+        60
+      ],
+      "source": "openrouter",
+      "verifiedAt": "2026-10-28"
+    },
+    "dashscope_qwen_image": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "dashscope_multimodal",
+      "editTransport": "inline",
+      "maxReferenceImages": 3,
+      "aspectRatios": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4"
+      ],
+      "sizeParam": "dashscope_wxh",
+      "resolutions": {
+        "1K": 1024,
+        "2K": 2048
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 262144,
+        "maxPixels": 4194304,
+        "maxLongEdge": 2048
+      },
+      "maxNPerCall": 1,
+      "nParam": true,
+      "nativeMultiTurn": false,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        5,
+        20
+      ],
+      "source": "official_api",
+      "verifiedAt": "2026-10-28"
+    },
+    "minimax_image01": {
+      "imageOutput": true,
+      "operations": [
+        "generate"
+      ],
+      "route": "minimax_image_generation",
+      "aspectRatios": [
+        "1:1",
+        "16:9",
+        "4:3",
+        "3:2",
+        "2:3",
+        "3:4",
+        "9:16",
+        "21:9"
+      ],
+      "sizeParam": "aspect_only",
+      "resolutions": {
+        "1K": 1024
+      },
+      "maxNPerCall": 9,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        20,
+        60
+      ],
+      "source": "official_api",
+      "verifiedAt": "2026-10-28"
+    }
+  },
+  "cases": [
+    {
+      "caseId": "wxh.gpt.1k_square_standard",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      }
+    },
+    {
+      "caseId": "wxh.gpt.2k_16x9_fine_n2",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "16:9",
+        "resolution": "2K",
+        "quality": "fine",
+        "n": 2
+      },
+      "expect": {
+        "aspect": "16:9",
+        "resolution": "2K",
+        "quality": "fine",
+        "wire": {
+          "size": "2048x1152",
+          "quality": "high",
+          "n": 2
+        },
+        "batches": [
+          2
+        ],
+        "adjustments": []
+      }
+    },
+    {
+      "caseId": "wxh.gpt.4k_square_pixel_cap",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "1:1",
+        "resolution": "4K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "4K",
+        "quality": "standard",
+        "wire": {
+          "size": "2880x2880",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "size",
+            "from": "3840x3840",
+            "to": "2880x2880"
+          }
+        ]
+      },
+      "$comment": "maxPixels 8294400 caps a 4K square at 2880² (same as scripts/managed-image-upstream-probe.mjs CASES)."
+    },
+    {
+      "caseId": "wxh.gpt.4k_16x9_exact_cap",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "16:9",
+        "resolution": "4K",
+        "quality": "fine",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "16:9",
+        "resolution": "4K",
+        "quality": "fine",
+        "wire": {
+          "size": "3840x2160",
+          "quality": "high",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      }
+    },
+    {
+      "caseId": "wxh.gpt.1k_9x16_min_pixels",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "9:16",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "9:16",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "608x1088",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "size",
+            "from": "576x1024",
+            "to": "608x1088"
+          }
+        ]
+      },
+      "$comment": "576x1024 is below minPixels 655360; scale up and round each edge up to multipleOf 16."
+    },
+    {
+      "caseId": "wxh.gpt.unsupported_aspect_nearest",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "5:4",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "4:3",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1024x768",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "aspect",
+            "from": "5:4",
+            "to": "4:3"
+          }
+        ]
+      },
+      "$comment": "Nearest by |ln(ratio)| distance; ties keep the earlier entry of aspectRatios."
+    },
+    {
+      "caseId": "wxh.gpt.n_over_max_splits",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 12
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 10
+        },
+        "batches": [
+          10,
+          2
+        ],
+        "adjustments": [
+          {
+            "field": "n",
+            "from": 12,
+            "to": [
+              10,
+              2
+            ]
+          }
+        ]
+      },
+      "$comment": "E-08: n above maxNPerCall splits into concurrent sub-requests; wire shows the first batch."
+    },
+    {
+      "caseId": "wxh.gpt.quality_tier_missing_omitted",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "qualityMap": {
+          "standard": "medium",
+          "fine": "high"
+        },
+        "source": "managed_catalog"
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "draft",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "size": "1024x1024",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "quality",
+            "from": "draft",
+            "to": null
+          }
+        ]
+      },
+      "$comment": "Managed GPT ships no draft tier (E-36). The composer already falls back to standard; the pipeline still never sends an unmapped tier."
+    },
+    {
+      "caseId": "wxh.siliconflow_edit.only_square_no_n",
+      "profile": "siliconflow_qwen_edit",
+      "request": {
+        "aspect": "16:9",
+        "resolution": "1K",
+        "quality": "fine",
+        "n": 2
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "size": "1024x1024"
+        },
+        "batches": [
+          1,
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "aspect",
+            "from": "16:9",
+            "to": "1:1"
+          },
+          {
+            "field": "n",
+            "from": 2,
+            "to": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "$comment": "No qualityMap: quality is silently not sent (not an adjustment). nParam false: n single requests."
+    },
+    {
+      "caseId": "aspect_resolution.xai.no_aspect_sends_explicit_square",
+      "profile": "xai_grok_imagine",
+      "request": {
+        "aspect": null,
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "aspect_ratio": "1:1",
+          "resolution": "1k",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "xAI defaults to 3:2 (1248x832, 金样) when no ratio is sent, so the client always sends one (调研 F)."
+    },
+    {
+      "caseId": "aspect_resolution.xai.4k_falls_to_2k",
+      "profile": "xai_grok_imagine",
+      "request": {
+        "aspect": "3:2",
+        "resolution": "4K",
+        "quality": "fine",
+        "n": 3
+      },
+      "expect": {
+        "aspect": "3:2",
+        "resolution": "2K",
+        "quality": null,
+        "wire": {
+          "aspect_ratio": "3:2",
+          "resolution": "2k",
+          "n": 3
+        },
+        "batches": [
+          3
+        ],
+        "adjustments": [
+          {
+            "field": "resolution",
+            "from": "4K",
+            "to": "2K"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "gemini_image_config.flash.2k_16x9_n3",
+      "profile": "gemini_flash_image",
+      "request": {
+        "aspect": "16:9",
+        "resolution": "2K",
+        "quality": "standard",
+        "n": 3
+      },
+      "expect": {
+        "aspect": "16:9",
+        "resolution": "2K",
+        "quality": null,
+        "wire": {
+          "generationConfig.imageConfig.aspectRatio": "16:9",
+          "generationConfig.imageConfig.imageSize": "2K"
+        },
+        "batches": [
+          1,
+          1,
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "n",
+            "from": 3,
+            "to": [
+              1,
+              1,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "chat_image_config.openrouter.no_aspect_sends_explicit_square",
+      "profile": "openrouter_gemini_chat",
+      "request": {
+        "aspect": null,
+        "resolution": "2K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "image_config.aspect_ratio": "1:1"
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "resolution",
+            "from": "2K",
+            "to": "1K"
+          }
+        ]
+      },
+      "$comment": "OpenRouter chat defaults to ~16:9 (1408x768, 金样) without a ratio. Only image_config.aspect_ratio is documented, so resolution is not sent and 2K falls to 1K."
+    },
+    {
+      "caseId": "wxh.openrouter_images.3x2_draft",
+      "profile": "openrouter_gpt_images",
+      "request": {
+        "aspect": "3:2",
+        "resolution": "1K",
+        "quality": "draft",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "3:2",
+        "resolution": "1K",
+        "quality": "draft",
+        "wire": {
+          "size": "1024x688",
+          "quality": "low",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "1024 / 1.5 = 682.67 rounds to the nearest multiple of 16 → 688."
+    },
+    {
+      "caseId": "dashscope_wxh.qwen.1k_4x3_n2",
+      "profile": "dashscope_qwen_image",
+      "request": {
+        "aspect": "4:3",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 2
+      },
+      "expect": {
+        "aspect": "4:3",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "parameters.size": "1024*768",
+          "parameters.n": 1
+        },
+        "batches": [
+          1,
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "n",
+            "from": 2,
+            "to": [
+              1,
+              1
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "dashscope_wxh.qwen.4k_falls_to_2k",
+      "profile": "dashscope_qwen_image",
+      "request": {
+        "aspect": "1:1",
+        "resolution": "4K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "2K",
+        "quality": null,
+        "wire": {
+          "parameters.size": "2048*2048",
+          "parameters.n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "resolution",
+            "from": "4K",
+            "to": "2K"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "aspect_only.minimax.21x9_n2",
+      "profile": "minimax_image01",
+      "request": {
+        "aspect": "21:9",
+        "resolution": "2K",
+        "quality": "standard",
+        "n": 2
+      },
+      "expect": {
+        "aspect": "21:9",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "aspect_ratio": "21:9",
+          "n": 2
+        },
+        "batches": [
+          2
+        ],
+        "adjustments": [
+          {
+            "field": "resolution",
+            "from": "2K",
+            "to": "1K"
+          }
+        ]
+      },
+      "$comment": "MiniMax maps each aspect_ratio to fixed pixels (21:9 → 1344x576); resolution is never sent."
+    },
+    {
+      "caseId": "request.unset_fields_default_silently",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "aspectRatios": [
+          "4:3",
+          "16:9"
+        ],
+        "resolutions": {
+          "2K": 2048,
+          "4K": 3840
+        }
+      },
+      "request": {
+        "aspect": null,
+        "resolution": null,
+        "quality": null,
+        "n": null
+      },
+      "expect": {
+        "aspect": "4:3",
+        "resolution": "2K",
+        "quality": "standard",
+        "wire": {
+          "size": "2048x1536",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "Unset fields take defaults (defaultAspect, 1K, standard, 1) and never produce adjustments: the blue bar only reports a replaced user choice. 1:1 → nearest 4:3; 1K missing and nothing lower → lowest 2K."
+    },
+    {
+      "caseId": "request.empty_strings_are_unset",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "",
+        "resolution": "",
+        "quality": "",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "Empty string means unset (E-79 ④)."
+    },
+    {
+      "caseId": "request.invalid_aspect",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "wide",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_request"
+      },
+      "$comment": "A set value outside the closed set is a caller bug: invalid_request, nothing is sent. Aspect must be positive-integer W:H."
+    },
+    {
+      "caseId": "request.aspect_leading_zero_invalid",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "01:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_request"
+      },
+      "$comment": "Aspect sides are positive integers without leading zeros (^[1-9][0-9]*:[1-9][0-9]*$)."
+    },
+    {
+      "caseId": "request.aspect_unreduced_matches_by_ratio",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "2:2",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "aspect",
+            "from": "2:2",
+            "to": "1:1"
+          }
+        ]
+      },
+      "$comment": "An unreduced ratio is not a list entry: it is matched by ratio (distance 0 → 1:1) and reported as an aspect adjustment."
+    },
+    {
+      "caseId": "request.aspect_side_over_9999_invalid",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "10000:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_request"
+      },
+      "$comment": "Each aspect side is 1-9999 (^[1-9][0-9]{0,3}:[1-9][0-9]{0,3}$), so every end parses it the same way."
+    },
+    {
+      "caseId": "request.unknown_resolution_tier",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "1:1",
+        "resolution": "8K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_request"
+      },
+      "$comment": "Resolution tiers are 1K / 2K / 4K only."
+    },
+    {
+      "caseId": "request.unknown_quality_tier",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "ultra",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_request"
+      },
+      "$comment": "Quality tiers are draft / standard / fine only."
+    },
+    {
+      "caseId": "request.n_zero_is_unset",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 0
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "n = 0 counts as unset (a missing JSON key decodes to 0 in Go): one image, no adjustment."
+    },
+    {
+      "caseId": "request.n_negative",
+      "profile": "openai_gpt_image",
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": -1
+      },
+      "expect": {
+        "error": "invalid_request"
+      },
+      "$comment": "A set n that is not a positive integer (negative, fractional) is invalid_request."
+    },
+    {
+      "caseId": "aspect.tie_keeps_earlier_entry",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "aspectRatios": [
+          "2:1",
+          "1:2"
+        ]
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "2:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1152x576",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "aspect",
+            "from": "1:1",
+            "to": "2:1"
+          },
+          {
+            "field": "size",
+            "from": "1024x512",
+            "to": "1152x576"
+          }
+        ]
+      },
+      "$comment": "Equal |ln ratio| distance (tolerance 1e-12) keeps the earlier entry; 1024x512 is then raised to minPixels."
+    },
+    {
+      "caseId": "profile.invalid_aspect_entry",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "aspectRatios": [
+          "1:1",
+          "square"
+        ]
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_profile"
+      },
+      "$comment": "Any aspectRatios entry that is not positive-integer W:H, or an empty list → invalid_profile."
+    },
+    {
+      "caseId": "profile.max_n_not_positive",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "maxNPerCall": 0
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_profile"
+      },
+      "$comment": "maxNPerCall < 1 → invalid_profile, whatever the n path."
+    },
+    {
+      "caseId": "profile.checked_before_request",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "maxNPerCall": 0
+      },
+      "request": {
+        "aspect": "wide",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_profile"
+      },
+      "$comment": "Profile checks run before request checks (the Server rejects a bad profile while parsing it, before it sees the request)."
+    },
+    {
+      "caseId": "profile.no_available_tier_checked_before_request",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "qualityMap": {
+          "standard": "medium"
+        },
+        "resolutions": {
+          "8K": 8192
+        }
+      },
+      "request": {
+        "aspect": "wide",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_profile"
+      },
+      "$comment": "No available tier is a profile check and still runs before the request checks."
+    },
+    {
+      "caseId": "quality.non_string_entry_other_tier_still_sent",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "qualityMap": {
+          "draft": null,
+          "standard": 1,
+          "fine": "high"
+        }
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "fine",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "fine",
+        "wire": {
+          "size": "1024x1024",
+          "quality": "high",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "qualityMap is read per entry (P5·U3 handoff): a bad entry only disables its own tier."
+    },
+    {
+      "caseId": "quality.non_string_entry_is_missing_tier",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "qualityMap": {
+          "draft": null,
+          "standard": 1,
+          "fine": "high"
+        }
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "size": "1024x1024",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "quality",
+            "from": "standard",
+            "to": null
+          }
+        ]
+      },
+      "$comment": "A non-string, null or empty entry counts as a missing tier: not sent, reported when the user picked it."
+    },
+    {
+      "caseId": "quality.unset_missing_tier_is_silent",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "qualityMap": {
+          "fine": "high"
+        }
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "size": "1024x1024",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "Unset quality defaults to standard; when that tier is missing nothing is sent and nothing is reported."
+    },
+    {
+      "caseId": "quality.route_without_quality_key_ignores_map",
+      "profile": "xai_grok_imagine",
+      "profileOverride": {
+        "qualityMap": {
+          "standard": "medium"
+        }
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "aspect_ratio": "1:1",
+          "resolution": "1k",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "xai_images has no quality body key: qualityMap is ignored silently."
+    },
+    {
+      "caseId": "resolution_values.non_string_entry_is_missing_tier",
+      "profile": "xai_grok_imagine",
+      "profileOverride": {
+        "resolutionValues": {
+          "1K": "1k",
+          "2K": 2
+        }
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "2K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "aspect_ratio": "1:1",
+          "resolution": "1k",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "resolution",
+            "from": "2K",
+            "to": "1K"
+          }
+        ]
+      },
+      "$comment": "For aspect_resolution / gemini_image_config a tier is available only when resolutionValues holds a non-empty string for it."
+    },
+    {
+      "caseId": "resolution_values.none_usable_invalid_profile",
+      "profile": "gemini_flash_image",
+      "profileOverride": {
+        "resolutionValues": {
+          "1K": 1,
+          "2K": ""
+        }
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_profile"
+      },
+      "$comment": "No available tier left → invalid_profile."
+    },
+    {
+      "caseId": "profile.resolutions_empty_invalid_profile",
+      "profile": "minimax_image01",
+      "profileOverride": {
+        "resolutions": {}
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "error": "invalid_profile"
+      },
+      "$comment": "Available tiers are the 1K / 2K / 4K keys of resolutions; none → invalid_profile even when the route sends no resolution."
+    },
+    {
+      "caseId": "size_constraints.bad_subfield_is_absent",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "sizeConstraints": {
+          "multipleOf": "16",
+          "minPixels": 655360,
+          "maxPixels": 8294400,
+          "maxLongEdge": 3840
+        }
+      },
+      "request": {
+        "aspect": "3:2",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "3:2",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1024x683",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": []
+      },
+      "$comment": "sizeConstraints is read per sub-field: a non-positive-integer sub-field is absent (multipleOf defaults to 1, others skip their clamp)."
+    },
+    {
+      "caseId": "size_constraints.max_long_edge_clamp",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "sizeConstraints": {
+          "multipleOf": 16,
+          "maxLongEdge": 2048
+        }
+      },
+      "request": {
+        "aspect": "16:9",
+        "resolution": "4K",
+        "quality": "fine",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "16:9",
+        "resolution": "4K",
+        "quality": "fine",
+        "wire": {
+          "size": "2048x1152",
+          "quality": "high",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "size",
+            "from": "3840x2160",
+            "to": "2048x1152"
+          }
+        ]
+      },
+      "$comment": "maxLongEdge clamp scales with integer math: floor(edge * maxLongEdge / longEdge / multipleOf) * multipleOf."
+    },
+    {
+      "caseId": "size_constraints.zero_edge_floors_to_multiple",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "aspectRatios": [
+          "1:4"
+        ],
+        "resolutions": {
+          "1K": 100
+        },
+        "sizeConstraints": {
+          "multipleOf": 64,
+          "minPixels": 65536
+        }
+      },
+      "request": {
+        "aspect": "1:4",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:4",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "192x384",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "size",
+            "from": "64x128",
+            "to": "192x384"
+          }
+        ]
+      },
+      "$comment": "After every step each edge is at least one multipleOf: 25 rounds to 0 → 64, then minPixels scales 64x128 up."
+    },
+    {
+      "caseId": "size_constraints.max_pixels_floor_keeps_one_multiple",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "sizeConstraints": {
+          "multipleOf": 16,
+          "maxPixels": 100
+        }
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "16x16",
+          "quality": "medium",
+          "n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "size",
+            "from": "1024x1024",
+            "to": "16x16"
+          }
+        ]
+      },
+      "$comment": "A maxPixels floor that would reach 0 stops at one multipleOf per edge."
+    },
+    {
+      "caseId": "dashscope_wxh.size_adjustment_uses_x",
+      "profile": "dashscope_qwen_image",
+      "profileOverride": {
+        "sizeConstraints": {
+          "multipleOf": 16,
+          "minPixels": 262144,
+          "maxPixels": 2000000,
+          "maxLongEdge": 2048
+        }
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "2K",
+        "quality": "standard",
+        "n": 1
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "2K",
+        "quality": null,
+        "wire": {
+          "parameters.size": "1408*1408",
+          "parameters.n": 1
+        },
+        "batches": [
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "size",
+            "from": "2048x2048",
+            "to": "1408x1408"
+          }
+        ]
+      },
+      "$comment": "Wire uses W*H, the adjustment always writes WxH."
+    },
+    {
+      "caseId": "n.nparam_null_defaults_true",
+      "profile": "openai_gpt_image",
+      "profileOverride": {
+        "nParam": null
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 2
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 2
+        },
+        "batches": [
+          2
+        ],
+        "adjustments": []
+      },
+      "$comment": "nParam missing or null means true."
+    },
+    {
+      "caseId": "n.route_without_n_key_splits",
+      "profile": "gemini_flash_image",
+      "profileOverride": {
+        "nParam": true
+      },
+      "request": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": "standard",
+        "n": 2
+      },
+      "expect": {
+        "aspect": "1:1",
+        "resolution": "1K",
+        "quality": null,
+        "wire": {
+          "generationConfig.imageConfig.aspectRatio": "1:1",
+          "generationConfig.imageConfig.imageSize": "1K"
+        },
+        "batches": [
+          1,
+          1
+        ],
+        "adjustments": [
+          {
+            "field": "n",
+            "from": 2,
+            "to": [
+              1,
+              1
+            ]
+          }
+        ]
+      },
+      "$comment": "A route without an n body key sends n single requests even when nParam is true."
+    }
+  ]
+}

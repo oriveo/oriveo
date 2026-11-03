@@ -15,6 +15,7 @@ import {
   putNoteFolder,
   deleteNoteFolder as idbDeleteNoteFolder,
   setSessionValue,
+  putConversationForPageLeaveSync,
 } from '../../infra/storage/idb';
 import { purgeUnreferencedImages } from '../../infra/storage/image-orphan-sweeper';
 import { collectAttachmentKeys } from '../../infra/storage/attachment-keys';
@@ -79,9 +80,30 @@ export function subscribeProviders(store: StoreApi<AppStore>): () => void {
   });
 }
 
+/** Pending-write flushers of the live conversation subscribers. */
+const conversationWriteFlushers = new Set<(leavingPage: boolean) => void>();
+
+/**
+ * Writes every pending (debounced) conversation write at once. Lifecycle handlers call it after they change the
+ * store, so the write does not depend on the order the pagehide listeners were registered in.
+ */
+export function flushPendingConversationWrites(): void {
+  for (const flush of [...conversationWriteFlushers]) flush(true);
+}
+
 export function subscribeConversations(store: StoreApi<AppStore>): () => void {
   let prev = store.getState().conversations;
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let pendingWrite: ((leavingPage: boolean) => void) | null = null;
+  const flushPendingWrite = (leavingPage: boolean) => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+    const write = pendingWrite;
+    pendingWrite = null;
+    write?.(leavingPage);
+  };
+  const flushOnDebounce = () => flushPendingWrite(false);
+  const flushOnLeave = () => flushPendingWrite(true);
   const unsub = store.subscribe((state) => {
     if (state.hydrationPhase !== 'ready') {
       prev = state.conversations;
@@ -110,7 +132,7 @@ export function subscribeConversations(store: StoreApi<AppStore>): () => void {
     // guest right after. If the partition changed before the timer fired, writing would put the
     // previous account's whole conversation into the guest partition, so drop the stale write.
     const scheduledUID = getActiveUIDSync();
-    timer = setTimeout(() => {
+    pendingWrite = (leavingPage) => {
       if (getActiveUIDSync() !== scheduledUID) {
         // The partition already switched, so drop this write; writes to the new partition belong to the subscriber created by resubscribe
         return;
@@ -120,17 +142,39 @@ export function subscribeConversations(store: StoreApi<AppStore>): () => void {
         const old = prevMap.get(c.id);
         if (old && old !== c) forgetMcpStepPayloadsOfRemovedMessages(old, c);
         if (!old || old !== c) {
+          // Leaving the page: queue the put in this call stack (the page may be gone before any await
+          // resumes). Summary-only conversations and a missing cached connection keep the async path.
+          if (leavingPage && putConversationForPageLeaveSync(c, scheduledUID)) continue;
           void putConversationAndPurgeDroppedImages(c)
             .catch(withErrorReporting('storage.conversation.persist'));
         }
       }
       prev = state.conversations;
-    }, CONVERSATION_PERSIST_DEBOUNCE_MS);
+    };
+    timer = setTimeout(flushOnDebounce, CONVERSATION_PERSIST_DEBOUNCE_MS);
   });
-  // Clear the pending debounce on unmount or partition switch, so a stale write cannot land in the wrong partition or after teardown
+  // Leaving the page (pagehide / hidden tab) writes the pending conversations at once (best effort):
+  // otherwise a navigation inside the debounce window drops the last write, e.g. the delivered reply.
+  const flushOnHidden = () => {
+    if (document.visibilityState === 'hidden') flushOnLeave();
+  };
+  conversationWriteFlushers.add(flushPendingWrite);
+  const hasDocument = typeof document !== 'undefined' && typeof window !== 'undefined';
+  if (hasDocument) {
+    window.addEventListener('pagehide', flushOnLeave);
+    document.addEventListener('visibilitychange', flushOnHidden);
+  }
+  // Clear the pending debounce on unmount or partition switch, so a stale write does not land in the wrong partition or after teardown
   return () => {
     unsub();
     if (timer) clearTimeout(timer);
+    timer = null;
+    pendingWrite = null;
+    conversationWriteFlushers.delete(flushPendingWrite);
+    if (hasDocument) {
+      window.removeEventListener('pagehide', flushOnLeave);
+      document.removeEventListener('visibilitychange', flushOnHidden);
+    }
   };
 }
 

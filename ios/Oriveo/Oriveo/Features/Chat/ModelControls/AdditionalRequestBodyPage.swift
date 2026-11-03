@@ -69,7 +69,7 @@ struct AdditionalRequestBodyPage: View {
                                 documentation.engineName
                             ))
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             .frame(minHeight: 44, alignment: .leading)
                             .contentShape(Rectangle())
                         }
@@ -120,7 +120,7 @@ struct AdditionalRequestBodyPage: View {
                 transportIdentity: transportIdentity
             )
         }
-        .tint(OriveoTheme.Palette.primary)
+        .tint(OriveoTheme.Palette.primaryTextOnSurface)
     }
 
     private var scopeWord: String {
@@ -230,7 +230,7 @@ struct AdditionalRequestBodyPage: View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 14, weight: .medium))
-                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 .padding(.horizontal, 10)
                 .frame(minWidth: 44, minHeight: 44)
                 .contentShape(Rectangle())

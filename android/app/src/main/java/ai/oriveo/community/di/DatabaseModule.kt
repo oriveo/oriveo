@@ -5,8 +5,10 @@ import androidx.room.RoomDatabase
 import androidx.room.withTransaction
 import androidx.sqlite.db.SupportSQLiteDatabase
 import ai.oriveo.community.core.data.database.ConversationSearchSchema
+import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import ai.oriveo.community.core.data.database.DatabaseHealthProbe
 import ai.oriveo.community.core.data.database.OriveoDatabase
+import ai.oriveo.community.core.data.database.TimedWriteOpenHelperFactory
 import ai.oriveo.community.core.data.database.MessageContinuationDatabase
 import ai.oriveo.community.core.data.search.ConversationSearchIndexer
 import java.util.concurrent.Executors
@@ -42,6 +44,8 @@ val databaseModule = module {
                 },
             )
             .fallbackToDestructiveMigrationOnDowngrade(true)
+            // Write transaction timing (fixture metric db.long_write_ms): wraps only transaction begin / end and reports only writes of 500ms or longer.
+            .openHelperFactory(TimedWriteOpenHelperFactory(FrameworkSQLiteOpenHelperFactory()))
             .build()
     }
 
@@ -85,12 +89,21 @@ val databaseModule = module {
     single { ai.oriveo.community.core.data.repository.ContextCompactionStore(get()) }
     single { get<OriveoDatabase>().memoryItemDao() }
     single { get<OriveoDatabase>().memoryCandidateDao() }
+    single { get<OriveoDatabase>().studioWorkDao() }
     single {
         val db = get<OriveoDatabase>()
         ai.oriveo.community.core.memory.MemoryItemRepository(
             dao = get(),
             preferenceDao = get(),
             preferences = get(),
+            runInTransaction = { block -> db.withTransaction { block() } },
+        )
+    }
+    single {
+        val db = get<OriveoDatabase>()
+        ai.oriveo.community.core.studio.StudioWorkRepository(
+            dao = get(),
+            currentPartition = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
             runInTransaction = { block -> db.withTransaction { block() } },
         )
     }

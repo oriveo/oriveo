@@ -87,9 +87,7 @@ extension ConversationInstructionsTests {
         conversation.instructions = instructions
         state.upsertConversationProjection(conversation)
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
             defaults.removePersistentDomain(forName: suiteName)
         }
         try await body(state, conversation, defaults)

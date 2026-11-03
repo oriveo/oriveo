@@ -21,7 +21,14 @@ class HomeDictationWiringTest {
 
     @Test
     fun `input area is wrapped by the dictation switcher`() {
-        assertTrue("The home input area is not wrapped in DictationInputSwitcher, so the recording bar would never replace it", source.contains("DictationInputSwitcher("))
+        val switcherAt = source.indexOf("DictationInputSwitcher(")
+        assertTrue("The home input area is not wrapped in DictationInputSwitcher, so the recording bar would never replace it", switcherAt >= 0)
+        // Same as the chat page and iOS DictationInputRow: the glass card wraps only the input area (inside the input slot), and the recording bar sits in its own row below the card, 8dp apart.
+        val cardAt = source.indexOf(".auroraGlassCard(", switcherAt)
+        assertTrue("The glass card must sit inside the input slot of DictationInputSwitcher", cardAt > switcherAt)
+        val call = source.substring(switcherAt, cardAt)
+        assertTrue("The spacing between the recording bar and the input card must be 8dp", call.contains("spacing = 8.dp"))
+        assertTrue("The glass card must be inside the input slot", call.contains("input = {"))
     }
 
     @Test

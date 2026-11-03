@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/writing.svg (glyphs.v1.json glyph:writing, hue #F43F5E); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M15.4 3.3a2.4 2.4 0 0 1 3.4 0l1.9 1.9a2.4 2.4 0 0 1 0 3.4L9.5 19.8l-6 1.1 1.1-6Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="3.5"
+                android:startY="2.59"
+                android:endX="21.41"
+                android:endY="20.9">
+                <item android:offset="0" android:color="#FFB4BF" />
+                <item android:offset="1" android:color="#F43F5E" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M13.4 5.6l5 5M5.3 18.7l2.4-2.4"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.92"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

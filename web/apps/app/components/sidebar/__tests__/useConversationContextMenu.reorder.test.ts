@@ -11,6 +11,7 @@ vi.mock('../../../lib/utils/conversation-item-meta', () => ({
 }));
 
 import { useConversationContextMenu } from '../useConversationContextMenu';
+import { useSkillFromChat } from '../../../lib/core/skills/skill-from-chat';
 
 const conv = (id: string): Conversation => ({ id } as Conversation);
 
@@ -75,5 +76,21 @@ describe('useConversationContextMenu keyboard reorder items', () => {
     const upItem = result.current.menu?.items.find((i) => i.label === 'moveUp');
     act(() => upItem?.onAction());
     expect(onReorderPinned).toHaveBeenCalledWith('b', 'up');
+  });
+
+  it('adds save-as-skill before delete in a stable order and opens the dialog for this conversation', () => {
+    const labels = openLabels({ ...base, isPinned: false });
+    expect(labels).toEqual(['pin', 'moveToFolder', 'rename', 'exportMarkdown', 'fromChat.menuConversation', 'delete']);
+    const pinned = openLabels({ ...base, isPinned: true, pinnedIndex: 1, pinnedCount: 3 });
+    expect(pinned).toEqual([
+      'unpin', 'moveToTop', 'moveUp', 'moveDown', 'moveToFolder', 'rename', 'exportMarkdown', 'fromChat.menuConversation', 'delete',
+    ]);
+
+    const { result } = renderHook(() => useConversationContextMenu({ ...base, isPinned: false }));
+    act(() => result.current.handleRightClick(rightClick()));
+    const item = result.current.menu?.items.find((i) => i.label === 'fromChat.menuConversation');
+    act(() => item?.onAction());
+    expect(useSkillFromChat.getState().request).toEqual({ conversationId: 'b', focusMessageId: null });
+    useSkillFromChat.getState().close();
   });
 });

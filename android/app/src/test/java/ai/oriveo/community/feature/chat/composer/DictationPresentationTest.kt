@@ -13,6 +13,7 @@ import ai.oriveo.community.core.voice.VoiceFallbackReason
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.util.Locale
 
 /** Card, input row, duration text and toast specs. */
 class DictationPresentationTest {
@@ -23,7 +24,8 @@ class DictationPresentationTest {
         state: DictationState,
         bound: Boolean = true,
         duration: Double? = null,
-    ) = dictationCard(state, hostSlotKey = host, isBoundHost = bound, pendingDurationSec = duration)
+        uiLocale: Locale = Locale.US,
+    ) = dictationCard(state, hostSlotKey = host, isBoundHost = bound, pendingDurationSec = duration, uiLocale = uiLocale)
 
     private val discard = DictationCardButton(R.string.voice_dictation_discard, DictationCardAction.Discard)
 
@@ -32,7 +34,7 @@ class DictationPresentationTest {
         val saved = DictationText(R.string.voice_dictation_recording_saved)
         assertEquals(
             DictationCard(
-                R.string.voice_dictation_failed_title,
+                DictationText(R.string.voice_dictation_failed_title),
                 saved,
                 discard,
                 DictationCardButton(R.string.voice_dictation_retry, DictationCardAction.Retry),
@@ -42,7 +44,7 @@ class DictationPresentationTest {
         )
         assertEquals(
             DictationCard(
-                R.string.voice_dictation_failed_title,
+                DictationText(R.string.voice_dictation_failed_title),
                 DictationText(R.string.voice_dictation_connection_unavailable),
                 discard,
                 DictationCardButton(R.string.voice_dictation_check_connection, DictationCardAction.CheckConnection),
@@ -52,17 +54,17 @@ class DictationPresentationTest {
         )
         assertEquals(
             DictationCard(
-                R.string.voice_dictation_no_text,
-                saved,
-                discard,
+                DictationText(R.string.voice_dictation_no_text),
+                DictationText(R.string.voice_dictation_no_text_body, listOf("English (United States)")),
                 DictationCardButton(R.string.voice_dictation_retry, DictationCardAction.Retry),
+                DictationCardButton(R.string.voice_dictation_action_change_language, DictationCardAction.ChangeLanguage),
                 DictationCardIcon.Error,
             ),
-            card(DictationState.Failed(host, DictationFailedAction.NoTranscript)),
+            card(DictationState.Failed(host, DictationFailedAction.NoTranscript, language = "en-US")),
         )
         assertEquals(
             DictationCard(
-                R.string.voice_dictation_interrupted,
+                DictationText(R.string.voice_dictation_interrupted),
                 DictationText(R.string.voice_dictation_saved_duration, listOf("0:47")),
                 discard,
                 DictationCardButton(R.string.voice_dictation_transcribe_recording, DictationCardAction.TranscribeRecording),
@@ -72,7 +74,7 @@ class DictationPresentationTest {
         )
         assertEquals(
             DictationCard(
-                R.string.voice_dictation_slot_occupied,
+                DictationText(R.string.voice_dictation_slot_occupied),
                 DictationText(R.string.voice_dictation_saved_duration, listOf("1:00:00")),
                 DictationCardButton(R.string.voice_dictation_discard_and_rerecord, DictationCardAction.DiscardAndRerecord),
                 DictationCardButton(R.string.voice_dictation_transcribe_first, DictationCardAction.TranscribeFirst),
@@ -82,7 +84,7 @@ class DictationPresentationTest {
         )
         assertEquals(
             DictationCard(
-                R.string.voice_dictation_mic_denied_title,
+                DictationText(R.string.voice_dictation_mic_denied_title),
                 DictationText(R.string.voice_dictation_denied_subtitle),
                 DictationCardButton(R.string.voice_dictation_not_now, DictationCardAction.NotNow),
                 DictationCardButton(R.string.voice_dictation_open_settings, DictationCardAction.OpenSettings),
@@ -90,6 +92,92 @@ class DictationPresentationTest {
             ),
             card(DictationState.Denied),
         )
+    }
+
+    @Test
+    fun `system failure cards show the real cause and matching action`() {
+        val retry = DictationCardButton(R.string.voice_dictation_retry, DictationCardAction.Retry)
+        assertEquals(
+            DictationCard(
+                DictationText(R.string.voice_dictation_fail_network_title),
+                DictationText(R.string.voice_dictation_fail_network_body),
+                discard,
+                retry,
+                DictationCardIcon.Error,
+            ),
+            card(DictationState.Failed(host, DictationFailedAction.Network, language = "en-US")),
+        )
+        assertEquals(
+            DictationCard(
+                DictationText(R.string.voice_dictation_fail_busy_title),
+                DictationText(R.string.voice_dictation_fail_busy_body),
+                discard,
+                retry,
+                DictationCardIcon.Error,
+            ),
+            card(DictationState.Failed(host, DictationFailedAction.Busy, language = "en-US")),
+        )
+        assertEquals(
+            DictationCard(
+                DictationText(R.string.voice_dictation_fail_language_title, listOf("Japanese (Japan)")),
+                DictationText(R.string.voice_dictation_fail_language_body),
+                discard,
+                DictationCardButton(R.string.voice_dictation_action_change_language, DictationCardAction.ChangeLanguage),
+                DictationCardIcon.Error,
+            ),
+            card(DictationState.Failed(host, DictationFailedAction.LanguageUnsupported, language = "ja-JP")),
+        )
+        assertEquals(
+            DictationCard(
+                DictationText(R.string.voice_dictation_fail_no_service_title),
+                DictationText(R.string.voice_dictation_fail_no_service_body),
+                discard,
+                DictationCardButton(R.string.voice_dictation_action_switch_engine, DictationCardAction.SwitchEngine),
+                DictationCardIcon.Error,
+            ),
+            card(DictationState.Failed(host, DictationFailedAction.NoService, language = "en-US")),
+        )
+    }
+
+    @Test
+    fun `recognition language is named in the ui language`() {
+        val title = card(DictationState.Failed(host, DictationFailedAction.LanguageUnsupported, "zh-CN"), uiLocale = Locale.GERMANY)!!.title
+        assertEquals(listOf("Chinesisch (China)"), title.args)
+        // With no recognition language set (auto), recognition uses the UI language.
+        val body = card(DictationState.Failed(host, DictationFailedAction.NoTranscript), uiLocale = Locale.FRANCE)!!.subtitle
+        assertEquals(DictationText(R.string.voice_dictation_no_text_body, listOf("français (France)")), body)
+    }
+
+    @Test
+    fun `a cloud auto failure keeps naming the language it failed in after the ui language changes`() {
+        // On a cloud auto failure the controller records the UI language at that time (fr-FR). After the UI switches to German, the card stays French and only the display wording changes.
+        val failed = DictationState.Failed(host, DictationFailedAction.NoTranscript, language = "fr-FR")
+        val before = card(failed, uiLocale = Locale.FRANCE)!!.subtitle
+        assertEquals(DictationText(R.string.voice_dictation_no_text_body, listOf("français (France)")), before)
+        val after = card(failed, uiLocale = Locale.GERMANY)!!.subtitle
+        assertEquals(DictationText(R.string.voice_dictation_no_text_body, listOf("Französisch (Frankreich)")), after)
+    }
+
+    @Test
+    fun `failed card without a recording offers rerecord and no body`() {
+        // Copy is "retry"; the action starts a new dictation.
+        val rerecord = DictationCardButton(R.string.voice_dictation_retry, DictationCardAction.DiscardAndRerecord)
+        val titles =
+            mapOf(
+                DictationFailedAction.Retry to DictationText(R.string.voice_dictation_failed_title),
+                DictationFailedAction.Network to DictationText(R.string.voice_dictation_fail_network_title),
+                DictationFailedAction.Busy to DictationText(R.string.voice_dictation_fail_busy_title),
+                DictationFailedAction.LanguageUnsupported to
+                    DictationText(R.string.voice_dictation_fail_language_title, listOf("Chinese (China)")),
+                DictationFailedAction.NoService to DictationText(R.string.voice_dictation_fail_no_service_title),
+                DictationFailedAction.NoTranscript to DictationText(R.string.voice_dictation_no_text),
+            )
+        titles.forEach { (action, title) ->
+            assertEquals(
+                DictationCard(title, null, discard, rerecord, DictationCardIcon.Error),
+                card(DictationState.Failed(host, action, "zh-CN", hasRecording = false), uiLocale = Locale.US),
+            )
+        }
     }
 
     @Test
@@ -127,7 +215,7 @@ class DictationPresentationTest {
     @Test
     fun `denied shows only on the bound host`() {
         assertNull(card(DictationState.Denied, bound = false))
-        assertEquals(R.string.voice_dictation_mic_denied_title, card(DictationState.Denied, bound = true)?.title)
+        assertEquals(DictationText(R.string.voice_dictation_mic_denied_title), card(DictationState.Denied, bound = true)?.title)
     }
 
     @Test
@@ -202,10 +290,6 @@ class DictationPresentationTest {
                 action = DictationToastAction.OpenVoiceSettings,
             ),
             dictationToast(DictationEvent.SystemUnavailable(host), host),
-        )
-        assertEquals(
-            DictationToastSpec(R.string.voice_dictation_recognizer_failed, GlobalToastStyle.Warning, 3_000L),
-            dictationToast(DictationEvent.SystemRecognizerFailed(host), host),
         )
         assertEquals(
             DictationToastSpec(R.string.voice_dictation_recording_unavailable, GlobalToastStyle.Error, 3_000L),

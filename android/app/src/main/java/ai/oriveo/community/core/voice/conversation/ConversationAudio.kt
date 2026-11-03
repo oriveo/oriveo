@@ -12,6 +12,8 @@ import android.media.AudioFocusRequest
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioRecord
+import android.media.AudioRecordingConfiguration
+import android.media.AudioTimestamp
 import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.media.audiofx.AcousticEchoCanceler
@@ -20,15 +22,18 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import androidx.annotation.VisibleForTesting
 import androidx.core.content.ContextCompat
 import ai.oriveo.community.core.voice.AacEncoder
+import ai.oriveo.community.core.voice.AndroidAudioSessionCoordinator
 import ai.oriveo.community.core.voice.AudioCapture
 import ai.oriveo.community.core.voice.AudioCaptureEvents
 import ai.oriveo.community.core.voice.AudioCaptureInitException
 import ai.oriveo.community.core.voice.AudioRecordCapture
+import ai.oriveo.community.core.voice.AudioSessionOps
 import ai.oriveo.community.core.voice.ChunkPlayer
 import ai.oriveo.community.core.voice.CloudSpeechEngine
 import ai.oriveo.community.core.voice.MediaChunkPlayer
@@ -52,6 +57,7 @@ import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlinx.coroutines.CancellableContinuation
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -60,8 +66,17 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -87,8 +102,16 @@ internal object ConversationFrames {
         return 10 * log10(sum / count / (FULL_SCALE * FULL_SCALE))
     }
 
-    /** Orb level 0…1 from dBFS (−60 dB and below is 0). */
-    fun levelFromDb(db: Double): Float = ((db + 60.0) / 60.0).coerceIn(0.0, 1.0).toFloat()
+    /** Fixed floor (dBFS) for AI playback levels, which have no VAD floor of their own. */
+    const val AI_LEVEL_FLOOR_DB = -50.0
+
+    /** Headroom above the floor before the orb moves, and the dB span from there to full level. */
+    private const val LEVEL_FLOOR_MARGIN_DB = 6.0
+    private const val LEVEL_SPAN_DB = 30.0
+
+    /** Orb level 0…1 from dBFS relative to [floorDb]: 0 up to floor + 6 dB, 1 from floor + 36 dB. */
+    fun levelFromDb(db: Double, floorDb: Double): Float =
+        ((db - floorDb - LEVEL_FLOOR_MARGIN_DB) / LEVEL_SPAN_DB).coerceIn(0.0, 1.0).toFloat()
 }
 
 /** Cuts arbitrary PCM chunks into numbered 20 ms frames (index from 0). */
@@ -126,7 +149,11 @@ internal fun liveFrameChunker(
     val written = synchronized(recorder) {
         live.get().also { if (it) recorder.onFrame(index, frame) }
     }
-    if (written) listener.onFrame(index, ConversationFrames.frameDb(frame))
+    if (written) {
+        // The speech model runs on this capture thread; each frame carries the latest chunk's probability.
+        val prob = listener.speechModel?.feed(frame)
+        listener.onFrame(index, ConversationFrames.frameDb(frame), prob)
+    }
 }
 
 /**
@@ -217,12 +244,22 @@ internal class TurnRecorder(
 ) {
     private val ring = ArrayDeque<Pair<Long, ShortArray>>()
     private var turn: MutableList<Pair<Long, ShortArray>>? = null
+    private var tap: PcmSink? = null
 
     @Synchronized
     fun onFrame(index: Long, frame: ShortArray) {
         ring.addLast(index to frame)
         while (ring.size > ringCapacity) ring.removeFirst()
         turn?.let { if (it.size < maxTurnFrames) it += index to frame }
+        if (turn != null) tap?.onPcm(frame, frame.size)
+    }
+
+    /** Feeds the open turn's frames so far (preroll included) to [sink], then every later frame until the turn ends. */
+    @Synchronized
+    fun tap(sink: PcmSink) {
+        val frames = turn ?: return
+        for ((_, f) in frames) sink.onPcm(f, f.size)
+        tap = sink
     }
 
     /** Starts a turn with buffered frames from [prerollFrame] on. */
@@ -236,6 +273,7 @@ internal class TurnRecorder(
     fun end(endFrame: Long): ShortArray? {
         val frames = turn ?: return null
         turn = null
+        tap = null
         val kept = frames.filter { it.first <= endFrame }
         val out = ShortArray(kept.sumOf { it.second.size })
         var offset = 0
@@ -249,6 +287,7 @@ internal class TurnRecorder(
     @Synchronized
     fun cancel() {
         turn = null
+        tap = null
     }
 
     /** Drops buffered frames (after mute / pause the preroll must not reach across the gap). */
@@ -256,51 +295,71 @@ internal class TurnRecorder(
     fun clear() {
         ring.clear()
         turn = null
+        tap = null
     }
 
     companion object {
-        /** Preroll plus the longest onset run (barge-in 300 ms) plus slack for main-thread latency. */
+        /**
+         * Preroll plus the farthest onset before the start decision (model-mode backtrack window 1000 ms, which also
+         * covers the longest onset run, barge-in 300 ms) plus slack for main-thread latency: 90 frames = 1800 ms.
+         */
         const val DEFAULT_RING_FRAMES = VoiceConversationConstants.PREROLL_FRAMES +
-            VoiceConversationConstants.BARGE_IN_MIN_SPEECH_MS / VoiceConversationConstants.FRAME_MS + 25
+            VoiceConversationConstants.VAD_MODEL_ONSET_BACKTRACK_MS / VoiceConversationConstants.FRAME_MS + 25
 
         /** 3 minutes. */
         const val MAX_TURN_FRAMES = 3 * 60 * 1000 / VoiceConversationConstants.FRAME_MS
     }
 }
 
-/** Earcons: a short sine at about −18 dBFS with 10 ms fades (no clicks). */
+/**
+ * Earcons (contract rules.host): sine segments at about −18 dBFS, phase-continuous across segments, with 10 ms fades
+ * at both ends only (no clicks).
+ */
 internal object Earcons {
     const val LEVEL_DBFS = -18.0
     const val MAX_MS = 250
     private const val FADE_MS = 10
 
-    fun durationMs(kind: EarconKind): Int = when (kind) {
-        EarconKind.THINKING -> 120
-        EarconKind.END -> 240
+    /** (frequency Hz, duration ms) segments played back to back. */
+    fun segments(kind: EarconKind): List<Pair<Double, Int>> = when (kind) {
+        EarconKind.START -> listOf(660.0 to 60, 880.0 to 60)
+        EarconKind.HEARD -> listOf(880.0 to 60)
+        EarconKind.THINKING -> listOf(880.0 to 120)
+        EarconKind.END -> listOf(660.0 to 110, 440.0 to 130)
     }
 
-    fun frequencyHz(kind: EarconKind): Double = when (kind) {
-        EarconKind.THINKING -> 880.0
-        EarconKind.END -> 523.25
-    }
+    fun durationMs(kind: EarconKind): Int = segments(kind).sumOf { it.second }
 
     fun samples(kind: EarconKind, sampleRate: Int = ConversationFrames.SAMPLE_RATE): ShortArray {
-        val n = sampleRate * durationMs(kind) / 1000
+        val freqs = DoubleArray(sampleRate * durationMs(kind) / 1000)
+        var at = 0
+        for ((hz, ms) in segments(kind)) {
+            val end = minOf(freqs.size, at + sampleRate * ms / 1000)
+            for (i in at until end) freqs[i] = hz
+            at = end
+        }
+        val n = freqs.size
         val fade = sampleRate * FADE_MS / 1000
         val amplitude = 32767.0 * 10.0.pow(LEVEL_DBFS / 20.0)
-        val freq = frequencyHz(kind)
+        var phase = 0.0
         return ShortArray(n) { i ->
             val envelope = when {
                 i < fade -> 0.5 - 0.5 * cos(PI * i / fade)
                 i >= n - fade -> 0.5 - 0.5 * cos(PI * (n - 1 - i) / fade)
                 else -> 1.0
             }
-            (amplitude * envelope * sin(2 * PI * freq * i / sampleRate)).roundToInt().toShort()
+            val sample = amplitude * envelope * sin(phase)
+            phase += 2 * PI * freqs[i] / sampleRate
+            sample.roundToInt().toShort()
         }
     }
 }
 
-/** Route from the current output device types (AudioDeviceInfo.TYPE_*): bluetooth > wired / USB > speaker. */
+/**
+ * Route from the current output device types (AudioDeviceInfo.TYPE_*): bluetooth > known in-ear / on-ear > speaker.
+ * Everything else (HDMI, cast, BLE speaker, car bus, USB device, unknown, earpiece) counts as speaker: the output list
+ * holds every connected device and always includes the earpiece, so only types known to sit on the ear are private.
+ */
 internal fun routeForOutputs(types: Collection<Int>): ConversationRoute = when {
     types.any { it in BLUETOOTH_TYPES } -> ConversationRoute.BLUETOOTH
     types.any { it in WIRED_TYPES } -> ConversationRoute.HEADPHONES
@@ -320,16 +379,64 @@ internal val WIRED_TYPES = setOf(
     AudioDeviceInfo.TYPE_WIRED_HEADPHONES,
     AudioDeviceInfo.TYPE_USB_HEADSET,
     AudioDeviceInfo.TYPE_HEARING_AID,
+    AudioDeviceInfo.TYPE_BLE_HEARING_AID,
 )
 
 /**
  * RMS level 0…1 of 16-bit little-endian PCM bytes: one [PcmWindowAccumulator] window (the recorder's and the realtime
- * uplink's sum of squares and dBFS), mapped by [ConversationFrames.levelFromDb]; empty or all-zero is 0.
+ * uplink's sum of squares and dBFS), mapped by [ConversationFrames.levelFromDb] against
+ * [ConversationFrames.AI_LEVEL_FLOOR_DB]; empty or all-zero is 0.
  */
 internal fun pcm16Level(bytes: ByteArray): Float {
     val window = PcmWindowAccumulator()
     window.addPcm16Le(bytes)
-    return window.level()?.let(ConversationFrames::levelFromDb) ?: 0f
+    return window.level()?.let { ConversationFrames.levelFromDb(it, ConversationFrames.AI_LEVEL_FLOOR_DB) } ?: 0f
+}
+
+/**
+ * Feeds one AudioTrack from the engine callback thread and lets another thread free it safely.
+ *
+ * [write] puts all of the bytes through `write` (AudioTrack.write's shape) and returns how many went in. A paused
+ * MODE_STREAM track takes only what fits its buffer: on a short write or 0 while [held] the calling thread waits until
+ * the hold lifts, then writes the rest. A negative return stops; a 0 while playing stops rather than spin.
+ *
+ * Each track write runs under a lock together with the closed check; the hold is waited out outside it. [release]
+ * marks the gate closed, interrupts a write blocked in the track, then frees the track under the same lock: freeing
+ * never overlaps a native write, no write reaches a freed track, and a hold never delays the release.
+ */
+internal class PcmWriteGate(private val held: StateFlow<Boolean>) {
+    private val closed = MutableStateFlow(false)
+    private val lock = Any()
+
+    fun write(bytes: ByteArray, write: (ByteArray, Int, Int) -> Int): Int {
+        var offset = 0
+        while (offset < bytes.size) {
+            val n = synchronized(lock) {
+                if (closed.value) -1 else write(bytes, offset, bytes.size - offset)
+            }
+            if (n < 0) break
+            offset += n
+            if (offset >= bytes.size) break
+            if (held.value) {
+                runBlocking { combine(held, closed) { h, c -> !h || c }.first { it } }
+            } else if (n == 0) {
+                break
+            }
+        }
+        return offset
+    }
+
+    /** Ends a write waiting out a hold and refuses further writes. */
+    fun close() {
+        closed.value = true
+    }
+
+    /** [interrupt] wakes a write blocked in the track (pause / flush); [free] runs once no write is inside it. */
+    fun release(interrupt: () -> Unit, free: () -> Unit) {
+        close()
+        interrupt()
+        synchronized(lock) { free() }
+    }
 }
 
 // ───────────── Ports used by the controller ─────────────
@@ -337,6 +444,12 @@ internal fun pcm16Level(bytes: ByteArray): Float {
 /** Signals from the audio pipeline. [onFrame] arrives on the capture thread; the rest on the main thread. */
 interface ConversationAudioListener {
     fun onFrame(index: Long, db: Double)
+
+    /** [speechProb] = latest speech probability from [speechModel] (null = no model this session). */
+    fun onFrame(index: Long, db: Double, speechProb: Float?) = onFrame(index, db)
+
+    /** This session's speech model, fed every captured frame on the capture thread; null = energy VAD (E-365). */
+    val speechModel: SpeechProbModel? get() = null
 
     /** [privateRouteRemoved] = headphones / bluetooth went away (unplugged). */
     fun onRouteChanged(route: ConversationRoute, privateRouteRemoved: Boolean)
@@ -351,6 +464,73 @@ interface ConversationAudioListener {
     fun onFocusLost()
 
     fun onCaptureFailed()
+
+    /**
+     * The session could not be activated after [ConversationAudio.open] returned (focus denied, mode / routing
+     * failed): no capture was started. Main thread.
+     */
+    fun onActivationFailed() = Unit
+
+    /** Diagnostics: cumulative capture read counts, every 500 ms while the read thread runs. Main thread. */
+    fun onCaptureStats(reads: Long, zeroReads: Long, errorReads: Long) = Unit
+
+    /** Diagnostics: the capture read thread stopped on its own ([AudioRecordCapture.STOP_READ_ERROR] etc.). Main thread. */
+    fun onCaptureStopped(reason: String) = Unit
+
+    /** Diagnostics: the software sink gate changed (setMuted / setCapturePaused); [live] = capture not yet closed. Main thread. */
+    fun onSinkGate(paused: Boolean, muted: Boolean, live: Boolean) = Unit
+}
+
+/** Per-session speech probability model (E-365): fed 20 ms frames on the capture thread. */
+interface SpeechProbModel : AutoCloseable {
+    /** Feeds one frame; returns the latest chunk's speech probability (0 before the first chunk), null once inference failed. */
+    fun feed(frame: ShortArray): Float?
+
+    /** Latest chunk inference time in nanoseconds (diagnostics); 0 before the first chunk. */
+    val lastInferenceNanos: Long
+}
+
+/** Loads a [SpeechProbModel] off the main thread; throws when the model is unavailable. */
+fun interface SpeechProbSource {
+    fun load(): SpeechProbModel
+
+    companion object {
+        /** Silero VAD from the app assets. */
+        fun silero(context: Context): SpeechProbSource {
+            val appContext = context.applicationContext
+            return SpeechProbSource { SileroSpeechProbModel(SileroVad.create(appContext)) }
+        }
+    }
+}
+
+/**
+ * [SileroVad] as a [SpeechProbModel]. Feed (capture thread) and close (main thread) share one monitor, so close
+ * never frees tensors under a running inference; frames fed after close or after a failed inference get null.
+ */
+internal class SileroSpeechProbModel(private val vad: SileroVad) : SpeechProbModel {
+    private var usable = true
+
+    @Volatile override var lastInferenceNanos: Long = 0L
+        private set
+
+    @Synchronized
+    override fun feed(frame: ShortArray): Float? {
+        if (!usable) return null
+        try {
+            vad.feed(frame)
+        } catch (_: SileroVadUnavailableException) {
+            usable = false
+            return null
+        }
+        lastInferenceNanos = vad.lastInferenceNanos
+        return vad.latestProb
+    }
+
+    @Synchronized
+    override fun close() {
+        usable = false
+        vad.close()
+    }
 }
 
 /** Conversation audio session: communication mode, focus, routing, capture and turn export . */
@@ -365,6 +545,12 @@ interface ConversationAudio {
      * [capture] is true, AudioRecord(VOICE_COMMUNICATION). Throws when focus is denied or the recorder can't start.
      */
     fun open(listener: ConversationAudioListener, capture: Boolean)
+
+    /**
+     * Suspends (never blocks main) until the session opened by [open] is activated: true once focus and routing
+     * are in place, false when activation failed (focus denied, mode / routing error) or the session was closed first.
+     */
+    suspend fun awaitActivation(): Boolean = true
 
     /** Releases the session; file cleanup runs off the main thread. */
     fun close()
@@ -382,6 +568,13 @@ interface ConversationAudio {
 
     fun cancelTurn()
 
+    /**
+     * Live recognition of the open turn: [sink] gets the turn's samples so far (preroll included), then each captured
+     * frame until [endTurn] / [cancelTurn]. Called on the main thread; frames arrive on the capture thread. No-op
+     * without an open turn.
+     */
+    fun tapTurn(sink: PcmSink) = Unit
+
     /** Writes a turn as AAC (the dictation encoder) and returns the STT segment; null when writing fails. */
     suspend fun writeTurn(samples: ShortArray): STTSegment?
 
@@ -391,13 +584,53 @@ interface ConversationAudio {
     suspend fun playEarcon(kind: EarconKind)
 }
 
-enum class TtsOutcome { DONE, FAILED }
+/**
+ * How one sentence ended. [endedAtMs] is when its sound actually stopped coming out, on the
+ * [SystemClock.elapsedRealtime] clock (may be a little after [ConversationTts.speak] returns); null = unknown, the
+ * caller takes the moment speak returned.
+ */
+data class TtsOutcome(val done: Boolean, val endedAtMs: Long? = null) {
+    companion object {
+        val DONE = TtsOutcome(done = true)
+        val FAILED = TtsOutcome(done = false)
+
+        fun done(endedAtMs: Long?) = TtsOutcome(done = true, endedAtMs = endedAtMs)
+    }
+}
+
+/**
+ * When the last written frame [targetFrame] comes out, extrapolated from an [AudioTrack.getTimestamp] reading
+ * ([timestampFrame] played at [timestampNanos], [System.nanoTime] clock); never earlier than [markerAtMs], the
+ * marker callback time, which is also the answer when there is no timestamp ([timestampNanos] null).
+ */
+@VisibleForTesting
+internal fun playedOutAtMs(
+    markerAtMs: Long,
+    nowNanos: Long,
+    timestampFrame: Long,
+    timestampNanos: Long?,
+    targetFrame: Long,
+    sampleRate: Int,
+): Long {
+    if (timestampNanos == null || sampleRate <= 0) return markerAtMs
+    val outNanos = timestampNanos + (targetFrame - timestampFrame) * 1_000_000_000L / sampleRate
+    return maxOf(markerAtMs, markerAtMs + (outNanos - nowNanos) / 1_000_000L)
+}
 
 /** One sentence of speech through the conversation pipeline; cancelling stops it. */
 interface ConversationTts {
     val isCloud: Boolean
 
     suspend fun speak(text: String, onLevel: (Float) -> Unit): TtsOutcome
+
+    /**
+     * Holds the sentence in progress at its current position (or makes the next [speak] start held); [resume] carries
+     * on from there. The hold ends when [speak] returns or is cancelled. false = this voice can't hold a position:
+     * nothing changed, the caller cancels and later restarts the sentence.
+     */
+    fun pause(): Boolean = false
+
+    fun resume() = Unit
 
     /** The conversation ended: free engine resources; a later [speak] starts over. */
     fun release() = Unit
@@ -447,16 +680,86 @@ internal suspend fun playEarconTrack(kind: EarconKind) {
 
 // ───────────── Android implementation ─────────────
 
+/**
+ * Merges the interruption sources (transient focus loss, system silencing of the capture) into one began / ended
+ * pair: began when the first source becomes active, ended only once every source has cleared, so overlapping
+ * sources never repeat began or ended. A silencing still active after [SILENCE_TIMEOUT_MS] goes to
+ * [onSilenceTimeout] (the conversation ends). Main thread only.
+ */
+internal class ConversationInterruptions(
+    private val onInterruption: (began: Boolean) -> Unit,
+    private val onSilenceTimeout: () -> Unit,
+    /** Runs the action after the delay (ms); returns its cancel. */
+    private val schedule: (delayMs: Long, action: () -> Unit) -> () -> Unit,
+) {
+    enum class Source { FOCUS, SILENCED }
+
+    private val active = mutableSetOf<Source>()
+    private var cancelSilenceTimeout: (() -> Unit)? = null
+
+    fun update(source: Source, began: Boolean) {
+        val wasInterrupted = active.isNotEmpty()
+        val changed = if (began) active.add(source) else active.remove(source)
+        if (!changed) return
+        if (source == Source.SILENCED) {
+            if (began) {
+                cancelSilenceTimeout = schedule(SILENCE_TIMEOUT_MS) {
+                    cancelSilenceTimeout = null
+                    onSilenceTimeout()
+                }
+            } else {
+                stopSilenceTimeout()
+            }
+        }
+        val interrupted = active.isNotEmpty()
+        if (interrupted != wasInterrupted) onInterruption(interrupted)
+    }
+
+    /** Session closed: drop the pending timeout; nothing is reported afterwards. */
+    fun cancel() {
+        stopSilenceTimeout()
+        active.clear()
+    }
+
+    private fun stopSilenceTimeout() {
+        cancelSilenceTimeout?.invoke()
+        cancelSilenceTimeout = null
+    }
+
+    companion object {
+        const val SILENCE_TIMEOUT_MS = 3_000L
+    }
+}
+
 /** AudioRecord(VOICE_COMMUNICATION) with per-session AEC / NS: read the default state first, enable only if off. */
 internal class CommunicationRecordSource private constructor(
     private val record: AudioRecord,
     private val effects: List<android.media.audiofx.AudioEffect>,
     val echoCancellerAvailable: Boolean,
+    private val audioManager: AudioManager?,
+    private val onSilenceChanged: (silenced: Boolean) -> Unit,
 ) : PcmSource {
     override fun read(buffer: ShortArray, offset: Int, size: Int): Int = record.read(buffer, offset, size)
 
-    // Interruptions come from audio focus; a silenced client keeps reading zeros until focus returns.
-    override fun observeSilenced(onSilenced: () -> Unit): () -> Unit = {}
+    /**
+     * Reports system silencing (isClientSilenced) and its release to [onSilenceChanged] instead of [onSilenced]:
+     * the capture keeps reading through the silencing (zeros) so it resumes once released; the conversation treats
+     * the silencing as an interruption. Already silenced at subscription counts. API 29+, callbacks on main except
+     * the initial check (caller's thread).
+     */
+    override fun observeSilenced(onSilenced: () -> Unit): () -> Unit {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return {}
+        val manager = audioManager ?: return {}
+        val sessionId = record.audioSessionId
+        fun report(configs: List<AudioRecordingConfiguration>) =
+            onSilenceChanged(configs.any { it.clientAudioSessionId == sessionId && it.isClientSilenced })
+        val callback = object : AudioManager.AudioRecordingCallback() {
+            override fun onRecordingConfigChanged(configs: MutableList<AudioRecordingConfiguration>) = report(configs)
+        }
+        manager.registerAudioRecordingCallback(callback, Handler(Looper.getMainLooper()))
+        report(manager.activeRecordingConfigurations)
+        return { manager.unregisterAudioRecordingCallback(callback) }
+    }
 
     override fun stop() = record.stop()
 
@@ -467,7 +770,11 @@ internal class CommunicationRecordSource private constructor(
 
     companion object {
         @SuppressLint("MissingPermission")
-        fun open(): CommunicationRecordSource {
+        /** Without [audioManager] (realtime path) silencing is not observed, as before. */
+        fun open(
+            audioManager: AudioManager? = null,
+            onSilenceChanged: (silenced: Boolean) -> Unit = {},
+        ): CommunicationRecordSource {
             val rate = ConversationFrames.SAMPLE_RATE
             val channel = AudioFormat.CHANNEL_IN_MONO
             val encoding = AudioFormat.ENCODING_PCM_16BIT
@@ -509,7 +816,7 @@ internal class CommunicationRecordSource private constructor(
                 record.release()
                 throw AudioCaptureInitException("AudioRecord did not enter recording state")
             }
-            return CommunicationRecordSource(record, effects, aecAvailable)
+            return CommunicationRecordSource(record, effects, aecAvailable, audioManager, onSilenceChanged)
         }
     }
 }
@@ -536,6 +843,7 @@ class ConversationAudioException(message: String) : IllegalStateException(messag
 /** Production [ConversationAudio]. [newCapture] builds the capture over the given source (tests inject a fake). */
 class AndroidConversationAudio internal constructor(
     context: Context,
+    private val sessions: AndroidAudioSessionCoordinator,
     private val turnDir: File,
     private val encoderFactory: () -> AacEncoder,
     private val newCapture: (openSource: () -> PcmSource) -> AudioCapture,
@@ -543,12 +851,12 @@ class AndroidConversationAudio internal constructor(
 ) : ConversationAudio {
     constructor(
         context: Context,
+        sessions: AndroidAudioSessionCoordinator,
         turnDir: File,
         encoderFactory: () -> AacEncoder = { MediaCodecAacEncoder() },
-    ) : this(context, turnDir, encoderFactory, { AudioRecordCapture(it) })
+    ) : this(context, sessions, turnDir, encoderFactory, { AudioRecordCapture(it) })
 
     private val appContext = context.applicationContext
-    private val audioManager = appContext.getSystemService(AudioManager::class.java)
     private val mainHandler = Handler(Looper.getMainLooper())
     private val recorder = TurnRecorder()
     private val turnCounter = AtomicLong()
@@ -560,20 +868,38 @@ class AndroidConversationAudio internal constructor(
 
     private var capture: AudioCapture? = null
 
-    // A capture start deferred until earlier teardowns finish; close cancels it.
-    private var captureStart: Job? = null
-
     // Open's sweep of turn files a killed process left behind; the first turn write waits for it.
     @Volatile private var staleSweep: Job? = null
 
     // Cleared on close so frames read while the capture thread winds down on IO go nowhere.
     private var captureLive: AtomicBoolean? = null
-    private var focusRequest: AudioFocusRequest? = null
-    private var deviceCallback: AudioDeviceCallback? = null
     private var noisyReceiver: BroadcastReceiver? = null
-    private var previousMode: Int? = null
-    private var previousSpeakerphone: Boolean? = null
-    private var listener: ConversationAudioListener? = null
+    private var session: Session? = null
+
+    /**
+     * One open..close. Mode, routing, focus and device callbacks live on the coordinator thread; [closed] is set on
+     * the main thread and read there before capture starts.
+     */
+    private class Session(
+        val listener: ConversationAudioListener,
+        val lease: AndroidAudioSessionCoordinator.Lease,
+    ) {
+        @Volatile var closed = false
+
+        // Completes once activation has started capture or decided not to: close stops capture only after it.
+        val activationDone = CompletableDeferred<Unit>()
+
+        // Activation outcome for [awaitActivation]: true only after focus was granted; false on failure or close.
+        val activated = CompletableDeferred<Boolean>()
+
+        // A capture start deferred until earlier teardowns finish; written before [activationDone] completes.
+        var captureStart: Job? = null
+        var focusRequest: AudioFocusRequest? = null
+        var deviceCallback: AudioDeviceCallback? = null
+
+        // Focus loss and capture silencing merged into one interruption; main thread only.
+        lateinit var interruptions: ConversationInterruptions
+    }
 
     /** Read-only view for instrumented tests: BECOMING_NOISY is protected, so tests deliver to this receiver. */
     @get:VisibleForTesting
@@ -584,11 +910,12 @@ class AndroidConversationAudio internal constructor(
     override var echoCancellerAvailable: Boolean = AcousticEchoCanceler.isAvailable()
         private set
 
+    // Written on the coordinator thread (activation, device callbacks), read on main.
+    @Volatile
     override var route: ConversationRoute = ConversationRoute.SPEAKER
         private set
 
     override fun open(listener: ConversationAudioListener, capture: Boolean) {
-        this.listener = listener
         // Drafts normally get deleted after transcription; leftovers from a killed process go after an hour.
         val draftCutoff = System.currentTimeMillis() - STALE_DRAFT_MS
         val drafts = draftDir
@@ -598,100 +925,167 @@ class AndroidConversationAudio internal constructor(
         staleSweep = ioScope.launch {
             turns.listFiles()?.forEach { file -> if (TURN_FILE.matches(file.name)) file.delete() }
         }
+        val opened = Session(listener, sessions.claim(AndroidAudioSessionCoordinator.Client.Conversation))
+        opened.interruptions = ConversationInterruptions(
+            onInterruption = { began -> listener.onInterruption(began) },
+            onSilenceTimeout = { listener.onCaptureFailed() },
+            schedule = { delayMs, action ->
+                val runnable = Runnable { if (!opened.closed) action() }
+                mainHandler.postDelayed(runnable, delayMs)
+                ({ mainHandler.removeCallbacks(runnable) })
+            },
+        )
+        session = opened
         try {
-            previousMode = audioManager.mode
-            audioManager.mode = AudioManager.MODE_IN_COMMUNICATION
-            requestFocus(listener)
-            route = currentRoute()
-            applyRoute(route)
-            registerRouteCallbacks(listener)
-            if (capture) startCapture(listener)
+            registerNoisyReceiver(listener)
+            val startCapture = if (capture) prepareCapture(opened) else null
+            // Mode → route → focus on the coordinator thread; capture starts only once that is done.
+            sessions.post { activate(opened, startCapture) }
         } catch (error: Exception) {
+            opened.activated.complete(false)
+            opened.activationDone.complete(Unit)
             close()
             throw error
         }
     }
 
-    private fun requestFocus(listener: ConversationAudioListener) {
+    /** Delivers a business callback on the main thread, dropped once the session is closed. */
+    private fun Session.deliver(block: ConversationAudioListener.() -> Unit) {
+        mainHandler.post { if (!closed) listener.block() }
+    }
+
+    /** Feeds one interruption source on the main thread, dropped once the session is closed. */
+    private fun Session.interrupt(source: ConversationInterruptions.Source, began: Boolean) {
+        mainHandler.post { if (!closed) interruptions.update(source, began) }
+    }
+
+    private fun AudioSessionOps.activate(opened: Session, startCapture: (() -> Unit)?) {
+        try {
+            if (opened.closed) return
+            enterSession()
+            changeMode(AudioManager.MODE_IN_COMMUNICATION)
+            val previous = route
+            val next = currentRoute()
+            route = next
+            applyRoute(opened, next)
+            if (!requestFocus(opened)) {
+                opened.deliver { onActivationFailed() }
+                return
+            }
+            registerRouteCallbacks(opened)
+            // The controller may have read the route before activation picked it.
+            if (next != previous) opened.deliver { onRouteChanged(next, privateRouteRemoved = false) }
+            if (!opened.closed) startCapture?.invoke()
+            opened.activated.complete(true)
+        } catch (error: Exception) {
+            opened.deliver { onActivationFailed() }
+        } finally {
+            opened.activated.complete(false)
+            opened.activationDone.complete(Unit)
+        }
+    }
+
+    /** False when focus is denied. */
+    private fun AudioSessionOps.requestFocus(opened: Session): Boolean {
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_EXCLUSIVE)
             .setAudioAttributes(VOICE_COMMUNICATION_ATTRIBUTES)
             .setOnAudioFocusChangeListener({ change ->
                 when (change) {
-                    AudioManager.AUDIOFOCUS_GAIN -> listener.onInterruption(began = false)
-                    AudioManager.AUDIOFOCUS_LOSS -> listener.onFocusLost()
+                    AudioManager.AUDIOFOCUS_GAIN -> opened.interrupt(ConversationInterruptions.Source.FOCUS, began = false)
+                    AudioManager.AUDIOFOCUS_LOSS -> opened.deliver { onFocusLost() }
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT,
                     AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK,
-                    -> listener.onInterruption(began = true)
+                    -> opened.interrupt(ConversationInterruptions.Source.FOCUS, began = true)
                 }
-            }, mainHandler)
+            }, sessions.handler)
             .build()
-        if (audioManager.requestAudioFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-            throw ConversationAudioException("audio focus denied")
-        }
-        focusRequest = request
+        if (requestFocus(request) != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) return false
+        opened.focusRequest = request
+        return true
     }
 
-    private fun startCapture(listener: ConversationAudioListener) {
+    /** Builds the capture on main; the returned start runs on the coordinator thread after activation. */
+    private fun prepareCapture(opened: Session): () -> Unit {
+        val listener = opened.listener
         val live = AtomicBoolean(true)
         val chunker = liveFrameChunker(live, recorder, listener)
         val sink = PcmSink { samples, count -> if (live.get() && !muted && !paused) chunker.add(samples, count) }
+        val audioManager = appContext.getSystemService(AudioManager::class.java)
         val started = newCapture {
-            CommunicationRecordSource.open().also { echoCancellerAvailable = it.echoCancellerAvailable }
+            CommunicationRecordSource.open(audioManager) { silenced ->
+                opened.interrupt(ConversationInterruptions.Source.SILENCED, silenced)
+            }.also { echoCancellerAvailable = it.echoCancellerAvailable }
         }
         val events = object : AudioCaptureEvents {
             override fun onFailure(error: Throwable) {
                 mainHandler.post { listener.onCaptureFailed() }
             }
 
-            override fun onInterrupted() = Unit
+            // A capture that stopped on silencing never resumes: interruption began, the silence timeout ends it.
+            override fun onInterrupted() = opened.interrupt(ConversationInterruptions.Source.SILENCED, began = true)
+
+            override fun onStats(reads: Long, zeroReads: Long, errorReads: Long) {
+                opened.deliver { onCaptureStats(reads, zeroReads, errorReads) }
+            }
+
+            override fun onStopped(reason: String) {
+                opened.deliver { onCaptureStopped(reason) }
+            }
         }
         captureLive = live
-        // A capture closed just before still releases AudioRecord on IO: open the new one only after that.
-        captureStart = teardowns.startAfterTeardowns(
-            ioScope,
-            start = { started.start(listOf(sink), events) },
-            onFailure = { mainHandler.post { if (live.get()) listener.onCaptureFailed() } },
-        )
         capture = started
+        return {
+            // A capture closed just before still releases AudioRecord on IO: open the new one only after that.
+            opened.captureStart = teardowns.startAfterTeardowns(
+                ioScope,
+                start = { started.start(listOf(sink), events) },
+                onFailure = { mainHandler.post { if (live.get()) listener.onCaptureFailed() } },
+            )
+        }
     }
 
-    private fun currentRoute(): ConversationRoute =
-        routeForOutputs(audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).map { it.type })
+    private fun AudioSessionOps.currentRoute(): ConversationRoute =
+        routeForOutputs(devices(AudioManager.GET_DEVICES_OUTPUTS).map { it.type })
 
     /** API 31+: pick the communication device; below: speakerphone on only when no private route exists. */
-    @Suppress("DEPRECATION")
-    private fun applyRoute(target: ConversationRoute) {
+    private fun AudioSessionOps.applyRoute(opened: Session, target: ConversationRoute) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val devices = audioManager.availableCommunicationDevices
+            val devices = availableRoutes()
             val wanted = when (target) {
                 ConversationRoute.BLUETOOTH -> devices.firstOrNull { it.type in BLUETOOTH_TYPES }
                 ConversationRoute.HEADPHONES -> devices.firstOrNull { it.type in WIRED_TYPES }
                 ConversationRoute.SPEAKER -> devices.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
             }
-            if (wanted != null) runCatching { audioManager.setCommunicationDevice(wanted) }
+            if (wanted != null) runCatching { routeTo(wanted) }
         } else {
-            if (previousSpeakerphone == null) previousSpeakerphone = audioManager.isSpeakerphoneOn
-            audioManager.isSpeakerphoneOn = target == ConversationRoute.SPEAKER
+            speakerphone(target == ConversationRoute.SPEAKER)
         }
     }
 
-    private fun registerRouteCallbacks(listener: ConversationAudioListener) {
+    /** Device callbacks arrive on the coordinator thread, so the route is re-picked there. */
+    private fun AudioSessionOps.registerRouteCallbacks(opened: Session) {
+        val ops = this
         val callback = object : AudioDeviceCallback() {
             override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = refresh(removed = false)
 
             override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = refresh(removed = true)
 
             private fun refresh(removed: Boolean) {
+                if (opened.closed) return
                 val previous = route
-                val next = currentRoute()
+                val next = ops.currentRoute()
                 if (next == previous) return
                 route = next
-                applyRoute(next)
-                listener.onRouteChanged(next, privateRouteRemoved = removed && previous != ConversationRoute.SPEAKER)
+                ops.applyRoute(opened, next)
+                val privateRouteRemoved = removed && previous != ConversationRoute.SPEAKER
+                opened.deliver { onRouteChanged(next, privateRouteRemoved) }
             }
         }
-        audioManager.registerAudioDeviceCallback(callback, mainHandler)
-        deviceCallback = callback
+        registerDeviceCallback(callback)
+        opened.deviceCallback = callback
+    }
+
+    private fun registerNoisyReceiver(listener: ConversationAudioListener) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) listener.onBecomingNoisy()
@@ -706,7 +1100,15 @@ class AndroidConversationAudio internal constructor(
         noisyReceiver = receiver
     }
 
-    @Suppress("DEPRECATION")
+    /** Release focus; the session baseline is restored only while this session still holds the lease. */
+    private fun AudioSessionOps.deactivate(closed: Session) {
+        closed.deviceCallback?.let { unregisterDeviceCallback(it) }
+        closed.deviceCallback = null
+        closed.focusRequest?.let { abandonFocus(it) }
+        closed.focusRequest = null
+        if (sessions.release(closed.lease)) restoreBaseline()
+    }
+
     override fun close() {
         // Same monitor as liveFrameChunker's check-and-write: no frame lands after this clear.
         synchronized(recorder) {
@@ -714,45 +1116,57 @@ class AndroidConversationAudio internal constructor(
             recorder.clear()
         }
         captureLive = null
-        // stop() joins the capture thread and releases AudioRecord: keep that off the main thread. A deferred
-        // start is dropped, or awaited when already running, so the capture it opens gets stopped too.
-        val pendingStart = captureStart
-        capture?.let { stopping ->
-            teardowns.launchTeardown(ioScope) {
-                pendingStart?.cancelAndJoin()
-                stopping.stop()
+        val closing = session
+        session = null
+        closing?.closed = true
+        closing?.interruptions?.cancel()
+        closing?.activated?.complete(false)
+        val stopping = capture
+        capture = null
+        if (closing != null) {
+            val deactivate = { sessions.post { deactivate(closing) } }
+            if (stopping != null) {
+                // stop() joins the capture thread and releases AudioRecord: keep that off the main thread. It waits
+                // for activation, then drops a deferred start or awaits a running one, so whatever capture opened
+                // gets stopped; deactivation follows the stop.
+                teardowns.launchTeardown(ioScope) {
+                    try {
+                        closing.activationDone.await()
+                        closing.captureStart?.cancelAndJoin()
+                        stopping.stop()
+                    } finally {
+                        deactivate()
+                    }
+                }
+            } else {
+                deactivate()
             }
         }
-        capture = null
-        captureStart = null
-        deviceCallback?.let { audioManager.unregisterAudioDeviceCallback(it) }
-        deviceCallback = null
         noisyReceiver?.let { runCatching { appContext.unregisterReceiver(it) } }
         noisyReceiver = null
-        focusRequest?.let { audioManager.abandonAudioFocusRequest(it) }
-        focusRequest = null
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            runCatching { audioManager.clearCommunicationDevice() }
-        } else {
-            previousSpeakerphone?.let { audioManager.isSpeakerphoneOn = it }
-        }
-        previousSpeakerphone = null
-        previousMode?.let { audioManager.mode = it }
-        previousMode = null
-        listener = null
         muted = false
         paused = false
         deleteTurnFilesUpTo(turnDir, turnCounter.get(), ioScope)
     }
 
+    override suspend fun awaitActivation(): Boolean = session?.activated?.await() ?: false
+
     override fun setMuted(muted: Boolean) {
         this.muted = muted
         recorder.clear()
+        reportSinkGate()
     }
 
     override fun setCapturePaused(paused: Boolean) {
         this.paused = paused
         recorder.clear()
+        reportSinkGate()
+    }
+
+    // Called on main by the controller, so the listener is invoked directly.
+    private fun reportSinkGate() {
+        val current = session?.takeIf { !it.closed } ?: return
+        current.listener.onSinkGate(paused, muted, captureLive?.get() == true)
     }
 
     override fun beginTurn(prerollFrame: Long) = recorder.begin(prerollFrame)
@@ -760,6 +1174,8 @@ class AndroidConversationAudio internal constructor(
     override fun endTurn(endFrame: Long): ShortArray? = recorder.end(endFrame)
 
     override fun cancelTurn() = recorder.cancel()
+
+    override fun tapTurn(sink: PcmSink) = recorder.tap(sink)
 
     override suspend fun writeTurn(samples: ShortArray): STTSegment? {
         // The sweep must not delete a turn file this session has just written.
@@ -842,6 +1258,24 @@ class SystemConversationTts(
 
     override val isCloud: Boolean = false
 
+    // A hold covers the speak in progress (its track or file player) and one that hasn't built its output yet.
+    private val held = MutableStateFlow(false)
+    @Volatile private var stream: PcmStream? = null
+    @Volatile private var filePlayer: ChunkPlayer? = null
+
+    override fun pause(): Boolean {
+        held.value = true
+        stream?.hold(true)
+        filePlayer?.pause()
+        return true
+    }
+
+    override fun resume() {
+        held.value = false
+        stream?.hold(false)
+        filePlayer?.resume()
+    }
+
     // Concurrent first speaks (a reply sentence and a prompt) share one initialization.
     private suspend fun engine(): TextToSpeech? {
         tts?.let { return it }
@@ -890,25 +1324,39 @@ class SystemConversationTts(
         val n = counter.incrementAndGet()
         val file = File(tempDir, "tts-$n.wav")
         val id = "conv-$n"
-        val stream = PcmStream(onLevel)
+        val stream = PcmStream(onLevel, held)
+        this.stream = stream
         try {
             val synthesized = suspendCancellableCoroutine { cont ->
                 listeners[id] = SynthesisListener(id, stream, cont)
-                cont.invokeOnCancellation { runCatching { engine.stop() } }
+                cont.invokeOnCancellation {
+                    // A write blocked on a hold would otherwise keep the callback thread until release.
+                    stream.close()
+                    runCatching { engine.stop() }
+                }
                 if (engine.synthesizeToFile(text, Bundle(), file, id) != TextToSpeech.SUCCESS && cont.isActive) {
                     cont.resume(false)
                 }
             }
             if (!synthesized) return TtsOutcome.FAILED
             return if (stream.framesWritten > 0) {
-                stream.drain()
-                TtsOutcome.DONE
+                TtsOutcome.done(stream.drain())
             } else {
-                onLevel(CONSTANT_LEVEL)
-                if (MediaChunkPlayer(VOICE_COMMUNICATION_ATTRIBUTES).play(file)) TtsOutcome.DONE else TtsOutcome.FAILED
+                val player = MediaChunkPlayer(VOICE_COMMUNICATION_ATTRIBUTES, levelProbe = onLevel)
+                filePlayer = player
+                if (held.value) player.pause()
+                if (player.play(file)) {
+                    // onCompletion fires a little before the output path has played the tail.
+                    TtsOutcome.done(SystemClock.elapsedRealtime() + COMPLETION_TAIL_MS)
+                } else {
+                    TtsOutcome.FAILED
+                }
             }
         } finally {
             listeners.remove(id)
+            if (this.stream === stream) this.stream = null
+            filePlayer = null
+            held.value = false
             stream.release()
             withContext(NonCancellable + Dispatchers.IO) { file.delete() }
         }
@@ -947,9 +1395,13 @@ class SystemConversationTts(
         }
     }
 
-    /** Streams engine PCM into an AudioTrack built from onBeginSynthesis' format. */
-    private class PcmStream(private val onLevel: (Float) -> Unit) {
+    /**
+     * Streams engine PCM into an AudioTrack built from onBeginSynthesis' format. While [held] the track is paused at
+     * its head: a write that fills the buffer waits there, and the rest plays from the same frame on resume.
+     */
+    private class PcmStream(private val onLevel: (Float) -> Unit, private val held: StateFlow<Boolean>) {
         private var track: AudioTrack? = null
+        private val gate = PcmWriteGate(held)
         private var bytesPerFrame = 2
         private var is16Bit = true
 
@@ -977,63 +1429,110 @@ class SystemConversationTts(
                     .setTransferMode(AudioTrack.MODE_STREAM)
                     .setBufferSizeInBytes(maxOf(min, sampleRate * bytesPerFrame / 5))
                     .build()
-                    .also { it.play() }
+                    .also { if (!held.value) it.play() }
             }.getOrNull()
         }
 
+        @Synchronized
+        fun hold(on: Boolean) {
+            val t = track ?: return
+            runCatching { if (on) t.pause() else t.play() }
+        }
+
+        // Runs on the engine's callback thread; may block there while held (see PcmWriteGate).
         fun write(bytes: ByteArray) {
             val t = synchronized(this) { track } ?: return
-            if (t.write(bytes, 0, bytes.size) > 0) framesWritten += bytes.size / bytesPerFrame
+            val written = gate.write(bytes) { b, off, size -> t.write(b, off, size) }
+            if (written > 0) framesWritten += written / bytesPerFrame
             if (is16Bit) onLevel(pcm16Level(bytes))
+        }
+
+        /** Ends a write waiting out a hold; the track is about to go. */
+        fun close() {
+            gate.close()
         }
 
         /**
          * Waits until the track has played everything written: a notification marker at the last frame, no polling.
          * A marker the track refuses leaves only the timeout (duration + slack), which still plays the tail.
+         * Returns when the last frame actually comes out (see [playedOutAtMs]); null = no track.
          */
-        suspend fun drain() {
-            val t = synchronized(this) { track } ?: return
+        suspend fun drain(): Long? {
+            val t = synchronized(this) { track } ?: return null
             val target = framesWritten
-            fun played() = (t.playbackHeadPosition.toLong() and 0xffffffffL) >= target
-            if (played()) return
+            fun head() = t.playbackHeadPosition.toLong() and 0xffffffffL
+            fun played() = head() >= target
+            if (played()) return playedOutAt(t, target)
             try {
-                withTimeoutOrNull(target * 1000 / t.sampleRate.coerceAtLeast(1) + DRAIN_SLACK_MS) {
-                    suspendCancellableCoroutine { cont ->
-                        t.setPlaybackPositionUpdateListener(
-                            object : AudioTrack.OnPlaybackPositionUpdateListener {
-                                override fun onMarkerReached(track: AudioTrack) {
-                                    if (cont.isActive) cont.resume(Unit)
-                                }
-
-                                override fun onPeriodicNotification(track: AudioTrack) = Unit
-                            },
-                            Handler(Looper.getMainLooper()),
-                        )
-                        val armed = t.setNotificationMarkerPosition(target.toInt()) == AudioTrack.SUCCESS
-                        // The head may have passed the marker while it was being set.
-                        if (armed && played() && cont.isActive) cont.resume(Unit)
+                // A hold stops the clock: the timeout restarts from what is left once playback resumes.
+                while (!played()) {
+                    held.first { !it }
+                    val left = (target - head()).coerceAtLeast(0) * 1000 / t.sampleRate.coerceAtLeast(1)
+                    val reached = withTimeoutOrNull(left + DRAIN_SLACK_MS) {
+                        merge(flow { awaitMarker(t, target); emit(true) }, held.filter { it }.map { false }).first()
                     }
+                    if (reached != false) break
                 }
             } finally {
                 runCatching { t.setPlaybackPositionUpdateListener(null) }
             }
+            return playedOutAt(t, target)
         }
 
-        @Synchronized
-        fun release() {
-            track?.let {
-                runCatching { it.pause() }
-                runCatching { it.flush() }
-                it.release()
+        private suspend fun awaitMarker(t: AudioTrack, target: Long) {
+            fun played() = (t.playbackHeadPosition.toLong() and 0xffffffffL) >= target
+            if (played()) return
+            suspendCancellableCoroutine { cont ->
+                t.setPlaybackPositionUpdateListener(
+                    object : AudioTrack.OnPlaybackPositionUpdateListener {
+                        override fun onMarkerReached(track: AudioTrack) {
+                            if (cont.isActive) cont.resume(Unit)
+                        }
+
+                        override fun onPeriodicNotification(track: AudioTrack) = Unit
+                    },
+                    Handler(Looper.getMainLooper()),
+                )
+                val armed = t.setNotificationMarkerPosition(target.toInt()) == AudioTrack.SUCCESS
+                // The head may have passed the marker while it was being set.
+                if (armed && played() && cont.isActive) cont.resume(Unit)
             }
-            track = null
+        }
+
+        /** The head reached [target]; one timestamp reading says how far the output still lags (false = none). */
+        private fun playedOutAt(t: AudioTrack, target: Long): Long {
+            val markerAt = SystemClock.elapsedRealtime()
+            val stamp = AudioTimestamp()
+            val ok = runCatching { t.getTimestamp(stamp) }.getOrDefault(false)
+            return playedOutAtMs(
+                markerAtMs = markerAt,
+                nowNanos = System.nanoTime(),
+                timestampFrame = stamp.framePosition,
+                timestampNanos = stamp.nanoTime.takeIf { ok },
+                targetFrame = target,
+                sampleRate = t.sampleRate,
+            )
+        }
+
+        fun release() {
+            val t = synchronized(this) { track.also { track = null } }
+            // A callback that read the track before it was cleared may still be writing: the gate frees after it.
+            gate.release(
+                interrupt = {
+                    t?.let {
+                        runCatching { it.pause() }
+                        runCatching { it.flush() }
+                    }
+                },
+                free = { t?.release() },
+            )
         }
     }
 
     private companion object {
         const val INIT_TIMEOUT_MS = 5_000L
         const val DRAIN_SLACK_MS = 1_000L
-        const val CONSTANT_LEVEL = 0.5f
+        const val COMPLETION_TAIL_MS = 150L
     }
 }
 
@@ -1041,16 +1540,54 @@ class SystemConversationTts(
 class CloudConversationTts(
     private val engine: CloudSpeechEngine,
     private val localeFor: suspend (String) -> Locale,
-    private val playerFactory: () -> ChunkPlayer = { MediaChunkPlayer(VOICE_COMMUNICATION_ATTRIBUTES) },
+    /** Builds the player for one speak; it reports the measured playback level through the given callback. */
+    private val playerFactory: (onLevel: (Float) -> Unit) -> ChunkPlayer = { onLevel ->
+        MediaChunkPlayer(VOICE_COMMUNICATION_ATTRIBUTES, levelProbe = onLevel)
+    },
+    private val clock: () -> Long = { SystemClock.elapsedRealtime() },
 ) : ConversationTts {
     override val isCloud: Boolean = true
 
+    // A hold made while the speech is still being synthesized applies to the player once it exists.
+    private val lock = Any()
+    private var held = false
+    private var player: ChunkPlayer? = null
+
+    override fun pause(): Boolean = synchronized(lock) {
+        val p = player
+        if (p != null && !p.pause()) return false
+        held = true
+        true
+    }
+
+    override fun resume() {
+        synchronized(lock) {
+            held = false
+            player?.resume()
+        }
+    }
+
     override suspend fun speak(text: String, onLevel: (Float) -> Unit): TtsOutcome {
+        try {
+            return play(text, onLevel)
+        } finally {
+            synchronized(lock) {
+                held = false
+                player = null
+            }
+        }
+    }
+
+    private suspend fun play(text: String, onLevel: (Float) -> Unit): TtsOutcome {
         val files = engine.synthesizeToFile(text, localeFor(text)) ?: return TtsOutcome.FAILED
-        val player = playerFactory()
+        val player = playerFactory(onLevel)
+        synchronized(lock) {
+            this.player = player
+            // A player that can't hold plays on: the sentence was held before it could tell.
+            if (held && !player.pause()) held = false
+        }
         try {
             for ((index, audio) in files.withIndex()) {
-                onLevel(CLOUD_LEVEL)
                 val ok = try {
                     player.play(audio.file)
                 } finally {
@@ -1062,13 +1599,14 @@ class CloudConversationTts(
                     return TtsOutcome.FAILED
                 }
             }
-            return TtsOutcome.DONE
+            // onCompletion fires a little before the output path has played the tail.
+            return TtsOutcome.done(clock() + COMPLETION_TAIL_MS)
         } finally {
             player.stop()
         }
     }
 
     private companion object {
-        const val CLOUD_LEVEL = 0.5f
+        const val COMPLETION_TAIL_MS = 150L
     }
 }

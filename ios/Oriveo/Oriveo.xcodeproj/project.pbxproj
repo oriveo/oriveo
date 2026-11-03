@@ -14,6 +14,7 @@
 		B20000012F63200100000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = B2000000DF63200100000001 /* ZIPFoundation */; };
 		D30000012F70000100000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D30000022F70000100000001 /* GRDB */; };
 		D30000042F70000100000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D30000052F70000100000001 /* GRDB */; };
+		D40000012F70000100000001 /* onnxruntime in Frameworks */ = {isa = PBXBuildFile; productRef = D40000022F70000100000001 /* onnxruntime */; };
 		E10000012FD0000100000001 /* OriveoProviderKit in Frameworks */ = {isa = PBXBuildFile; productRef = E10000002FD0000100000001 /* OriveoProviderKit */; };
 		E10000032FD0000100000001 /* OriveoProviderKit in Frameworks */ = {isa = PBXBuildFile; productRef = E10000022FD0000100000001 /* OriveoProviderKit */; };
 		F70000012FB0000100000001 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = F70000002FB0000100000001 /* SwiftMath */; };
@@ -53,6 +54,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D30000012F70000100000001 /* GRDB in Frameworks */,
+				D40000012F70000100000001 /* onnxruntime in Frameworks */,
 				A10000042F63100100000001 /* MarkdownUI in Frameworks */,
 				67AA2A1A2FC813240099AABC /* ChatLayout in Frameworks */,
 				A10000052F63100100000001 /* ZIPFoundation in Frameworks */,
@@ -122,6 +124,7 @@
 			name = Oriveo;
 			packageProductDependencies = (
 				D30000022F70000100000001 /* GRDB */,
+				D40000022F70000100000001 /* onnxruntime */,
 				A10000132F63100100000001 /* MarkdownUI */,
 				A10000142F63100100000001 /* ZIPFoundation */,
 				A10000162F63100100000001 /* SwiftSoup */,
@@ -203,6 +206,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				D30000032F70000100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				D40000032F70000100000001 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */,
 				A10000222F63100100000001 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
 				A10000232F63100100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 				A10000242F63100100000001 /* XCRemoteSwiftPackageReference "SwiftSoup" */,
@@ -326,9 +330,9 @@
 					"-ObjC",
 				);
 				SDKROOT = iphoneos;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos27.0*]" = "DEBUG ORIVEO_SDK_BEFORE_27_1 $(inherited)";
-				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator27.0*]" = "DEBUG ORIVEO_SDK_BEFORE_27_1 $(inherited)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG ORIVEO_STUDIO $(inherited)";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphoneos27.0*]" = "DEBUG ORIVEO_STUDIO ORIVEO_SDK_BEFORE_27_1 $(inherited)";
+				"SWIFT_ACTIVE_COMPILATION_CONDITIONS[sdk=iphonesimulator27.0*]" = "DEBUG ORIVEO_STUDIO ORIVEO_SDK_BEFORE_27_1 $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -402,7 +406,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Oriveo/Oriveo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 25;
+				DEVELOPMENT_TEAM = XHK88KTF26;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -411,7 +416,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.4.1;
 				OTHER_SWIFT_FLAGS = "$(inherited) -Werror ResultBuilderMethods";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.oriveo.community;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -432,7 +437,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Oriveo/Oriveo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 25;
+				DEVELOPMENT_TEAM = XHK88KTF26;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -441,7 +447,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.1.0;
+				MARKETING_VERSION = 1.4.1;
 				OTHER_SWIFT_FLAGS = "$(inherited) -Werror ResultBuilderMethods";
 				PRODUCT_BUNDLE_IDENTIFIER = ai.oriveo.community;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -492,6 +498,40 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oriveo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Oriveo";
+			};
+			name = Release;
+		};
+		B3000000AF63300100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 25;
+				DEVELOPMENT_TEAM = XHK88KTF26;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.4.1;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.oriveo.community.smokeuitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Oriveo;
+			};
+			name = Debug;
+		};
+		B3000000BF63300100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 25;
+				DEVELOPMENT_TEAM = XHK88KTF26;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.4.1;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.oriveo.community.smokeuitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Oriveo;
 			};
 			name = Release;
 		};
@@ -575,6 +615,14 @@
 				minimumVersion = 7.11.1;
 			};
 		};
+		D40000032F70000100000001 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/microsoft/onnxruntime-swift-package-manager.git";
+			requirement = {
+				kind = upToNextMinorVersion;
+				minimumVersion = 1.24.2;
+			};
+		};
 		F70000022FB0000100000001 /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/mgriebling/SwiftMath.git";
@@ -620,6 +668,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = D30000032F70000100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
 			productName = GRDB;
+		};
+		D40000022F70000100000001 /* onnxruntime */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D40000032F70000100000001 /* XCRemoteSwiftPackageReference "onnxruntime-swift-package-manager" */;
+			productName = onnxruntime;
 		};
 		E10000002FD0000100000001 /* OriveoProviderKit */ = {
 			isa = XCSwiftPackageProductDependency;

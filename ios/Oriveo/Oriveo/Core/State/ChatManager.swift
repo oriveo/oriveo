@@ -43,6 +43,9 @@ final class ChatManager {
     private let providerSession: URLSession
     /// Connection-level memory of tool capability. Tests inject an isolated store; production uses the shared instance.
     let toolCallMemory: ToolCallMemoryStore
+    /// Studio pipeline for chat image sends the dispatch picks; tests inject a fake transport
+    /// and catalog slice.
+    var chatImageStudioRunner = ChatImageStudioRunner()
 
     init(providerSession: URLSession = .shared, toolCallMemory: ToolCallMemoryStore = .shared) {
         self.providerSession = providerSession
@@ -102,6 +105,9 @@ final class ChatManager {
         var singleChatLeg = true
         /// manifest.purpose: chat or continue, taken from the plan actually sent.
         var purpose: RequestPurpose = .chat
+        /// rhoHi the request was assembled with; a user stop estimates with it instead of re-reading the ledger
+        ///.
+        var requestRhoHi: Double?
         /// Id of the memory items the final plan actually injected: written to the assistant message memoryItemIds at the end.
         var memoryIds: [String] = []
 
@@ -155,6 +161,9 @@ final class ChatManager {
         /// Timestamp of the first body .delta (or done); the difference from reasoningStartedAt is the thinking time.
         var reasoningEndedAt: Date?
         /// The protocol this model actually used when the relay send started: on delivery it is used to promote `reachable` to `observed`.
+        /// Sequence of the last delta that reached `text` (0 = unknown / not Managed). Stop and background flush write
+        /// it together with the body, so the replay cursor never runs ahead of or behind the persisted text.
+        var deliveredSequence: Int64 = 0
         var relayDeliveryRoute: RelayDeliveryRoute?
         /// How this round of the request was started (telemetry attempt_kind).
         var attemptKind: ChatAttemptKind = .send
@@ -170,13 +179,35 @@ final class ChatManager {
         var activity: StreamActivity?
         /// propose_memory state of this turn; nil when the send is not in tool mode.
         var proposeTurn: ProposeMemoryTurn?
+        /// Skills this reply used: attached ones at send, plus marker hits.
+        var usedSkills: [UsedSkill] = []
+        /// Canonical ids this turn's marker gate loaded: their auto use is reported with
+        /// channel `marker`, every other auto item with `tool`.
+        var skillMarkerHitIds: Set<String> = []
         /// Plain resend after a thinking first leg with empty text: that leg's delivery, whose usage and
         /// cost are added to this attempt's delivered completion.
         var proposeCarriedDelivery: ProposeMemoryDeferredDelivery?
         /// Model and connection of this attempt, set with `proposeCarriedDelivery`: the two legs' costs are merged
         /// once for per-unit pricing.
         var proposeCarriedPricing: (model: AIModel, provider: Provider)?
-        /// External search of this turn: planned at send time, and applied to this message by finishSearchReply when the turn ends.
+        /// The request a skill marker hit interrupted: its usage / cost add to this
+        /// attempt's delivered completion like `proposeCarriedDelivery`; nil on hosted (settled by the server).
+        var skillMarkerCarriedDelivery: ProposeMemoryDeferredDelivery?
+        var skillMarkerCarriedPricing: (model: AIModel, provider: Provider)?
+        /// Tool-loop legs that finished before a stop (library / MCP / web search loops, a library first leg before
+        /// its server-research regenerate): the loop's latest cumulative usage, priced like the delivered
+        /// completion. Only read on a stop.
+        var toolLoopCarriedDelivery: ProposeMemoryDeferredDelivery?
+        var toolLoopCarriedPricing: (model: AIModel, provider: Provider)?
+        /// Body text when the last finished leg ended; reset to the attempt's starting text once a later leg
+        /// rewrites the body. A stopped leg only estimates the text after it.
+        var finishedLegTextMark: String?
+        /// UTF-8 length of the reasoning when the last finished leg ended (reasoning only grows within a session).
+        var finishedLegReasoningMark: Int?
+        /// Skill list overhead of this turn, written with the usage fields on completion
+        ///.
+        var skillManifest = SkillManifestTurnRecord()
+        /// External search for this turn (external search service contract, section 5a): planned at send time, written to this message by finishSearchReply at wrap-up.
         var externalSearch: ExternalSearchTurn?
         /// Display context when `activity == .externalSearch` (service name, this turn's queries, and whether one is in flight).
         var externalSearchTrail: ExternalSearchActivityTrail?
@@ -211,7 +242,13 @@ final class ChatManager {
     var externalSearchRequester: any ExternalSearchRequesting = SearchExecutor()
     /// Conversations whose pre-send rejection check is assembling in the background: while suspended, another send in the same conversation is blocked, preventing re-entry from rapid taps.
     private var contextPreflightInFlight: Set<UUID> = []
-    /// Conversations that have already shown the "third compaction" hint in this process.
+
+    /// A send in this conversation is running its context pre-check (a new send during that window is blocked as `.blockedWhileSending`).
+    func isContextPreflightInFlight(_ conversationID: UUID) -> Bool {
+        contextPreflightInFlight.contains(conversationID)
+    }
+
+    /// Conversations for which this process has already shown the "3rd tidy-up" prompt.
     private var compactionHintShownConversationIDs: Set<UUID> = []
 
     /// Per-conversation text-change signal: **held permanently** (created lazily, not released when a stream ends).
@@ -276,6 +313,26 @@ final class ChatManager {
     }
     /// Test seam: construction of the MCP protocol client (nil in production, which uses a real network session).
     private var mcpClientFactory: (@Sendable (URL) -> McpClient)?
+    /// Live-stream body coalescing buffers (key = conversationID), owned by the send task whose sendTaskID they carry.
+    private var streamingDeltaBuffers: [UUID: StreamingDeltaBuffer] = [:]
+    /// Coalescing window of the live body buffer; tests may widen or shorten it.
+    private var streamingDeltaFlushWindow: TimeInterval = 0.04
+
+    /// Live-stream body buffer: flushes at 32 characters, on a newline, or once the 40ms window has elapsed.
+    /// While text is pending and unflushed, a single one-shot tail task force-flushes it when the window ends,
+    /// so a stalled stream still surfaces its last delta. Not a resident timer: it exists only while text waits.
+    private final class StreamingDeltaBuffer {
+        let sendTaskID: UUID
+        var pendingText = ""
+        /// Sequence of the last managed delta in `pendingText` (always 0 for BYOK).
+        var pendingSequence: Int64 = 0
+        var lastFlushTime = Date().timeIntervalSince1970
+        var tailTask: Task<Void, Never>?
+
+        init(sendTaskID: UUID) {
+            self.sendTaskID = sendTaskID
+        }
+    }
     /// Test seam: the window input the latest main chat path handed to ContextAssembler and the plan.budget it produced (read-only, not part of sending).
     private(set) var debugLastContextWindowForTesting: ContextWindowInput?
     private(set) var debugLastContextBudgetForTesting: ContextPlanBudget?
@@ -335,7 +392,13 @@ final class ChatManager {
         appState.contextCapConfirmCoordinator.cancel(conversationID: conversationID)
         let removed = sessions.removeValue(forKey: conversationID)
         streamingConversationIDs = Set(sessions.keys)
-        // Finishing, failing and stopping all remove the session here: the activity is cleared with it and subscribed cells hide the status line at once.
+        if let removed, let buffer = streamingDeltaBuffers[conversationID], buffer.sendTaskID == removed.sendTaskID {
+            // A removed session takes its body buffer with it: the tail task must not write afterwards.
+            buffer.tailTask?.cancel()
+            buffer.tailTask = nil
+            streamingDeltaBuffers.removeValue(forKey: conversationID)
+        }
+        // Stream end, failure and stop all tear the session down here: the activity is cleared with it, and the subscribed cell collapses its status line at once.
         publishStreamEnded(for: removed, in: conversationID)
         if sessions.isEmpty {
             endSessionBoundary()
@@ -374,7 +437,8 @@ final class ChatManager {
     /// Called by AppState when the user deletes a conversation for good, releasing its Subjects (so the memory does not leak after a delete).
     func discardStreamingResources(for conversationID: UUID) {
         if sessions[conversationID] != nil {
-            cancelGeneration(in: conversationID, userInitiated: false)    // Deleting a conversation is not a user stop; this also removes the session
+            // Deleting the conversation is not a user stop and records no usage; removes the session internally.
+            cancelGeneration(in: conversationID, messageID: nil, userInitiated: false, recordsUsage: false)
         }
         streamingSubjects.removeValue(forKey: conversationID)
         reasoningSubjects.removeValue(forKey: conversationID)
@@ -523,6 +587,16 @@ final class ChatManager {
         case .delta, .reasoning, .imagePart, .citations, .toolCallDeltas, .finish, .done:
             break
         }
+    }
+
+    /// Test seam: sets the live body coalescing window (production value 0.04s).
+    func _testingSetStreamingDeltaFlushWindow(_ window: TimeInterval) {
+        streamingDeltaFlushWindow = window
+    }
+
+    /// Test seam: body text still held in the live coalescing buffer of the conversation.
+    func _testingBufferedStreamingDelta(in conversationID: UUID) -> String? {
+        streamingDeltaBuffers[conversationID]?.pendingText
     }
 
     /// Test seam: drives the production body-delta landing point (the step where `flushBufferedDelta` writes the body into the session).
@@ -818,8 +892,23 @@ final class ChatManager {
             return .refused
         }
 
+        // The selected model is a realtime voice model: text and voice sends both skip the text API.
+        // Already blocked upstream; this is only a fallback and shows no toast.
+        guard appState.realtimeModelSelection(for: conversationID) == nil else {
+            return .refused
+        }
         let model = appState.sendableModel(for: conversations[index], provider: provider)
         guard let model else {
+            return .refused
+        }
+        // Voice catalog not ready and the stored model is not in the text table: it may be a realtime model, so do not send yet; the draft stays.
+        // Once the catalog arrives, the realtime check above takes over. Rejected the same way as realtime, with no toast.
+        // Same decision as the session page send key (ChatModelRemovedBanner.awaitsVoiceCatalog).
+        guard !ChatModelRemovedBanner.awaitsVoiceCatalog(
+            storedModelID: conversations[index].modelID,
+            provider: provider,
+            voiceCatalog: appState.realtimeVoiceCatalog()
+        ) else {
             return .refused
         }
         let modelName = model.name
@@ -947,23 +1036,37 @@ final class ChatManager {
         cancelGeneration(in: conversationID, messageID: nil, userInitiated: userInitiated)
     }
 
-    /// `userInitiated == false` (a system interruption such as a partition switch): the stopReason is recorded as a transport error, not interrupted.
-    private func cancelGeneration(in conversationID: UUID, messageID: UUID?, userInitiated: Bool = true) {
-        // Tapping stop while parked on the pre-send confirmation gate means cancel: roll back (no interrupted is persisted and no stopped is sent).
+    /// `userInitiated == false` (logout / account switch and other system interruptions): stopReason is recorded as a transport error, not interrupted.
+    /// Stopped at the pre-send confirmation gate: rolls this turn back and returns the rolled-back content; for `backfillsComposerOnRollback` see `rollbackUnconfirmedSend`.
+    @discardableResult
+    private func cancelGeneration(
+        in conversationID: UUID,
+        messageID: UUID?,
+        userInitiated: Bool = true,
+        backfillsComposerOnRollback: Bool = true,
+        recordsUsage: Bool = true
+    ) -> ContextCapSendRollback? {
+        // Stopping while parked at the pre-send confirmation gate counts as a cancel and takes the rollback path (no interrupted, no stopped).
         if let pending = appState.contextCapConfirmCoordinator.pending(for: conversationID),
            let held = sessions[conversationID], held.messageID == pending.messageID,
            messageID == nil || messageID == pending.messageID {
             held.sendTask?.cancel()
             appState.contextCapConfirmCoordinator.resolve(id: pending.id, choice: .cancel)
-            rollbackUnconfirmedSend(assistantMessageID: pending.messageID, in: conversationID)
-            return
+            return rollbackUnconfirmedSend(
+                assistantMessageID: pending.messageID,
+                in: conversationID,
+                backfillsComposer: backfillsComposerOnRollback
+            )
         }
+        // The live body tail still in the coalescing window joins session.text before the
+        // interrupted text and stop usage are taken from it.
+        flushStreamingDeltaBufferIfActive(in: conversationID)
         let session = sessions[conversationID]
 
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else {
             session?.sendTask?.cancel()
             removeSession(for: conversationID)
-            return
+            return nil
         }
         let messageIndex: Int?
         if let messageID {
@@ -984,7 +1087,7 @@ final class ChatManager {
         }
         guard let msgIndex = messageIndex else {
             removeSession(for: conversationID)
-            return
+            return nil
         }
 
         var updated = conversations[convIndex]
@@ -1024,7 +1127,11 @@ final class ChatManager {
         if userInitiated, let s = session, s.messageID == updated.messages[msgIndex].id {
             settleContextLedger(s.contextAttempt, stopReason: .interrupted, observedInput: nil, recordsSample: false)
         }
+        if recordsUsage, let s = session, s.messageID == updated.messages[msgIndex].id {
+            recordInterruptedUsage(of: s, conversationID: conversationID)
+        }
         removeSession(for: conversationID)
+        return nil
     }
 
     /// Called when entering the background: requests ~30s of grace through `UIApplication.beginBackgroundTask`,
@@ -1166,6 +1273,219 @@ final class ChatManager {
         return beginEditingUserMessage(at: msgIndex, in: conversationID)
     }
 
+    /// Moves the live body buffer into session.text (same thresholds as before: 32 characters / newline / window).
+    /// When the thresholds are not met, arms the one-shot tail task instead (never re-armed while one is pending).
+    private func flushStreamingDeltaBuffer(_ buffer: StreamingDeltaBuffer, conversationID: UUID, force: Bool = false) {
+        guard !buffer.pendingText.isEmpty else { return }
+        let now = Date().timeIntervalSince1970
+        let shouldFlush = force ||
+            now - buffer.lastFlushTime >= streamingDeltaFlushWindow ||
+            buffer.pendingText.contains("\n") ||
+            buffer.pendingText.count >= 32
+        guard shouldFlush else {
+            scheduleStreamingDeltaTail(buffer, conversationID: conversationID, now: now)
+            return
+        }
+        let delta = buffer.pendingText
+        let flushedSequence = buffer.pendingSequence
+        buffer.pendingText.removeAll(keepingCapacity: true)
+        buffer.lastFlushTime = now
+        buffer.tailTask?.cancel()
+        buffer.tailTask = nil
+        // Write only while sessions[convID] still belongs to this send task (a resend may have replaced it).
+        guard sessions[conversationID]?.sendTaskID == buffer.sendTaskID else { return }
+        // The cursor follows the last delta that reached session.text; stop / background persistence writes both
+        // together, otherwise new text with an old cursor doubles the text on the next replay.
+        if flushedSequence > 0 {
+            sessions[conversationID]?.deliveredSequence = flushedSequence
+        }
+        // The first visible delta drops leading whitespace, matching the services' trimmed `.done` text;
+        // otherwise the streamed and finalized prefixes diverge and the cell rebuilds the whole frozen segment.
+        guard let sanitized = Self.sanitizedStreamingDelta(
+            delta,
+            accumulatedIsEmpty: sessions[conversationID]?.text.isEmpty != false
+        ) else { return }
+        commitStreamingBodyDelta(sanitized, in: conversationID)
+    }
+
+    private func scheduleStreamingDeltaTail(_ buffer: StreamingDeltaBuffer, conversationID: UUID, now: TimeInterval) {
+        guard buffer.tailTask == nil else { return }
+        let remaining = max(0, streamingDeltaFlushWindow - (now - buffer.lastFlushTime))
+        buffer.tailTask = Task { @MainActor [weak self, weak buffer] in
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            guard !Task.isCancelled, let self, let buffer else { return }
+            buffer.tailTask = nil
+            // Only the buffer still registered for this conversation may write (the session may be gone).
+            guard self.streamingDeltaBuffers[conversationID] === buffer else { return }
+            self.flushStreamingDeltaBuffer(buffer, conversationID: conversationID, force: true)
+        }
+    }
+
+    /// Force-flushes the live body buffer owned by the conversation's current send task.
+    private func flushStreamingDeltaBufferIfActive(in conversationID: UUID) {
+        guard let session = sessions[conversationID],
+              let buffer = streamingDeltaBuffers[conversationID],
+              buffer.sendTaskID == session.sendTaskID else { return }
+        flushStreamingDeltaBuffer(buffer, conversationID: conversationID, force: true)
+    }
+
+    /// Send task exit: drop the pending tail task and unregister the buffer if it is still this task's.
+    private func releaseStreamingDeltaBuffer(_ buffer: StreamingDeltaBuffer, conversationID: UUID) {
+        buffer.tailTask?.cancel()
+        buffer.tailTask = nil
+        if streamingDeltaBuffers[conversationID] === buffer {
+            streamingDeltaBuffers.removeValue(forKey: conversationID)
+        }
+    }
+
+    /// Retry / regenerate / continue guard: same decision as a send (the stored value may be a realtime model while the
+    /// voice catalog is not ready). The caller returns without a toast.
+    private func refusesWhileAwaitingVoiceCatalog(_ conversation: Conversation, provider: Provider) -> Bool {
+        ChatModelRemovedBanner.awaitsVoiceCatalog(
+            storedModelID: conversation.modelID,
+            provider: provider,
+            voiceCatalog: appState.realtimeVoiceCatalog()
+        )
+    }
+
+    /// A reply stopped with its message kept: records the stopped turn's usage and cost where a completion would
+    /// (BYOK / Relay / Free; hosted uses the cancel settlement).
+    /// Call before the session is removed. ρHi is read off the main thread, then the usage is written by message id;
+    /// the message stays interrupted.
+    private func recordInterruptedUsage(
+        of session: StreamingSession,
+        conversationID: UUID
+    ) {
+        guard conversations.first(where: { $0.id == conversationID })?
+            .messages.contains(where: { $0.id == session.messageID }) == true
+        else { return }
+        // The stopped leg only counts what became visible after the last finished leg.
+        let visibleText = InterruptedTurnUsage.addedText(
+            session.text, baseline: session.finishedLegTextMark ?? session.baselineText
+        )
+        let reasoningText = session.finishedLegReasoningMark.map {
+            String(decoding: session.reasoningText.utf8.dropFirst($0), as: UTF8.self)
+        } ?? InterruptedTurnUsage.addedText(session.reasoningText, baseline: session.baselineReasoning)
+        let attempt = session.contextAttempt
+        // Finished legs: the plain-resend first leg; a memory first leg held for its tail (it
+        // already includes every tool-loop leg before it), otherwise the tool-loop legs; then the request a skill
+        // marker hit stopped.
+        let finishedLegs = [
+            session.proposeCarriedDelivery.map {
+                InterruptedTurnUsage.FinishedLeg(delivery: $0, pricing: session.proposeCarriedPricing)
+            },
+            session.proposeTurn?.deferredDelivery.map {
+                InterruptedTurnUsage.FinishedLeg(delivery: $0, pricing: nil)
+            } ?? session.toolLoopCarriedDelivery.map {
+                InterruptedTurnUsage.FinishedLeg(delivery: $0, pricing: session.toolLoopCarriedPricing)
+            },
+            session.skillMarkerCarriedDelivery.map {
+                InterruptedTurnUsage.FinishedLeg(delivery: $0, pricing: session.skillMarkerCarriedPricing)
+            },
+        ].compactMap { $0 }
+        guard !visibleText.isEmpty || !reasoningText.isEmpty || !finishedLegs.isEmpty
+        else { return }
+        let manifestTokens = session.skillManifest.value
+        let isContinue = Self.attemptKind(of: session) == .continueResponse
+        let streamedAttachments = session.attachments
+        let messageID = session.messageID
+        let ledger = attempt.flatMap { contextLedgerResolver($0.partitionUID) }
+        Task { @MainActor [weak self] in
+            // The stopped leg uses the rhoHi its request was sent with; the ledger is read only without one.
+            let rhoHi: Double
+            if let requestRhoHi = attempt?.requestRhoHi {
+                rhoHi = requestRhoHi
+            } else {
+                rhoHi = await Task.detached(priority: .userInitiated) {
+                    attempt.map { ContextLedgerStore.currentRhoHi(for: $0.rhoKey, in: ledger) } ?? RhoCalibration().rhoHi
+                }.value
+            }
+            guard let self else { return }
+            let outcome = InterruptedTurnUsage.outcome(
+                estimatedInput: attempt?.estimatedInput,
+                rhoHi: rhoHi,
+                visibleText: visibleText,
+                reasoningText: reasoningText,
+                finishedLegs: finishedLegs.compactMap(\.delivery.usageMetrics)
+            )
+            guard outcome != nil else { return }
+            self.applyInterruptedUsage(
+                outcome,
+                finishedLegs: finishedLegs,
+                manifestTokens: manifestTokens,
+                isContinue: isContinue,
+                streamedAttachments: streamedAttachments,
+                conversationID: conversationID,
+                messageID: messageID
+            )
+        }
+    }
+
+    /// `outcome` nil = only a finished retrieval counts: its cost and usage event are written, tokens are not.
+    private func applyInterruptedUsage(
+        _ outcome: InterruptedTurnUsage.Outcome?,
+        finishedLegs: [InterruptedTurnUsage.FinishedLeg],
+        manifestTokens: Int?,
+        isContinue: Bool,
+        streamedAttachments: [Attachment],
+        conversationID: UUID,
+        messageID: UUID
+    ) {
+        hydrateConversationMessagesIfNeeded(id: conversationID)
+        guard let ci = conversations.firstIndex(where: { $0.id == conversationID }),
+              let mi = conversations[ci].messages.firstIndex(where: { $0.id == messageID })
+        else { return }
+        var updated = conversations[ci]
+        let messagesBefore = updated.messages
+        let message = updated.messages[mi]
+        // Model and connection come from the message.
+        let provider = message.providerID.flatMap { appState.provider(for: $0) }
+        let model = provider.flatMap { provider in message.modelID.flatMap { id in provider.models.first { $0.id == id } } }
+        let cost = outcome == nil ? DeliveredCost(parts: []) : provider.flatMap { provider in
+            model.flatMap { model in
+                outcome.flatMap {
+                    InterruptedTurnUsage.cost(
+                        $0, finishedLegs: finishedLegs, model: model, provider: provider,
+                        streamedAttachments: streamedAttachments, at: Date()
+                    )
+                }
+            }
+        }
+        var roundEstimatedCost = updated.messages[mi].estimatedCost
+        if let cost {
+            let roundRecord = ChatDeliveryAccounting.record(cost)
+            roundEstimatedCost = roundRecord.estimatedCost
+            let record = isContinue
+                ? ChatDeliveryAccounting.addMessageCost(
+                    MessageCostRecord(
+                        estimatedCost: updated.messages[mi].estimatedCost,
+                        costSource: updated.messages[mi].costSource,
+                        nonUsdCost: updated.messages[mi].nonUsdCost
+                    ),
+                    roundRecord
+                )
+                : roundRecord
+            updated.messages[mi].estimatedCost = record.estimatedCost
+            updated.messages[mi].costSource = record.costSource
+            updated.messages[mi].nonUsdCost = record.nonUsdCost
+        }
+        func adding(_ current: Int?, _ next: Int?) -> Int? {
+            guard current != nil || next != nil else { return nil }
+            return (current ?? 0) + (next ?? 0)
+        }
+        if let outcome {
+            updated.messages[mi].inputTokens = adding(updated.messages[mi].inputTokens, outcome.usage.inputTokens)
+            updated.messages[mi].outputTokens = adding(updated.messages[mi].outputTokens, outcome.usage.outputTokens)
+        }
+        if outcome != nil, let manifestTokens {
+            updated.messages[mi].skillManifestTokens = manifestTokens
+        }
+        let conversationCost = CostSummaryCalculator.conversationTotals(for: updated, localMessagesBefore: messagesBefore)
+        updated.estimatedCost = conversationCost.estimatedCost
+        updated.nonUsdCostTotals = conversationCost.nonUsdCostTotals
+        appState.upsertConversationProjection(updated)
+    }
+
     func beginEditingPromptingMessage(for assistantMessageID: UUID, in conversationID: UUID) -> ComposerEditDraft? {
         guard hydrateConversationMessagesIfNeeded(id: conversationID) else { return nil }
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
@@ -1199,6 +1519,8 @@ final class ChatManager {
 
         let model = appState.sendableModel(for: conversations[convIndex], provider: provider)
         guard let model else { return }
+        // Same guard as send (voice catalog not ready, stored value may be a realtime model): do not continue, no toast.
+        guard !refusesWhileAwaitingVoiceCatalog(conversations[convIndex], provider: provider) else { return }
         let storedModelID = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
         guard let resolvedCapabilitySelection = await gatedRecoveryCapabilitySelection(
             capabilitySelection,
@@ -1275,6 +1597,94 @@ final class ChatManager {
         )
     }
 
+    /// Voice conversation "interject while thinking": attach text to the end of the target user message (rewritten in place, id unchanged = same bubble), then regenerate the reply that follows via the send segment
+    /// that replaces the reply. Target = targetMessageID (the one recorded by the port for this turn's send); nil = the last user message.
+    /// Order: synchronous gate (provider / sendable model / rejection pre-check) -> blocked returns false, stream not stopped, nothing rewritten -> stop stream (authoritative stop here)
+    /// -> rewrite -> regenerate (delivery = .voice, does not record message_regenerated).
+    /// If this turn was rolled back at the pre-send confirmation gate while streaming (target no longer in the conversation): joinAmend(rolled-back original, text) is sent as a new voice turn,
+    /// the input box is not refilled; attachments / references / direct documents follow the pre-rollback version. Empty text = as is.
+    /// false = blocked by the gate, conversation / target missing, or could not be sent.
+    func amendLastUserMessage(
+        _ text: String,
+        targetMessageID: UUID? = nil,
+        turnText: String? = nil,
+        in conversationID: UUID
+    ) async -> Bool {
+        hydrateConversationMessagesIfNeeded(id: conversationID)
+        let hasAddition = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        /// Position of the target user message in the conversation; nil = not present (rolled back or never existed).
+        func targetIndex(_ messages: [ChatMessage]) -> Int? {
+            if let targetMessageID {
+                return messages.firstIndex { $0.id == targetMessageID && $0.role == .user }
+            }
+            return messages.lastIndex { $0.role == .user }
+        }
+        guard let conversation = conversations.first(where: { $0.id == conversationID }) else { return false }
+        let gateIndex = targetIndex(conversation.messages)
+        // Target is no longer in the conversation and there is no original text for this turn: nothing to continue from.
+        if gateIndex == nil, turnText == nil { return false }
+
+        // The gate (same decision as the regenerate send segment) runs before the stop: when blocked, neither the stream nor the message changes.
+        guard let provider = appState.provider(for: conversation.providerID),
+              let model = appState.sendableModel(for: conversation, provider: provider)
+        else { return false }
+        // Rejection pre-check: target in conversation = truncate to target and attach the continuation; not in = existing messages (a new send has its own send pre-check).
+        var candidate = conversation.messages
+        if let gateIndex {
+            candidate = Array(conversation.messages[...gateIndex])
+            if hasAddition {
+                candidate[gateIndex].text = VoiceConversationLogic.joinAmend(candidate[gateIndex].text, text)
+            }
+        }
+        if let reject = await contextRejectReason(
+            conversation: conversation,
+            messages: candidate,
+            provider: provider,
+            model: model,
+            capabilitySelection: ChatCapabilitySelection()
+        ) {
+            ToastManager.shared.show(Self.contextRejectMessage(reject))
+            return false
+        }
+
+        var rolledBack: ContextCapSendRollback?
+        if isBusyStreaming(in: conversationID) {
+            rolledBack = cancelGeneration(in: conversationID, messageID: nil, backfillsComposerOnRollback: false)
+        }
+        // A stop may roll back this turn (pre-send confirmation gate), so re-resolve the index
+        guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return false }
+        guard let userIndex = targetIndex(conversations[convIndex].messages) else {
+            // Target no longer in the conversation (rolled back by whoever): continue with the original text recorded at the port for this turn; attachments / references / direct documents rolled back by this stop are carried over too.
+            guard let original = turnText ?? rolledBack?.text else { return false }
+            let resendText = hasAddition ? VoiceConversationLogic.joinAmend(original, text) : original
+            return await sendMessageOutcome(
+                resendText,
+                attachments: rolledBack?.attachments ?? [],
+                quoteContext: rolledBack?.quoteContext,
+                in: conversationID,
+                delivery: .voice
+            ).sentID != nil
+        }
+
+        if hasAddition {
+            var updated = conversations[convIndex]
+            updated.messages[userIndex].text = VoiceConversationLogic.joinAmend(updated.messages[userIndex].text, text)
+            appState.upsertConversationProjection(updated)
+        }
+
+        let messages = conversations[convIndex].messages
+        let reply = messages[(userIndex + 1)...].first(where: { $0.role == .assistant })
+        return await sendRegeneratedReply(
+            in: conversationID,
+            replacingFrom: reply?.id,
+            modeSource: reply ?? messages[userIndex],
+            capabilitySelection: ChatCapabilitySelection(),
+            searchRegenerateAction: .regenerate,
+            delivery: .voice,
+            tracksRegeneration: false
+        )
+    }
+
     func regenerateMessage(
         messageID: UUID,
         in conversationID: UUID,
@@ -1283,29 +1693,69 @@ final class ChatManager {
         searchRegenerateAction: SearchRegenerateAction = .regenerate
     ) async {
         hydrateConversationMessagesIfNeeded(id: conversationID)
-        guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return }
-        guard let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID }),
-              conversations[convIndex].messages[msgIndex].role == .assistant else { return }
-        guard let provider = appState.provider(for: conversations[convIndex].providerID) else { return }
+        guard let original = conversations.first(where: { $0.id == conversationID })?
+            .messages.first(where: { $0.id == messageID }),
+              original.role == .assistant else { return }
+        // Same guard as send (voice catalog not ready, stored value may be a realtime model): do not regenerate, no toast.
+        if let conversation = conversations.first(where: { $0.id == conversationID }),
+           let provider = appState.provider(for: conversation.providerID),
+           refusesWhileAwaitingVoiceCatalog(conversation, provider: provider) {
+            return
+        }
+        await sendRegeneratedReply(
+            in: conversationID,
+            replacingFrom: messageID,
+            modeSource: original,
+            capabilitySelection: capabilitySelection,
+            searchRegenerateAction: searchRegenerateAction
+        )
+    }
+
+    /// Regenerate send segment (shared by regenerate and voice interjection): truncate messages from startID onward (nil = no truncation, append at the end),
+    /// then generate one new reply from the last user message before it. originalMessage serves library mode and direct-context references:
+    /// the reply being replaced; if there is no reply to replace, it is the user message itself. true = generation queued.
+    @discardableResult
+    private func sendRegeneratedReply(
+        in conversationID: UUID,
+        replacingFrom startID: UUID?,
+        modeSource originalMessage: ChatMessage,
+        capabilitySelection: ChatCapabilitySelection,
+        searchRegenerateAction: SearchRegenerateAction,
+        /// Voice interjection passes .voice; nil = ordinary regenerate.
+        delivery: ContextDelivery? = nil,
+        /// false = do not record message_regenerated (voice interjection continuation is not a user retry).
+        tracksRegeneration: Bool = true
+    ) async -> Bool {
+        /// Truncation start: the message at startID; nil = end (no truncation).
+        func truncateIndex(_ messages: [ChatMessage]) -> Int? {
+            guard let startID else { return messages.count }
+            return messages.firstIndex(where: { $0.id == startID })
+        }
+        guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }),
+              truncateIndex(conversations[convIndex].messages) != nil else { return false }
+        guard let provider = appState.provider(for: conversations[convIndex].providerID) else {
+            return false
+        }
         let model = appState.sendableModel(for: conversations[convIndex], provider: provider)
-        guard let model else { return }
+        guard let model else {
+            return false
+        }
         let storedModelID = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
-        let originalMessage = conversations[convIndex].messages[msgIndex]
         guard let resolvedCapabilitySelection = await gatedRecoveryCapabilitySelection(
             capabilitySelection,
             preservingLibraryModeFrom: originalMessage,
             model: model,
             provider: provider,
             conversationID: conversationID
-        ) else { return }
-        // The gate may have force-refreshed metadata (the await yields the main thread), so the conversation / message indexes must be re-resolved
+        ) else { return false }
+        // The gate may have force-refreshed metadata (the await yields the main thread), so conversation / message indexes must be re-resolved
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }),
-              let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID })
-        else { return }
+              let msgIndex = truncateIndex(conversations[convIndex].messages)
+        else { return false }
 
         let precedingMessages = conversations[convIndex].messages[..<msgIndex]
-        guard let lastUserMessage = precedingMessages.last(where: { $0.role == .user }) else { return }
-        // Rejection (the same decision as sending): the skill + instructions, or the user message to resend, do not fit the model context.
+        guard let lastUserMessage = precedingMessages.last(where: { $0.role == .user }) else { return false }
+        // Rejection (same decision as sending): the skill + instruction, or the user message to resend, does not fit in the model context.
         // No request is sent and the original message is untouched; the same Toast is shown.
         if let reject = await contextRejectReason(
             conversation: conversations[convIndex],
@@ -1315,12 +1765,12 @@ final class ChatManager {
             capabilitySelection: resolvedCapabilitySelection
         ) {
             ToastManager.shared.show(Self.contextRejectMessage(reject))
-            return
+            return false
         }
         // The pre-check yielded the main thread while assembling in the background, so the conversation / message indexes must be re-resolved
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }),
-              let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID })
-        else { return }
+              let msgIndex = truncateIndex(conversations[convIndex].messages)
+        else { return false }
 
         let assistantMessageID = UUID()
         let newAssistantMessage = ChatMessage(
@@ -1363,7 +1813,8 @@ final class ChatManager {
         let requestSnapshot = prepareRequestSnapshot(
             conversation: updatedForRegen,
             messages: updatedForRegen.messages,
-            sendPath: .send(excludingMessageID: assistantMessageID)
+            sendPath: .send(excludingMessageID: assistantMessageID),
+            delivery: delivery
         )
 
 
@@ -1381,6 +1832,7 @@ final class ChatManager {
             searchRegenerateAction: searchRegenerateAction,
             searchPreviousCitations: (originalMessage.citations ?? []).filter { $0.source == Citation.externalSearchSource }
         )
+        return true
     }
 
     func retryMessage(
@@ -1402,9 +1854,15 @@ final class ChatManager {
             )
             return
         }
-        guard let provider = appState.provider(for: conversations[convIndex].providerID) else { return }
+        guard let provider = appState.provider(for: conversations[convIndex].providerID) else {
+            return
+        }
         let model = appState.sendableModel(for: conversations[convIndex], provider: provider)
-        guard let model else { return }
+        guard let model else {
+            return
+        }
+        // Same guard as send (voice catalog not ready, stored value may be a realtime model): do not retry, no toast.
+        guard !refusesWhileAwaitingVoiceCatalog(conversations[convIndex], provider: provider) else { return }
         let storedModelID = ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: provider.kind)
         let originalMessage = conversations[convIndex].messages[msgIndex]
         let storedRecoveryDescriptor: CapabilityRecoveryDescriptor? = {
@@ -1521,6 +1979,7 @@ final class ChatManager {
         updatedForRetry.messages[msgIndex].outputTokens = nil
         updatedForRetry.messages[msgIndex].cachedInputTokens = nil
         updatedForRetry.messages[msgIndex].cacheCreationInputTokens = nil
+        updatedForRetry.messages[msgIndex].skillManifestTokens = nil
         updatedForRetry.messages[msgIndex].cacheCreation5mTokens = nil
         updatedForRetry.messages[msgIndex].cacheCreation1hTokens = nil
         updatedForRetry.messages[msgIndex].costSource = nil
@@ -2053,9 +2512,7 @@ final class ChatManager {
             ),
             messages: conversation.messages,
             preferences: ChatRequestPreferencesSnapshot(memoryItems: appState.memoryItemsCache.items),
-            skill: conversation.skillId
-                .flatMap { appState.skillManager.skill(by: $0) }
-                .map(ChatRequestSkillSnapshot.init),
+            skill: conversation.skillId.flatMap { appState.skillManager.skill(by: $0) }.map(ChatRequestSkillSnapshot.init),
             sendPath: .send(excludingMessageID: lastIsUser ? nil : last.id)
         )
         let (_, generationParameters) = resolveGenerationParameters(
@@ -2394,7 +2851,7 @@ final class ChatManager {
     }
     #endif
 
-    /// Wait for queued Ledger settle writes to land (before test assertions).
+    /// Waits for queued Ledger settlement writes to land (before test assertions).
     func waitForContextLedgerWrites() async {
         while let task = contextLedgerWriteTail {
             await task.value
@@ -2462,9 +2919,7 @@ final class ChatManager {
             ),
             messages: messages,
             preferences: ChatRequestPreferencesSnapshot(memoryItems: appState.memoryItemsCache.items),
-            skill: conversation.skillId
-                .flatMap { appState.skillManager.skill(by: $0) }
-                .map(ChatRequestSkillSnapshot.init),
+            skill: conversation.skillId.flatMap { appState.skillManager.skill(by: $0) }.map(ChatRequestSkillSnapshot.init),
             sendPath: sendPath
         )
         let (_, generationParameters) = resolveGenerationParameters(
@@ -2527,7 +2982,7 @@ final class ChatManager {
             ?? appState.preferences.contextDefaultCap
     }
 
-    private static func contextRejectMessage(_ reason: ContextRejectReason) -> String {
+    static func contextRejectMessage(_ reason: ContextRejectReason) -> String {
         switch reason {
         case .instructionsTooLong: L10n.tr("context_reject_instructions_too_long", table: .chat)
         case .messageTooLong: L10n.tr("context_reject_message_too_long", table: .chat)
@@ -2699,6 +3154,11 @@ final class ChatManager {
             let mistralService = services.mistral
             let siliconFlowService = services.siliconFlow
             let officialImageDispatcher = BaseAPIService(session: self.providerSession)
+            // Body coalescing buffer lives on the manager so a stop can force-flush it and a stalled stream
+            // drains it via a one-shot tail task.
+            let deltaBuffer = StreamingDeltaBuffer(sendTaskID: sendTaskID)
+            self.streamingDeltaBuffers[conversationID] = deltaBuffer
+            defer { self.releaseStreamingDeltaBuffer(deltaBuffer, conversationID: conversationID) }
             var bufferedDelta = ""
             var lastFlushTime = Date().timeIntervalSince1970
             let retrievalSnapshot = await self.prepareEnrichedRequestSnapshot(
@@ -2846,13 +3306,20 @@ final class ChatManager {
                 }
                 if Task.isCancelled { return }
             }
-            // When no library row is usable, later reassembly (Library evidence) runs the in-memory fallback as before.
+            // Manual skill use: a fresh send that got past the confirm gate records each
+            // skill the user message attaches for the first time; retry / regenerate / edit resend do not.
+            if attemptKind == .send, overflowFallbackB == nil, !isProposeDegradeResend, proposeCarriedDelivery == nil {
+                self.recordSkillUses(Self.firstManualSkillUses(in: requestSnapshot.messages), via: "manual")
+            }
+            // When no library row is available, later reassembly (library evidence) falls back to the in-memory path as before.
             if chatCheckpoint == nil { chatMemoryFallback = true }
             await MainActor.run {
                 self.debugLastContextWindowForTesting = assemblyWindow
                 self.debugLastContextBudgetForTesting = requestBuild.budget
             }
             var planned = requestBuild.planned
+            // The build `planned` came from: its plan budget and rhoHi estimate a request a marker hit interrupts.
+            var plannedBuild = requestBuild
             var requestOptions = requestBuild.requestOptions
             // Context accounting: only the chat main path (which has a plan) records the manifest / rho.
             let relayRequestTransport: RelayTransport? = providerKind == .relay
@@ -2887,6 +3354,7 @@ final class ChatManager {
                 )
                 attempt.purpose = plan.purpose
                 attempt.memoryIds = plan.memoryIds
+                attempt.requestRhoHi = build.rhoHi
                 return attempt
             }
             self.sessions[conversationID]?.contextAttempt = contextAttempt(for: requestBuild)
@@ -3065,44 +3533,19 @@ final class ChatManager {
             // Streaming flush: writes into sessions[convID].text by convID and notifies subscribers through the per-conversation subject;
             // it does not modify the conversations array.
             //
-            // Thresholds aligned with the UI cadence:
-            // - 40ms period: an integer multiple of the pacer frameDelay of 33-40ms, aligned with the new stepSize=1 normal-speed tier;
-            //   the former 50ms + pacer 22ms + cell throttle 50ms gave three clocks with +-40ms jitter,
-            //   and with the cell throttle removed this 40ms is the only throttling point.
-            // - 32 character cap: keeps the backlog of one flush into the paced streaming within a sensible range
+            // Thresholds aligned with UI cadence (Phase 4 beat redesign):
+            // - 40ms period: pacer frameDelay is an integer multiple of 33-40ms, aligned with the new stepSize=1 constant-speed tier;
+            //   the original 50ms + pacer 22ms + cell throttle 50ms three clocks produced ±40ms jitter,
+            //   after removing the cell throttle this 40ms is the only throttle point.
+            // - 32-character cap: keeps the backlog given to paced streaming per flush within a reasonable range
             // - flush immediately on \n: keeps paragraph-level responsiveness
-            func flushBufferedDelta(force: Bool = false) async {
-                guard !bufferedDelta.isEmpty else { return }
+            @MainActor func flushBufferedDelta(force: Bool = false) async {
+                guard !deltaBuffer.pendingText.isEmpty else { return }
 
                 // Every buffered body delta came from a real StreamEvent. Record it before
                 // throttling so an immediate transport failure cannot look pre-token.
                 CapabilityExecutionRuntime.recordUpstreamResponse()
-
-                let now = Date().timeIntervalSince1970
-                let shouldFlush = force ||
-                    now - lastFlushTime >= 0.04 ||
-                    bufferedDelta.contains("\n") ||
-                    bufferedDelta.count >= 32
-
-                guard shouldFlush else { return }
-
-                let delta = bufferedDelta
-                bufferedDelta.removeAll(keepingCapacity: true)
-                lastFlushTime = now
-                await MainActor.run {
-                    // Write only if the current sessions[convID] is still this task;
-                    // this prevents a task that was already cancelled by an overwriting new stream (a second send in the same conversation) from writing
-                    guard self.sessions[conversationID]?.sendTaskID == sendTaskID else { return }
-                    // Strip leading whitespace from the first visible delta, the same rule as the trimmingCharacters each service applies to result.text in `.done`. Otherwise
-                    // the streamed accumulated text starts with whitespace while the finalized text is trimmed, their prefixes mismatch -> the cell skips the deferred smooth ending and the frozen
-                    // segment is rebuilt from prefix=0 (the reproducible root cause of "the whole page flashes + the content drops" after MiniMax cn think-in-content
-                    // strips </think> and the body always starts with \n\n).
-                    guard let sanitized = Self.sanitizedStreamingDelta(
-                        delta,
-                        accumulatedIsEmpty: self.sessions[conversationID]?.text.isEmpty != false
-                    ) else { return }
-                    self.commitStreamingBodyDelta(sanitized, in: conversationID)
-                }
+                self.flushStreamingDeltaBuffer(deltaBuffer, conversationID: conversationID, force: force)
             }
 
             #if DEBUG
@@ -3121,7 +3564,23 @@ final class ChatManager {
             var relayFirstRejection: RelayPreOutputRejection?
             // Judged before output as "this key has no access to the model": the failure path no longer enters the capability rejection loop.
             var relayKeyAccessDenied = false
-            // Pre-search / reuse of external results enters [D] after the snapshot is updated and the whole request is reassembled.
+            // Library evidence goes into [D]: after the snapshot adds the entry, the whole request is reassembled instead of rewriting system and the last user message after plan.
+            @MainActor func rebuildRequest() async {
+                let rebuilt = await assembleRequest(enrichedRequestSnapshot)
+                planned = rebuilt.planned
+                plannedBuild = rebuilt
+                requestOptions.maxOutputTokens = rebuilt.requestOptions.maxOutputTokens
+                requestOptions.generationParameters = ChatRequestBuilder.cappingUserMaxOutputTokens(
+                    resolvedGenerationParameters, to: requestOptions.maxOutputTokens
+                )
+                self.debugLastContextBudgetForTesting = rebuilt.budget
+                self.sessions[conversationID]?.contextAttempt = contextAttempt(for: rebuilt)
+            }
+            @MainActor func applyLibraryEvidence(_ entries: [ContextLibraryEntry]) async {
+                enrichedRequestSnapshot = enrichedRequestSnapshot.withLibrary(entries)
+                await rebuildRequest()
+            }
+            // External search pre-search / reuse: deliver.content goes into [D] verbatim, right after <oriveo-library>.
             var externalSearchEvidenceApplied = false
             @MainActor func applyExternalSearchEvidence(_ turn: ExternalSearchTurn?) async {
                 guard !externalSearchEvidenceApplied, let turn, turn.plan.reuse || turn.plan.presearch != nil else { return }
@@ -3201,6 +3660,7 @@ final class ChatManager {
                     // The tool path with only external search on: the generic loop (web_search plus the memory tools), not the ordinary streaming below.
                     if let webSearchEntry, let externalSearch {
                         self.sessions[conversationID]?.contextAttempt?.singleChatLeg = false
+                        let searchTransport = planned.transportInput(requestOptions)
                         try await self.runExternalSearchToolLoop(
                             conversationID: conversationID,
                             assistantMessageID: assistantMessageID,
@@ -3210,7 +3670,7 @@ final class ChatManager {
                             model: model,
                             accessToken: effectiveAPIKey,
                             resolvedModelID: resolvedModelID,
-                            transport: planned.transportInput(requestOptions),
+                            transport: searchTransport,
                             reasoningMode: capabilitySelection.reasoningMode,
                             toolHost: externalSearch.plan.toolHost,
                             webSearchEntry: webSearchEntry
@@ -3218,6 +3678,7 @@ final class ChatManager {
                         self.appState.conversationManager.refreshConversationCost(for: conversationID)
                         return
                     }
+
                 } catch let rejected as ExternalSearchToolsRejected {
                     try Task.checkCancellation()
                     let modelKey = ModelOptionsWebSearch.modelKey(provider: provider, model: model)
@@ -3320,7 +3781,7 @@ final class ChatManager {
                         selectedModelSupportsImageGeneration: model.capabilities.contains(.imageGen)
                     )
                 }
-                // Dedicated image endpoints carry no tools: a turn that was set to tool mode runs the fallback (chat_api inline image generation still goes through the chat request with tools).
+                // Dedicated image endpoints carry no tools: a turn that judged a tool falls back (inline image output in chat_api still goes through the chat request with tools).
                 switch officialImageDispatch {
                 case .handled:
                     self.runProposeFallbackWhenToolNotSent(
@@ -3398,7 +3859,7 @@ final class ChatManager {
                             )
                         }
                     } else {
-                        let stream = openRouterService.sendMessageStream(
+                        let stream = try openRouterService.sendMessageStream(
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -3414,7 +3875,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -3470,7 +3931,7 @@ final class ChatManager {
                     }
 
                 case .openAI:
-                    let stream = openAIService.sendMessageStream(
+                    let stream = try openAIService.sendMessageStream(
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -3486,7 +3947,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -3539,7 +4000,7 @@ final class ChatManager {
                         }
 
                 case .deepseek:
-                    let stream = deepSeekService.sendMessageStream(
+                    let stream = try deepSeekService.sendMessageStream(
                         apiKey: apiKey,
                         modelID: resolvedModelID,
                         messages: transport.messages,
@@ -3554,7 +4015,7 @@ final class ChatManager {
                         switch event {
                         case let .delta(text):
                             self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                            bufferedDelta += text
+                            deltaBuffer.pendingText += text
                             await flushBufferedDelta()
                         case let .reasoning(chunk):
                             self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -3607,8 +4068,8 @@ final class ChatManager {
                     }
 
                 case .mistral:
-                    // A pure stream with no image-generation fork (Mistral has no webSearch/imageGen), structured like .deepseek
-                    let mistralStream = mistralService.sendMessageStream(
+                    // Pure stream, no image-generation branch (Mistral has no webSearch/imageGen), isomorphic with .deepseek
+                    let mistralStream = try mistralService.sendMessageStream(
                         apiKey: apiKey,
                         modelID: resolvedModelID,
                         messages: transport.messages,
@@ -3623,7 +4084,7 @@ final class ChatManager {
                         switch event {
                         case let .delta(text):
                             self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                            bufferedDelta += text
+                            deltaBuffer.pendingText += text
                             await flushBufferedDelta()
                         case let .reasoning(chunk):
                             self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -3676,7 +4137,7 @@ final class ChatManager {
                     }
 
                 case .grok:
-                    let stream = grokService.sendMessageStream(
+                    let stream = try grokService.sendMessageStream(
                             apiKey: effectiveAPIKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -3692,7 +4153,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -3769,7 +4230,7 @@ final class ChatManager {
                             )
                         }
                     } else {
-                        let stream = geminiService.sendMessageStream(
+                        let stream = try geminiService.sendMessageStream(
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -3785,7 +4246,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -3839,7 +4300,7 @@ final class ChatManager {
                     }
 
                 case .anthropic:
-                    let stream = anthropicService.sendMessageStream(
+                    let stream = try anthropicService.sendMessageStream(
                         apiKey: apiKey,
                         modelID: resolvedModelID,
                         messages: transport.messages,
@@ -3855,7 +4316,7 @@ final class ChatManager {
                         switch event {
                         case let .delta(text):
                             self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                            bufferedDelta += text
+                            deltaBuffer.pendingText += text
                             await flushBufferedDelta()
                         case let .reasoning(chunk):
                             self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -3912,7 +4373,7 @@ final class ChatManager {
                     }
 
                 case .groq:
-                    let stream = groqService.sendMessageStream(
+                    let stream = try groqService.sendMessageStream(
                         apiKey: apiKey,
                         modelID: resolvedModelID,
                         messages: transport.messages,
@@ -3927,7 +4388,7 @@ final class ChatManager {
                         switch event {
                         case let .delta(text):
                             self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                            bufferedDelta += text
+                            deltaBuffer.pendingText += text
                             await flushBufferedDelta()
                         case let .reasoning(chunk):
                             self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -3980,7 +4441,7 @@ final class ChatManager {
                     }
 
                 case .together:
-                    let stream = togetherService.sendMessageStream(
+                    let stream = try togetherService.sendMessageStream(
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -3996,7 +4457,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4049,7 +4510,7 @@ final class ChatManager {
                         }
 
                 case .fireworks:
-                    let stream = fireworksService.sendMessageStream(
+                    let stream = try fireworksService.sendMessageStream(
                         apiKey: apiKey,
                         modelID: resolvedModelID,
                         messages: transport.messages,
@@ -4064,7 +4525,7 @@ final class ChatManager {
                         switch event {
                         case let .delta(text):
                             self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                            bufferedDelta += text
+                            deltaBuffer.pendingText += text
                             await flushBufferedDelta()
                         case let .reasoning(chunk):
                             self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4138,7 +4599,7 @@ final class ChatManager {
                             )
                         }
                     } else {
-                        let stream = miniMaxService.sendMessageStream(
+                        let stream = try miniMaxService.sendMessageStream(
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -4154,7 +4615,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4208,7 +4669,7 @@ final class ChatManager {
                     }
 
                 case .zhipu:
-                    let stream = zhipuService.sendMessageStream(
+                    let stream = try zhipuService.sendMessageStream(
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -4225,7 +4686,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4299,7 +4760,7 @@ final class ChatManager {
                             )
                         }
                     } else {
-                        let stream = qwenService.sendMessageStream(
+                        let stream = try qwenService.sendMessageStream(
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -4316,7 +4777,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4370,7 +4831,7 @@ final class ChatManager {
                     }
 
                 case .moonshot:
-                    let stream = moonshotService.sendMessageStream(
+                    let stream = try moonshotService.sendMessageStream(
                         apiKey: apiKey,
                         modelID: resolvedModelID,
                         messages: transport.messages,
@@ -4387,7 +4848,7 @@ final class ChatManager {
                         switch event {
                         case let .delta(text):
                             self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                            bufferedDelta += text
+                            deltaBuffer.pendingText += text
                             await flushBufferedDelta()
                         case let .reasoning(chunk):
                             self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4442,7 +4903,7 @@ final class ChatManager {
                     }
 
                 case .siliconFlow:
-                    let stream = siliconFlowService.sendMessageStream(
+                    let stream = try siliconFlowService.sendMessageStream(
                             apiKey: apiKey,
                             modelID: resolvedModelID,
                             messages: transport.messages,
@@ -4458,7 +4919,7 @@ final class ChatManager {
                             switch event {
                             case let .delta(text):
                                 self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                bufferedDelta += text
+                                deltaBuffer.pendingText += text
                                 await flushBufferedDelta()
                             case let .reasoning(chunk):
                                 self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4551,7 +5012,11 @@ final class ChatManager {
                         // the Responses inline image tool and the Gemini image modality are still chat requests, with only the last user message swapped back to the original text.
                         let relayDispatchesImage = RelayRuntimeSupport.dispatchesImageGeneration(model: model)
                         let relayPlanned: PlannedChatRequest
-                        if relayDispatchesImage, RelayRuntimeSupport.imageRoute(for: relayTransport) == .imagesEndpoint {
+                        let relayUsesImagesEndpoint = Self.usesDedicatedImageEndpoint(
+                            relayDispatchesImage: relayDispatchesImage,
+                            relayImageRoute: RelayRuntimeSupport.imageRoute(for: relayTransport)
+                        )
+                        if relayUsesImagesEndpoint {
                             relayPlanned = imageGeneration
                             // The images endpoint carries no tools: a turn that was set to tool mode runs the fallback.
                             self.runProposeFallbackWhenToolNotSent(
@@ -4667,7 +5132,7 @@ final class ChatManager {
                                     switch event {
                                     case let .delta(text):
                                         self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                        bufferedDelta += text
+                                        deltaBuffer.pendingText += text
                                         await flushBufferedDelta()
                                     case let .reasoning(chunk):
                                         self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4763,7 +5228,7 @@ final class ChatManager {
                                 )
                             }
                         } else {
-                            let stream = services.protocolStream(
+                            let stream = try services.protocolStream(
                                 route,
                                 apiKey: apiKey,
                                 modelID: resolvedModelID,
@@ -4781,7 +5246,7 @@ final class ChatManager {
                                 switch event {
                                 case let .delta(text):
                                     self.markReasoningEndedIfNeeded(in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
-                                    bufferedDelta += text
+                                    deltaBuffer.pendingText += text
                                     await flushBufferedDelta()
                                 case let .reasoning(chunk):
                                     self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
@@ -4852,9 +5317,9 @@ final class ChatManager {
                         } catch {
                             relayAttempt = (relayRoute.transport, recorder.rejection, relaySwitched)
                             if !relaySwitched { relayFirstRejection = recorder.rejection }
-                            // A route-level rejection before output, whose source is not the user and where this message has not switched yet: switch to the next protocol in the candidates and resend once.
-                            // After a switch, a failure reports the second error and records no negative cache (the failure path looks at relayAttempt.switched).
-                            let outputStarted = !bufferedDelta.isEmpty || self.relayOutputStarted(
+                            // Route-level rejection before output, source not user, and this message not yet switched: resend once on the next protocol among the candidates.
+                            // After a switch, a failure reports the second error and does not record a negative cache (the failure path checks relayAttempt.switched).
+                            let outputStarted = !deltaBuffer.pendingText.isEmpty || self.relayOutputStarted(
                                 conversationID: conversationID, messageID: assistantMessageID, initialText: initialText
                             )
                             // Judge this key first, then enter the capability rejection loop: no-access is recorded on the model, no negative cache is written,
@@ -5054,7 +5519,7 @@ final class ChatManager {
                     )
                     if contextOverflowed, let attempt = session.contextAttempt {
                         if attempt.singleChatLeg, let pHat = attempt.estimatedInput, let U = attempt.U, pHat < U {
-                            // The fallback resend must read the raised rho: queue the write on the Ledger tail and await it.
+                            // The retry resend must read the raised rho: enqueued on the Ledger tail task and waits for it to land (no synchronous write-lock wait on the main thread).
                             if let ledger = self.contextLedgerResolver(attempt.partitionUID) {
                                 let previous = self.contextLedgerWriteTail
                                 let rhoKey = attempt.rhoKey
@@ -5407,8 +5872,8 @@ final class ChatManager {
         uid: String
     ) async {
         if let payload = update.payload, let store = try? appState.mcpServerDirectory.store(for: uid) {
-            // A failure to store only affects the "step detail" (shown as detail not on this device); it does not affect the execution or the answer of this step.
-            // Awaits the write lock instead of blocking the main thread.
+            // Failing to persist only affects the step detail view (it shows as not stored on this device), not this step's execution or the answer.
+            // Suspends for the write lock instead of blocking the main thread (synchronous main-thread DB writes were observed to hit).
             try? await store.saveStepPayloadAsync(
                 messageID: messageID, stepID: update.id, serverId: update.serverId,
                 arguments: payload.arguments, resultPrefix: payload.resultPrefix
@@ -5432,8 +5897,8 @@ final class ChatManager {
             updated.messages[messageIndex].toolSteps = merged
             appState.upsertConversationProjection(updated)
         }
-        // Activity status line: set while any step is running and cleared once all have left running.
-        // Write the message first and then publish the activity: the cell's text is read from that step in the message.
+        // Activity status line (streaming activity status line spec): set while any step is running, cleared once all leave running.
+        // Write the message before emitting the activity: the cell text reads that step from the message.
         if ownsSession {
             if merged.contains(where: { $0.status == .running }) {
                 recordStreamActivity(.mcpTool, in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
@@ -5441,8 +5906,7 @@ final class ChatManager {
                 clearStreamActivity(in: conversationID)
             }
         }
-        // The suspending write goes last: the message is edited by index and the activity published per conversation
-        // above, before the suspension, so nothing touches state that may be stale afterwards.
+        // Do the suspending DB write last: the index-based message update and the per-conversation activity emit above both finish before the suspension, so nothing that could go stale after it is touched.
         if update.status == .needsAuth {
             await markMcpServerNeedsAuth(update.serverId, uid: uid)
         }
@@ -5457,9 +5921,9 @@ final class ChatManager {
         appState.upsertConversationProjection(updated)
     }
 
-    /// The loop found that this server needs to sign in again: record the local connection state as needsAuth, from which the tool panel offers "Re-authorize",
-    /// and later sends leave its tools out until a sign-in succeeds.
-    /// The write awaits the write lock instead of blocking the main thread.
+    /// Found in the loop that this server needs to sign in again: marks the local connection as needsAuth, so the tools panel offers re-authorization,
+    /// and the next send drops its tools until sign-in succeeds.
+    /// Suspends for the write lock instead of blocking the main thread (synchronous main-thread DB writes were observed to hit).
     private func markMcpServerNeedsAuth(_ serverId: UUID, uid: String) async {
         guard let store = try? appState.mcpServerDirectory.store(for: uid) else { return }
         var state = (try? store.fetchConnectionState(serverId: serverId)) ?? McpConnectionState(serverId: serverId)
@@ -5726,7 +6190,9 @@ final class ChatManager {
             proposeMemoryLoopEntry(conversationID: conversationID, assistantMessageID: assistantMessageID, sendTaskID: sendTaskID),
             searchMemoryLoopEntry(conversationID: conversationID, sendTaskID: sendTaskID),
         ]
-        let entries: [any ToolRegistryEntry] = memoryEntries.compactMap { $0 } + [webSearchEntry]
+        let entries = Self.externalSearchLoopEntries(
+            memory: memoryEntries.compactMap { $0 }, webSearch: webSearchEntry
+        )
         let breaker: Int = switch toolHost.consecutiveFailureBreaker {
         case .count(let value)?: value
         case .off?, nil: Int.max
@@ -5771,7 +6237,11 @@ final class ChatManager {
                     await manager.appendReasoning(
                         delta, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID
                     )
-                case .usage, .toolCallsAccepted:
+                case let .usage(usage):
+                    await manager.recordFinishedToolLegs(
+                        usage, conversationID: conversationID, sendTaskID: sendTaskID, model: model, provider: provider
+                    )
+                case .toolCallsAccepted:
                     break
                 }
             }
@@ -5808,8 +6278,15 @@ final class ChatManager {
         )
     }
 
-    /// The tool loop when only MCP is on (the Library agent is off). The leg runner and the adapter that feeds results back are chosen as a pair from the connection's outbound protocol,
-    /// with the same factory as the Library (four wire protocols).
+    /// Registry of the web-search-only loop: memory tools, then web_search.
+    nonisolated static func externalSearchLoopEntries(
+        memory: [any ToolRegistryEntry], webSearch: any ToolRegistryEntry
+    ) -> [any ToolRegistryEntry] {
+        memory + [webSearch]
+    }
+
+    /// Tool loop when only MCP is on (the library agent is off). The leg runner and the feedback adapter are chosen as a pair by the connection's outbound protocol,
+    /// the same factory as the library (four wire protocols).
     private func runMcpToolLoop(
         conversationID: UUID,
         assistantMessageID: UUID,
@@ -5892,7 +6369,11 @@ final class ChatManager {
                     await manager.appendReasoning(
                         delta, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID
                     )
-                case .usage, .toolCallsAccepted:
+                case let .usage(usage):
+                    await manager.recordFinishedToolLegs(
+                        usage, conversationID: conversationID, sendTaskID: sendTaskID, model: model, provider: provider
+                    )
+                case .toolCallsAccepted:
                     break
                 }
             }
@@ -5982,9 +6463,44 @@ final class ChatManager {
         )
     }
 
-    /// The upstream returned a structured tool call but this connection has no executor.
-    /// It does just three things: merges into the message's hint-card data (persisted locally), emits per-tool telemetry (without arguments),
-    /// and emits a mismatch reconciliation event when the catalog says false yet tool_calls arrive. It does not resend, mark a failure or change the fact layer.
+    /// Tool-loop legs finished (cumulative usage, the last report wins): kept for a stop, priced like the delivered
+    /// completion, with the visible body / reasoning at this point.
+    private func recordFinishedToolLegs(
+        _ usage: ToolLoopUsage,
+        conversationID: UUID,
+        sendTaskID: UUID,
+        model: AIModel,
+        provider: Provider
+    ) {
+        guard sessions[conversationID]?.sendTaskID == sendTaskID else { return }
+        // Priced before the write: reading `sessions` inside the assignment is an exclusivity conflict.
+        let cost = resolvedMultiLegCost(usage, model: model, provider: provider, conversationID: conversationID)
+        sessions[conversationID]?.toolLoopCarriedDelivery = ProposeMemoryDeferredDelivery(
+            estimatedCost: cost,
+            attachments: nil,
+            servedModelID: nil,
+            reasoningText: nil,
+            usageMetrics: ChatDeliveredUsageMetrics(
+                promptTokens: usage.promptTokens ?? 0, completionTokens: usage.completionTokens ?? 0
+            ),
+            streamFinish: nil,
+            stopReason: nil,
+            clearsCitations: false
+        )
+        sessions[conversationID]?.toolLoopCarriedPricing = (model, provider)
+        markFinishedLegVisible(in: conversationID)
+    }
+
+    /// Records the visible body / reasoning as of a finished leg; a stop estimates only what follows.
+    private func markFinishedLegVisible(in conversationID: UUID) {
+        guard let session = sessions[conversationID] else { return }
+        sessions[conversationID]?.finishedLegTextMark = session.text
+        sessions[conversationID]?.finishedLegReasoningMark = session.reasoningText.utf8.count
+    }
+
+    /// The upstream returned a structured tool call while this connection has no executor.
+    /// It does three things only: merges into the message's hint-card data (persisted locally), emits per-tool telemetry (without arguments),
+    /// when the tool gate (ToolCallCapabilityPolicy.decide) returns false yet tool_calls arrive, emits a mismatch reconciliation event. It does not resend, mark failure, or change the fact layer.
     private func recordUnhandledToolCalls(
         _ incoming: [ProviderToolCall],
         in conversationID: UUID,
@@ -6555,10 +7071,10 @@ final class ChatManager {
         provider: Provider,
         model: AIModel
     ) async throws -> (text: String, usage: ToolLoopUsage?) {
-        let request = ToolLoopLegRequest(messages: messages, tools: [], toolChoice: .none)
+        let stream = runner.run(request: ToolLoopLegRequest(messages: messages, tools: [], toolChoice: .none))
         var text = ""
         var usage: ToolLoopUsage?
-        for try await event in runner.run(request: request) {
+        for try await event in stream {
             try Task.checkCancellation()
             switch event {
             case let .textDelta(delta):
@@ -6584,6 +7100,19 @@ final class ChatManager {
         return (text, usage)
     }
 
+    /// Tool-loop leg messages of a chat transport (system + history), as every loop builds them.
+    static func toolLoopLegMessages(
+        _ transport: TransportInput, provider: Provider, model: AIModel
+    ) throws -> [ToolLoopMessage] {
+        transport.toolLoopMessages(history: try OpenAIChatToolLoopLegRunner.messages(
+            from: transport.messages,
+            providerKind: provider.kind,
+            model: model,
+            isChatSend: true,
+            dynamicText: transport.options.dynamicText
+        ))
+    }
+
     // MARK: - Request snapshot
 
     private func prepareRequestSnapshot(
@@ -6592,10 +7121,7 @@ final class ChatManager {
         sendPath: ChatRequestSendPath,
         delivery: ContextDelivery? = nil
     ) -> ChatRequestSnapshot {
-        let skillSnapshot = conversation.skillId
-            .flatMap { appState.skillManager.skill(by: $0) }
-            .map(ChatRequestSkillSnapshot.init)
-        // Notes pinned as context: on the first turn the compose-state pending is landed on the conversation, then the content snapshot is resolved for injection (done on the MainActor side).
+        // Note pins as context: on the first turn the compose-state pending is written to the conversation, then the content snapshot is resolved for injection (on the MainActor side).
         appState.commitPendingPinsIfNeeded(to: conversation.id)
         let pinnedNotes = appState.resolvePinnedNoteSnapshots(for: conversation.id)
         let snapshot = ChatRequestSnapshot(
@@ -6608,12 +7134,32 @@ final class ChatManager {
             ),
             messages: messages,
             preferences: ChatRequestPreferencesSnapshot(memoryItems: appState.memoryItemsCache.items),
-            skill: skillSnapshot,
+            skill: conversation.skillId.flatMap { appState.skillManager.skill(by: $0) }.map(ChatRequestSkillSnapshot.init),
             pinnedNotes: pinnedNotes,
             sendPath: sendPath,
             delivery: delivery
         )
         return snapshot
+    }
+
+    /// Skills a just-sent user message (the last user message) attaches for the first time in the conversation:
+    /// each gets one manual use record.
+    nonisolated static func firstManualSkillUses(in messages: [ChatMessage]) -> [String] {
+        guard let lastIndex = messages.lastIndex(where: { $0.role == .user }) else { return [] }
+        let earlier = Set(messages[..<lastIndex].filter { $0.role == .user }
+            .flatMap(\.attachedSkillIds))
+        var seen = Set<String>()
+        return messages[lastIndex].attachedSkillIds.filter {
+            !earlier.contains($0) && seen.insert($0).inserted
+        }
+    }
+
+    /// Records each use.
+    private func recordSkillUses(_ ids: [String], via: String) {
+        let manager = appState.skillManager
+        for id in ids.compactMap(UUID.init(uuidString:)) {
+            Task { await manager.recordUse(id) }
+        }
     }
 
     private func prepareEnrichedRequestSnapshot(
@@ -6690,11 +7236,17 @@ final class ChatManager {
         return ComposerEditDraft(text: messageText, attachments: restoredAttachments)
     }
 
-    /// Cancelling the pre-send confirmation = rolling this round back. This user + assistant placeholder pair has not gone out yet,
-    /// so only a local deletion is done (no tombstone left); the checkpoint is kept; the streaming state is released, no stopped /
-    /// failed is recorded and no telemetry is added; a refill event is sent (the chat page puts the content back when the composer is empty).
-    /// Idempotent: if the placeholder is no longer generating (already rolled back, or displaced by a new send in the same conversation and settled as interrupted), nothing is done.
-    private func rollbackUnconfirmedSend(assistantMessageID: UUID, in conversationID: UUID) {
+    /// Send gate: cancelling before sending rolls back this turn. The user and assistant placeholders have not left the device or reached the cloud,
+    /// so only a local deletion is done (no didDeleteMessages call, no tombstone); the checkpoint is kept; streaming state is cleared without recording stopped or
+    /// failed or adding telemetry; emits a backfill event (the chat page puts the text back when the input is empty).
+    /// Idempotent: if the placeholder is no longer generating (already rolled back, or displaced by a new send in the same conversation and marked interrupted), does nothing and returns nil.
+    /// `backfillsComposer == false` (voice interjection continuation, where the caller sends the rolled-back content next): no backfill event, only returns the rolled-back content.
+    @discardableResult
+    private func rollbackUnconfirmedSend(
+        assistantMessageID: UUID,
+        in conversationID: UUID,
+        backfillsComposer: Bool = true
+    ) -> ContextCapSendRollback? {
         if sessions[conversationID]?.messageID == assistantMessageID {
             removeSession(for: conversationID)
         }
@@ -6704,7 +7256,7 @@ final class ChatManager {
               }),
               assistantIndex > 0,
               conversations[convIndex].messages[assistantIndex - 1].role == .user
-        else { return }
+        else { return nil }
 
         var updated = conversations[convIndex]
         let userMessage = updated.messages[assistantIndex - 1]
@@ -6729,12 +7281,14 @@ final class ChatManager {
         appState.directiveSuggestions.withdraw(messageID: userMessage.id, conversationID: conversationID)
         appState.memorySuggestions.withdraw(messageID: assistantMessage.id, conversationID: conversationID)
 
-        contextCapRollbacks.send(ContextCapSendRollback(
+        let rollback = ContextCapSendRollback(
             conversationID: conversationID,
             text: userMessage.text,
             attachments: restoredAttachments,
-            quoteContext: userMessage.quoteContext,
-        ))
+            quoteContext: userMessage.quoteContext
+        )
+        if backfillsComposer { contextCapRollbacks.send(rollback) }
+        return rollback
     }
 
     /// The confirmation input at the gate point: B / limitedBy take the window actually assembled this time, T = window.priceLineTokens,
@@ -6897,6 +7451,46 @@ final class ChatManager {
         return conversations[conversationIndex].messages[messageIndex].state == .generating
     }
 
+    /// Turn-level skill list overhead: the recorded value is kept, and the request finally sent decides whether it
+    /// is written (a dedicated image endpoint carries no system, so it records nothing).
+    nonisolated struct SkillManifestTurnRecord: Equatable, Sendable {
+        private(set) var tokens: Int?
+        private(set) var finalRequestUsesDedicatedImageEndpoint = false
+
+        /// The last turn-level request that sent a manifest wins (tool rejected -> marker resend); requests
+        /// without a manifest keep the earlier value.
+        mutating func record(_ tokens: Int?) {
+            if let tokens { self.tokens = tokens }
+        }
+
+        /// Marks the request actually dispatched; a later attempt overrides an earlier one.
+        mutating func sent(dedicatedImageEndpoint: Bool) {
+            finalRequestUsesDedicatedImageEndpoint = dedicatedImageEndpoint
+        }
+
+        var value: Int? { finalRequestUsesDedicatedImageEndpoint ? nil : tokens }
+    }
+
+    /// Whether this request goes to a dedicated image endpoint (it carries no system, so the turn records no skill
+    /// list overhead); image generation over chat_api / inline chat requests still records
+    ///.
+    nonisolated static func usesDedicatedImageEndpoint(_ dispatch: OfficialImageGenerationDispatch) -> Bool {
+        switch dispatch {
+        case .notApplicable: return false
+        case .handled: return true
+        case let .providerSpecific(route): return route != .chatAPI
+        }
+    }
+
+    /// Relay: only the `/images/generations` route is a dedicated image endpoint; the inline Responses tool and
+    /// Gemini modality stay chat requests.
+    nonisolated static func usesDedicatedImageEndpoint(
+        relayDispatchesImage: Bool,
+        relayImageRoute: RelayRuntimeSupport.ImageRoute
+    ) -> Bool {
+        relayDispatchesImage && relayImageRoute == .imagesEndpoint
+    }
+
     private func applyNonStreamingCompletionIfCurrent(
         taskID: UUID,
         conversationID: UUID,
@@ -6979,26 +7573,22 @@ final class ChatManager {
                     stopReason: stopReason,
                     clearsCitations: clearsCitations
                 )
+                markFinishedLegVisible(in: conversationID)
                 return
             }
             // Thinking resend with an empty body: the first leg is already billed, so usage and cost of the two attempts are added.
             if state == .delivered, let carried = session.proposeCarriedDelivery {
-                if carried.estimatedCost != nil || estimatedCost != nil {
-                    // Legs add up per currency; a leg without a cost merges as unknown, not 0, and per-unit pricing
-                    // counts the produced images once for the whole message.
-                    // proposeCarriedPricing is written together with proposeCarriedDelivery, so it is always set here.
-                    if let pricing = session.proposeCarriedPricing {
-                        estimatedCost = ChatDeliveryAccounting.combiningDeliveries(
-                            carried.estimatedCost, estimatedCost, model: pricing.model, provider: pricing.provider,
-                            producedAttachments: (carried.attachments ?? []) + (attachments ?? []) + session.attachments,
-                            at: Date()
-                        )
-                    }
-                }
-                usageMetrics = ChatDeliveredUsageMetrics(
-                    promptTokens: (carried.usageMetrics?.promptTokens ?? 0) + (usageMetrics?.promptTokens ?? 0),
-                    completionTokens: (carried.usageMetrics?.completionTokens ?? 0) + (usageMetrics?.completionTokens ?? 0)
+                (estimatedCost, usageMetrics) = Self.addingCarriedDelivery(
+                    carried, pricing: session.proposeCarriedPricing, to: (estimatedCost, usageMetrics),
+                    attachments: attachments, streamedAttachments: session.attachments
                 )
+            }
+            // A reply that settles with nothing visible (empty body, also after a marker line was dropped) fails as an
+            // empty response through the regular failure path instead of leaving a blank bubble.
+            if state == .delivered,
+               !hasVisibleReply(session: session, attachments: attachments, conversationID: conversationID, messageID: messageID) {
+                failEmptyReply(conversationID: conversationID, messageID: messageID, expectedSendTaskID: expectedSendTaskID)
+                return
             }
         }
 
@@ -7024,6 +7614,14 @@ final class ChatManager {
         let contextAttempt = activeSession?.contextAttempt
         if let session = sessions[conversationID], session.messageID == messageID {
             updated.messages[mi].text = session.text
+            // usedSkills: written only when the reply is delivered; each auto item records
+            // a use. Stopped / interrupted / failed replies write none and record no auto use.
+            if state == .delivered, !session.usedSkills.isEmpty {
+                updated.messages[mi].usedSkills = session.usedSkills
+                recordSkillUses(
+                    session.usedSkills.filter { $0.via == "auto" }.map(\.id), via: "auto"
+                )
+            }
             carriedRelayDeliveryRoute = session.relayDeliveryRoute
             let collected = session.attachments
             streamingAttCount = collected.count
@@ -7339,6 +7937,46 @@ final class ChatManager {
         }
     }
 
+    /// Whether the settling reply shows anything: body text, attachments or streamed images, tool call cards (including
+    /// the propose_memory calls behind memory suggestion bars) or the tools-unsupported notice. Reasoning alone does
+    /// not count (same as Android). A nil session reads the persisted message only .
+    private func hasVisibleReply(
+        session: StreamingSession?,
+        attachments: [Attachment]?,
+        conversationID: UUID,
+        messageID: UUID
+    ) -> Bool {
+        if let session {
+            if Self.hasAnswerContent(session.text) { return true }
+            if !session.attachments.isEmpty || !session.pendingImageData.isEmpty { return true }
+            if let turn = session.proposeTurn, turn.callCount > 0 || !turn.pendingCalls.isEmpty { return true }
+        }
+        if attachments?.isEmpty == false { return true }
+        guard let message = conversations.first(where: { $0.id == conversationID })?.messages.first(where: { $0.id == messageID })
+        else { return false }
+        return Self.hasAnswerContent(message.text)
+            || message.attachments?.isEmpty == false
+            || message.unhandledToolCalls?.isEmpty == false
+            || message.toolSteps?.isEmpty == false
+            || message.toolFallbackNotice != nil
+    }
+
+    /// Fails a reply that settled with nothing visible as `ProviderServiceError.emptyResponse`, with the same
+    /// presentation the send task's failure path gives that error.
+    private func failEmptyReply(conversationID: UUID, messageID: UUID, expectedSendTaskID: UUID) {
+        let error = ProviderServiceError.emptyResponse
+        let providerError = appState.providerManager.providerServiceError(from: error)
+        failStreamingMessage(
+            conversationID: conversationID,
+            messageID: messageID,
+            expectedSendTaskID: expectedSendTaskID,
+            userFacingText: providerError.message,
+            estimatedCost: currentAssistantCost(conversationID: conversationID, messageID: messageID),
+            title: providerError.titleKey,
+            detail: ChatFailurePresentation.persistedDetail(for: providerError)
+        )
+    }
+
     /// On a streaming failure: syncs the text and marks the failure
     private func failStreamingMessage(
         conversationID: UUID,
@@ -7413,6 +8051,10 @@ final class ChatManager {
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         ConversationListMetadata.apply(to: &updated)
         appState.upsertConversationProjection(updated)
+    }
+
+    private static func attemptKind(of session: StreamingSession) -> ChatAttemptKind {
+        session.attemptKind
     }
 
     /// Whether this attempt received a new body or reasoning delta (failure_phase). Content that existed before the attempt started does not count.
@@ -7805,8 +8447,53 @@ final class ChatManager {
         }
     }
 
-    /// `streamedImagesIn`: when given, images this conversation received while streaming (the `.done` result does not carry them)
-    /// are counted into the unit count of per-unit pricing.
+    /// `streamedImagesIn`: when given, also counts the images received while the conversation was streaming (`.done` results do not carry them) toward the per-item pricing count.
+    /// A carried leg (first leg, skill-marker-interrupted request) added to this attempt's delivery.
+    static func addingCarriedDelivery(
+        _ carried: ProposeMemoryDeferredDelivery,
+        pricing: (model: AIModel, provider: Provider)?,
+        to delivery: (cost: DeliveredCost?, usage: ChatDeliveredUsageMetrics?),
+        attachments: [Attachment]?,
+        streamedAttachments: [Attachment]
+    ) -> (cost: DeliveredCost?, usage: ChatDeliveredUsageMetrics?) {
+        var cost = delivery.cost
+        if carried.estimatedCost != nil || cost != nil {
+            // Legs add per currency: any unpriced leg makes the whole reply unknown; a second non-USD currency is
+            // recorded as an unknown non-USD part while USD still adds up. A leg without a cost merges as unknown,
+            // not as zero. Per-unit pricing counts the reply once.
+            // `pricing` is written together with `carried`, so it is always present here.
+            if let pricing {
+                cost = ChatDeliveryAccounting.combiningDeliveries(
+                    carried.estimatedCost, cost, model: pricing.model, provider: pricing.provider,
+                    producedAttachments: (carried.attachments ?? []) + (attachments ?? []) + streamedAttachments,
+                    at: Date()
+                )
+            }
+        }
+        let promptTokens = (carried.usageMetrics?.promptTokens ?? 0) + (delivery.usage?.promptTokens ?? 0)
+        let completionTokens = (carried.usageMetrics?.completionTokens ?? 0) + (delivery.usage?.completionTokens ?? 0)
+        // A carried leg whose usage is present but input unknown keeps the message input unknown (never 0); cache
+        // reads / writes add field by field and stay nil when no leg reported them.
+        let inputUnknown = carried.usageMetrics.map { $0.inputTokens == nil && $0.outputTokens != nil } ?? false
+        let usage = ChatDeliveredUsageMetrics(
+            promptTokens: promptTokens,
+            completionTokens: completionTokens,
+            inputTokens: inputUnknown ? nil : promptTokens,
+            outputTokens: completionTokens,
+            cachedInputTokens: addingObserved(carried.usageMetrics?.cachedInputTokens, delivery.usage?.cachedInputTokens),
+            cacheCreationInputTokens: addingObserved(
+                carried.usageMetrics?.cacheCreationInputTokens, delivery.usage?.cacheCreationInputTokens
+            )
+        )
+        return (cost, usage)
+    }
+
+    /// Sum of two optional token counts: nil only when both are nil.
+    private static func addingObserved(_ lhs: Int?, _ rhs: Int?) -> Int? {
+        guard lhs != nil || rhs != nil else { return nil }
+        return (lhs ?? 0) + (rhs ?? 0)
+    }
+
     private func resolvedDeliveredCost(
         from result: ProviderChatResult,
         model: AIModel,
@@ -7867,7 +8554,8 @@ final class ChatManager {
         messageID: UUID,
         text: String,
         sendTaskID: UUID = UUID(),
-        citations: [Citation] = []
+        citations: [Citation] = [],
+        usedSkills: [UsedSkill] = []
     ) {
         var session = StreamingSession(
             messageID: messageID,
@@ -7878,6 +8566,7 @@ final class ChatManager {
             sendTaskID: sendTaskID
         )
         session.citations = citations
+        session.usedSkills = usedSkills
         addSession(
             session,
             for: conversationID
@@ -8067,13 +8756,13 @@ extension ChatManager {
             conversation: ChatRequestConversationSnapshot(
                 id: conversation.id,
                 useMemory: conversation.useMemory,
-                skillID: nil,
+                skillID: conversation.skillId,
                 instructions: conversation.instructions,
                 folderID: nil
             ),
             messages: [],
             preferences: ChatRequestPreferencesSnapshot(memoryItems: appState.memoryItemsCache.items),
-            skill: nil,
+            skill: conversation.skillId.flatMap { appState.skillManager.skill(by: $0) }.map(ChatRequestSkillSnapshot.init),
             sendPath: .send(excludingMessageID: nil)
         )
         let pendingPins = appState.pendingPinnedNoteIds
@@ -8124,4 +8813,29 @@ extension ChatManager {
         appState.conversationManager.refreshConversationCost(for: conversationID)
         return true
     }
+}
+
+extension ChatDeliveredUsageMetrics {
+    /// Every field given: merged legs and aborted-leg estimates whose input or cache counts may be unknown.
+    init(
+        promptTokens: Int,
+        completionTokens: Int,
+        inputTokens: Int?,
+        outputTokens: Int?,
+        cachedInputTokens: Int?,
+        cacheCreationInputTokens: Int?
+    ) {
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.inputTokens = inputTokens
+        self.outputTokens = outputTokens
+        self.cachedInputTokens = cachedInputTokens
+        self.cacheCreationInputTokens = cacheCreationInputTokens
+    }
+}
+
+/// The last request a skill tool fallback assembled (read when a marker hit interrupts it). Written and read in
+/// turn by the one fallback stream (assemble, then onInterrupt), never concurrently.
+nonisolated private final class SkillFallbackBuildBox {
+    var value: ChatRequestBuildResult?
 }

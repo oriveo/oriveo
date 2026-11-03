@@ -39,8 +39,6 @@ struct ParametersPageBoardTests {
             #expect(!source.contains("L10n.tr(\"Advanced Settings\")"), "\(name) still references the old title")
             #expect(!source.contains("\"Go to Advanced Settings\""), "\(name) still references the old jump text")
         }
-        // The skill editor's "Advanced settings" is a different thing and stays.
-        #expect(try Self.source(["Features", "Skills", "SkillEditView.swift"]).contains("L10n.tr(\"Advanced Settings\")"))
 
         // The link in the capability description that jumps to the parameters page.
         let chat = try Self.catalog("Chat")

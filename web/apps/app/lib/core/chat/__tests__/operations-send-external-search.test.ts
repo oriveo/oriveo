@@ -49,6 +49,12 @@ import { __resetMetadataClientForTest } from '../../metadata/metadata-client';
 import { sendMessage } from '../operations';
 import { batchAppendStreaming } from '../stream-batcher';
 import { __resetToolsRejectedForTests } from '../external-search-turn';
+import {
+  externalSearchModelKey,
+  readConversationSearchSource,
+  writeDraftSearchSource,
+} from '../../../search/external-search-context';
+import { getActiveUID } from '../../../infra/storage/partition';
 
 // W=20000, O=1000: ~13k tokens of history is below the 0.90 line (first send has no fallback); after overflow the fallback can produce a checkpoint.
 const model = {
@@ -246,5 +252,44 @@ describe('plain send · external search tool path', () => {
       [1, 'https://a.example/'], [2, 'https://b.example/'],
     ]);
     expect(assistant.capabilityResults).toEqual([expect.objectContaining({ source: 'external_search', state: 'observed', searchCount: 1 })]);
+  });
+
+  it('new_conversation_first_send_uses_draft_external_search', async () => {
+    const draftSessionId = `draft-web-${conversationSeq}`;
+    const modelKey = externalSearchModelKey(provider.id, model.id);
+    // The panel picked the external service while the conversation had no id yet: the source lives on the draft.
+    writeDraftSearchSource(draftSessionId, { methods: { [modelKey]: 'external' }, serviceId: 'svc-tv', serviceName: 'Tavily', notice: null });
+    // Resolve the stored source through the production read path (draft memory / adopted conversation row);
+    // only an external source yields the external tool context.
+    mocks.searchContext.mockReset().mockImplementation(async (input: unknown) => {
+      const { conversationId: convId, draftSessionId: draftId } = input as { conversationId?: string; draftSessionId?: string };
+      const { stored } = await readConversationSearchSource({
+        data: { uid: await getActiveUID(), snapshot: searchContext.data.snapshot, catalog: searchContext.data.catalog } as never,
+        conversationId: convId,
+        ...(draftId ? { draftSessionId: draftId } : {}),
+        modelKey,
+        persist: false,
+      });
+      const methods = (stored as { methods?: Record<string, string> } | null)?.methods ?? {};
+      return methods[modelKey] === 'external' ? searchContext : null;
+    });
+    const store = createAppStore({ providers: [provider], conversations: [] });
+    mocks.store = store;
+    mocks.sendLibraryAgentLeg.mockImplementationOnce(() => leg([
+      { type: 'text', text: 'Answer' } as StreamEvent,
+      { type: 'done' } as StreamEvent,
+    ]));
+    await sendMessage({
+      store, appendChunk: (chunk: string) => batchAppendStreaming(conversationOf(store)?.id ?? '', chunk), te: (key: string) => key,
+    }, {
+      text: 'What is on the roadmap?', prevMessages: [], conversation: undefined, provider, model, reasoningMode: 'fast',
+      webSearchEnabled: true, generationParameterDraftSessionId: draftSessionId,
+    }).done;
+
+    // The first request the production send hands to the tool-loop leg registers web_search.
+    expect(mocks.sendLibraryAgentLeg).toHaveBeenCalledTimes(1);
+    const tools = mocks.sendLibraryAgentLeg.mock.calls[0][4] as unknown[];
+    expect(JSON.stringify(tools)).toContain('"web_search"');
+    expect(mocks.sendStream).not.toHaveBeenCalled();
   });
 });

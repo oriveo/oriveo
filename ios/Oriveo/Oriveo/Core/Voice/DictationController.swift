@@ -19,6 +19,8 @@ nonisolated enum DictationFailureKind: Sendable, Hashable {
     case checkConnection
     /// The precheck found voice but recognition returned empty text: the recording is kept and can be retried.
     case noTranscript
+    /// System engine recognition failed (subdivided by DictationRules.systemFailure): the recording is kept.
+    case system(SystemFailureKind)
 }
 
 /// Which permission was denied.
@@ -34,8 +36,6 @@ nonisolated enum DictationState: Sendable, Equatable {
     case denied(DictationDeniedPermission)
     /// When the mic is tapped the slot still holds a recording waiting for transcription: ask the user to "transcribe first" or "discard and re-record".
     case slotOccupied
-    /// The system engine's on-device model is downloading, progress is 0...1; enters recording once installed.
-    case preparing(progress: Double)
     case recording(startedAt: Date)
     case transcribing(DictationIntent)
     /// The recording was interrupted / sent to background / discard undone: the file is closed and in the slot, waiting for the user to transcribe or discard.
@@ -51,6 +51,45 @@ nonisolated enum DictationEvent: Sendable, Equatable {
     case noSpeechHeard
     /// The stored cloud engine is no longer valid; this time the system engine is used and the setting has been reset to system; the UI shows a notice once.
     case engineFallback(VoiceFallbackReason)
+    /// The live text of this segment is discarded (failure / nothing recognized / X discard / interruption): the host withdraws the live text on screen.
+    case liveDiscarded
+}
+
+// MARK: - Live recognition
+
+/// Engine that can recognize while recording (the system engine); cloud engines do not conform and only recognize the recording file.
+nonisolated protocol LiveSTTEngine: STTEngine {
+    func startLive(language: String?) -> SystemSTTSession
+}
+
+extension SystemSTTEngine: LiveSTTEngine {}
+
+/// Live text during recording (value = DictationRules.livePartial): published separately so refreshes do not trigger DictationController's objectWillChange.
+/// Set to nil when this segment ends (finalized / failed / discarded / interrupted).
+@MainActor
+final class DictationLiveText: ObservableObject {
+    @Published private(set) var value: LiveDictationText?
+
+    /// Each new session / clear starts a new generation: late snapshots from the old generation are dropped.
+    private(set) var generation = 0
+
+    /// Starts a new generation and returns its id.
+    func begin() -> Int {
+        generation += 1
+        if value != nil { value = nil }
+        return generation
+    }
+
+    func publish(_ snapshot: SystemSTTLiveSnapshot, generation: Int) {
+        guard generation == self.generation else { return }
+        let next = DictationRules.livePartial(finals: snapshot.finals, partial: snapshot.partial)
+        if next != value { value = next }
+    }
+
+    func reset() {
+        generation += 1
+        if value != nil { value = nil }
+    }
 }
 
 // MARK: - Engine selection
@@ -190,16 +229,31 @@ nonisolated struct MisconfiguredSTTEngine: STTEngine {
     }
 }
 
-/// Preparation before the system engine records: on iOS 18-25 speech recognition authorization is requested after the microphone; on iOS 26+ no authorization is needed, and a missing on-device model is downloaded with progress.
+/// One-time prompt shown when the on-device language pack for the recognition language is missing; download runs in the background and recording does not wait for it.
+nonisolated struct DictationLanguagePackPrompt: Sendable, Equatable {
+    /// Language of the language pack (BCP 47).
+    let localeID: String
+    /// Language name shown in the current UI language.
+    let displayName: String
+    /// true = download tapped, installing in the background.
+    var downloading: Bool
+}
+
+/// Preparation before the system engine records: on iOS 18–25 speech recognition authorization is requested after the microphone; on iOS 26+ no authorization is needed, and a missing on-device model only prompts a download without blocking recording.
 struct DictationSystemPreparation {
+    /// Languages already prompted (BCP 47 array); recorded both on download and on "don't remind", so each language prompts only once.
+    static let promptedDefaultsKey = "voice.speech_assets.prompted"
+
     /// true = iOS 26+ (SpeechAnalyzer available).
     let analyzerAvailable: Bool
     let authorizer: any SpeechAuthorizing
     let assets: SpeechAssetManager?
-    /// Recognition language (nil = automatic) -> the language to prepare a model for; nil means no preparation.
+    /// Recognition language (nil = automatic) -> the language whose model to check; nil means no check.
     let assetLocale: @Sendable (String?) async -> Locale?
-    /// Limit for assetLocale; when the system query hangs it times out as nil (no model preparation) and the start-recording flow finishes as usual.
+    /// Limit for assetLocale; when the system query hangs it times out as nil (no model check) and the start-recording flow finishes as usual.
     var assetLocaleLimit: Duration = VoiceDeadline.systemQuery
+    /// Storage recording the languages already prompted.
+    var promptDefaults: UserDefaults = .standard
 
     /// No preparation at all (used with a fixed engine).
     static let skipped = DictationSystemPreparation(
@@ -272,6 +326,17 @@ private nonisolated final class NotificationTokenBag: @unchecked Sendable {
     }
 }
 
+/// Hands capture and the handler to a background thread to open capture; the start-recording flow does not touch this capture while the main thread awaits (detach before the writer is attached does not stop it).
+private nonisolated struct CaptureStartRequest: @unchecked Sendable {
+    let capture: AudioCapture
+    let handlers: [AudioBufferHandler]
+}
+
+/// Tap format returned by the background capture open.
+private nonisolated struct CaptureStartResult: @unchecked Sendable {
+    let format: AVAudioFormat
+}
+
 private extension DictationState {
     var isRecording: Bool {
         if case .recording = self { return true }
@@ -301,12 +366,21 @@ final class DictationController: ObservableObject {
     /// Live input level while recording (for the waveform); published separately so refreshes do not trigger this controller's objectWillChange. Cleared on leaving recording.
     let levelMeter = DictationLevelMeter()
 
+    /// Live partial text while recording with the system engine; published on its own.
+    let liveText = DictationLiveText()
+
     /// Connection name and id of the cloud engine used for this recording (for the card): set when the engine is chosen, cleared on returning to idle; nil for the system engine.
     @Published private(set) var engineInfo: DictationEngineInfo?
 
     /// Duration of the recording waiting in the slot (read from the same slot's sidecar): only provided in interrupted / slotOccupied / failed.
     /// On entering those states the sidecar is read on the store queue and published back on the main thread; in other states it is nil immediately. Views read only this published value and never touch the disk.
     @Published private(set) var pendingDurationSec: Double?
+
+    /// Language-pack prompt for the recognition language when its on-device pack is missing; nil = no prompt.
+    @Published private(set) var languagePackPrompt: DictationLanguagePackPrompt?
+
+    /// In-flight background download of the language pack; the prompt is cleared when it finishes (success or failure).
+    private(set) var languagePackDownload: Task<Void, Never>?
 
     /// The in-flight sidecar duration read; cancelled when the state changes again so the old result is not published.
     private(set) var pendingDurationLoad: Task<Void, Never>?
@@ -338,16 +412,47 @@ final class DictationController: ObservableObject {
     private let screenAwake: ScreenAwakeHolds
     private let now: () -> Date
     private let sleep: @Sendable (Duration) async throws -> Void
-    private let language: () -> String?
+    /// Recognition language (nil = automatic); read at each recording start / transcription.
+    let language: () -> String?
+
+    /// App UI language; read each time a name is fetched (injected by tests).
+    private let uiLocale: () -> Locale
+    /// Recognition language at the moment of entering the failed state (automatic = the full BCP-47 tag of the UI language then); the failure card shows it, and later language changes do not affect it.
+    private var failedRecognitionLanguage: String?
+
+    /// Name of the recognition language in the App UI language, used by the failure card text. In the failed state it reads the language recorded when the failure happened, otherwise the current recognition language.
+    var recognitionLanguageName: String {
+        let uiLocale = uiLocale()
+        let id: String
+        if case .failed = state, let failedRecognitionLanguage {
+            id = failedRecognitionLanguage
+        } else {
+            id = Self.recognitionLanguageID(language(), uiLocale: uiLocale)
+        }
+        return uiLocale.localizedString(forIdentifier: id) ?? id
+    }
+
+    /// Recognition language identifier; when automatic, takes the full BCP-47 tag of the UI language (zh-Hans is not reduced to zh).
+    nonisolated static func recognitionLanguageID(_ language: String?, uiLocale: Locale) -> String {
+        if let language, !language.isEmpty { return language }
+        return uiLocale.identifier(.bcp47)
+    }
     private var engineID: String?
+    /// Whether the chosen engine is the system engine; set and cleared together with engine.
+    private var engineIsSystem = false
     /// Public identifier of the chosen engine; engineInfo is cleared after returning to idle, and transcribing with the same engine gives it out again from here.
     private var chosenInfo: DictationEngineInfo?
     private var writer: LockedRecordingWriter?
     private var transcription: Task<String, Error>?
+    /// In-flight live recognition (opened while the system engine records); cleared when a result comes out or it is discarded.
+    private var live: LiveRun?
     /// System notification observers; removed from the center when the controller is released.
     private let notificationTokens: NotificationTokenBag
     /// Token of the in-flight start-recording flow (authorization / engine selection / model preparation); discard, a slot switch or a new round replaces it, and an old flow that wakes up no longer starts recording.
     private var startToken: UUID?
+    /// The start-recording flow has begun opening capture and has not handed it over yet (writer attached, or stopped by itself): no second flow starts meanwhile.
+    /// When a superseded flow is cleaned up it only stops the capture it opened itself, never a newer flow's.
+    private var captureOpening = false
     /// The discard inside the undo window: owning slot key + token + timer task.
     private var pendingDiscard: (slotKey: String, token: UUID, task: Task<Void, Never>)?
 
@@ -364,7 +469,8 @@ final class DictationController: ObservableObject {
         notificationCenter: NotificationCenter = .default,
         now: @escaping () -> Date = Date.init,
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-        language: @escaping () -> String? = { nil }
+        language: @escaping () -> String? = { nil },
+        uiLocale: @escaping () -> Locale = { AppLocalization.currentLanguage.locale }
     ) {
         self.engines = engines
         self.system = system
@@ -377,6 +483,7 @@ final class DictationController: ObservableObject {
         self.now = now
         self.sleep = sleep
         self.language = language
+        self.uiLocale = uiLocale
         notificationTokens = NotificationTokenBag(center: notificationCenter)
         observeSystemNotifications(notificationCenter)
     }
@@ -478,6 +585,7 @@ final class DictationController: ObservableObject {
     /// Leaves the current slot: a recording is wrapped up as interrupted; transcription is cancelled and the recording stays in the old slot marked interrupted; an in-flight start-recording flow is invalidated.
     private func leaveCurrentSlot() {
         startToken = nil
+        discardLive()
         switch state {
         case .recording:
             // The wrap-up of the user's stop is still on the store queue (the writer is already detached): mark the sidecar interrupted after it.
@@ -527,7 +635,7 @@ final class DictationController: ObservableObject {
         readAloud.stop(.userStopped)
         guard let slotKey, startToken == nil else { return }
         switch state {
-        case .recording, .transcribing, .preparing, .slotOccupied: return
+        case .recording, .transcribing, .slotOccupied: return
         case .idle, .denied, .interrupted, .failed: break
         }
         // The occupancy query runs on the store queue; if it was discarded / the slot switched / tapped again while waiting, do not proceed on this result.
@@ -562,6 +670,8 @@ final class DictationController: ObservableObject {
     }
 
     private func beginRecording(slotKey: String) async {
+        // A previous start is still opening capture (session activation not yet returned) or the slot: do not open a second one concurrently; this tap is void.
+        guard !captureOpening else { return }
         let token = UUID()
         startToken = token
         defer { if startToken == token { startToken = nil } }
@@ -585,7 +695,7 @@ final class DictationController: ObservableObject {
     func prepareConversationMicrophone() async -> Bool {
         guard startToken == nil else { return false }
         switch state {
-        case .recording, .transcribing, .preparing: return false
+        case .recording, .transcribing: return false
         case .idle, .denied, .slotOccupied, .interrupted, .failed: break
         }
         let token = UUID()
@@ -600,18 +710,15 @@ final class DictationController: ObservableObject {
         return true
     }
 
-    /// Before entering a voice conversation: the same path as starting to record - microphone authorization -> engine selection -> the system engine's recognition authorization / on-device model preparation;
+    /// Before entering a live voice session: the same path as starting to record - microphone authorization -> engine selection -> the system engine's recognition authorization / on-device model preparation; no language-pack prompt is published (prompts appear only in dictation);
     /// when denied it stops on the same denied card as dictation. Does not record, does not occupy the slot, and does not change the engine chosen by this controller.
-    /// Returns the engine this conversation uses for "listening"; nil = do not enter the conversation (denied, flow cancelled, or dictation busy).
+    /// Returns the engine this session uses for "listening"; nil = do not enter the conversation (denied, flow cancelled, or dictation busy).
     func prepareConversationListening() async -> DictationEngineChoice? {
         guard startToken == nil else { return nil }
         switch state {
-        case .recording, .transcribing, .preparing: return nil
+        case .recording, .transcribing: return nil
         case .idle, .denied, .slotOccupied, .interrupted, .failed: break
         }
-        // What to return to after preparation: a denied card is dismissed once authorization passes, other states stay as they were before entering.
-        let restore: DictationState
-        if case .denied = state { restore = .idle } else { restore = state }
         let token = UUID()
         startToken = token
         defer { if startToken == token { startToken = nil } }
@@ -624,16 +731,15 @@ final class DictationController: ObservableObject {
         let choice = await engines.select()
         guard startToken == token else { return nil }
         if choice.isSystem {
-            guard await prepareSystemEngine(token: token) else { return nil }
+            guard await prepareSystemEngine(token: token, promptsLanguagePack: false) else { return nil }
         }
-        // Model preparation borrowed preparing to show progress; once done, return to the state before entering.
-        if case .preparing = state { state = restore }
         return choice
     }
 
     private func adopt(_ choice: DictationEngineChoice) {
         engine = choice.engine
         engineID = choice.engineID
+        engineIsSystem = choice.isSystem
         chosenInfo = choice.info
         engineInfo = choice.info
     }
@@ -641,6 +747,7 @@ final class DictationController: ObservableObject {
     private func forgetEngine() {
         engine = nil
         engineID = nil
+        engineIsSystem = false
         chosenInfo = nil
         engineInfo = nil
     }
@@ -660,8 +767,42 @@ final class DictationController: ObservableObject {
         }
     }
 
+    /// Tapped "download" on the language-pack prompt: records that it was prompted, switches the prompt to downloading and installs in the background; the prompt is cleared when install finishes (success or failure), and a failure does not show the failure card.
+    func download() {
+        guard var prompt = languagePackPrompt, !prompt.downloading, let assets = system.assets else { return }
+        markLanguagePackPrompted(prompt.localeID)
+        prompt.downloading = true
+        languagePackPrompt = prompt
+        let localeID = prompt.localeID
+        languagePackDownload = Task { [weak self] in
+            try? await assets.prepare(.speechTranscriber, locale: Locale(identifier: localeID))
+            guard let self, self.languagePackPrompt?.localeID == localeID else { return }
+            self.languagePackPrompt = nil
+        }
+    }
+
+    /// Tapped "don't remind" on the language-pack prompt: records that it was prompted and clears the prompt.
+    func dismissLanguagePack() {
+        guard let prompt = languagePackPrompt, !prompt.downloading else { return }
+        markLanguagePackPrompted(prompt.localeID)
+        languagePackPrompt = nil
+    }
+
+    private func languagePackPrompted(_ localeID: String) -> Bool {
+        system.promptDefaults.stringArray(forKey: DictationSystemPreparation.promptedDefaultsKey)?.contains(localeID) ?? false
+    }
+
+    private func markLanguagePackPrompted(_ localeID: String) {
+        let key = DictationSystemPreparation.promptedDefaultsKey
+        var prompted = system.promptDefaults.stringArray(forKey: key) ?? []
+        guard !prompted.contains(localeID) else { return }
+        prompted.append(localeID)
+        system.promptDefaults.set(prompted, forKey: key)
+    }
+
     /// Preparation before the system engine records; returns false when recording must not start (authorization denied or the flow was discarded).
-    private func prepareSystemEngine(token: UUID) async -> Bool {
+    /// promptsLanguagePack = false (voice conversation): does not check the language pack and does not publish a prompt.
+    private func prepareSystemEngine(token: UUID, promptsLanguagePack: Bool = true) async -> Bool {
         if !system.analyzerAvailable {
             if !system.authorizer.isAuthorized {
                 let granted = await system.authorizer.requestAuthorization()
@@ -673,6 +814,7 @@ final class DictationController: ObservableObject {
             }
             return true
         }
+        guard promptsLanguagePack else { return startToken == token }
         let requested = language()
         let assetLocale = system.assetLocale
         guard let assets = system.assets,
@@ -682,25 +824,19 @@ final class DictationController: ObservableObject {
             return startToken == token
         }
         guard startToken == token else { return false }
-        trackAssetProgress(assets, locale: locale, token: token)
-        // A preparation failure does not block recording: the system engine moves on to the next backend when transcribing.
-        try? await assets.prepare(.speechTranscriber, locale: locale)
-        return startToken == token
-    }
-
-    /// While the model downloads, maps progress to preparing; after each change the observation is registered again, and it stops when the flow ends (the token is replaced).
-    private func trackAssetProgress(_ assets: SpeechAssetManager, locale: Locale, token: UUID) {
-        guard startToken == token else { return }
-        let current = withObservationTracking {
-            assets.state(.speechTranscriber, locale: locale)
-        } onChange: { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.trackAssetProgress(assets, locale: locale, token: token)
-            }
+        // Only check, never install: if the pack is missing and this language has not been prompted yet, publish the prompt; recording starts as usual (live recognition goes online).
+        let localeID = SpeechAssetManager.localeKey(locale)
+        guard !languagePackPrompted(localeID), languagePackPrompt?.localeID != localeID else { return true }
+        let installed = await assets.isInstalled(.speechTranscriber, locale: locale)
+        guard startToken == token else { return false }
+        if !installed {
+            languagePackPrompt = DictationLanguagePackPrompt(
+                localeID: localeID,
+                displayName: AppLocalization.currentLanguage.locale.localizedString(forIdentifier: localeID) ?? localeID,
+                downloading: false
+            )
         }
-        if case .installing(let fraction) = current {
-            state = .preparing(progress: fraction)
-        }
+        return true
     }
 
     private func startRecording(slotKey: String, token: UUID) async {
@@ -711,11 +847,35 @@ final class DictationController: ObservableObject {
         await audioSession.waitForConversationRelease()
         guard startToken == token else { return }
         // Start capture first: the writer must be built from the actual tap format after the session is activated. Buffers arriving before the writer is attached are dropped.
+        var handlers: [AudioBufferHandler] = [{ buffer, _ in box.append(buffer) }, levelMeter.makeTap()]
+        if let session = startLive() { handlers.append(session.bufferHandler) }
         let format: AVAudioFormat
+        captureOpening = true
+        defer { captureOpening = false }
         do {
-            format = try capture.start(handlers: [{ buffer, _ in box.append(buffer) }, levelMeter.makeTap()])
+            // Opening capture includes session activation (a synchronous block): run it on a GCD background thread and await it, so the main thread does not stall and the cooperative pool is not occupied.
+            let request = CaptureStartRequest(capture: capture, handlers: handlers)
+            format = try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<CaptureStartResult, Error>) in
+                DispatchQueue.global(qos: .userInitiated).async {
+                    do {
+                        continuation.resume(returning: CaptureStartResult(
+                            format: try request.capture.start(handlers: request.handlers)))
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }.format
         } catch {
+            // Invalidated while waiting: state and the live session are already handled by the invalidating party; nothing changes here.
+            guard startToken == token else { return }
+            discardLive()
             state = .idle
+            return
+        }
+        // Cancelled / interrupted / slot switched while waiting: only stop the capture this flow just opened; state and the live session are left alone.
+        guard startToken == token else {
+            capture.stop()
             return
         }
         // Opening the slot (including deleting an orphan file) runs on the store queue and is awaited, ordered after earlier store operations, off the main thread.
@@ -725,16 +885,19 @@ final class DictationController: ObservableObject {
         } catch RecordingStoreError.slotOccupied {
             // The slot already holds a recording waiting for transcription: do not overwrite it, ask the user to transcribe or discard first.
             capture.stop()
+            discardLive()
             if startToken == token { state = .slotOccupied }
             return
         } catch {
             capture.stop()
+            discardLive()
             if startToken == token { state = .idle }
             return
         }
         // The start-recording flow was invalidated while opening the slot (cancel / interruption / slot switch): as with invalidation before opening, leave no recording and remove the slot just opened.
         guard startToken == token else {
             capture.stop()
+            discardLive()
             Self.enqueueOnStoreQueue(store) { store in
                 _ = box.close()
                 try? store.complete(slotKey: slotKey)
@@ -752,12 +915,104 @@ final class DictationController: ObservableObject {
     }
 
     /// Stops capture (only AVAudioEngine, no file IO, stays on the main thread) and detaches the writer; returns nil when not recording.
-    /// Closing the file and writing the sidecar are handed to the store queue by the caller.
-    private func detachRecording() -> (box: LockedRecordingWriter, slotKey: String)? {
+    /// Closing the file and writing the sidecar are handed to the store queue by the caller. With keepLive false an in-flight live session is invalidated too (finish keeps it to wrap up).
+    private func detachRecording(keepLive: Bool = false) -> (box: LockedRecordingWriter, slotKey: String)? {
         guard let box = writer, let slotKey else { return nil }
         capture.stop()
+        if !keepLive { discardLive() }
         writer = nil
         return (box, slotKey)
+    }
+
+    // MARK: Live recognition
+
+    /// One live recognition run: the session, the task reading snapshots (gives the last snapshot at the end), and the wrap-up after recording stops.
+    @MainActor
+    private final class LiveRun {
+        let session: SystemSTTSession
+        /// Latest snapshot received; used when the wrap-up times out (instead of waiting for the reading task).
+        var latest = SystemSTTLiveSnapshot()
+        var reader: Task<SystemSTTLiveSnapshot, Never>?
+        var ending: Task<LiveEnding, Never>?
+
+        init(session: SystemSTTSession) {
+            self.session = session
+        }
+    }
+
+    /// Outcome of a live session's wrap-up.
+    private nonisolated struct LiveEnding: Sendable {
+        let ended: LiveDictationEnded
+        let failure: SystemRecognizerFailure?
+    }
+
+    /// With the system engine and live recognition available, opens one session; snapshots are published separately through liveText. Otherwise nil (the cloud engine goes through the recording file).
+    private func startLive() -> SystemSTTSession? {
+        discardLive()
+        guard engineIsSystem, let engine = engine as? any LiveSTTEngine else { return nil }
+        let session = engine.startLive(language: language())
+        let run = LiveRun(session: session)
+        let generation = liveText.begin()
+        let liveText = self.liveText
+        run.reader = Task { [weak run] in
+            var last = SystemSTTLiveSnapshot()
+            for await snapshot in session.snapshots {
+                last = snapshot
+                run?.latest = snapshot
+                liveText.publish(snapshot, generation: generation)
+            }
+            return last
+        }
+        live = run
+        return session
+    }
+
+    /// Discards the live session (X / interruption / slot switch / failure / nothing recognized): cancels the session, clears the live text, and the host withdraws the live text on screen.
+    private func discardLive() {
+        guard let run = live else { return }
+        live = nil
+        run.session.cancel()
+        run.ending?.cancel()
+        liveText.reset()
+        onEvent?(.liveDiscarded)
+    }
+
+    /// After stopping the recording, starts the wrap-up: input ends and waits at most liveStopTimeoutMs; on timeout the session is cancelled.
+    private func beginLiveEnding(_ run: LiveRun) {
+        let session = run.session
+        run.ending = Task {
+            do {
+                _ = try await VoiceDeadline.run(within: .milliseconds(DictationRules.liveStopTimeoutMs)) {
+                    try await session.finish()
+                }
+                return LiveEnding(ended: .ok, failure: nil)
+            } catch is VoiceDeadline.TimedOut {
+                session.cancel()
+                return LiveEnding(ended: .timeout, failure: nil)
+            } catch {
+                return LiveEnding(ended: .failed, failure: SystemRecognizerFailure(error))
+            }
+        }
+    }
+
+    /// Waits for the live session's wrap-up and gives its end state; with no live session it is treated as a normal end with no text. Returns nil if it was discarded while waiting.
+    private func awaitLiveEnd(_ run: LiveRun?, stillCurrent: () -> Bool) async -> LiveDictationEnd? {
+        guard let run, let ending = run.ending else {
+            return LiveDictationEnd(finals: [], hasRecording: true, ended: .ok)
+        }
+        let result = await ending.value
+        guard stillCurrent(), live === run else { return nil }
+        let snapshot: SystemSTTLiveSnapshot
+        if result.ended == .timeout {
+            run.reader?.cancel()
+            snapshot = run.latest
+        } else {
+            snapshot = await run.reader?.value ?? run.latest
+            guard stillCurrent(), live === run else { return nil }
+        }
+        let failureKind = result.failure.flatMap { DictationRules.systemFailureClass($0).failureKind }
+        return LiveDictationEnd(finals: snapshot.finals, partial: snapshot.partial, hasRecording: true,
+                                ended: result.ended, failureKind: failureKind)
     }
 
     /// On the store queue: close the file and mark the sidecar ready (interrupted when interrupted / the slot switched), and return the recording result.
@@ -801,7 +1056,10 @@ final class DictationController: ObservableObject {
         guard let slotKey else { return }
         switch state {
         case .recording:
-            guard let detached = detachRecording() else { return }
+            guard let detached = detachRecording(keepLive: true) else { return }
+            let liveRun = live
+            // The liveStopTimeoutMs wrap-up starts from the tap, in parallel with closing the file; cancelled again if the precheck fails.
+            if let liveRun { beginLiveEnding(liveRun) }
             let box = detached.box
             let result = await Self.onStoreQueue(store) {
                 Self.closeFile(box, slotKey: slotKey, interrupted: false, in: $0)
@@ -809,12 +1067,13 @@ final class DictationController: ObservableObject {
             // Interrupted / discarded / slot switched while closing the file: the recording already landed in the slot according to that handling, so no precheck or transcription.
             guard self.slotKey == slotKey, state.isRecording, writer == nil else { return }
             guard DictationRules.precheck(durationSec: result.durationSec, envelope: result.envelope) == .ok else {
+                discardLive()
                 Self.enqueueOnStoreQueue(store) { try? $0.complete(slotKey: slotKey) }
                 state = .idle
                 onEvent?(.noSpeechHeard)
                 return
             }
-            await transcribe(result, slotKey: slotKey, intent: intent)
+            await transcribe(result, slotKey: slotKey, intent: intent, live: live === liveRun ? liveRun : nil)
         case .interrupted, .failed, .slotOccupied:
             // The slot query runs on the store queue; if it was discarded / the slot switched / transcription already started while waiting, do not proceed on this result.
             let before = state
@@ -832,7 +1091,9 @@ final class DictationController: ObservableObject {
         }
     }
 
-    private func transcribe(_ result: RecordingResult, slotKey: String, intent: DictationIntent) async {
+    /// live: the live session opened while recording (wrap-up already started); the system engine finalizes by dictationOutcome, the cloud engine only recognizes the recording file.
+    private func transcribe(_ result: RecordingResult, slotKey: String, intent: DictationIntent,
+                            live liveRun: LiveRun? = nil) async {
         state = .transcribing(intent)
         /// Discarded or slot switched during transcription: the state was changed, so the result no longer lands here.
         func stillCurrent() -> Bool { state == .transcribing(intent) && self.slotKey == slotKey }
@@ -848,6 +1109,11 @@ final class DictationController: ObservableObject {
             engine = choice.engine
         }
         let language = self.language()
+        if engineIsSystem {
+            await transcribeSystem(result, engine: engine, language: language, slotKey: slotKey, intent: intent,
+                                   live: liveRun, stillCurrent: stillCurrent)
+            return
+        }
         let task = Task<String, Error> { try await engine.transcribe(result, language: language) }
         transcription = task
         let outcome: Result<String, Error>
@@ -865,20 +1131,96 @@ final class DictationController: ObservableObject {
                 fail(.noTranscript, slotKey: slotKey)
                 return
             }
-            // With no receiver it is equivalent to an interruption: the recording stays in the slot and is not deleted.
-            guard let onEvent else {
-                Self.enqueueOnStoreQueue(store) { try? $0.markInterrupted(slotKey: slotKey, result: result) }
-                state = .interrupted
-                return
-            }
-            Self.enqueueOnStoreQueue(store) { try? $0.complete(slotKey: slotKey) }
-            state = .idle
-            onEvent(intent == .insert ? .insert(trimmed) : .send(trimmed))
+            deliver(trimmed, result: result, slotKey: slotKey, intent: intent)
         case .failure(let error as STTError):
             let kind: DictationFailureKind = error.action == .checkConnection ? .checkConnection : .retry
             fail(kind, slotKey: slotKey)
         case .failure:
             fail(.retry, slotKey: slotKey)
+        }
+    }
+
+    /// Recognized text: hand it to the host and delete the slot. With no receiver it is equivalent to an interruption: the recording stays in the slot and is not deleted.
+    private func deliver(_ text: String, result: RecordingResult, slotKey: String, intent: DictationIntent) {
+        guard let onEvent else {
+            Self.enqueueOnStoreQueue(store) { try? $0.markInterrupted(slotKey: slotKey, result: result) }
+            state = .interrupted
+            return
+        }
+        Self.enqueueOnStoreQueue(store) { try? $0.complete(slotKey: slotKey) }
+        state = .idle
+        onEvent(intent == .insert ? .insert(text) : .send(text))
+    }
+
+    /// System engine: wait for the live session to wrap up (<= liveStopTimeoutMs); when the recording file must be recognized, recognize it under a time limit (a timeout counts as the timeout condition);
+    /// busy retries automatically per systemFailure; finally finalize per dictationOutcome or fail.
+    private func transcribeSystem(_ result: RecordingResult, engine: any STTEngine, language: String?, slotKey: String,
+                                  intent: DictationIntent, live liveRun: LiveRun?,
+                                  stillCurrent: () -> Bool) async {
+        guard let liveEnd = await awaitLiveEnd(liveRun, stillCurrent: stillCurrent) else { return }
+        var file: DictationFileResult?
+        /// Disposition of the last failed file recognition (after automatic retries).
+        var fileDecision: SystemFailureDecision?
+        var attempt = 1
+        if DictationRules.needsFileRecognition(liveEnd) {
+            let seconds = result.durationSec * DictationRules.fileTimeoutFactor + DictationRules.fileTimeoutBaseSec
+            let limit = Duration.milliseconds(Int64((seconds * 1000).rounded(.up)))
+            attempts: while true {
+                let task = Task<String, Error> {
+                    try await VoiceDeadline.run(within: limit) { try await engine.transcribe(result, language: language) }
+                }
+                transcription = task
+                let outcome: Result<String, Error>
+                do {
+                    outcome = .success(try await task.value)
+                } catch {
+                    outcome = .failure(error)
+                }
+                if transcription == task { transcription = nil }
+                guard stillCurrent() else { return }
+                switch outcome {
+                case .success(let text):
+                    file = .text(text)
+                case .failure(let error as STTError) where error.audioUnreadable:
+                    file = .failed(.other)
+                case .failure(let error):
+                    let failure: SystemRecognizerFailure = error is VoiceDeadline.TimedOut
+                        ? .condition(.timeout) : SystemRecognizerFailure(error)
+                    let decision = DictationRules.systemFailure(failure, attempt: attempt)
+                    if decision.autoRetry {
+                        attempt += 1
+                        continue attempts
+                    }
+                    file = decision.kind == .noTranscript ? .text("") : .failed(decision.kind.failureKind ?? .other)
+                    fileDecision = decision
+                }
+                break attempts
+            }
+        }
+        let shown = live != nil
+        live = nil
+        liveText.reset()
+        let announceDiscard = { [weak self] in if shown { self?.onEvent?(.liveDiscarded) } }
+        switch DictationRules.dictationOutcome(live: liveEnd, file: file) {
+        case .text(let text, _):
+            deliver(DictationRules.trim(text), result: result, slotKey: slotKey, intent: intent)
+        case .noTranscript:
+            announceDiscard()
+            fail(.noTranscript, slotKey: slotKey)
+        case .failed(let kind):
+            announceDiscard()
+            switch fileDecision?.kind {
+            case .permission?:
+                // Speech recognition authorization was revoked: keep the recording and stay on the existing permission card.
+                Self.enqueueOnStoreQueue(store) { try? $0.markFailed(slotKey: slotKey) }
+                state = .denied(.speechRecognition)
+            case .cancelled?:
+                // The system cancelled recognition: not a failure and not reported; the recording is kept as interrupted.
+                Self.enqueueOnStoreQueue(store) { try? $0.markInterrupted(slotKey: slotKey, result: result) }
+                state = .interrupted
+            default:
+                fail(.system(kind), slotKey: slotKey)
+            }
         }
     }
 
@@ -895,6 +1237,7 @@ final class DictationController: ObservableObject {
 
     private func fail(_ kind: DictationFailureKind, slotKey: String) {
         Self.enqueueOnStoreQueue(store) { try? $0.markFailed(slotKey: slotKey) }
+        failedRecognitionLanguage = Self.recognitionLanguageID(language(), uiLocale: uiLocale())
         state = .failed(kind)
     }
 
@@ -906,6 +1249,7 @@ final class DictationController: ObservableObject {
     @discardableResult
     func discard() async -> RecordingDiscardOutcome? {
         guard let slotKey else { return nil }
+        discardLive()
         switch state {
         case .recording:
             _ = closeRecording()
@@ -914,11 +1258,6 @@ final class DictationController: ObservableObject {
             transcription = nil
         case .interrupted, .failed, .slotOccupied:
             break
-        case .preparing:
-            // Recording has not started yet: only revoke the start-recording flow.
-            startToken = nil
-            state = .idle
-            return nil
         case .idle, .denied:
             return nil
         }
@@ -980,7 +1319,7 @@ final class DictationController: ObservableObject {
     // MARK: System events
 
     /// Host leaving: while recording, wrap up as an interruption; while transcribing, cancel the transcription and leave the recording in the slot marked interrupted;
-    /// an in-flight start-recording flow (authorization / model preparation) is invalidated and no longer starts recording even if it completes later, and preparing returns to idle. Other states are untouched.
+    /// an in-flight start-recording flow (authorization / language-pack check) is invalidated and does not start recording even if it completes later. Other states are untouched.
     func interrupt() {
         switch state {
         case .recording:
@@ -988,9 +1327,6 @@ final class DictationController: ObservableObject {
         case .transcribing:
             leaveCurrentSlot()
             state = .interrupted
-        case .preparing:
-            startToken = nil
-            state = .idle
         default:
             startToken = nil
         }
@@ -1007,6 +1343,7 @@ final class DictationController: ObservableObject {
             }
         }
         // The wrap-up of the user's stop is still on the store queue (the writer is already detached): mark the sidecar interrupted after it; finish sees the state changed and no longer transcribes.
+        discardLive()
         if !closeRecording(interrupted: true), let slotKey { markSlotInterrupted(slotKey) }
         if let holder { Self.enqueueOnStoreQueue(store) { _ in holder.endOnMain() } }
         state = .interrupted

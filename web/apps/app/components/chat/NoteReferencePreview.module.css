@@ -67,7 +67,7 @@
   padding: 2px 9px;
   border-radius: 999px;
   background: color-mix(in srgb, var(--o-primary) 12%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-weight: 600;
   font-size: 10.5px;
 }

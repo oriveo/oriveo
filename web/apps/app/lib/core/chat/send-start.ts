@@ -22,6 +22,16 @@ import { clearDirectiveSuggestion, getPendingDirectiveSuggestion } from './conve
 import { clearMemorySuggestion, getPendingMemorySuggestion } from './conversation-instructions/memory-suggestion';
 import { deleteLocalMessageContinuation } from './continuation-lifecycle';
 
+/**
+ * Skill ids a send without a conversation starts the new one with: the composer draft chips,
+ * else the legacy single skillId.
+ */
+export function newConversationSkillIds(store: StoreApi<AppStore>, skillId: string | undefined): string[] {
+  const draft = store.getState().draftConversationSkillIds ?? [];
+  if (draft.length > 0) return [...draft];
+  return skillId ? [skillId] : [];
+}
+
 export interface SendStartParams {
   store: StoreApi<AppStore>;
   userMsg: ChatMessage;
@@ -155,11 +165,12 @@ export function prepareSendStart(p: SendStartParams): SendStartResult {
   // A new conversation, or an append to an existing one
   if (!conversation) {
     isFirstMessage = true;
-    const pendingSkill = skillId ? getSkillById(store, skillId) : undefined;
+    const skillIds = newConversationSkillIds(store, skillId);
+    const pendingSkill = skillIds[0] ? getSkillById(store, skillIds[0]) : undefined;
     const newConv = createNewConversation({
       provider, model, userMessage: userMsg,
       messages: [userMsg, assistantMsg],
-      skillId,
+      skillIds,
       useMemory: pendingSkill?.useMemory,
       pinnedNoteIds,
       instructions: store.getState().draftConversationInstructions,

@@ -18,6 +18,8 @@ import ai.oriveo.community.core.model.ProviderServiceError
 internal fun failedMessageDetail(error: ProviderServiceError): String = when (error) {
     is ProviderServiceError.GrokSubscription,
     is ProviderServiceError.OpenAISubscription,
+    // Empty reply: the card body shows the localized prescribed copy; technicalDetail is the same English line
+    is ProviderServiceError.EmptyResponse,
     -> error.userMessage
     else -> error.technicalDetail
 }

@@ -253,7 +253,8 @@ private fun MemoryInboxAction(label: String, tag: String, primary: Boolean, onCl
             .padding(start = if (primary) 4.dp else 0.dp)
             .height(36.dp)
             .clip(CircleShape)
-            .then(if (primary) Modifier.background(colors.primaryTextSafe) else Modifier)
+            .then(if (primary) Modifier.background(colors.primaryFillText) else Modifier)
+            
             .clickable(onClick = onClick)
             .padding(horizontal = if (primary) 16.dp else 12.dp),
         contentAlignment = Alignment.Center,

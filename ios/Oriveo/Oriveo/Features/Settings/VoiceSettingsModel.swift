@@ -18,7 +18,28 @@ struct VoiceEngineRow: Hashable, Sendable {
     }
 }
 
-/// Parameters for a voice preview on the settings page, matching the signature of `ReadAloudController.preview`.
+/// One row of the realtime voice group in settings: a realtime model on an official connection.
+struct VoiceRealtimeRow: Hashable, Sendable, Identifiable {
+    let providerID: UUID
+    let providerKind: ProviderKind
+    let model: String
+    /// "Realtime voice · interrupt anytime · connection name".
+    let subtitle: String
+    /// Whether this is the Home realtime selection.
+    let isSelected: Bool
+
+    var id: String { "\(providerID.uuidString)|\(model)" }
+}
+
+/// State of the realtime voice group in settings: catalog not ready (progress row) / load failed (retry) / no usable row (add provider) / has rows.
+enum VoiceRealtimeGroupState: Hashable, Sendable {
+    case loading
+    case failed
+    case empty
+    case rows([VoiceRealtimeRow])
+}
+
+/// Parameters for the settings page voice preview, matching the signature of `ReadAloudController.preview`.
 struct VoicePreviewRequest {
     let entry: VoiceTTSEntry
     let provider: Provider
@@ -52,12 +73,9 @@ final class VoiceSettingsModel {
     private(set) var catalogState: VoiceCatalogState?
     private(set) var dictationEngine: VoiceEngineRow
     private(set) var readAloudEngine: VoiceEngineRow
-    /// Conversation engine row of the voice conversation group (fixed title "Conversation Engine", subtitle is Follow Current Model or provider · model).
-    private(set) var realtimeEngine: VoiceEngineRow
     /// Fallback notices under the engine rows; set only on the page entry that finds a fallback (or picks up a pending notice).
     private(set) var dictationNotice: String?
     private(set) var readAloudNotice: String?
-    private(set) var realtimeNotice: String?
     private(set) var recognitionLanguage: String?
     /// Stored read-aloud selection (the voice rows and speed adjustability are derived from it).
     private(set) var readAloudSelection: VoiceEngineSelection
@@ -71,13 +89,16 @@ final class VoiceSettingsModel {
     @ObservationIgnored private let providers: () -> [Provider]
     @ObservationIgnored private let interfaceLanguage: @MainActor () -> String
     @ObservationIgnored private let systemVoiceQuality: @MainActor (String) -> AVSpeechSynthesisVoiceQuality?
+    /// Home realtime selection (AppState in-memory state); read fresh each time, the check follows the Home selection.
+    @ObservationIgnored private let realtimeSelection: @MainActor () -> RealtimeModelSelection?
 
     init(
         settings: VoiceEngineSettings = VoiceEngineSettings(),
         refreshCatalog: @escaping () async -> VoiceCatalogState = { await VoiceCatalogClient.shared.refresh() },
         providers: @escaping () -> [Provider],
         interfaceLanguage: @escaping @MainActor () -> String = { AppLocalization.currentLanguage.rawValue },
-        systemVoiceQuality: @escaping @MainActor (String) -> AVSpeechSynthesisVoiceQuality? = { VoiceSettingsModel.bestSystemVoiceQuality(for: $0) }
+        systemVoiceQuality: @escaping @MainActor (String) -> AVSpeechSynthesisVoiceQuality? = { VoiceSettingsModel.bestSystemVoiceQuality(for: $0) },
+        realtimeSelection: @escaping @MainActor () -> RealtimeModelSelection? = { nil }
     ) {
         var settings = settings
         var refreshCatalog = refreshCatalog
@@ -96,10 +117,10 @@ final class VoiceSettingsModel {
         self.providers = providers
         self.interfaceLanguage = interfaceLanguage
         self.systemVoiceQuality = systemVoiceQuality
+        self.realtimeSelection = realtimeSelection
         self.dictationEngine = Self.row(for: settings.selection(for: .stt))
         self.readAloudSelection = settings.selection(for: .tts)
         self.readAloudEngine = Self.row(for: settings.selection(for: .tts))
-        self.realtimeEngine = Self.realtimeRow(for: settings.selection(for: .realtime))
         self.recognitionLanguage = settings.recognitionLanguage
         self.speechRate = settings.speechRate
         self.interfaceVoiceQuality = systemVoiceQuality(interfaceLanguage())
@@ -113,8 +134,6 @@ final class VoiceSettingsModel {
         let providers: [Provider]
         /// Engine sheet direction to open after entering the page; cleared once used.
         var openEngineSheet: VoiceDirection?
-        /// Scroll to the voice conversation group after entering the page.
-        var scrollToRealtimeEngine: Bool
         /// Engine whose disclosure is raised once the engine sheet opens (not selected, no consent written); cleared once used.
         var disclosure: VoiceCloudEngine? = nil
     }
@@ -132,7 +151,6 @@ final class VoiceSettingsModel {
         let connections = Self.connections(providers())
         dictationNotice = resolveNotice(direction: .stt, catalog: state.catalog, connections: connections)
         readAloudNotice = resolveNotice(direction: .tts, catalog: state.catalog, connections: connections)
-        realtimeNotice = resolveNotice(direction: .realtime, catalog: state.catalog, connections: connections)
         reloadLocalSettings()
     }
 
@@ -141,7 +159,6 @@ final class VoiceSettingsModel {
     func reloadLocalSettings() {
         dictationEngine = Self.row(for: settings.selection(for: .stt))
         refreshReadAloud()
-        realtimeEngine = Self.realtimeRow(for: settings.selection(for: .realtime))
         recognitionLanguage = settings.recognitionLanguage
         speechRate = settings.speechRate
         interfaceVoiceQuality = systemVoiceQuality(interfaceLanguage())
@@ -194,15 +211,66 @@ final class VoiceSettingsModel {
             ).notice
         }
         guard fellBack || pending != nil else { return nil }
-        if direction == .realtime {
-            return L10n.tr("Switched back to Follow Current Model.", table: .voice)
-        }
         return L10n.tr("The selected engine is no longer available. Switched back to System.", table: .voice)
     }
 
     /// Page header: dictation, read aloud and voice conversations all default to the system.
     static var pageHeader: String {
-        L10n.tr("You don't need to change anything here: dictation, read aloud, and voice conversations use your device's built-in voice at no cost. For better accuracy or a nicer voice, switch to a provider you've connected.", table: .voice)
+        L10n.tr("Dictation and read aloud use your device's built-in voice for free. For better accuracy or a more natural voice, switch to a provider you've connected. Realtime voice talks to your provider's model directly and is billed to your account with that provider.", table: .voice)
+    }
+
+    // MARK: - Realtime voice group
+
+    /// Catalog has no verdict yet -> progress row; load failed -> retry; otherwise list the realtime models of all official connections in connection order
+    /// (same exit as the Home picker); no rows gives the empty state.
+    var realtimeGroup: VoiceRealtimeGroupState {
+        guard let state = catalogState else { return .loading }
+        if case .loadFailed = state { return .failed }
+        let list = providers()
+        let byProvider = modelPickerRealtimeModels(context: .home, providers: list, catalog: state.catalog).byProvider
+        let selected = realtimeSelection()
+        let subtitle = L10n.tr("Realtime voice · Interrupt anytime", table: .voice)
+        let rows = list.flatMap { provider in
+            (byProvider[provider.id] ?? []).map { model in
+                VoiceRealtimeRow(
+                    providerID: provider.id,
+                    providerKind: provider.kind,
+                    model: model,
+                    subtitle: "\(subtitle) · \(provider.displayName)",
+                    isSelected: selected?.providerID == provider.id && selected?.model == model
+                )
+            }
+        }
+        return rows.isEmpty ? .empty : .rows(rows)
+    }
+
+    /// Reload the catalog: the group shows a progress row meanwhile; once it arrives, the stored selection is resolved the same way as on page entry.
+    func retryRealtime() async {
+        catalogState = nil
+        await load()
+    }
+
+    var realtimeFooter: String {
+        L10n.tr(
+            "Pick one and Home shows the voice stage — tap the orb to start talking. Any chat's model picker has it too; pick a text model to go back to typing.",
+            table: .voice
+        )
+    }
+
+    var realtimeEmptyText: String {
+        L10n.tr("Add an official API key from a provider with realtime voice to use it here.", table: .voice)
+    }
+
+    var realtimeAddProviderTitle: String {
+        L10n.tr("Add Provider")
+    }
+
+    var realtimeFailedText: String {
+        L10n.tr("Couldn't load realtime voice models", table: .voice)
+    }
+
+    var realtimeRetryTitle: String {
+        L10n.tr("Try Again", table: .voice)
     }
 
     // MARK: - Dictation group
@@ -225,9 +293,7 @@ final class VoiceSettingsModel {
     }
 
     var recognitionLanguageTitle: String {
-        recognitionLanguageOptions.first(where: { $0.code == recognitionLanguage })?.title
-            ?? recognitionLanguage
-            ?? L10n.tr("Automatic", table: .voice)
+        RecognitionLanguageSheetModel.displayName(recognitionLanguage)
     }
 
     func setRecognitionLanguage(_ code: String?) {
@@ -338,31 +404,6 @@ final class VoiceSettingsModel {
 
     var readAloudFooter: String {
         L10n.tr("Read aloud skips thinking and code. If the cloud voice is unavailable, the system voice takes over. Voice conversations speak with this voice and speed too.", table: .voice)
-    }
-
-    // MARK: - Voice conversation group
-
-    static var realtimeGroupTitle: String {
-        L10n.tr("Voice Conversation", table: .voice)
-    }
-
-    var realtimeFooter: String {
-        L10n.tr("A realtime model hears you and answers directly, so replies come faster, but this chat's model isn't used.", table: .voice)
-    }
-
-    static func realtimeRow(for selection: VoiceEngineSelection) -> VoiceEngineRow {
-        let title = L10n.tr("Conversation Engine", table: .voice)
-        switch selection {
-        case .system:
-            return VoiceEngineRow(title: title, subtitle: L10n.tr("Follow Current Model", table: .voice), isCloud: false)
-        case .cloud(let engine):
-            return VoiceEngineRow(
-                title: title,
-                subtitle: "\(engine.providerKind.displayName) · \(engine.model)",
-                isCloud: true,
-                providerKind: engine.providerKind
-            )
-        }
     }
 
     static func voiceTitle(_ id: String) -> String {

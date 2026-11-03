@@ -136,6 +136,13 @@ select {
   box-shadow: var(--o-focus-ring);
 }
 
+/* Programmatic focus targets (e.g. dialog titles with tabindex="-1") draw no ring; keyboard-focusable elements keep theirs. */
+[tabindex="-1"]:focus,
+[tabindex="-1"]:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *,

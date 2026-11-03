@@ -79,6 +79,7 @@ import ai.oriveo.community.feature.chat.ContextCapHeroCaption
 import ai.oriveo.community.feature.chat.ContextCapPresentation
 import ai.oriveo.community.feature.chat.ContextCapSettingsSelection
 import ai.oriveo.community.ui.component.OriveoBackButton
+import ai.oriveo.community.ui.component.oriveoSwitchColors
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.OriveoTheme
 import org.koin.androidx.compose.koinViewModel
@@ -516,6 +517,7 @@ private fun PriceLineReminderGroup(
         Switch(
             checked = enabled,
             onCheckedChange = onChange,
+            colors = oriveoSwitchColors(),
             modifier = Modifier,
         )
     }

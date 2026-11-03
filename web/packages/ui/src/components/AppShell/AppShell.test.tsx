@@ -312,6 +312,37 @@ describe('AppShell mobile app chrome', () => {
     const navs = screen.getAllByRole('navigation', { name: 'Main navigation' });
     expect(navs.every((nav) => !nav.textContent?.includes('Notes'))).toBe(true);
   });
+
+  it('renders the skills entry right below notes with its optional count', () => {
+    const { container } = render(
+      <AppShell
+        navItems={navItems}
+        notesEntry={{ label: 'Notes', href: '/notes' }}
+        skillsEntry={{ label: 'Skills', href: '/skills', count: 3 }}
+        activePath="/skills"
+        sidebarOpen
+      >
+        <div>main</div>
+      </AppShell>,
+    );
+
+    const actions = container.querySelector('.sidebarActions');
+    const entries = Array.from(actions?.querySelectorAll('.notesEntryBtn') ?? []);
+    expect(entries.map((el) => el.getAttribute('title'))).toEqual(['Notes', 'Skills']);
+    expect(entries[1]?.querySelector('[data-nav-count]')?.textContent).toBe('3');
+    expect(entries[0]?.querySelector('[data-nav-count]')).toBeNull();
+    expect(actions?.querySelector('[aria-current="page"]')?.getAttribute('title')).toBe('Skills');
+  });
+
+  it('renders a zero count instead of hiding it', () => {
+    const { container } = render(
+      <AppShell navItems={navItems} skillsEntry={{ label: 'Skills', href: '/skills', count: 0 }} sidebarOpen>
+        <div>main</div>
+      </AppShell>,
+    );
+
+    expect(container.querySelector('.sidebarActions [data-nav-count]')?.textContent).toBe('0');
+  });
 });
 
 describe('AppShell responsive CSS', () => {
@@ -407,6 +438,26 @@ describe('AppShell responsive CSS', () => {
     expect(sidebarRule).toContain('transition: transform var(--o-transition-normal)');
     expect(sidebarRule).toContain('width: var(--o-sidebar-width-user, var(--o-sidebar-width))');
     expect(sidebarRule).toContain('min-width: 0');
+  });
+
+  it('drops the drawer elevation while the overlay sidebar is collapsed off-screen', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'AppShell.module.css'), 'utf8').replace(/\s+/g, ' ');
+    const overlayMediaIndex = css.indexOf('@media (max-width: 1023px)');
+    const openRuleIndex = css.indexOf('.sidebar {', overlayMediaIndex);
+    const collapsedRuleIndex = css.indexOf(".shell[data-overlay-sidebar-open='false'] .sidebar {", overlayMediaIndex);
+    const collapsedRule = css.slice(collapsedRuleIndex, css.indexOf('}', collapsedRuleIndex));
+
+    expect(css.slice(openRuleIndex, css.indexOf('}', openRuleIndex))).toContain('box-shadow: var(--o-elevation-modal)');
+    expect(collapsedRuleIndex).toBeGreaterThan(openRuleIndex);
+    expect(collapsedRule).toContain('transform: translateX(-100%)');
+    expect(collapsedRule).toContain('box-shadow: none');
+  });
+
+  it('reserves the floating tab bar plus a 16px gap so the last content row clears it', () => {
+    const css = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'AppShell.module.css'), 'utf8');
+    const mobile = css.slice(css.indexOf('@media (max-width: 767px)'));
+    // Pill 66px (item 52 + padding 12 + border 2) + bottom offset 10px + 16px gap = 92px.
+    expect(mobile).toContain('--o-mobile-tabbar-height: calc(92px + env(safe-area-inset-bottom, 0px));');
   });
 
   it('hides the sidebar opener on mobile tab pages so it cannot overlap page titles', () => {

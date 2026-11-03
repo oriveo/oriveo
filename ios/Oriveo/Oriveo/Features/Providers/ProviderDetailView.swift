@@ -33,6 +33,9 @@ struct ProviderDetailView: View {
     @State private var libraryProjection = ProviderCatalogLibraryProjection()
     @State private var activeAddFeedbacks: [ProviderModelAddFeedbackState] = []
     @State private var highlightedEnabledModelID: String?
+    /// Disclosure shown from the realtime voice row; `realtimeDisclosurePending` ensures the answer (including swipe-to-dismiss) applies only once.
+    @State private var realtimeDisclosure: RealtimeModelDisclosureRequest?
+    @State private var realtimeDisclosurePending = RealtimeDisclosurePending()
     @State private var pendingRemovalBanner: ProviderModelRemovalBannerState?
     @State private var addFeedbackTrigger = 0
     @State private var dismissedHealthBanner = false
@@ -390,6 +393,14 @@ struct ProviderDetailView: View {
                     .sheet(isPresented: capabilityTestPresented) {
                         RelayCapabilityTestSheet(controller: capabilityTest)
                     }
+                    .sheet(item: $realtimeDisclosure, onDismiss: { answerRealtimeDisclosure(accepted: false) }) { request in
+                        VoiceDisclosureSheet(
+                            provider: request.selection.providerKind,
+                            direction: .realtime,
+                            onAnswer: { accepted in answerRealtimeDisclosure(accepted: accepted) }
+                        )
+                            .environment(appState)
+                    }
                     .onChange(of: provider.effectiveStatusKind) { _, newKind in
                         if newKind == .connected || newKind == .syncing {
                             dismissedHealthBanner = false
@@ -419,6 +430,21 @@ struct ProviderDetailView: View {
                 }
             }
         }
+    }
+
+    /// Realtime voice row chat button: selects the model as the home realtime selection and switches to the home tab; shows the disclosure first if not yet accepted (same as HomeView.commitRealtimeModelSelection).
+    private func handleRealtimeModelChat(_ model: String, for provider: Provider) {
+        guard case .needsDisclosure(let selection) = ProviderRealtimeModelsSection.startRealtimeChat(
+            providerID: provider.id, model: model, appState: appState
+        ) else { return }
+        let request = RealtimeModelDisclosureRequest(selection: selection, conversationID: nil)
+        realtimeDisclosurePending.present(request, origin: .picker)
+        realtimeDisclosure = request
+    }
+
+    private func answerRealtimeDisclosure(accepted: Bool) {
+        guard let (request, _) = realtimeDisclosurePending.take(accepted: accepted) else { return }
+        ProviderRealtimeModelsSection.resolveDisclosure(request, accepted: accepted, appState: appState)
     }
 
     @ViewBuilder
@@ -470,6 +496,16 @@ struct ProviderDetailView: View {
         )
         // No `.equatable()` wrapper: EquatableView is a single view and would gather the sibling rows into one non-lazy stack, building the whole section at once
         // (150 rows on first screen with 150 added). An unchanged write-back is skipped by each row's own `.equatable()`.
+
+        // Realtime voice group: same source as the picker, hidden when it has no rows; the revision number recomputes it immediately when the catalog arrives late.
+        let _ = appState.realtimeVoiceCatalogRevision
+        ProviderRealtimeModelsSection(
+            provider: provider,
+            models: ProviderRealtimeModelsSection.rows(for: provider, catalog: appState.realtimeVoiceCatalog()),
+            onChat: { model in
+                handleRealtimeModelChat(model, for: provider)
+            }
+        )
 
         if showsLibrarySection {
             ProviderModelLibrarySection(

@@ -71,6 +71,8 @@ internal fun MessageItemWithActions(
     /** Whether a live streaming session is attached to this message. The waiting label only applies to it. */
     isLiveStream: Boolean = false,
     isSendingMessage: Boolean,
+    /** Whether the current conversation model is a realtime voice model: regenerate and edit are not rendered. */
+    isRealtimeModel: Boolean = false,
     isRateLimitError: Boolean,
     topPadding: Dp,
     showMetadata: Boolean,
@@ -116,6 +118,7 @@ internal fun MessageItemWithActions(
         message.customRetryWithoutFieldsCode,
         message.errorDetail,
         offersSwitchKey,
+        isRealtimeModel,
     ) {
         resolveMessageRecoveryCardActionLayout(
             state = message.state,
@@ -127,14 +130,20 @@ internal fun MessageItemWithActions(
             relayAttachmentUnsupported = message.state == ChatMessageState.Failed &&
                 isRelayAttachmentUnsupportedDetail(message.errorDetail),
             offersSwitchKey = offersSwitchKey,
+            isRealtimeModel = isRealtimeModel,
         )
     }
     val recoveryActionsEnabled = remember(isSendingMessage) {
         messageRecoveryActionsEnabled(isSendingMessage)
     }
-    val showDeliveredRegenerateAction = remember(message.state, isSendingMessage) {
+    val showDeliveredRegenerateAction = remember(message.state, isSendingMessage, isRealtimeModel) {
+        shouldShowDeliveredRegenerateAction(message.state, isSendingMessage, isRealtimeModel)
+    }
+    // Cross-check is not a re-answer, so it stays offered under a realtime voice model (same condition as before).
+    val showCrosscheckAction = remember(message.state, isSendingMessage) {
         shouldShowDeliveredRegenerateAction(message.state, isSendingMessage)
     }
+    val showEditAction = shouldShowEditAction(message.role, isRealtimeModel)
 
     // While a recovery card is shown it owns the continuation, so the notice row is hidden
     val replyNotice = if (message.role == ChatRole.Assistant) {
@@ -187,7 +196,7 @@ internal fun MessageItemWithActions(
                 providerNameOverride = providerNameOverride,
                 modelNameOverride = modelNameOverride,
                 isUserDragging = isUserDragging,
-                onEdit = if (message.role == ChatRole.User) onEdit else null,
+                onEdit = if (showEditAction) onEdit else null,
                 onRetry = if (message.role == ChatRole.Assistant && showDeliveredRegenerateAction) {
                     onRegenerate
                 } else {
@@ -452,7 +461,7 @@ internal fun MessageItemWithActions(
                         leadingIcon = { Icon(Icons.AutoMirrored.Outlined.NoteAdd, contentDescription = null) },
                     )
                 }
-                if (message.role == ChatRole.User) {
+                if (showEditAction) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.edit)) },
                         onClick = { showMenu = false; onEdit() },
@@ -476,7 +485,9 @@ internal fun MessageItemWithActions(
                             leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
                         )
                     }
-
+                }
+                if (message.role == ChatRole.Assistant && showCrosscheckAction) {
+                    // Cross-check: a second model checks the original answer against the same question; the original answer is kept (aligned with Web)
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.notes_chat_crosscheck_action)) },
                         onClick = { showMenu = false; onCrosscheck() },

@@ -5,6 +5,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -47,6 +48,17 @@ class AudioCaptureTest {
         val failures = mutableListOf<Throwable>()
         var interruptions = 0
         val reported = CountDownLatch(1)
+        val stats = LinkedBlockingQueue<List<Long>>()
+        val stops = mutableListOf<String>()
+
+        override fun onStats(reads: Long, zeroReads: Long, errorReads: Long) {
+            stats.put(listOf(reads, zeroReads, errorReads))
+        }
+
+        @Synchronized
+        override fun onStopped(reason: String) {
+            stops += reason
+        }
 
         @Synchronized
         override fun onFailure(error: Throwable) {
@@ -70,7 +82,11 @@ class AudioCaptureTest {
         }
     }
 
-    private class Harness(script: List<Int>) {
+    private class Harness(
+        script: List<Int>,
+        clock: () -> Long = { 0L },
+        pause: (Long) -> Unit = { Thread.sleep(it) },
+    ) {
         val source = FakeSource(script)
         val threads = mutableListOf<Thread>()
         val uncaught = mutableListOf<Throwable>()
@@ -82,6 +98,8 @@ class AudioCaptureTest {
                     threads += thread
                 }
             },
+            clock = clock,
+            pause = pause,
         )
 
         fun awaitThreadExit() {
@@ -115,6 +133,42 @@ class AudioCaptureTest {
         assertEquals(1, events.failures.size)
     }
 
+    /** A read returning 0 samples emits no PCM and reports no failure: the 500 ms stats count it as zeroReads, and onStopped is not reported after stop. */
+    @Test
+    fun zeroReadsAreCountedInCaptureStats() {
+        val now = AtomicLong()
+        // Start at 0; the clock advances 200 ms after each read, so stats are reported once after the 3rd read reaches 500 ms.
+        val harness = Harness(listOf(0, 0, 0), clock = { now.getAndAdd(200) })
+        val sink = FakeSink()
+        val events = RecordingEvents()
+
+        harness.capture.start(listOf(sink), events)
+
+        assertEquals(listOf(3L, 3L, 0L), events.stats.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS))
+        assertEquals(0, sink.writes.get())
+        harness.capture.stop()
+        assertTrue(events.failures.isEmpty())
+        assertTrue("stop is not reported as a stop reason", events.stops.isEmpty())
+        assertTrue(events.stats.isEmpty())
+    }
+
+    /** From the second consecutive 0-sample read on, each read yields at most 10 ms instead of spinning; a single 0 and reads with data do not yield, and the count restarts after data. */
+    @Test
+    fun consecutiveZeroReadsYieldInsteadOfSpinning() {
+        val pauses = LinkedBlockingQueue<Long>()
+        val harness = Harness(listOf(0, 0, CHUNK, 0, CHUNK), pause = { pauses.put(it) })
+        val written = CountDownLatch(2)
+        val sink = PcmSink { _, _ -> written.countDown() }
+
+        harness.capture.start(listOf(sink), RecordingEvents())
+
+        assertTrue(written.await(TIMEOUT_MS, TimeUnit.MILLISECONDS))
+        harness.capture.stop()
+        assertEquals("only the second zero in a row yields", listOf(AudioRecordCapture.ZERO_READ_YIELD_MS), pauses.toList())
+        assertTrue(AudioRecordCapture.ZERO_READ_YIELD_MS in 1L..10L)
+        assertTrue(harness.uncaught.isEmpty())
+    }
+
     @Test
     fun negativeReadReportsFailureOnce() {
         val harness = Harness(listOf(CHUNK, ERROR_DEAD_OBJECT, CHUNK))
@@ -127,6 +181,8 @@ class AudioCaptureTest {
         harness.awaitThreadExit()
         assertEquals(1, events.failures.size)
         assertTrue(events.failures.single().message.orEmpty().contains("$ERROR_DEAD_OBJECT"))
+        assertEquals(listOf(AudioRecordCapture.STOP_READ_ERROR), events.stops)
+        assertEquals("final stats before the failure", listOf(2L, 0L, 1L), events.stats.poll())
         assertEquals(0, events.interruptions)
         assertEquals("the chunk read before the error is kept", 1, sink.writes.get())
         assertTrue(harness.uncaught.isEmpty())

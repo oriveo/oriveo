@@ -24,6 +24,9 @@ interface VoiceConversationEngine {
     /** the screen reader is speaking the status word. */
     fun screenReaderSpeaking(speaking: Boolean)
 
+    /** The recognition language setting changed mid-conversation; the next sentence uses it. Realtime: nothing to do. */
+    fun recognitionLanguageChanged() {}
+
     fun end(reason: EndReason = EndReason.USER)
 
     /** The page is going away (navigation): a system end, except that a realtime session keeps its half-spoken draft. */

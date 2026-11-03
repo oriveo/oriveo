@@ -189,8 +189,12 @@ export const ALLOWED: readonly AllowedCustomProperty[] = [
   {
     name: 'o-mobile-tabbar-height',
     kind: 'injected',
-    files: ['apps/app/components/mobile/MobileHomeView.module.css'],
-    reason: 'Defined on the AppShell shell class in packages/ui/src/components/AppShell/AppShell.module.css and read here with an 88px fallback, so the mobile view does not have to import the shell stylesheet.',
+    files: [
+      'apps/app/components/mobile/MobileHomeView.module.css',
+      'apps/app/components/chat/MessageList.module.css',
+    ],
+    reason:
+      'Declared by AppShell .shell (packages/ui/src/components/AppShell/AppShell.module.css:7 default 0px and :544 mobile media query) and inherited. The 88px MobileHomeView fallback applies when rendered outside AppShell; the chat list uses a 0px fallback (no extra bottom gap without a tab bar).',
   },
 
   // Fonts registered through next/font, which defines the variable on <html>.
@@ -283,11 +287,9 @@ export const KNOWN_ALIASES: Readonly<Record<string, string>> = {
   'o-surface-elevated': 'o-surface-raised',
   'o-surface-subtle': 'o-bg-subtle',
   'o-surface-inset': 'o-bg-inset',
-  'o-surface-hover': 'o-surface-raised',
   'o-surface-muted': 'o-bg-inset',
   'o-text-primary': 'o-text',
   'o-text-md': 'o-text-base',
-  'o-border-subtle': 'o-border',
   'o-border-default': 'o-border',
   'o-danger': 'o-error',
   'o-status-error': 'o-error',
@@ -316,7 +318,7 @@ function suggest(name: string, candidates: readonly string[]): string[] {
     .slice(0, alias ? 2 : 3)
     .map((entry) => `--${entry.candidate}`);
   // A known correspondence goes first, marked so it does not read as a guess.
-  return alias ? [`--${alias} `, ...nearest] : nearest;
+  return alias ? [`--${alias} (historical misname table)`, ...nearest] : nearest;
 }
 
 export interface AuditResult {

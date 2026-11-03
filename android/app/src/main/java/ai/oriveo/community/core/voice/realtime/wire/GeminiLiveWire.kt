@@ -2,9 +2,12 @@ package ai.oriveo.community.core.voice.realtime.wire
 
 import ai.oriveo.community.core.context.RealtimeHistoryItem
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.realtime.RealtimeSessionEvent
+import ai.oriveo.community.core.voice.realtime.RealtimeTransportKind
 import ai.oriveo.community.core.voice.realtime.RealtimeVoiceLog
 import ai.oriveo.community.core.voice.realtime.RealtimeTurnStatus
+import java.text.Normalizer
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -39,7 +42,10 @@ internal object GeminiLiveWire {
         model: String,
         voice: String,
         resumeHandle: String?,
+        route: ConversationRoute = ConversationRoute.SPEAKER,
+        language: String? = null,
     ): GeminiOpeningMessages {
+        val lang = transcriptionLanguage(RealtimeTransportKind.GeminiLive, language)
         val resuming = !resumeHandle.isNullOrEmpty()
         val withHistory = !resuming && history.isNotEmpty()
         val setup = buildJsonObject {
@@ -55,10 +61,17 @@ internal object GeminiLiveWire {
             putJsonObject("systemInstruction") {
                 putJsonArray("parts") { addJsonObject { put("text", instructions) } }
             }
-            putJsonObject("inputAudioTranscription") {}
+            // Transcription language goes only through inputAudioTranscription.languageCodes, never speechConfig.languageCode
+            putJsonObject("inputAudioTranscription") { if (lang != null) putJsonArray("languageCodes") { add(lang) } }
             putJsonObject("outputAudioTranscription") {}
             putJsonObject("sessionResumption") { if (resuming) put("handle", resumeHandle) }
             putJsonObject("contextWindowCompression") { putJsonObject("slidingWindow") {} }
+            // In speaker mode, start-of-speech sensitivity is lowered; not written otherwise (setup is sent once, and re-read for the current route on reconnect)
+            if (route == ConversationRoute.SPEAKER) {
+                putJsonObject("realtimeInputConfig") {
+                    putJsonObject("automaticActivityDetection") { put("startOfSpeechSensitivity", "START_SENSITIVITY_LOW") }
+                }
+            }
             if (withHistory) putJsonObject("historyConfig") { put("initialHistoryInClientContent", true) }
         }
         val after = if (withHistory) {
@@ -81,6 +94,19 @@ internal object GeminiLiveWire {
             emptyList()
         }
         return GeminiOpeningMessages(beforeReady = listOf(buildJsonObject { put("setup", setup) }), afterReady = after)
+    }
+
+    /** A typed user message: one complete user turn. */
+    fun userTextMessage(text: String): JsonObject = buildJsonObject {
+        putJsonObject("clientContent") {
+            putJsonArray("turns") {
+                addJsonObject {
+                    put("role", "user")
+                    putJsonArray("parts") { addJsonObject { put("text", text) } }
+                }
+            }
+            put("turnComplete", true)
+        }
     }
 
     /** One chunk of microphone PCM16 already resampled to 16 kHz. */
@@ -136,6 +162,8 @@ internal class GeminiLiveEventMapper {
     private var assistantStarted = false
     private var nextUserText = ""
     private var speechSinceReply = false
+    private var finalUserText = ""
+    private var heldUserText = ""
 
     /** True once this turn received any transcription / audio / interrupted and before turnComplete. */
     var midTurn: Boolean = false
@@ -147,6 +175,8 @@ internal class GeminiLiveEventMapper {
         when ((message["voiceActivity"] as? JsonObject)?.string("type")) {
             "ACTIVITY_START" -> {
                 if (assistantStarted) speechSinceReply = true
+                finalUserText = ""
+                heldUserText = ""
                 out += RealtimeSessionEvent.UserSpeechStarted(null)
             }
             "ACTIVITY_END" -> out += RealtimeSessionEvent.UserSpeechStopped(null)
@@ -158,7 +188,21 @@ internal class GeminiLiveEventMapper {
             chatty = content != null && content.keys == setOf("modelTurn"),
         )
         if (content != null) {
-            val inputText = (content["inputTranscription"] as? JsonObject)?.string("text")
+            var inputText = (content["inputTranscription"] as? JsonObject)?.string("text")
+            if (!inputText.isNullOrEmpty() && finalUserText.isNotEmpty()) {
+                // User already finalized this turn with no new speech start since: the same sentence or its prefix
+                // is a server resend, held back (E-641). Once it no longer matches, the held text plus this chunk
+                // is attributed as usual, and nothing more is held.
+                val held = heldUserText + inputText
+                if (normalizeTranscript(finalUserText).startsWith(normalizeTranscript(held))) {
+                    heldUserText = held
+                    inputText = null
+                } else {
+                    inputText = held
+                    finalUserText = ""
+                    heldUserText = ""
+                }
+            }
             if (!inputText.isNullOrEmpty()) {
                 midTurn = true
                 if (assistantStarted && (userFinal || speechSinceReply)) {
@@ -251,8 +295,14 @@ internal class GeminiLiveEventMapper {
     private fun emitUserFinal(out: MutableList<RealtimeSessionEvent>) {
         if (userFinal || userText.isEmpty()) return
         userFinal = true
+        finalUserText = userText
+        heldUserText = ""
         out += RealtimeSessionEvent.UserTranscript(null, userText, final = true)
     }
+
+    /** Duplicate-transcript comparison (E-641): NFKC folds full/half width, then trims whitespace and punctuation. */
+    private fun normalizeTranscript(text: String): String =
+        Normalizer.normalize(text, Normalizer.Form.NFKC).replace(EDGE_NOISE, "")
 
     private fun contentKinds(content: JsonObject): List<String> = content.keys.map { key ->
         if (key != "modelTurn") return@map key
@@ -265,4 +315,10 @@ internal class GeminiLiveEventMapper {
 
     private fun JsonObject.isTrue(key: String): Boolean =
         (this[key] as? JsonPrimitive)?.let { !it.isString && it.content == "true" } == true
+
+    private companion object {
+        // Unicode White_Space spelled out as code points: the Java-only IsWhite_Space class does not compile on Android 8 ICU (minSdk 26).
+        private const val EDGE = "[\\u0009-\\u000D\\u0020\\u0085\\u00A0\\u1680\\u2000-\\u200A\\u2028\\u2029\\u202F\\u205F\\u3000\\p{P}]+"
+        val EDGE_NOISE = Regex("^$EDGE|$EDGE$")
+    }
 }

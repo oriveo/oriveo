@@ -197,13 +197,9 @@ struct LocalEngineProfileContractTests {
     }
 
     @Test("cold launch: a pending native-transport connection in the partition must not hit an unbound ProviderManager during AppState.init", .sharedProcessState)
-    func migrationDuringColdLaunchDoesNotCrash() throws {
+    func migrationDuringColdLaunchDoesNotCrash() async throws {
         let uid = "llamacpp-cold-launch-\(UUID().uuidString)"
         let flagKey = "oriveo.providers.llamacppChatChannelMigrated.\(uid)"
-        defer {
-            AppSessionStore.clearPartition(for: uid)
-            UserDefaults.standard.removeObject(forKey: flagKey)
-        }
         var requested = RelayRequestedConfig(transport: .llamacppNative)
         requested.engineProfile = "llamacpp"
         requested.resolvedAPIBaseURL = "http://127.0.0.1:8080"
@@ -224,6 +220,10 @@ struct LocalEngineProfileContractTests {
         )
 
         let state = AppState(seedDemoData: false, sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.clear(uid)
+            UserDefaults.standard.removeObject(forKey: flagKey)
+        }
 
         let migrated = try #require(state.providers.first(where: { $0.id == provider.id })?.relayRequested)
         #expect(migrated.transport == .openaiChatCompletions)

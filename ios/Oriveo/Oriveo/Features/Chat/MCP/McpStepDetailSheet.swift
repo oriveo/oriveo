@@ -120,7 +120,7 @@ struct McpStepDetailSheet: View {
         } label: {
             Text(copied ? L10n.tr("Copied", table: .mcp) : L10n.tr("Copy", table: .mcp))
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 .frame(minHeight: 44)
         }
         .buttonStyle(.plain)

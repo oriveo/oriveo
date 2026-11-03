@@ -5,6 +5,7 @@ import ai.oriveo.community.core.context.RealtimeSessionInput
 import ai.oriveo.community.core.context.assembleRealtimeSession
 import ai.oriveo.community.core.data.repository.PlannedRealtimeSession
 import ai.oriveo.community.core.data.repository.RealtimeTransportInput
+import ai.oriveo.community.core.voice.conversation.ConversationAudioException
 import ai.oriveo.community.core.voice.realtime.wire.GARealtimeCodec
 import ai.oriveo.community.core.voice.realtime.wire.GARealtimeTransport
 import ai.oriveo.community.core.voice.realtime.wire.GeminiLiveSessionExpiredException
@@ -75,11 +76,33 @@ class RealtimeConversationDriverTest {
         val enqueued = mutableListOf<Pair<ByteArray, String>>()
         var onFrame: ((ByteArray) -> Unit)? = null
         var onInterruption: (() -> Unit)? = null
+        var onActivationFailed: ((Throwable) -> Unit)? = null
 
         override fun start(onFrame: (ByteArray) -> Unit, onInterruption: () -> Unit) {
             calls += "start"
             this.onFrame = onFrame
             this.onInterruption = onInterruption
+        }
+
+        override fun start(
+            onFrame: (ByteArray) -> Unit,
+            onInterruption: () -> Unit,
+            uplinkRateHz: Int,
+            onActivationFailed: (Throwable) -> Unit,
+        ) {
+            this.onActivationFailed = onActivationFailed
+            start(onFrame, onInterruption)
+        }
+
+        override fun startPlayback(onInterruption: () -> Unit, onActivationFailed: (Throwable) -> Unit) {
+            calls += "startPlayback"
+            this.onInterruption = onInterruption
+            this.onActivationFailed = onActivationFailed
+        }
+
+        override fun startCapture(onFrame: (ByteArray) -> Unit, uplinkRateHz: Int) {
+            calls += "startCapture:$uplinkRateHz"
+            this.onFrame = onFrame
         }
 
         override fun enqueue(pcm16: ByteArray, itemId: String) {
@@ -174,11 +197,47 @@ class RealtimeConversationDriverTest {
     private fun rig(
         kind: RealtimeTransportKind = RealtimeTransportKind.OpenAiRealtime,
         played: Long = 0L,
+        captureOnReady: () -> Boolean = { true },
     ): Rig {
         val factory = FakeFactory()
         val transport = GARealtimeTransport(kind, endpoint, factory)
         val audio = FakeAudio(played)
-        return Rig(transport, factory, audio, RealtimeConversationDriver(transport, audio))
+        return Rig(transport, factory, audio, RealtimeConversationDriver(transport, audio, captureOnReady))
+    }
+
+    /** Text-started session: on ready only playback opens, no capture; after capture is opened later, frames go up under the ready rule, and opening again does nothing. */
+    @Test
+    fun playback_only_ready_then_capture_later() = runTest {
+        val r = rig(captureOnReady = { false })
+        run(r.driver)
+        r.factory.open()
+        r.factory.frame("""{"type":"session.created"}""")
+        testScheduler.runCurrent()
+        assertEquals(listOf("startPlayback"), r.audio.calls)
+        val opening = r.factory.socket.sent.size
+
+        r.driver.startCapture()
+        r.driver.startCapture()
+        assertEquals(listOf("startPlayback", "startCapture:${r.transport.uplinkSampleRateHz}"), r.audio.calls)
+        val frame = RealtimePCM.toLittleEndian(shortArrayOf(1, 2, 3))
+        r.audio.onFrame!!(frame)
+        assertEquals(opening + 1, r.factory.socket.sent.size)
+        r.transport.close()
+    }
+
+    /** Opening capture before ready has no effect (on ready, captureOnReady decides and opens everything). */
+    @Test
+    fun capture_before_ready_waits_for_ready() = runTest {
+        var capture = false
+        val r = rig(captureOnReady = { capture })
+        run(r.driver)
+        r.driver.startCapture()
+        capture = true
+        r.factory.open()
+        r.factory.frame("""{"type":"session.created"}""")
+        testScheduler.runCurrent()
+        assertEquals(listOf("start"), r.audio.calls)
+        r.transport.close()
     }
 
     @Test
@@ -390,6 +449,23 @@ class RealtimeConversationDriverTest {
         assertTrue(collected.completed)
         assertNull(collected.failure)
         assertTrue("stop" in r.audio.calls)
+    }
+
+    @Test
+    fun activation_failure_ends_with_the_start_error() = runTest {
+        // Activation fails after start returns (focus denied): the flow ends with the same ConversationAudioException,
+        // and the controller's failure reason matches the case where start throws synchronously; connection closes, audio stops.
+        val r = rig()
+        val collected = run(r.driver)
+        r.factory.open()
+        r.factory.frame("""{"type":"session.created"}""")
+        testScheduler.runCurrent()
+        r.audio.onActivationFailed!!(ConversationAudioException("audio focus denied"))
+        testScheduler.runCurrent()
+        assertFalse(collected.completed)
+        assertTrue(collected.failure is ConversationAudioException)
+        assertEquals(listOf(1000), r.factory.socket.closes)
+        assertEquals(listOf("start", "stop"), r.audio.calls)
     }
 
     @Test

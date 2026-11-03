@@ -4,14 +4,15 @@
   padding: 28px;
 }
 
+/* Logical inset so the close button sits at the line end in RTL. */
 .close {
   position: absolute;
   top: 14px;
-  right: 14px;
+  inset-inline-end: 14px;
 }
 
 .header {
-  padding-right: 44px;
+  padding-inline-end: 44px;
 }
 
 .title {
@@ -20,6 +21,11 @@
   font-size: 20px;
   font-weight: 650;
   letter-spacing: -0.02em;
+}
+
+/* The title takes initial focus only to keep the ring off the close button; it is not interactive. */
+.title:focus {
+  outline: none;
 }
 
 .subtitle {
@@ -52,10 +58,10 @@
   background: var(--o-token-usage-card-bg);
 }
 
-.metric dt {
-  /* tertiary(#71717A) is only 4.25:1 on the light card background, below the AA 4.5, while
-   * secondary(#52525B) passes. This spot is not registered in the semantic-text-contrast
-   * allowlist, so the scanner cannot see it and it has to be watched by hand. */
+.metric dt,
+.costLabel {
+  /* tertiary (#71717A) is only 4.25:1 on a light card background, below AA's 4.5; secondary (#52525B) passes.
+   * This spot is not registered in the semantic-text-contrast allowlist, so the scanner cannot see it and it can only be guarded by hand. */
   color: var(--o-text-secondary);
   font-size: 12px;
   line-height: 1.35;
@@ -122,18 +128,70 @@
   justify-content: space-between;
   gap: 16px;
   margin-top: 16px;
-  padding: 18px 4px 0;
+  /* Same inline padding as the metric and cost cards, so the Input / Total / Cost labels share a left edge. */
+  padding: 18px 16px 0;
   border-top: 1px solid var(--o-border);
   color: var(--o-text-secondary);
   font-size: 13px;
 }
 
+/* Neutral total (primary text, as on iOS / Android); not the brand color. */
 .total strong {
-  color: var(--o-primary);
+  color: var(--o-text);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   font-size: 22px;
   font-variant-numeric: tabular-nums;
   font-weight: 650;
+}
+
+/* Cost row: its own card under the total, same background and radius as the metric cards;
+ * visuals follow iOS. */
+.cost {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--o-token-usage-card-bg);
+  min-width: 0;
+}
+
+.costLabel {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  /* Font size and line height come from the shared metric label rule above. */
+  color: var(--o-text-secondary);
+  font-weight: 500;
+}
+
+.estimatedTag {
+  padding: 2px 6px;
+  border-radius: 6px;
+  /* Dialog panel surface, so the tag reads as an inset on the cost card (iOS surfaceInset). */
+  background: var(--o-surface);
+  /* Hairline divider-colour outline keeps the tag visible where the panel and card surfaces are close. */
+  border: 1px solid var(--o-border);
+  /* Secondary, not tertiary: small text on the card background must meet AA 4.5:1. */
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+/* Amounts never truncate: long multi-currency values wrap, staying right-aligned. */
+.costValue {
+  min-width: 0;
+  color: var(--o-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: end;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 520px) {
@@ -143,6 +201,11 @@
 
   .metric {
     padding: 14px;
+  }
+
+  .total,
+  .cost {
+    padding-inline: 14px;
   }
 
   .metricValue {

@@ -52,6 +52,14 @@ describe('ComposerToolButton visual contract', () => {
     expect(rule('.label')).toMatch(/white-space\s*:\s*nowrap/);
   });
 
+  it('compact-narrow icon state keeps symmetric 4px insets with no extra end padding', () => {
+    const narrow = /@media\s*\(max-width:\s*480px\)\s*\{([\s\S]*?)\n\}/.exec(css);
+    expect(narrow, 'phone-width compact rule exists').toBeTruthy();
+    expect(narrow![1]).toMatch(/\.button\[data-compact-narrow='true'\]\s*\{[^}]*padding-right\s*:\s*4px/);
+    expect(narrow![1]).toMatch(/\.button\[data-compact-narrow='true'\]\s+\.label\s*\{[^}]*display\s*:\s*none/);
+    expect(rule('.button')).toMatch(/padding\s*:\s*3px 10px 3px 4px/);
+  });
+
   it('the active capability icons and parameter orb keep their compact size', () => {
     expect(rule('.capabilityIcons')).toMatch(/gap\s*:\s*3\.5px/);
     expect(rule('.capabilityIcons > span')).toMatch(/width\s*:\s*11px/);

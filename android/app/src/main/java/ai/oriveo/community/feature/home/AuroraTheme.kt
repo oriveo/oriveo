@@ -405,8 +405,6 @@ internal fun AuroraScreenBackground(modifier: Modifier = Modifier) {
 /** How the in-card glow is placed: hero is the lead (two light-mode glows / a dark-mode crown with a near-white hot core); Notes is the softened version. */
 internal enum class AuroraHeroGlow { HeroPair, NotesCorner }
 
-/** Crown strength on the Notes card: the same light one step weaker, so both cards read as one material. */
-private const val AURORA_CROWN_NOTES_SCALE = 0.55f
 private const val AURORA_CROWN_NOTES_WASH_SCALE = 0.6f
 
 /**
@@ -813,35 +811,7 @@ private fun auroraHaloShadows(dark: AuroraDarkColors): List<Shadow> = listOf(
     ),
 )
 
-/**
- * Face of the Notes entry card: the hero material with only the top-right glow plus the same 1dp inner stroke, no shadow, no ring.
- */
-@Composable
-internal fun Modifier.auroraNotesSurface(isDark: Boolean, cornerRadius: Dp): Modifier {
-    val palette = LocalOriveoColors.current
-    val dark = remember(isDark, palette) { if (isDark) AuroraDarkColors.from(palette) else null }
-    return auroraNotesSurface(dark, AuroraTheme.lightColors(), cornerRadius)
-}
-
-private fun Modifier.auroraNotesSurface(dark: AuroraDarkColors?, light: AuroraLightColors, cornerRadius: Dp): Modifier = drawWithCache {
-    val isDark = dark != null
-    val cr = cornerRadius.toPx()
-    val cardPath = auroraRoundRectPath(size, cr)
-    val hairlineWidth = 1.dp.toPx()
-    val borderPath = auroraRoundRectPath(size, cr, inset = hairlineWidth / 2f)
-    val border = auroraHeroRimBrush(isDark, size.height)
-    onDrawBehind {
-        drawAuroraHeroSurface(dark, AuroraHeroGlow.NotesCorner, cr, cardPath, light)
-        if (dark != null) {
-            // The same crown one step weaker, without the hot core and without the outer halo: Notes does not compete with the hero
-            drawAuroraCrown(dark, borderPath, hairlineWidth, scale = AURORA_CROWN_NOTES_SCALE, hotCore = false, alpha = 1f)
-        } else {
-            drawPath(path = borderPath, brush = border, style = Stroke(width = hairlineWidth))
-        }
-    }
-}
-
-// -- Title Count (a title with a mono count) --
+// ── Title Count (title + mono count) ──
 
 /**
  * A title with a mono count beside it, shared by the Notes entry card and the conversation group

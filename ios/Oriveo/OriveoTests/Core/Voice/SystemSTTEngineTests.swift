@@ -4,15 +4,28 @@ import Observation
 import Testing
 @testable import Oriveo
 
-/// Fake recognition segment: records the frame count and formats it receives, and finish returns preset text.
+/// Fake recognition segment: records the frame count and format received; finish first emits the preset results in order, then returns the preset text or throws the preset error.
 nonisolated final class FakeSTTSegment: SystemSTTSegment, @unchecked Sendable {
     private let lock = NSLock()
     private let text: String
+    private let results: [SystemSTTResult]
+    private let failure: (any Error)?
+    private let onResult: @Sendable (SystemSTTResult) -> Void
     private var receivedFrames = 0
     private var receivedSampleRates: Set<Double> = []
     private var wasCancelled = false
 
-    init(text: String) { self.text = text }
+    init(
+        text: String,
+        results: [SystemSTTResult] = [],
+        failure: (any Error)? = nil,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void = { _ in }
+    ) {
+        self.text = text
+        self.results = results
+        self.failure = failure
+        self.onResult = onResult
+    }
 
     var frames: Int { lock.withLock { receivedFrames } }
     var sampleRates: Set<Double> { lock.withLock { receivedSampleRates } }
@@ -25,12 +38,16 @@ nonisolated final class FakeSTTSegment: SystemSTTSegment, @unchecked Sendable {
         }
     }
 
-    func finish() async throws -> String { text }
+    func finish() async throws -> String {
+        for result in results { onResult(result) }
+        if let failure { throw failure }
+        return text
+    }
 
     func cancel() { lock.withLock { wasCancelled = true } }
 }
 
-/// Fake backend: configurable support, start-segment errors thrown in order, and per-segment text; records start count, locales and segments.
+/// Fake backend: configurable support, segment-start errors thrown in order, and per-segment text / results / finish errors; records the segment-start count, language, format, and each segment.
 nonisolated final class FakeSTTBackend: SystemSTTBackend, @unchecked Sendable {
     let kind: SystemSTTBackendKind
     let requiresRolling: Bool
@@ -38,36 +55,63 @@ nonisolated final class FakeSTTBackend: SystemSTTBackend, @unchecked Sendable {
     private let lock = NSLock()
     private var startErrors: [SystemSTTBackendError]
     private let texts: [String]
+    private let results: [[SystemSTTResult]]
+    private let finishError: (any Error)?
+    /// true = segment text is accumulated from this segment's results by production SystemSTTLiveSnapshot.apply, as the real backend does (finals are joined with DictationRules.join)
+    private let textsFromResults: Bool
     private var startedSegments: [FakeSTTSegment] = []
     private var starts = 0
     private var requestedLocales: [Locale] = []
+    private var requestedSampleRates: [Double] = []
 
     init(
         _ kind: SystemSTTBackendKind,
         supported: Bool = true,
         startErrors: [SystemSTTBackendError] = [],
-        texts: [String] = []
+        texts: [String] = [],
+        results: [[SystemSTTResult]] = [],
+        finishError: (any Error)? = nil,
+        textsFromResults: Bool = false
     ) {
         self.kind = kind
         self.requiresRolling = kind == .speechRecognizer
         self.supported = supported
         self.startErrors = startErrors
         self.texts = texts
+        self.results = results
+        self.finishError = finishError
+        self.textsFromResults = textsFromResults
     }
 
     var startCount: Int { lock.withLock { starts } }
     var segments: [FakeSTTSegment] { lock.withLock { startedSegments } }
     var locales: [Locale] { lock.withLock { requestedLocales } }
+    var startSampleRates: [Double] { lock.withLock { requestedSampleRates } }
 
     func supports(_ locale: Locale) async -> Bool { supported }
 
-    func startSegment(locale: Locale, format: AVAudioFormat) async throws -> any SystemSTTSegment {
+    func startSegment(
+        locale: Locale,
+        format: AVAudioFormat,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
+    ) async throws -> any SystemSTTSegment {
         try lock.withLock {
             starts += 1
             requestedLocales.append(locale)
+            requestedSampleRates.append(format.sampleRate)
             if !startErrors.isEmpty { throw startErrors.removeFirst() }
             let index = startedSegments.count
-            let segment = FakeSTTSegment(text: index < texts.count ? texts[index] : "\(kind.rawValue)\(index + 1)")
+            let segmentResults = index < results.count ? results[index] : []
+            var live = SystemSTTLiveSnapshot()
+            for result in segmentResults { _ = live.apply(result) }
+            let segment = FakeSTTSegment(
+                text: textsFromResults
+                    ? DictationRules.join(live.finals)
+                    : index < texts.count ? texts[index] : "\(kind.rawValue)\(index + 1)",
+                results: segmentResults,
+                failure: finishError,
+                onResult: onResult
+            )
             startedSegments.append(segment)
             return segment
         }
@@ -92,7 +136,11 @@ nonisolated final class SequencedSTTBackend: SystemSTTBackend, @unchecked Sendab
 
     func supports(_ locale: Locale) async -> Bool { true }
 
-    func startSegment(locale: Locale, format: AVAudioFormat) async throws -> any SystemSTTSegment {
+    func startSegment(
+        locale: Locale,
+        format: AVAudioFormat,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
+    ) async throws -> any SystemSTTSegment {
         let index = lock.withLock { () -> Int in
             opened += 1
             log.append("open\(opened)")
@@ -140,7 +188,11 @@ nonisolated final class HangingFinishSTTBackend: SystemSTTBackend, @unchecked Se
 
     func supports(_ locale: Locale) async -> Bool { true }
 
-    func startSegment(locale: Locale, format: AVAudioFormat) async throws -> any SystemSTTSegment {
+    func startSegment(
+        locale: Locale,
+        format: AVAudioFormat,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
+    ) async throws -> any SystemSTTSegment {
         lock.withLock { opened += 1 }
         return HangingFinishSTTSegment(backend: self)
     }
@@ -207,8 +259,12 @@ struct SystemSTTEngineTests {
     /// A constant 0.1 = -20 dBFS, above the voiced threshold.
     private static let voicedLevel: Float = 0.1
 
-    /// Generates mono buffers in 0.1 s chunks from (seconds, voiced) pairs.
-    private static func buffers(_ pattern: [(sec: Double, voiced: Bool)]) -> [AVAudioPCMBuffer] {
+    /// Generates mono buffers in 0.1 s chunks from (seconds, is voiced) pairs.
+    private static func buffers(
+        _ pattern: [(sec: Double, voiced: Bool)],
+        format: AVAudioFormat = Self.format
+    ) -> [AVAudioPCMBuffer] {
+        let rate = format.sampleRate
         let chunk = Int(rate / 10)
         var result: [AVAudioPCMBuffer] = []
         for part in pattern {
@@ -249,7 +305,7 @@ struct SystemSTTEngineTests {
         language: String? = "en-US",
         _ pattern: [(sec: Double, voiced: Bool)] = [(1, true)]
     ) async throws -> String {
-        let session = engine.startLive(language: language, format: format)
+        let session = engine.startLive(language: language)
         for buffer in buffers(pattern) { session.feed(buffer) }
         return try await session.finish()
     }
@@ -333,7 +389,7 @@ struct SystemSTTEngineTests {
             dictation: FakeSTTBackend(.dictationTranscriber, startErrors: [.unavailable]),
             recognizer: FakeSTTBackend(.speechRecognizer, startErrors: [.unavailable])
         )
-        await #expect(throws: STTError(action: .retry, failure: nil)) { try await Self.live(allUnavailable) }
+        await #expect(throws: Self.condition(.noService)) { try await Self.live(allUnavailable) }
     }
 
     @Test("No backend available: STTError(retry)")
@@ -344,8 +400,47 @@ struct SystemSTTEngineTests {
             dictation: FakeSTTBackend(.dictationTranscriber, supported: false),
             recognizer: FakeSTTBackend(.speechRecognizer, supported: false)
         )
-        await #expect(throws: STTError(action: .retry, failure: nil)) { try await Self.live(engine) }
+        await #expect(throws: Self.condition(.languageUnsupported)) { try await Self.live(engine) }
     }
+
+    @Test("All backends report unsupportedLocale on segment start: language_unsupported; mixed with unavailable / assetNotFound: no_service")
+    func preflightConditions() async {
+        let allUnsupported = Self.makeEngine(
+            analyzer: true,
+            speech: FakeSTTBackend(.speechTranscriber, startErrors: [.unsupportedLocale]),
+            dictation: FakeSTTBackend(.dictationTranscriber, supported: false),
+            recognizer: FakeSTTBackend(.speechRecognizer, startErrors: [.unsupportedLocale])
+        )
+        await #expect(throws: Self.condition(.languageUnsupported)) { try await Self.live(allUnsupported) }
+
+        let legacyUnsupported = Self.makeEngine(
+            analyzer: false, recognizer: FakeSTTBackend(.speechRecognizer, startErrors: [.unsupportedLocale])
+        )
+        await #expect(throws: Self.condition(.languageUnsupported)) { try await Self.live(legacyUnsupported) }
+
+        let legacyUnavailable = Self.makeEngine(
+            analyzer: false, recognizer: FakeSTTBackend(.speechRecognizer, startErrors: [.unavailable])
+        )
+        await #expect(throws: Self.condition(.noService)) { try await Self.live(legacyUnavailable) }
+
+        let mixed = Self.makeEngine(
+            analyzer: true,
+            speech: FakeSTTBackend(.speechTranscriber, startErrors: [.assetNotFound]),
+            dictation: FakeSTTBackend(.dictationTranscriber, startErrors: [.unsupportedLocale]),
+            recognizer: FakeSTTBackend(.speechRecognizer, supported: false)
+        )
+        await #expect(throws: Self.condition(.noService)) { try await Self.live(mixed) }
+    }
+
+    /// The STTError for a preflight condition (the same shape that production run / openFirstSegment throws).
+    private static func condition(_ condition: SystemFailureCondition) -> STTError {
+        STTError(action: .retry, failure: nil, systemFailure: .condition(condition))
+    }
+
+    /// Authorization denied: kAFAssistantErrorDomain 1700 maps to permission.
+    private static let notAuthorized = STTError(
+        action: .retry, failure: nil, systemFailure: .error(domain: "kAFAssistantErrorDomain", code: 1700)
+    )
 
     // MARK: Authorization
 
@@ -373,7 +468,8 @@ struct SystemSTTEngineTests {
         let dictation = FakeSTTBackend(.dictationTranscriber)
         let authorizer = FakeSpeechAuthorizer(authorized: false)
         let engine = Self.makeEngine(analyzer: true, speech: speech, dictation: dictation, authorizer: authorizer)
-        await #expect(throws: STTError(action: .retry, failure: nil)) { try await Self.live(engine) }
+        await #expect(throws: Self.notAuthorized) { try await Self.live(engine) }
+        #expect(DictationRules.systemFailureClass(Self.notAuthorized.systemFailure!) == .permission)
         #expect(authorizer.requestCount == 1)
         #expect(speech.startCount == 2)
         #expect(dictation.startCount == 0)
@@ -384,7 +480,7 @@ struct SystemSTTEngineTests {
         let deniedRecognizer = FakeSTTBackend(.speechRecognizer)
         let denied = FakeSpeechAuthorizer(authorized: false, grants: false)
         let deniedEngine = Self.makeEngine(analyzer: false, recognizer: deniedRecognizer, authorizer: denied)
-        await #expect(throws: STTError(action: .retry, failure: nil)) { try await Self.live(deniedEngine) }
+        await #expect(throws: Self.notAuthorized) { try await Self.live(deniedEngine) }
         #expect(denied.requestCount == 1)
         #expect(deniedRecognizer.startCount == 0)
 
@@ -429,7 +525,7 @@ struct SystemSTTEngineTests {
             authorizer: FakeSpeechAuthorizer(authorized: true),
             defaultLocale: { Locale(identifier: "en-US") }
         )
-        let session = engine.startLive(language: "en-US", format: Self.format)
+        let session = engine.startLive(language: "en-US")
         for buffer in Self.buffers([(60, true)]) { session.feed(buffer) }
         let text = try await session.finish()
         let events = backend.events
@@ -450,7 +546,7 @@ struct SystemSTTEngineTests {
             authorizer: FakeSpeechAuthorizer(authorized: true),
             defaultLocale: { Locale(identifier: "en-US") }
         )
-        let session = engine.startLive(language: "en-US", format: Self.format)
+        let session = engine.startLive(language: "en-US")
         for buffer in Self.buffers([(60, true)]) { session.feed(buffer) }
         let deadline = ContinuousClock.now + .seconds(5)
         while !backend.isFinishing, ContinuousClock.now < deadline { await Task.yield() }
@@ -501,7 +597,7 @@ struct SystemSTTEngineTests {
     func bufferHandlerFeedsCopies() async throws {
         let speech = FakeSTTBackend(.speechTranscriber)
         let engine = Self.makeEngine(analyzer: true, speech: speech)
-        let session = engine.startLive(language: "en-US", format: Self.format)
+        let session = engine.startLive(language: "en-US")
         let handler = session.bufferHandler
         let time = AVAudioTime(sampleTime: 0, atRate: Self.rate)
         for buffer in Self.buffers([(2, true)]) {
@@ -510,6 +606,155 @@ struct SystemSTTEngineTests {
         }
         _ = try await session.finish()
         #expect(speech.segments.first?.frames == Int(2 * Self.rate))
+    }
+
+    // MARK: Live snapshots
+
+    private static func collect(_ session: SystemSTTSession) async -> [SystemSTTLiveSnapshot] {
+        var all: [SystemSTTLiveSnapshot] = []
+        for await snapshot in session.snapshots { all.append(snapshot) }
+        return all
+    }
+
+    @Test("Live snapshots: each partial change is reported once (an identical result after trim is not reported); a final result appends to finals and clears partial")
+    func liveSnapshotsReportPartials() async throws {
+        let speech = FakeSTTBackend(.speechTranscriber, texts: ["Hello world."], results: [[
+            SystemSTTResult(text: " Hel", isFinal: false),
+            SystemSTTResult(text: "Hel ", isFinal: false),
+            SystemSTTResult(text: "Hello wor", isFinal: false),
+            SystemSTTResult(text: "Hello world.", isFinal: true),
+            SystemSTTResult(text: "How", isFinal: false),
+        ]])
+        let engine = Self.makeEngine(analyzer: true, speech: speech)
+        let session = engine.startLive(language: "en-US")
+        for buffer in Self.buffers([(1, true)]) { session.feed(buffer) }
+        #expect(try await session.finish() == "Hello world.")
+        #expect(await Self.collect(session) == [
+            SystemSTTLiveSnapshot(finals: [], partial: "Hel"),
+            SystemSTTLiveSnapshot(finals: [], partial: "Hello wor"),
+            SystemSTTLiveSnapshot(finals: ["Hello world."], partial: ""),
+            SystemSTTLiveSnapshot(finals: ["Hello world."], partial: "How"),
+        ])
+    }
+
+    @Test("Live snapshots: an empty final promotes the current partial to that segment's final")
+    func liveSnapshotsPromotePartialOnEmptyFinal() async throws {
+        let speech = FakeSTTBackend(.speechTranscriber, texts: [""], results: [[
+            SystemSTTResult(text: "move my ten o'clock meeting", isFinal: false),
+            SystemSTTResult(text: "move my ten o'clock meeting", isFinal: false),
+            SystemSTTResult(text: "", isFinal: true),
+        ]])
+        let engine = Self.makeEngine(analyzer: true, speech: speech)
+        let session = engine.startLive(language: "en-US")
+        for buffer in Self.buffers([(1, true)]) { session.feed(buffer) }
+        _ = try await session.finish()
+        let snapshots = await Self.collect(session)
+        #expect(snapshots.last == SystemSTTLiveSnapshot(finals: ["move my ten o'clock meeting"], partial: ""))
+    }
+
+    @Test("Session result: an empty final segment contributes its last non-empty partial, stitched in order with the segments before and after")
+    func liveResultIncludesPromotedSegment() async throws {
+        let recognizer = FakeSTTBackend(.speechRecognizer, results: [
+            [SystemSTTResult(text: "First", isFinal: false), SystemSTTResult(text: "First part.", isFinal: true)],
+            [SystemSTTResult(text: "Second", isFinal: false), SystemSTTResult(text: "Second half", isFinal: false), SystemSTTResult(text: " ", isFinal: true)],
+        ], textsFromResults: true)
+        let engine = Self.makeEngine(analyzer: false, recognizer: recognizer)
+        let session = engine.startLive(language: "en-US")
+        for buffer in Self.buffers([(60, true)]) { session.feed(buffer) }
+        #expect(try await session.finish() == DictationRules.join(["First part.", "Second half"]))
+        #expect(recognizer.segments.count == 2)
+    }
+
+    @Test("Live snapshots: finals accumulate in order after a rolling cut")
+    func liveSnapshotsAccumulateFinalsAcrossSegments() async throws {
+        let recognizer = FakeSTTBackend(.speechRecognizer, texts: ["First part.", "Second part."], results: [
+            [SystemSTTResult(text: "First", isFinal: false), SystemSTTResult(text: "First part.", isFinal: true)],
+            [SystemSTTResult(text: "Second", isFinal: false), SystemSTTResult(text: "Second part.", isFinal: true)],
+        ])
+        let engine = Self.makeEngine(analyzer: false, recognizer: recognizer)
+        let session = engine.startLive(language: "en-US")
+        for buffer in Self.buffers([(60, true)]) { session.feed(buffer) }
+        #expect(try await session.finish() == DictationRules.join(["First part.", "Second part."]))
+        #expect(recognizer.segments.count == 2)
+        #expect(await Self.collect(session) == [
+            SystemSTTLiveSnapshot(finals: [], partial: "First"),
+            SystemSTTLiveSnapshot(finals: ["First part."], partial: ""),
+            SystemSTTLiveSnapshot(finals: ["First part."], partial: "Second"),
+            SystemSTTLiveSnapshot(finals: ["First part.", "Second part."], partial: ""),
+        ])
+    }
+
+    @Test("Lazy creation: a segment starts only when the first buffer arrives, and both segment start and rolling measurement use its format; no buffer means no segment")
+    func liveOpensSegmentWithFirstBufferFormat() async throws {
+        let recognizer = FakeSTTBackend(.speechRecognizer)
+        let engine = Self.makeEngine(analyzer: false, recognizer: recognizer)
+        let session = engine.startLive(language: "en-US")
+        for _ in 0..<50 { await Task.yield() }
+        #expect(recognizer.startCount == 0)
+
+        let rate48 = 48_000.0
+        let format48 = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: rate48, channels: 1, interleaved: false)!
+        for buffer in Self.buffers([(60, true)], format: format48) { session.feed(buffer) }
+        _ = try await session.finish()
+        #expect(recognizer.startSampleRates == [rate48, rate48])
+        #expect(recognizer.segments.map(\.frames) == [Int(58 * rate48), Int(2 * rate48)])
+
+        let idle = FakeSTTBackend(.speechRecognizer)
+        let idleSession = Self.makeEngine(analyzer: false, recognizer: idle).startLive(language: "en-US")
+        #expect(try await idleSession.finish() == "")
+        #expect(idle.startCount == 0)
+    }
+
+    @Test("Recognizer error: STTError.systemFailure carries the underlying NSError domain / code, and classification takes effect through SystemRecognizerFailure")
+    func recognizerErrorCarriesDomainAndCode() async {
+        let speech = FakeSTTBackend(.speechTranscriber, finishError: NSError(domain: "kAFAssistantErrorDomain", code: 1101))
+        let engine = Self.makeEngine(analyzer: true, speech: speech)
+        let busy = STTError(action: .retry, failure: nil, systemFailure: .error(domain: "kAFAssistantErrorDomain", code: 1101))
+        await #expect(throws: busy) { try await Self.live(engine) }
+        #expect(SystemRecognizerFailure(busy) == .error(domain: "kAFAssistantErrorDomain", code: 1101))
+        #expect(DictationRules.systemFailureClass(SystemRecognizerFailure(busy)) == .busy)
+
+        let unavailable = Self.makeEngine(
+            analyzer: true,
+            speech: FakeSTTBackend(.speechTranscriber, startErrors: [.unavailable]),
+            dictation: FakeSTTBackend(.dictationTranscriber, startErrors: [.unavailable]),
+            recognizer: FakeSTTBackend(.speechRecognizer, startErrors: [.unavailable])
+        )
+        await #expect(throws: Self.condition(.noService)) { try await Self.live(unavailable) }
+    }
+
+    @Test("System cancels recognition (SFSpeech segment kLSR 301 → CancellationError, the session itself is not cancelled): cancelled condition")
+    func systemCancellationIsCancelledCondition() async throws {
+        // The segment outcome comes from production SFSpeechRecognizerSegment.outcome, not hand-written
+        guard case .failure(let segmentError) = SFSpeechRecognizerSegment.outcome(
+            for: NSError(domain: "kLSRErrorDomain", code: 301)
+        ) else {
+            Issue.record("kLSR 301 resolved as text")
+            return
+        }
+        let recognizer = FakeSTTBackend(.speechRecognizer, finishError: segmentError)
+        let engine = Self.makeEngine(analyzer: false, recognizer: recognizer)
+        let cancelled = Self.condition(.cancelled)
+        await #expect(throws: cancelled) { try await Self.live(engine) }
+    }
+
+    @Test("SFSpeech segment: kLSR 301 = cancelled, kAF 1110 = empty text, other errors keep the NSError as is")
+    func speechRecognizerErrorOutcomes() {
+        switch SFSpeechRecognizerSegment.outcome(for: NSError(domain: "kLSRErrorDomain", code: 301)) {
+        case .failure(let error): #expect(error is CancellationError, "\(error)")
+        case .success(let text): Issue.record("kLSR 301 resolved as text \(text)")
+        }
+        switch SFSpeechRecognizerSegment.outcome(for: NSError(domain: "kAFAssistantErrorDomain", code: 1110)) {
+        case .success(let text): #expect(text == "")
+        case .failure(let error): Issue.record("kAF 1110 failed: \(error)")
+        }
+        switch SFSpeechRecognizerSegment.outcome(for: NSError(domain: "kAFAssistantErrorDomain", code: 1101)) {
+        case .failure(let error):
+            let nsError = error as NSError
+            #expect(nsError.domain == "kAFAssistantErrorDomain")
+            #expect(nsError.code == 1101)
+        case .success(let text): Issue.record("kAF 1101 resolved as text \(text)")
+        }
     }
 
     @Test("Re-recognition from a slot file: reads back the whole 16 kHz PCM and keeps the file")
@@ -741,6 +986,35 @@ extension SystemSTTEngineTests {
         try await manager.prepare(.speechTranscriber, locale: english)
         #expect(manager.state(.speechTranscriber, locale: english) == .installed)
         #expect(inventory.installCount == 2)
+    }
+
+    @Test("VoiceDeadline: cancelling the outer task returns well before the limit; value is nil and run throws CancellationError")
+    func isInstalledOnlyQueries() async throws {
+        let inventory = FakeSpeechAssetInventory(maximum: 4)
+        let manager = SpeechAssetManager(inventory: inventory, defaults: defaults)
+        #expect(await manager.isInstalled(.speechTranscriber, locale: english) == false)
+        #expect(inventory.installCount == 0)
+        #expect(inventory.reserved.isEmpty)
+        #expect(manager.state(.speechTranscriber, locale: english) == .notInstalled)
+
+        try await manager.prepare(.speechTranscriber, locale: english)
+        #expect(await manager.isInstalled(.speechTranscriber, locale: english))
+        #expect(await manager.isInstalled(.dictationTranscriber, locale: english) == false)
+    }
+
+    /// Runs for real only on iOS 26+ simulators (an iOS 18 host returns directly).
+    @Test("VoiceDeadline: cancelling the outer task returns well before the limit; value is nil and run throws CancellationError")
+    func analyzerStartDoesNotInstallAssets() async throws {
+        guard #available(iOS 26, *) else { return }
+        let inventory = FakeSpeechAssetInventory(maximum: 4)
+        let manager = SpeechAssetManager(inventory: inventory, defaults: defaults)
+        let backend = SpeechAnalyzerBackend(kind: .dictationTranscriber, assets: manager)
+        let format = AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: 16_000, channels: 1, interleaved: false)!
+        await #expect(throws: SystemSTTBackendError.assetNotFound) {
+            _ = try await backend.startSegment(locale: english, format: format) { _ in }
+        }
+        #expect(inventory.installCount == 0)
+        #expect(inventory.reserved.isEmpty)
     }
 
     @Test("VoiceDeadline: cancelling the outer task returns well before the limit; value is nil and run throws CancellationError")

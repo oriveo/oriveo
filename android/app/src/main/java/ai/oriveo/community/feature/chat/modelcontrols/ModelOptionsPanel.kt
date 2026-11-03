@@ -58,6 +58,7 @@ import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape
 import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape.Escape
 import ai.oriveo.community.feature.providers.detail.generationParameterTitleRes
 import ai.oriveo.community.ui.theme.CapabilityPalette
+import ai.oriveo.community.ui.component.oriveoSwitchColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.modelControlTextButtonColors
 
@@ -212,6 +213,7 @@ internal fun ModelOptionCapabilityRow(
                     checked = ModelOptionsTiles.webIsOn(shape) ||
                         (shape as? ModelOptionCapabilityShape.Toggle)?.isOn == true,
                     onCheckedChange = actions.onToggle,
+                    colors = oriveoSwitchColors(),
                     enabled = actions.toggleEnabled && (shape as? ModelOptionCapabilityShape.RelayWebToggle)?.enabled != false &&
                         ((shape as? ModelOptionCapabilityShape.ToggleWithSource)?.native as? ModelOptionCapabilityShape.RelayWebToggle)
                             ?.enabled != false,

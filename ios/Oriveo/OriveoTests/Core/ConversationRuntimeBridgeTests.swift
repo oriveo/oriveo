@@ -6,13 +6,12 @@ import Testing
 struct ConversationRuntimeBridgeTests {
 
     @Test("Upsert Conversation Returns Derived Projection")
-    func upsertConversationReturnsDerivedProjection() throws {
+    func upsertConversationReturnsDerivedProjection() async throws {
         let uid = "bridge-upsert-\(UUID().uuidString)"
         let bridge = ConversationRuntimeBridge()
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -51,13 +50,12 @@ struct ConversationRuntimeBridgeTests {
     }
 
     @Test("Delete Conversation Removes Only Target Projection")
-    func deleteConversationRemovesOnlyTargetProjection() throws {
+    func deleteConversationRemovesOnlyTargetProjection() async throws {
         let uid = "bridge-delete-\(UUID().uuidString)"
         let bridge = ConversationRuntimeBridge()
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()
@@ -74,13 +72,12 @@ struct ConversationRuntimeBridgeTests {
     }
 
     @Test("Update Conversation Models Only Touches Targets")
-    func updateConversationModelsOnlyTouchesTargets() throws {
+    func updateConversationModelsOnlyTouchesTargets() async throws {
         let uid = "bridge-model-update-\(UUID().uuidString)"
         let bridge = ConversationRuntimeBridge()
 
         defer {
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
 
         DatabaseManager.shared.close()

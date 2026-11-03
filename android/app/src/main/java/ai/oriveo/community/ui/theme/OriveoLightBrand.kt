@@ -185,7 +185,10 @@ internal fun lightOriveoColorsOf(brand: OriveoLightBrand): OriveoColors = LightO
     primarySoft = brand.soft,
     // Light primary-glow = primary @ 10%
     primaryGlow = brand.ink.copy(alpha = 0.10f),
+    // Light-roles contract: primary-subtle = primary @ 8%
+    primarySubtle = brand.ink.copy(alpha = 0.08f),
     primaryTextSafe = brand.textSafe,
+    primaryFillText = brand.fillText,
     primaryActive = brand.fillPressed,
     // Light has no separate secondary color and equals primary (the second brand color is only read through [OriveoLightBrand.accent] on the home page / glows)
     accent = brand.ink,

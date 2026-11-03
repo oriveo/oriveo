@@ -100,6 +100,12 @@ import ai.oriveo.community.BuildConfig
 import ai.oriveo.community.R
 import ai.oriveo.community.feature.modelpicker.ModelPickerContext
 import ai.oriveo.community.feature.modelpicker.ModelPickerSheet
+import ai.oriveo.community.feature.modelpicker.RealtimePickerDisclosure
+import ai.oriveo.community.feature.modelpicker.acceptRealtimeDisclosure
+import ai.oriveo.community.feature.settings.VoiceDisclosureSheet
+import ai.oriveo.community.core.voice.VoiceDirection
+import ai.oriveo.community.core.voice.VoiceDisclosureStore
+import ai.oriveo.community.core.voice.VoiceEngineSettings
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Folder
 import ai.oriveo.community.core.provider.ModelSelectionUtils
@@ -107,8 +113,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import ai.oriveo.community.core.model.Skill
-import ai.oriveo.community.core.util.normalizeUuid
-import ai.oriveo.community.feature.skills.SkillChip
 import ai.oriveo.community.ui.component.ConversationRow
 import ai.oriveo.community.ui.component.OriveoEmptyState
 import ai.oriveo.community.ui.component.OriveoSystemBarFadeLength
@@ -146,12 +150,14 @@ import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.util.COMPOSER_MAX_INPUT_LENGTH
 import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchExternalActivitySafely
+import kotlinx.coroutines.launch
 import ai.oriveo.community.core.util.normalizeUuid
 import ai.oriveo.community.core.voice.RecordingStore
 import ai.oriveo.community.feature.chat.composer.DictationHostActions
 import ai.oriveo.community.feature.chat.composer.DictationPromptSlot
 import ai.oriveo.community.feature.chat.composer.DictationToastSpec
 import ai.oriveo.community.feature.chat.composer.snackbarAction
+import ai.oriveo.community.feature.chat.composer.snackbarText
 import ai.oriveo.community.feature.chat.composer.rememberDictationHost
 import ai.oriveo.community.ui.component.ComposerSelectionProbe
 import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
@@ -243,9 +249,11 @@ fun HomeScreen(
     onNavigateToSkills: () -> Unit = {},
     onNavigateToNotes: () -> Unit = {},
     viewModel: HomeViewModel = koinViewModel(),
+    /** Caret after the initial hero text once (debug shots); see NewChatBar. Off by default. */
+    initialHeroCaretAtEnd: Boolean = false,
 ) {
-
-    val homeSkills by viewModel.homeSkills.collectAsStateWithLifecycle()
+    val realtimeDisclosureStore: VoiceDisclosureStore = koinInject<VoiceEngineSettings>().disclosure
+    var pendingRealtimeDisclosure by remember { mutableStateOf<RealtimePickerDisclosure?>(null) }
     val activeNoteCount by viewModel.activeNoteCount.collectAsStateWithLifecycle()
     val latestNoteTitle by viewModel.latestNoteTitle.collectAsStateWithLifecycle()
     val providers by viewModel.providers.collectAsStateWithLifecycle()
@@ -263,10 +271,11 @@ fun HomeScreen(
     val providersById = remember(providers) { providers.associateBy { it.id } }
     // Built and index-prewarmed in the background per providers emission; composition only reads it (indexing a 22k relay catalog takes tens of milliseconds)
     val modelDisplayLookup by viewModel.modelDisplayLookup.collectAsStateWithLifecycle()
-    // Normalized keys: a conversation's skillId may use another UUID case than the catalog id
-    val skillsById = remember(homeSkills) { homeSkills.associateBy { normalizeUuid(it.id) } }
-    // Reuse the by-id map instead of a linear `folders.firstOrNull { it.id == folderId }` lookup inside each row:
-    // with many pinned / search section rows and many folders, every recomposition would be O(pinned x folders).
+    // Key normalization: a session's skillId may be in uppercase form written by another client.
+    val allSkills by viewModel.allSkills.collectAsStateWithLifecycle()
+    val skillsById = remember(allSkills) { allSkills.associateBy { normalizeUuid(it.id) } }
+    // Reuse a by-id map instead of the linear `folders.firstOrNull { it.id == folderId }` lookup inside each row:
+    // with many pinned / search section rows and many folders, each recomposition would be O(pinned x folders).
     val foldersById = remember(folders) { folders.associateBy { it.id } }
     // The search text is not subscribed to in the root scope: it changes on every keystroke and would
     // invalidate the whole home screen (every LazyColumn item lambda with it). The root only needs
@@ -286,21 +295,12 @@ fun HomeScreen(
     }
     val lastUsedModelRef by viewModel.lastUsedModelRef.collectAsStateWithLifecycle()
     val activeModelState by viewModel.activeModelState.collectAsStateWithLifecycle()
-
+    val realtimeStoredSelection by viewModel.realtimeSelection.collectAsStateWithLifecycle()
+    // Catalog failed with a realtime selection (PM1 card A2c): the dock's "Retry" refreshes the catalog like the chat
+    // page's row; disabled while a refresh runs.
+    var voiceCatalogRetrying by remember { mutableStateOf(false) }
+    val voiceCatalogRetryScope = androidx.compose.runtime.rememberCoroutineScope()
     val rawIsDark = ai.oriveo.community.ui.theme.LocalIsDarkTheme.current
-    // Dark reuses the palette already chosen by the outer OriveoTheme (V2 dark shares V1's board); do not hard-code the default dark, or the home page would not follow a palette switch
-    // Light only overrides the V2 border on the current palette's light colors (the default palette is LightV2OriveoColors)
-    val outerColors = ai.oriveo.community.ui.theme.LocalOriveoColors.current
-    val v2Colors = if (rawIsDark) outerColors
-        else remember(outerColors) {
-            outerColors.copy(
-                border = ai.oriveo.community.ui.theme.LightV2OriveoColors.border,
-                borderStrong = ai.oriveo.community.ui.theme.LightV2OriveoColors.borderStrong,
-            )
-        }
-    androidx.compose.runtime.CompositionLocalProvider(
-        ai.oriveo.community.ui.theme.LocalOriveoColors provides v2Colors,
-    ) {
     val colors = OriveoTheme.colors
     val isDark = rawIsDark
     val context = LocalContext.current
@@ -337,7 +337,6 @@ fun HomeScreen(
             viewModel.refreshActiveProviderIfNeededOnInitialLoad()
         }
     }
-
     val homeMetricsMode = when {
         viewModel.isEditing -> "editing"
         showingSearchResults -> "search_results"
@@ -385,6 +384,19 @@ fun HomeScreen(
             viewModel.heroText = heroSelectionProbe.insert(text, viewModel.heroText)
         }
 
+        override fun beginLive() = heroSelectionProbe.beginLive(viewModel.heroText)
+
+        // Live dictation region: rebuilt from the text and caret at the start, removed on retract.
+        override fun updateLive(finals: List<String>, partial: String) {
+            val newText = heroSelectionProbe.updateLive(finals, partial, viewModel.heroText)
+            if (newText != viewModel.heroText) viewModel.heroText = newText
+        }
+
+        override fun retractLive() {
+            val newText = heroSelectionProbe.retractLive(viewModel.heroText)
+            if (newText != viewModel.heroText) viewModel.heroText = newText
+        }
+
         override fun canSend(): Boolean = !viewModel.isSendingFromHero
 
         override fun send() = sendFromHero()
@@ -392,7 +404,7 @@ fun HomeScreen(
         override fun showToast(spec: DictationToastSpec, onUndo: (() -> Unit)?) {
             homeSnackbar?.show(
                 GlobalSnackbarMessage(
-                    message = UiText.Resource(spec.message),
+                    message = spec.snackbarText(),
                     style = spec.style,
                     action = spec.snackbarAction(onUndo),
                     durationMs = spec.durationMillis,
@@ -427,6 +439,8 @@ fun HomeScreen(
     )
     // Voice conversation on the hero card: hosted at the root (like dictation) so a scrolled-away hero item
     // does not end it; the first transcript creates the conversation and hands over to its chat page.
+    // The pill's realtime model (S4b): the hero card becomes the voice dock and its orb opens this model.
+    val homeRealtime = remember(activeModelState.activeModel) { viewModel.realtimeVoiceSelection(activeModelState.activeModel) }
     val homeVoice = ai.oriveo.community.feature.chat.voice.rememberVoiceConversationHost(
         page = ai.oriveo.community.feature.chat.voice.VoiceConversationPage.Home,
         requests = viewModel.voiceConversationRequests,
@@ -435,9 +449,29 @@ fun HomeScreen(
             navigate = { id -> onNavigateToChat(id, null) },
             newConversation = viewModel::plannedVoiceConversation,
             returnHome = onReturnHome,
+            onOpenConnection = onNavigateToProviderDetail,
+            // model_gone: return the pill to the last used text model first (design §6.6), then open the picker.
+            onSwitchModel = { restore ->
+                if (restore) {
+                    ai.oriveo.community.feature.chat.voice.lastTextModelToRestore(
+                        viewModel.providers.value,
+                        viewModel.lastUsedModelRef.value,
+                    )?.let { viewModel.setActiveModel(it.providerID, it.modelID) }
+                }
+                viewModel.showModelPicker = true
+            },
+            realtimeSelection = homeRealtime,
+            // Migration "Switch to <model>": the pill takes the old realtime choice (not written as last used).
+            onSelectRealtime = { viewModel.setActiveModel(it.connectionId, it.model) },
+            // The pill's own title: the voice switch notice names the new model with it.
+            modelName = activeModelState.activeModel?.model?.name?.let(::homeHeroPillModelName),
         ),
         gate = { viewModel.voiceEntryAllowed(onMissingProvider = onNavigateToProviderSetup) },
         onDraftTranscript = homeDictationActions::insert,
+        // The pill's realtime model in typing mode: the hero send goes to the home realtime session.
+        typed = viewModel.realtimeTyped,
+        // The hero text stays until that sentence is stored.
+        onTypedOutcome = viewModel::realtimeTypedSettled,
     )
     // The home waveform key passes the provider disclosure like the chat page; accepting re-enters the conversation.
     viewModel.voiceDisclosureGate?.prompt?.let { prompt ->
@@ -535,7 +569,29 @@ fun HomeScreen(
                                 dictation = homeDictation,
                                 selectionProbe = heroSelectionProbe,
                                 onStartVoiceConversation = viewModel::requestVoiceConversation,
+                                initialHeroCaretAtEnd = initialHeroCaretAtEnd,
                                 voice = homeVoice,
+                                // Catalog still on its way with a realtime selection: the dock shows as preparing (PM1 card A2).
+                                realtimeSelected = homeRealtime != null || activeModelState.realtimePreparing != null,
+                                realtimePreparing = homeRealtime == null && activeModelState.realtimePreparing != null,
+                                realtimeStoredSelection = realtimeStoredSelection,
+                                realtimeCatalogFailed = homeRealtime == null &&
+                                    activeModelState.realtimePreparing?.catalogFailed == true,
+                                realtimeCatalogRetrying = voiceCatalogRetrying,
+                                onRetryCatalog = {
+                                    val client = org.koin.mp.KoinPlatform.getKoinOrNull()
+                                        ?.getOrNull<ai.oriveo.community.core.voice.VoiceCatalogClient>()
+                                    if (client != null && !voiceCatalogRetrying) {
+                                        voiceCatalogRetrying = true
+                                        voiceCatalogRetryScope.launch {
+                                            try {
+                                                client.refresh()
+                                            } finally {
+                                                voiceCatalogRetrying = false
+                                            }
+                                        }
+                                    }
+                                },
                             )
                         }
                     }
@@ -1000,8 +1056,22 @@ fun HomeScreen(
                     viewModel.enableModel(providerId, modelId)
                 },
                 onDismiss = { viewModel.showModelPicker = false },
+                onRequestRealtimeDisclosure = { pendingRealtimeDisclosure = it },
             )
         }
+    }
+
+    // Realtime row selection collapses at once; the disclosure the user has not agreed to is shown by the page; selecting only happens after agreement, and "not now" / swipe-down close keeps the original model.
+    pendingRealtimeDisclosure?.let { pending ->
+        VoiceDisclosureSheet(
+            direction = VoiceDirection.Realtime,
+            providerKind = pending.providerKind,
+            onAgree = {
+                pendingRealtimeDisclosure = null
+                acceptRealtimeDisclosure(pending, realtimeDisclosureStore, viewModel::setActiveModel)
+            },
+            onDecline = { pendingRealtimeDisclosure = null },
+        )
     }
 
     if (showMoveSheet && pendingMoveConversationIds.isNotEmpty()) {
@@ -1099,27 +1169,6 @@ fun HomeScreen(
         )
     }
 
-    if (viewModel.showSkillProviderPrompt) {
-        AlertDialog(
-            onDismissRequest = viewModel::dismissSkillProviderPrompt,
-            title = { Text(stringResource(R.string.skills_providerRequiredTitle)) },
-            text = { Text(stringResource(R.string.skills_providerRequiredMessage)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.dismissSkillProviderPrompt()
-                    onNavigateToProviderSetup()
-                }) {
-                    Text(stringResource(R.string.skills_addProvider))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = viewModel::dismissSkillProviderPrompt) {
-                    Text(stringResource(R.string.cancel))
-                }
-            },
-        )
-    }
-
     folderToRename?.let { folder ->
         var renameText by remember(folder.id) { mutableStateOf(folder.name) }
         AlertDialog(
@@ -1175,8 +1224,6 @@ fun HomeScreen(
                 }
             },
         )
-    }
-
     }
 }
 

@@ -4,11 +4,14 @@ import Testing
 import UIKit
 @testable import Oriveo
 
+/// ChatManager multi-session streaming tests
+/// Verifies the multi-session streaming core scenarios in Spec §8: cross-conversation streams do not overwrite each other, the shared BG task,
+/// per-conversation publisher isolation, and streamingConversationIDs stability under the token flow.
 @MainActor
-@Suite("Chat Manager Multi Session Tests", .sharedProcessState)
+@Suite("ChatManager multi-session streaming", .sharedProcessState)
 struct ChatManagerMultiSessionTests {
 
-    @Test("Capability Intent Is Not Precleared By Persisted Raw Model")
+    @Test("First send and recovery keep the user reasoning/web intent before the final facade")
     func capabilityIntentIsNotPreclearedByPersistedRawModel() {
         let state = AppState(seedDemoData: true)
         let rawUnsupportedModel = AIModel(
@@ -33,7 +36,9 @@ struct ChatManagerMultiSessionTests {
         #expect(recovered.webSearchEnabled)
     }
 
-    @Test("Cross Conversations Do Not Collide")
+    // MARK: - 1. Cross-conversation streams do not overwrite each other
+
+    @Test("Cross-conversation streams do not overwrite each other")
     func crossConversationsDoNotCollide() {
         let state = AppState(seedDemoData: true)
         let convA = makeConversation(with: makeAssistantPlaceholder())
@@ -58,8 +63,9 @@ struct ChatManagerMultiSessionTests {
         #expect(state.chatManager.streamingConversationIDs == Set([convA.id, convB.id]))
     }
 
+    // MARK: - 2. Same-conversation overlay still applies
 
-    @Test("Same Conversation Overlay Persists Partial")
+    @Test("Same-conversation overlay: old partial is persisted as .interrupted")
     func sameConversationOverlayPersistsPartial() {
         let state = AppState(seedDemoData: true)
         let oldMsg = makeAssistantPlaceholder()
@@ -70,6 +76,7 @@ struct ChatManagerMultiSessionTests {
             conversationID: conv.id, messageID: oldMsg.id, text: "Old partial"
         )
 
+        // Simulates the overlay guard at the queueAssistantResponse entry: a new messageID makes the old partial persist as .interrupted
         let newMsg = UUID()
         state.chatManager.debugInvokePartialPreservationGuardForTesting(
             conversationID: conv.id, newMessageID: newMsg
@@ -81,7 +88,7 @@ struct ChatManagerMultiSessionTests {
         #expect(oldStored?.text == "Old partial")
     }
 
-    @Test("Stale Task Terminal Cannot Finish Replacement Session")
+    @Test("A terminal callback from an old send task must not end the new session for the same message")
     func staleTaskTerminalCannotFinishReplacementSession() {
         let state = AppState(seedDemoData: true)
         let message = makeAssistantPlaceholder()
@@ -93,7 +100,7 @@ struct ChatManagerMultiSessionTests {
         state.chatManager.debugInstallStreamingStateForTesting(
             conversationID: conversation.id,
             messageID: message.id,
-            text: "partial output of the new task",
+            text: "new task partial",
             sendTaskID: newTaskID
         )
 
@@ -107,12 +114,13 @@ struct ChatManagerMultiSessionTests {
         let unchanged = state.conversation(for: conversation.id)?.messages.first
         #expect(unchanged?.state == .generating)
         #expect(unchanged?.text.isEmpty == true)
-        #expect(state.chatManager.streamingText(in: conversation.id) == "partial output of the new task")
+        #expect(state.chatManager.streamingText(in: conversation.id) == "new task partial")
         #expect(state.chatManager._testingSendTaskID(in: conversation.id) == newTaskID)
     }
 
+    // MARK: - 3. Multi-stream shares the BG task
 
-    @Test("Multi Stream Shares Background Task")
+    @Test("Multi-stream shares the BG task: not released when A completes, released only when B also completes")
     func multiStreamSharesBackgroundTask() {
         let state = AppState(seedDemoData: true)
         let placeholderA = makeAssistantPlaceholder()
@@ -127,6 +135,7 @@ struct ChatManagerMultiSessionTests {
         state.chatManager.debugInstallStreamingStateForTesting(
             conversationID: convA.id, messageID: msgA, text: "A"
         )
+        // First time entering background — should request a BG task
         state.chatManager.prepareForSessionBoundary()
         let firstTaskID = state.chatManager.debugBackgroundTaskID
         #expect(firstTaskID != .invalid)
@@ -134,21 +143,25 @@ struct ChatManagerMultiSessionTests {
         state.chatManager.debugInstallStreamingStateForTesting(
             conversationID: convB.id, messageID: msgB, text: "B"
         )
+        // Second time (B also starts) — BG task already exists, must not request a second one
         state.chatManager.prepareForSessionBoundary()
         #expect(state.chatManager.debugBackgroundTaskID == firstTaskID)
 
+        // Stream A completes naturally → sessions A removed, but B still there → must not release the BG task
         state.chatManager.debugFinishStreamingForTesting(conversationID: convA.id, state: .delivered)
         #expect(state.chatManager.debugBackgroundTaskID == firstTaskID)
         #expect(state.chatManager.isAnyStreaming == true)
         #expect(state.chatManager.streamingConversationIDs == Set([convB.id]))
 
+        // B also completes → release the BG task
         state.chatManager.debugFinishStreamingForTesting(conversationID: convB.id, state: .delivered)
         #expect(state.chatManager.debugBackgroundTaskID == .invalid)
         #expect(state.chatManager.isAnyStreaming == false)
     }
 
+    // MARK: - 4. Lifecycle flush, multi-stream
 
-    @Test("Flush All Streams To Messages")
+    @Test("Lifecycle flush, multi-stream: all session text is written back to messages")
     func flushAllStreamsToMessages() {
         let state = AppState(seedDemoData: true)
         let placeholderA = makeAssistantPlaceholder()
@@ -173,8 +186,10 @@ struct ChatManagerMultiSessionTests {
         let updatedB = state.conversation(for: convB.id)
         #expect(updatedA?.messages.first(where: { $0.id == msgA })?.text == "A partial")
         #expect(updatedB?.messages.first(where: { $0.id == msgB })?.text == "B partial")
+        // state remains .generating (flush does not cancel, only writes back the partial)
         #expect(updatedA?.messages.first(where: { $0.id == msgA })?.state == .generating)
         #expect(updatedB?.messages.first(where: { $0.id == msgB })?.state == .generating)
+        // sessions still alive
         #expect(state.chatManager.isAnyStreaming == true)
     }
 
@@ -291,8 +306,9 @@ struct ChatManagerMultiSessionTests {
         state.chatManager.cancelGeneration(in: conversation.id)
     }
 
+    // MARK: - 5. Graceful interrupt, multi-stream
 
-    @Test("Gracefully Interrupt All Streams")
+    @Test("Graceful interrupt, multi-stream: all sessions persist as .interrupted")
     func gracefullyInterruptAllStreams() {
         let state = AppState(seedDemoData: true)
         let placeholderA = makeAssistantPlaceholder()
@@ -323,8 +339,9 @@ struct ChatManagerMultiSessionTests {
         #expect(state.chatManager.streamingConversationIDs.isEmpty)
     }
 
+    // MARK: - 6. Per-conversation publisher does not cross-talk
 
-    @Test("Subjects Do Not Cross Over")
+    @Test("Per-conversation publisher does not cross-talk")
     func subjectsDoNotCrossOver() {
         let state = AppState(seedDemoData: true)
         let convA = makeConversation(with: makeAssistantPlaceholder())
@@ -340,6 +357,7 @@ struct ChatManagerMultiSessionTests {
             .streamingTextDidChange(in: convB.id)
             .sink { bCount += 1 }
 
+        // A pushes 2 times, B pushes 1 time
         state.chatManager.debugSendSubjectForTesting(in: convA.id)
         state.chatManager.debugSendSubjectForTesting(in: convA.id)
         state.chatManager.debugSendSubjectForTesting(in: convB.id)
@@ -347,12 +365,14 @@ struct ChatManagerMultiSessionTests {
         #expect(aCount == 2)
         #expect(bCount == 1)
 
+        // Explicitly keep alive to prevent the cancellable from being released early by ARC
         _ = aCancellable
         _ = bCancellable
     }
 
+    // MARK: - 7. streamingConversationIDs changes only on add/remove (tokens do not trigger)
 
-    @Test("Streaming Conversation I Ds Stable Under Token Flow")
+    @Test("streamingConversationIDs changes only on add/remove (tokens do not trigger)")
     func streamingConversationIDsStableUnderTokenFlow() {
         let state = AppState(seedDemoData: true)
         let placeholder = makeAssistantPlaceholder()
@@ -361,6 +381,7 @@ struct ChatManagerMultiSessionTests {
 
         var snapshots: [Set<UUID>] = [state.chatManager.streamingConversationIDs]
 
+        // Step 1: add session
         state.chatManager.debugInstallStreamingStateForTesting(
             conversationID: conv.id, messageID: placeholder.id, text: ""
         )
@@ -369,6 +390,7 @@ struct ChatManagerMultiSessionTests {
             snapshots.append(afterAdd)
         }
 
+        // Step 2: push 100 tokens — no add/remove session, the set must not change
         for _ in 0..<100 {
             state.chatManager.debugAppendTokenForTesting(delta: "x", in: conv.id)
         }
@@ -377,22 +399,26 @@ struct ChatManagerMultiSessionTests {
             snapshots.append(afterTokens)
         }
 
+        // Step 3: finish (remove session) — set shrinks
         state.chatManager.debugFinishStreamingForTesting(conversationID: conv.id, state: .delivered)
         let afterFinish = state.chatManager.streamingConversationIDs
         if afterFinish != snapshots.last {
             snapshots.append(afterFinish)
         }
 
+        // Expected snapshot sequence: [initially empty] → [conv] → [empty], 3 snapshots total (one add, one remove, tokens not counted)
         #expect(snapshots.count == 3)
         #expect(snapshots[0].isEmpty)
         #expect(snapshots[1] == Set([conv.id]))
         #expect(snapshots[2].isEmpty)
 
+        // After finish the session is removed, so streamingText must be empty
         #expect(state.chatManager.streamingText(in: conv.id).isEmpty)
     }
 
+    // MARK: - 8. forceStopStreaming stops everything
 
-    @Test("Force Stop Stops All")
+    @Test("forceStopStreaming persists all streams as .interrupted")
     func forceStopStopsAll() {
         let state = AppState(seedDemoData: true)
         let placeholderA = makeAssistantPlaceholder()
@@ -423,7 +449,7 @@ struct ChatManagerMultiSessionTests {
         #expect(state.chatManager.streamingConversationIDs.isEmpty)
     }
 
-    @Test("Generated Image Attachment Prepared For Cloud Upload")
+    @Test("Generated-image attachment obtains localImageID and thumbnail before upload")
     func generatedImageAttachmentPreparedForCloudUpload() throws {
         let attachmentID = UUID()
         let imageData = try #require(makeTinyJPEGData())
@@ -449,7 +475,7 @@ struct ChatManagerMultiSessionTests {
         #expect(prepared.writeImageIDs == ["generated-local-id"])
     }
 
-    @Test("Generated Image Attachment Uses Pending Image Data Before Base64")
+    @Test("Generated-image attachment prefers the streamed, already-decoded original image data")
     func generatedImageAttachmentUsesPendingImageDataBeforeBase64() throws {
         let attachmentID = UUID()
         let fallbackData = try #require(makeTinyJPEGData(size: CGSize(width: 2, height: 2)))
@@ -476,6 +502,8 @@ struct ChatManagerMultiSessionTests {
 
     // MARK: - Helpers
 
+    /// Builds an assistant placeholder message with empty text and .generating state.
+    /// The ChatManager streaming session must map to one assistant message in the conversation in multi-session tests.
     private func makeAssistantPlaceholder(id: UUID = UUID()) -> ChatMessage {
         TestFactories.makeMessage(
             id: id,
@@ -485,6 +513,7 @@ struct ChatManagerMultiSessionTests {
         )
     }
 
+    /// Builds a Conversation containing an assistant placeholder, for direct assignment to `state.conversations`.
     private func makeConversation(
         id: UUID = UUID(),
         with assistantPlaceholder: ChatMessage

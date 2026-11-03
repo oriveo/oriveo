@@ -16,7 +16,8 @@ data class STTSegment(
 
 /** Result of one transcription; on failure the recording stays in the slot and primaryAction decides the primary button in the UI. */
 sealed interface STTResult {
-    data class Success(val text: String) : STTResult
+    /** [droppedAudio]: audio chunks were dropped during the realtime session (the recognizer read too slowly), so text may be missing in the middle; always false for file recognition. */
+    data class Success(val text: String, val droppedAudio: Boolean = false) : STTResult
 
     data class Failed(
         val failure: DictationFailure,

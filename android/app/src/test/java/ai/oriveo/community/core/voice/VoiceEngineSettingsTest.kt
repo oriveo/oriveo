@@ -53,6 +53,55 @@ class VoiceEngineSettingsTest {
     }
 
     @Test
+    fun `legacy realtime choice is null without old keys`() {
+        settings.setSelection(VoiceDirection.Stt, sttCloud)
+
+        assertNull(settings.legacyRealtimeChoice())
+    }
+
+    @Test
+    fun `legacy realtime system engine means follow model`() {
+        prefs.edit().putString("oriveo.voice.realtime.engine", "system").apply()
+
+        assertEquals(VoiceEngineSelection.System, settings.legacyRealtimeChoice())
+    }
+
+    @Test
+    fun `legacy realtime cloud reads provider connection and model`() {
+        prefs.edit()
+            .putString("oriveo.voice.realtime.engine", "cloud")
+            .putString("oriveo.voice.realtime.providerKind", "openAI")
+            .putString("oriveo.voice.realtime.connectionId", "conn-openai")
+            .putString("oriveo.voice.realtime.model", "gpt-realtime-2.1")
+            .apply()
+
+        val choice = settings.legacyRealtimeChoice() as VoiceEngineSelection.Cloud
+        assertEquals(ProviderKind.OpenAI, choice.providerKind)
+        assertEquals("conn-openai", choice.connectionId)
+        assertEquals("gpt-realtime-2.1", choice.model)
+    }
+
+    @Test
+    fun `clear legacy realtime removes all seven keys and keeps stt tts keys`() {
+        settings.setSelection(VoiceDirection.Stt, sttCloud)
+        settings.setSelection(VoiceDirection.Tts, ttsCloud)
+        val realtimeKeys = listOf("engine", "providerKind", "connectionId", "model", "voice", "pendingNotice.settings", "pendingNotice.use")
+            .map { "oriveo.voice.realtime.$it" }
+        val editor = prefs.edit()
+        realtimeKeys.forEach { editor.putString(it, if (it.endsWith(".engine")) "cloud" else "x") }
+        editor.apply()
+        val before = prefs.all.filterKeys { !it.startsWith("oriveo.voice.realtime.") }
+
+        settings.clearLegacyRealtime()
+
+        realtimeKeys.forEach { assertFalse(it, prefs.contains(it)) }
+        assertNull(settings.legacyRealtimeChoice())
+        assertEquals(before, prefs.all)
+        assertEquals(sttCloud, settings.selection(VoiceDirection.Stt))
+        assertEquals(ttsCloud, settings.selection(VoiceDirection.Tts))
+    }
+
+    @Test
     fun `realtime selection persists under realtime keys`() {
         val realtimeCloud = VoiceEngineSelection.Cloud(ProviderKind.OpenAI, "conn-openai", "gpt-realtime-2.1", voice = "marin")
         assertEquals(VoiceEngineSelection.System, settings.selection(VoiceDirection.Realtime))

@@ -11,14 +11,13 @@ struct AppStateLifetimeRegressionTests {
         let previousUID = AppSessionStore.activeUID
         let uid = "appstate-lifetime-\(UUID().uuidString)"
 
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         weak var weakState: AppState?
         var state: AppState? = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         weakState = state
 
         await Task.yield()

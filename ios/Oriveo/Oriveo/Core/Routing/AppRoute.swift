@@ -53,7 +53,7 @@ enum AppRoute: Hashable {
     /// Details of one MCP server. `intent` tells "show the details" from "start re-authorizing on entry".
     case mcpServerDetail(serverID: UUID, intent: McpServerDetailIntent)
     case skillsList
-    case skillEdit(UUID?)
+    case skillEdit(UUID?)     // nil = new, UUID = edit
     case notesList
     case noteDetail(noteID: UUID)
 }

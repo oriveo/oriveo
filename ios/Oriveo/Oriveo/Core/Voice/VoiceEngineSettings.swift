@@ -112,6 +112,26 @@ nonisolated struct VoiceEngineSettings {
         }
     }
 
+    // MARK: - Legacy realtime engine selection (migration only)
+
+    /// The selection saved by the old settings page's "conversation engine" group (voice.engine.realtime). The UI no longer writes it; only migration reads it.
+    /// Returns system (the old "follow current model") when nothing was saved or the value is unrecognized.
+    func legacyRealtimeSelection() -> VoiceEngineSelection {
+        selection(for: .realtime)
+    }
+
+    /// Whether the legacy realtime selection key still exists: present if saved, including the old "follow current model" (system) and unrecognized values.
+    func hasLegacyRealtimeSelection() -> Bool {
+        defaults.object(forKey: Key.realtimeSelection) != nil
+    }
+
+    /// After migration answers, remove the legacy realtime selection together with the pending notices for the realtime direction (settings page and point of use).
+    /// The disclosure consent record (VoiceDisclosureStore) is left untouched.
+    func removeLegacyRealtimeSelection() {
+        defaults.removeObject(forKey: Key.realtimeSelection)
+        clearPendingNotices(direction: .realtime)
+    }
+
     /// Cloud voice disclosure consent on the same defaults; the point of use catches "the selection is cloud but the disclosure was never accepted" (restored backup / old data).
     var disclosures: VoiceDisclosureStore {
         VoiceDisclosureStore(defaults: defaults)

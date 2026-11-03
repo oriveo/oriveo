@@ -346,6 +346,7 @@ enum MemoryShots {
 
     private static func report(_ message: String) {
         print("[MemoryShots] \(message)")
+        ShotsLayoutProbe.fail(message)
     }
 }
 #endif

@@ -95,7 +95,8 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import kotlinx.coroutines.launch
+import ai.oriveo.community.core.voice.VoiceCatalogClient
+import ai.oriveo.community.core.voice.realtime.HomeRealtimeSelectionStore
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -190,6 +191,8 @@ fun ProviderDetailScreen(
     /** Arriving from the chat model options "Open web search settings": push the web search settings page first. */
     initialWebSearchLayer: Boolean = false,
     onStartChat: (providerID: String, modelID: String) -> Unit = { _, _ -> },
+    /** Chat button / row tap in the "Realtime voice" group: the caller goes through the disclosure, writes the home selection and returns to the home voice stage. */
+    onStartRealtime: (providerID: String, providerKind: ProviderKind, modelID: String) -> Unit = { _, _, _ -> },
     manualEntryContext: ManualModelEntryContext = ManualModelEntryContext.ProviderDetail,
     onNavigateToManualEntry: (providerID: String) -> Unit = {},
     onNavigateToAdvancedSettings: (providerID: String) -> Unit = {},
@@ -204,6 +207,10 @@ fun ProviderDetailScreen(
     val catalogViewState by viewModel.catalogViewState.collectAsStateWithLifecycle()
     val catalogGroups by viewModel.catalogGroups.collectAsStateWithLifecycle()
     val resolvedCatalog by viewModel.resolvedCatalog.collectAsStateWithLifecycle()
+    // "Realtime voice" group: voice catalog and home selection (in-process singletons, read and written by home / settings / picker alike)
+    val voiceCatalogClient: VoiceCatalogClient = koinInject()
+    val voiceCatalogState by voiceCatalogClient.state.collectAsStateWithLifecycle()
+    val homeRealtimeSelection by HomeRealtimeSelectionStore.shared.selection.collectAsStateWithLifecycle()
     val colors = OriveoTheme.colors
     val context = LocalContext.current
 
@@ -677,6 +684,10 @@ fun ProviderDetailScreen(
                             confirmedRelayCatalogIndex = confirmedRelayCatalogIndex,
                             onOpenAdvanced = { model -> relayNavStack = relayNavStack.push(RelayDetailLayer.Advanced(model.id, readOnly = false)) },
                             relayBoard = board?.enabled,
+                        )
+                        if (showsModelSections && boardReady) providerDetailRealtimeModels(
+                            state = providerDetailRealtimeState(currentProvider, voiceCatalogState, homeRealtimeSelection),
+                            onStart = { entry -> onStartRealtime(currentProvider.id, currentProvider.kind, entry.model) },
                         )
 
                         // Catalog section: split into separate LazyColumn items to avoid composing 300+ models at once.

@@ -9,6 +9,7 @@ import ai.oriveo.community.core.voice.DictationEngineInfo
 import ai.oriveo.community.core.voice.DictationEvent
 import ai.oriveo.community.core.voice.DictationFailedAction
 import ai.oriveo.community.core.voice.DictationState
+import java.util.Locale
 import kotlin.math.floor
 
 /**
@@ -30,6 +31,10 @@ enum class DictationCardAction {
     DiscardAndRerecord,
     NotNow,
     OpenSettings,
+    /** Opens voice settings (no deep link to the language sheet). */
+    ChangeLanguage,
+    /** Opens voice settings (no deep link to the engine sheet). */
+    SwitchEngine,
 }
 
 data class DictationCardButton(@param:StringRes val label: Int, val action: DictationCardAction)
@@ -38,8 +43,9 @@ data class DictationCardButton(@param:StringRes val label: Int, val action: Dict
 enum class DictationCardIcon { Error, Waveform }
 
 data class DictationCard(
-    @param:StringRes val title: Int,
-    val subtitle: DictationText,
+    val title: DictationText,
+    /** Null = no body text. */
+    val subtitle: DictationText?,
     val secondary: DictationCardButton,
     val primary: DictationCardButton,
     /** Null = no leading icon. */
@@ -65,7 +71,12 @@ data class DictationToastSpec(
     /** Non-null for toasts with a host action button: the label is [actionLabel], tapping it runs [action]. */
     @param:StringRes val actionLabel: Int? = null,
     val action: DictationToastAction? = null,
+    /** Format arguments of [message]. */
+    val messageArgs: List<String> = emptyList(),
 )
+
+/** Snackbar text for this toast: [DictationToastSpec.message] formatted with its arguments. */
+fun DictationToastSpec.snackbarText(): UiText = UiText.Resource(message, messageArgs)
 
 /**
  * Snackbar button for this toast: the undo label wins, otherwise the host action label.
@@ -77,22 +88,45 @@ fun DictationToastSpec.snackbarAction(onAction: (() -> Unit)?): GlobalToastActio
 }
 
 /** Host action behind a toast button. */
-enum class DictationToastAction { OpenVoiceSettings }
+enum class DictationToastAction { OpenVoiceSettings, DownloadLanguagePack }
 
 const val DICTATION_TOAST_DEFAULT_MILLIS = 3_000L
 const val DICTATION_TOAST_UNDO_MILLIS = 4_000L
 const val DICTATION_TOAST_SYSTEM_UNAVAILABLE_MILLIS = 6_000L
+const val DICTATION_TOAST_LANGUAGE_PACK_MILLIS = 6_000L
+
+/** Language pack prompt (E-257): names the recognition language and offers a Download button. */
+fun languagePackOfferToast(languageName: String): DictationToastSpec =
+    DictationToastSpec(
+        message = R.string.voice_language_pack_prompt,
+        style = GlobalToastStyle.Info,
+        durationMillis = DICTATION_TOAST_LANGUAGE_PACK_MILLIS,
+        actionLabel = R.string.voice_language_pack_download,
+        action = DictationToastAction.DownloadLanguagePack,
+        messageArgs = listOf(languageName),
+    )
+
+/** Shown after the user accepts the language pack prompt; no button. */
+fun languagePackDownloadingToast(languageName: String): DictationToastSpec =
+    DictationToastSpec(
+        message = R.string.voice_language_pack_downloading,
+        style = GlobalToastStyle.Info,
+        durationMillis = DICTATION_TOAST_LANGUAGE_PACK_MILLIS,
+        messageArgs = listOf(languageName),
+    )
 
 /**
  * Status card for the host slot, or null. Cards show only when the state's slotKey equals
  * [hostSlotKey]; Denied carries no slot and shows only on the currently bound host.
  * [pendingDurationSec] is the saved recording length; null falls back to "recording saved".
+ * [uiLocale] is the app UI locale; the recognition language is named in it.
  */
 fun dictationCard(
     state: DictationState,
     hostSlotKey: String,
     isBoundHost: Boolean,
     pendingDurationSec: Double?,
+    uiLocale: Locale = Locale.getDefault(),
 ): DictationCard? {
     val discard = DictationCardButton(R.string.voice_dictation_discard, DictationCardAction.Discard)
     val saved = DictationText(R.string.voice_dictation_recording_saved)
@@ -106,7 +140,7 @@ fun dictationCard(
                 null
             } else {
                 DictationCard(
-                    title = R.string.voice_dictation_mic_denied_title,
+                    title = DictationText(R.string.voice_dictation_mic_denied_title),
                     subtitle = DictationText(R.string.voice_dictation_denied_subtitle),
                     secondary = DictationCardButton(R.string.voice_dictation_not_now, DictationCardAction.NotNow),
                     primary = DictationCardButton(R.string.voice_dictation_open_settings, DictationCardAction.OpenSettings),
@@ -117,43 +151,14 @@ fun dictationCard(
             if (state.slotKey != hostSlotKey) {
                 null
             } else {
-                when (state.action) {
-                    DictationFailedAction.Retry ->
-                        DictationCard(
-                            title = R.string.voice_dictation_failed_title,
-                            subtitle = saved,
-                            secondary = discard,
-                            primary = DictationCardButton(R.string.voice_dictation_retry, DictationCardAction.Retry),
-                            icon = DictationCardIcon.Error,
-                        )
-                    DictationFailedAction.CheckConnection ->
-                        DictationCard(
-                            title = R.string.voice_dictation_failed_title,
-                            subtitle = DictationText(R.string.voice_dictation_connection_unavailable),
-                            secondary = discard,
-                            primary =
-                                DictationCardButton(
-                                    R.string.voice_dictation_check_connection,
-                                    DictationCardAction.CheckConnection,
-                                ),
-                            icon = DictationCardIcon.Error,
-                        )
-                    DictationFailedAction.NoTranscript ->
-                        DictationCard(
-                            title = R.string.voice_dictation_no_text,
-                            subtitle = saved,
-                            secondary = discard,
-                            primary = DictationCardButton(R.string.voice_dictation_retry, DictationCardAction.Retry),
-                            icon = DictationCardIcon.Error,
-                        )
-                }
+                failedCard(state, discard, saved, uiLocale)
             }
         is DictationState.Interrupted ->
             if (state.slotKey != hostSlotKey) {
                 null
             } else {
                 DictationCard(
-                    title = R.string.voice_dictation_interrupted,
+                    title = DictationText(R.string.voice_dictation_interrupted),
                     subtitle = savedDuration,
                     secondary = discard,
                     primary =
@@ -169,7 +174,7 @@ fun dictationCard(
                 null
             } else {
                 DictationCard(
-                    title = R.string.voice_dictation_slot_occupied,
+                    title = DictationText(R.string.voice_dictation_slot_occupied),
                     subtitle = savedDuration,
                     secondary =
                         DictationCardButton(
@@ -183,6 +188,95 @@ fun dictationCard(
             }
         DictationState.Idle, is DictationState.Recording, is DictationState.Transcribing -> null
     }
+}
+
+/**
+ * Failed card per failure reason (E-252): real cause in title and body, matching primary action.
+ * Without a recording (self-record failure) the title stays, the body is dropped (every body says the
+ * recording is saved) and the actions become discard / retry (a new dictation).
+ */
+private fun failedCard(
+    state: DictationState.Failed,
+    discard: DictationCardButton,
+    saved: DictationText,
+    uiLocale: Locale,
+): DictationCard {
+    val card = failedCardWithRecording(state, discard, saved, uiLocale)
+    if (state.hasRecording) return card
+    return card.copy(
+        subtitle = null,
+        secondary = discard,
+        // Labelled "Retry" but starts a new dictation; "Discard and Re-record" is only for a saved recording.
+        primary = DictationCardButton(R.string.voice_dictation_retry, DictationCardAction.DiscardAndRerecord),
+    )
+}
+
+private fun failedCardWithRecording(
+    state: DictationState.Failed,
+    discard: DictationCardButton,
+    saved: DictationText,
+    uiLocale: Locale,
+): DictationCard {
+    val retry = DictationCardButton(R.string.voice_dictation_retry, DictationCardAction.Retry)
+    val changeLanguage =
+        DictationCardButton(R.string.voice_dictation_action_change_language, DictationCardAction.ChangeLanguage)
+    fun card(title: DictationText, subtitle: DictationText, secondary: DictationCardButton, primary: DictationCardButton) =
+        DictationCard(title, subtitle, secondary, primary, DictationCardIcon.Error)
+    return when (state.action) {
+        DictationFailedAction.Retry ->
+            card(DictationText(R.string.voice_dictation_failed_title), saved, discard, retry)
+        DictationFailedAction.CheckConnection ->
+            card(
+                DictationText(R.string.voice_dictation_failed_title),
+                DictationText(R.string.voice_dictation_connection_unavailable),
+                discard,
+                DictationCardButton(R.string.voice_dictation_check_connection, DictationCardAction.CheckConnection),
+            )
+        DictationFailedAction.NoTranscript ->
+            card(
+                DictationText(R.string.voice_dictation_no_text),
+                DictationText(R.string.voice_dictation_no_text_body, listOf(languageName(state.language, uiLocale))),
+                retry,
+                changeLanguage,
+            )
+        DictationFailedAction.Network ->
+            card(
+                DictationText(R.string.voice_dictation_fail_network_title),
+                DictationText(R.string.voice_dictation_fail_network_body),
+                discard,
+                retry,
+            )
+        DictationFailedAction.Busy ->
+            card(
+                DictationText(R.string.voice_dictation_fail_busy_title),
+                DictationText(R.string.voice_dictation_fail_busy_body),
+                discard,
+                retry,
+            )
+        DictationFailedAction.LanguageUnsupported ->
+            card(
+                DictationText(R.string.voice_dictation_fail_language_title, listOf(languageName(state.language, uiLocale))),
+                DictationText(R.string.voice_dictation_fail_language_body),
+                discard,
+                changeLanguage,
+            )
+        DictationFailedAction.NoService ->
+            card(
+                DictationText(R.string.voice_dictation_fail_no_service_title),
+                DictationText(R.string.voice_dictation_fail_no_service_body),
+                discard,
+                DictationCardButton(R.string.voice_dictation_action_switch_engine, DictationCardAction.SwitchEngine),
+            )
+    }
+}
+
+/**
+ * Recognition language [tag] named in [uiLocale]; no tag means "auto", which recognizes in the UI language
+ * (same as the dictation environment).
+ */
+internal fun languageName(tag: String?, uiLocale: Locale): String {
+    val locale = tag?.takeIf { it.isNotBlank() }?.let(Locale::forLanguageTag) ?: uiLocale
+    return locale.getDisplayName(uiLocale)
 }
 
 /** Input row for the host slot: recording bar, busy (transcribing) or normal. */
@@ -231,11 +325,15 @@ fun dictationToast(
             is DictationEvent.DiscardUndoable -> event.slotKey
             is DictationEvent.EngineFallback -> event.slotKey
             is DictationEvent.SystemUnavailable -> event.slotKey
-            is DictationEvent.SystemRecognizerFailed -> event.slotKey
+            is DictationEvent.LiveRetract -> event.slotKey
+            // Not tied to a slot; the language pack prompt is not a toast.
+            is DictationEvent.LanguagePackOffer -> return null
         }
     if (slotKey != hostSlotKey) return null
     return when (event) {
-        is DictationEvent.Insert, is DictationEvent.Send -> null
+        is DictationEvent.Insert, is DictationEvent.Send, is DictationEvent.LiveRetract,
+        is DictationEvent.LanguagePackOffer,
+        -> null
         is DictationEvent.NoSpeech ->
             DictationToastSpec(R.string.voice_dictation_no_speech, GlobalToastStyle.Info, DICTATION_TOAST_DEFAULT_MILLIS)
         is DictationEvent.EngineFallback ->
@@ -255,12 +353,6 @@ fun dictationToast(
                 durationMillis = DICTATION_TOAST_SYSTEM_UNAVAILABLE_MILLIS,
                 actionLabel = R.string.voice_settings_action,
                 action = DictationToastAction.OpenVoiceSettings,
-            )
-        is DictationEvent.SystemRecognizerFailed ->
-            DictationToastSpec(
-                R.string.voice_dictation_recognizer_failed,
-                GlobalToastStyle.Warning,
-                DICTATION_TOAST_DEFAULT_MILLIS,
             )
         is DictationEvent.RecordingUnavailable ->
             DictationToastSpec(

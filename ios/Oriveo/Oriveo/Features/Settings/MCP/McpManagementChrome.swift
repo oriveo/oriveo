@@ -102,7 +102,7 @@ enum McpPillTone {
         case .warning: return OriveoTheme.Palette.warningText
         case .danger: return Color.dynamic(light: 0xB91C1C, dark: 0xF8978F)
         case .neutral: return OriveoTheme.Palette.textSecondary
-        case .primary: return OriveoTheme.Palette.primaryTextSafe
+        case .primary: return OriveoTheme.Palette.primaryTextOnSurface
         }
     }
 
@@ -410,7 +410,7 @@ struct McpSoftButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .frame(maxWidth: .infinity)
             .frame(height: McpSheetMetrics.buttonHeight)
             .background(

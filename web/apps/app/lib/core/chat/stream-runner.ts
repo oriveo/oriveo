@@ -32,6 +32,9 @@ import { applyCitationsToMessage } from './cost-fields';
 import type { ContinuationIntent } from '@oriveo/core/providers/request-preference/continuation';
 import type { CompletedToolCall } from '@oriveo/core/providers/tool-call-accumulator';
 import type { StreamFinish } from '@oriveo/core/context/stream-finish';
+import { mergeToolLoopUsage } from '@oriveo/core/tools/tool-call-loop';
+import { presentCapabilityControl } from './capability-control-presentation';
+import { providerFormOf } from '../capability/truth/provider-form';
 import { collectCapabilityResults, requestedCapabilityResults, type CapabilityResultContext, type CapabilityResultRecord } from './capability-result-runtime';
 import {
   grokSubscriptionErrorKindToProviderErrorKind,
@@ -155,6 +158,25 @@ export interface StreamPipelineParams {
   onContinuation?: (continuation: ContinuationIntent) => void;
 }
 
+/** What the reply showed when the last leg of a pipeline started (reasoning is this send's only). */
+export interface FinishedLegsShown {
+  text: string;
+  reasoningText: string;
+}
+
+/**
+ * Puts legs that finished before `later` in front of `later`'s own finished legs; a stop bills them as reported
+ * and estimates only what the stopped leg added after `shown`.
+ */
+export function afterFinishedLegs(
+  later: Pick<StreamPipelineResult, 'finishedLegsUsage' | 'finishedLegsShown'>,
+  finished: StreamUsage | undefined,
+  shown: FinishedLegsShown,
+): Pick<StreamPipelineResult, 'finishedLegsUsage' | 'finishedLegsShown'> {
+  const usage = later.finishedLegsUsage ? mergeToolLoopUsage(finished, later.finishedLegsUsage) : finished;
+  return { ...(usage ? { finishedLegsUsage: usage } : {}), finishedLegsShown: later.finishedLegsShown ?? shown };
+}
+
 export interface StreamPipelineResult {
   /**
    * - `completed`: the stream ended on its own, including an abort where readStream returned
@@ -182,6 +204,13 @@ export interface StreamPipelineResult {
   finish?: StreamFinish;
   /** Continuation state captured by this leg (replayed by the propose_memory tail leg); omitted when there is none. */
   continuation?: ContinuationIntent;
+  /**
+   * Usage of the legs that finished before the last one (a memory tail's first leg);
+   * absent when the last leg is the only one. A stop bills these as reported.
+   */
+  finishedLegsUsage?: StreamUsage;
+  /** What the reply showed when the last leg started; absent when the last leg is the only one. */
+  finishedLegsShown?: FinishedLegsShown;
 }
 
 export async function runStreamPipeline(

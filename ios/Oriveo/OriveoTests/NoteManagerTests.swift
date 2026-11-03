@@ -8,7 +8,7 @@ private func makeNotesAppState() -> AppState {
     AppState(seedDemoData: false, sessionUID: "note-manager-\(UUID().uuidString)")
 }
 
-@Suite("NoteManager", .serialized)
+@Suite("NoteManager", .serialized, .sharedProcessState)
 struct NoteManagerTests {
     enum TestError: Error {
         case localDeleteFailed

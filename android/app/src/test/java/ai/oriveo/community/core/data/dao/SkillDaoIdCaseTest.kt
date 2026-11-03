@@ -3,6 +3,7 @@ package ai.oriveo.community.core.data.dao
 import androidx.room.Room
 import ai.oriveo.community.core.data.database.OriveoDatabase
 import ai.oriveo.community.core.data.entity.SkillEntity
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -44,7 +45,26 @@ class SkillDaoIdCaseTest {
         )
     }
 
-    private fun skill(id: String) = SkillEntity(
+    @Test
+    fun `list order ignores legacy pin fields`() = runBlocking {
+        val dao = db.skillDao()
+        dao.upsert(skill("a", sortOrder = 1))
+        dao.upsert(skill("b", sortOrder = 2, isPinned = true, pinOrder = 1))
+        dao.upsert(skill("c", sortOrder = 0))
+
+        val expected = listOf("c", "a", "b")
+        assertEquals(expected, dao.getAll("guest").map { it.id })
+        assertEquals(expected, dao.getBySource("guest", "catalog").map { it.id })
+        assertEquals(expected, dao.observeAll("guest").first().map { it.id })
+        assertEquals(expected, dao.observeBySource("guest", "catalog").first().map { it.id })
+    }
+
+    private fun skill(
+        id: String,
+        sortOrder: Int = 0,
+        isPinned: Boolean = false,
+        pinOrder: Int = 0,
+    ) = SkillEntity(
         id = id,
         accountId = "guest",
         key = null,
@@ -63,12 +83,12 @@ class SkillDaoIdCaseTest {
         knowledgeFilesJson = "[]",
         knowledgeBaseJson = null,
         useMemory = true,
-        isPinned = false,
-        pinOrder = 0,
+        isPinned = isPinned,
+        pinOrder = pinOrder,
         source = "catalog",
         forkedFromId = null,
         category = null,
-        sortOrder = 0,
+        sortOrder = sortOrder,
         usageCount = 0,
         lastUsedAt = null,
         createdAt = "2026-01-01",

@@ -92,7 +92,7 @@ extension AssistantMessageCell {
         _ = animated
         textView.attributedText = attrText
         textView.linkTextAttributes = [
-            .foregroundColor: UIColor(OriveoTheme.Palette.primary)
+            .foregroundColor: OriveoTheme.Palette.primaryTextOnSurfaceUIColor
         ]
         textView.invalidateIntrinsicContentSize()
     }

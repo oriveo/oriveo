@@ -18,10 +18,44 @@ final class RealtimeConversationDriver {
     /// Set before the controller closes a still-live connection to reopen: the ending stream must not
     /// stop the audio that the next driver keeps using.
     private var retired = false
+    /// E-514: false = on ready only playback starts (typing mode, mic stays off); startCapture() adds it later.
+    private var captureOnReady: Bool
+    /// Audio has been started for this run (playback-only or full).
+    private var audioRunning = false
+    /// The mic is captured and frames go up.
+    private var capturing = false
 
-    init(connection: any RealtimeTransport & RealtimeSessionControl, audio: any RealtimeAudioIO) {
+    init(
+        connection: any RealtimeTransport & RealtimeSessionControl,
+        audio: any RealtimeAudioIO,
+        captureOnReady: Bool = true
+    ) {
         self.connection = connection
         self.audio = audio
+        self.captureOnReady = captureOnReady
+    }
+
+    /// Typing mode back to voice: add mic capture in place, without reopening the connection.
+    /// Before ready (or while preparing) the run simply starts with capture. Reconfiguring the engine stops the
+    /// playing reply, so it is cut as a barge-in first (truncated at the played ms). A capture failure ends the
+    /// run like a system interruption.
+    func startCapture() {
+        guard !capturing else { return }
+        captureOnReady = true
+        guard audioRunning, !retired else { return }
+        interruptPlayback()
+        do {
+            try audio.startRealtimeCapture(uplinkSampleRate: connection.uplinkSampleRate, onFrame: uplinkSender())
+            capturing = true
+        } catch {
+            interruptBySystem()
+        }
+    }
+
+    /// Called on the audio thread: must not inherit main-actor isolation.
+    private func uplinkSender() -> @Sendable (Data) -> Void {
+        let connection = connection
+        return { @Sendable frame in connection.sendAudio(frame) }
     }
 
     /// The controller is replacing this run's live connection: from now on the run touches no audio.
@@ -37,7 +71,7 @@ final class RealtimeConversationDriver {
             do {
                 for try await event in upstream {
                     if retired { break }
-                    try handle(event)
+                    try await handle(event)
                     continuation.yield(event)
                 }
                 if !retired { audio.stopRealtime() }
@@ -55,19 +89,31 @@ final class RealtimeConversationDriver {
         return stream
     }
 
-    private func handle(_ event: RealtimeSessionEvent) throws {
+    private func handle(_ event: RealtimeSessionEvent) async throws {
         switch event {
         case .ready:
             guard !audioStarted else { return }
             audioStarted = true
             let connection = connection
             do {
-                try audio.startRealtime(
-                    uplinkSampleRate: connection.uplinkSampleRate,
-                    // Called on the audio thread: must not inherit main-actor isolation.
-                    onFrame: { @Sendable frame in connection.sendAudio(frame) },
-                    onInterruption: { [weak self] in self?.interruptBySystem() }
-                )
+                // Prepare the audio session off the main thread before the engine starts (once per run).
+                try await audio.prepareSession()
+                // Ended while preparing: no mic. A retired run leaves the shared audio to the next driver.
+                guard !retired, !Task.isCancelled else {
+                    if !retired { audio.stopRealtime() }
+                    return
+                }
+                if captureOnReady {
+                    try audio.startRealtime(
+                        uplinkSampleRate: connection.uplinkSampleRate,
+                        onFrame: uplinkSender(),
+                        onInterruption: { [weak self] in self?.interruptBySystem() }
+                    )
+                    capturing = true
+                } else {
+                    try audio.startRealtimePlayback(onInterruption: { [weak self] in self?.interruptBySystem() })
+                }
+                audioRunning = true
             } catch {
                 connection.close()
                 throw error

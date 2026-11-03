@@ -272,33 +272,33 @@ describe('light_brand_follows_palette', () => {
     return normalize(lookup(name));
   };
 
-  // Literal values of the default light section before this change
+  // Default light block values as of 4fac7ae122, with --o-primary at the light-roles contract value #8C5FF8
   const BEFORE: Record<string, string> = {
-    primary: '#8B5CF6',
+    primary: '#8C5FF8',
     'primary-hover': '#7C3AED',
     'primary-active': '#6D28D9',
-    'primary-subtle': 'rgba(139, 92, 246, 0.08)',
+    'primary-subtle': 'rgba(140, 95, 248, 0.08)',
     'primary-text': '#ffffff',
     'primary-text-on-surface': '#6D28D9',
     'primary-text-safe': '#6D28D9',
-    // New token: the default light icon-only fill == the previous --o-primary
-    'primary-fill': '#8B5CF6',
-    // Fill that carries text: default light is likewise == the previous --o-primary (buttons of the default palette must not get darker)
-    'primary-fill-text': '#8B5CF6',
+    // New token: the default light palette's icon-only fill == the pre-change --o-primary
+    'primary-fill': '#8C5FF8',
+    // Fill under text: the default light palette is likewise == the pre-change --o-primary (so the default-palette buttons do not darken)
+    'primary-fill-text': '#8C5FF8',
     'tab-teal': '#0d9488',
     'tab-orange': '#ea580c',
-    'gradient-brand': 'linear-gradient(135deg, #8B5CF6, #7C3AED, #6D28D9)',
+    'gradient-brand': 'linear-gradient(135deg, #8C5FF8, #7C3AED, #6D28D9)',
     'user-bubble-fg': '#fff',
-    'glow-primary': '0 0 0 3px rgba(139, 92, 246, 0.12)',
-    'glow-primary-strong': '0 0 0 4px rgba(139, 92, 246, 0.2), 0 0 24px rgba(139, 92, 246, 0.08)',
+    'glow-primary': '0 0 0 3px rgba(140, 95, 248, 0.12)',
+    'glow-primary-strong': '0 0 0 4px rgba(140, 95, 248, 0.2), 0 0 24px rgba(140, 95, 248, 0.08)',
     'bubble-glow': '0 6px 10px rgba(140, 95, 248, 0.10)',
     'screen-bg': 'linear-gradient(135deg, #FAFBFF, #F6F5FA)',
     'chat-aurora-glow-bg':
-      'radial-gradient(ellipse 132% 96% at 50% 108%, color-mix(in srgb, #8B5CF6 16%, transparent) 0%, transparent 74%), radial-gradient(ellipse 92% 82% at 8% 92%, color-mix(in srgb, #6366f1 13%, transparent) 0%, transparent 70%), radial-gradient(ellipse 88% 78% at 92% 96%, color-mix(in srgb, #8b7cf0 11%, transparent) 0%, transparent 68%), radial-gradient(ellipse 122% 74% at 50% -4%, color-mix(in srgb, #8B5CF6 10%, transparent) 0%, transparent 70%)',
+      'radial-gradient(ellipse 132% 96% at 50% 108%, color-mix(in srgb, #8C5FF8 16%, transparent) 0%, transparent 74%), radial-gradient(ellipse 92% 82% at 8% 92%, color-mix(in srgb, #6366f1 13%, transparent) 0%, transparent 70%), radial-gradient(ellipse 88% 78% at 92% 96%, color-mix(in srgb, #8b7cf0 11%, transparent) 0%, transparent 68%), radial-gradient(ellipse 122% 74% at 50% -4%, color-mix(in srgb, #8C5FF8 10%, transparent) 0%, transparent 70%)',
     'chat-aurora-glow-bg-2':
-      'radial-gradient(ellipse 84% 72% at 26% 72%, color-mix(in srgb, #6366f1 11%, transparent) 0%, transparent 66%), radial-gradient(ellipse 80% 68% at 76% 60%, color-mix(in srgb, #8B5CF6 11%, transparent) 0%, transparent 64%), radial-gradient(ellipse 88% 72% at 50% 42%, color-mix(in srgb, #8b7cf0 10%, transparent) 0%, transparent 66%)',
+      'radial-gradient(ellipse 84% 72% at 26% 72%, color-mix(in srgb, #6366f1 11%, transparent) 0%, transparent 66%), radial-gradient(ellipse 80% 68% at 76% 60%, color-mix(in srgb, #8C5FF8 11%, transparent) 0%, transparent 64%), radial-gradient(ellipse 88% 72% at 50% 42%, color-mix(in srgb, #8b7cf0 10%, transparent) 0%, transparent 66%)',
     'lc-aurora':
-      'radial-gradient( 120% 100% at 0% 0%, color-mix(in srgb, #8B5CF6 9%, transparent), transparent 62% ), radial-gradient( 110% 90% at 100% 0%, color-mix(in srgb, #b07bf0 7%, transparent), transparent 58% )',
+      'radial-gradient( 120% 100% at 0% 0%, color-mix(in srgb, #8C5FF8 9%, transparent), transparent 62% ), radial-gradient( 110% 90% at 100% 0%, color-mix(in srgb, #b07bf0 7%, transparent), transparent 58% )',
   };
 
   it.each(Object.keys(BEFORE))('default light --o-%s expands to the same value as before', (name) => {
@@ -397,7 +397,7 @@ describe('primary_fill_pairs_with_primary_text', () => {
   const WEB_ROOT = join(REPO_ROOT, 'web');
   const cssFiles = (dir: string): string[] =>
     (readdirSync(join(WEB_ROOT, dir), { recursive: true }) as string[])
-      .filter((f) => f.endsWith('.css') && !/(^|\/)(node_modules|dist|\.[^/]+)\//.test(f))
+      .filter((f) => f.endsWith('.css') && !/(^|\/)(node_modules|dist|out(-[^/]+)?|\.[^/]+)\//.test(f))
       .map((f) => join(dir, f));
 
   it('no CSS rule block in apps/app or packages/ui pairs background: var(--o-primary) with color: var(--o-primary-text)', () => {

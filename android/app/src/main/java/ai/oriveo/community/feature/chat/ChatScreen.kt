@@ -1,6 +1,8 @@
 package ai.oriveo.community.feature.chat
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import ai.oriveo.community.BuildConfig
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -20,6 +22,9 @@ fun ChatScreen(
     /** "Test capability" for a rejected web template: opens this model's advanced page in this connection. */
     onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit = { _, _ -> },
     onNavigateToSkillEdit: () -> Unit = {},
+    onNavigateToSkills: () -> Unit = {},
+    /** Used-skill card "View skill" (P4 contract 23). */
+    onNavigateToSkillDetail: (skillId: String) -> Unit = {},
     onNavigateToNoteDetail: (String) -> Unit = {},
     /**
      * Remote MCP: where the server management screen and the add-server flow live. Re-authorization
@@ -29,6 +34,13 @@ fun ChatScreen(
     onNavigateToMcpAddServer: () -> Unit = {},
     viewModel: ChatViewModel = koinViewModel(),
 ) {
+    if (BuildConfig.DEBUG) {
+        // Debug only: registers the displayed list and session id for instrumented tests to read; cleared when leaving the composition.
+        DisposableEffect(viewModel) {
+            ChatScreenDebugProbe.register(viewModel)
+            onDispose { ChatScreenDebugProbe.unregister(viewModel) }
+        }
+    }
     ChatScreenContent(
         initialConversationId = initialConversationId,
         searchQuery = searchQuery,
@@ -42,6 +54,8 @@ fun ChatScreen(
         onNavigateToWebSearchService = onNavigateToWebSearchService,
         onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
         onNavigateToSkillEdit = onNavigateToSkillEdit,
+        onNavigateToSkills = onNavigateToSkills,
+        onNavigateToSkillDetail = onNavigateToSkillDetail,
         onNavigateToNoteDetail = onNavigateToNoteDetail,
         onNavigateToMcpServers = onNavigateToMcpServers,
         onNavigateToMcpAddServer = onNavigateToMcpAddServer,

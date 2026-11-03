@@ -1,0 +1,203 @@
+{
+  "$schema_version": 1,
+  "$comment": "Provider text tint: when a provider brand colour is used as TEXT (ring centre title, provider row name, legend label), use this variant; fills/icons/chart slices keep the raw brand colour. Hue and chroma come from the brand colour; OKLCH lightness steps by rule.step (light: darker, dark: lighter) until contrast >= rule.minContrast against every background of the mode; already-passing colours are returned unchanged. Out-of-gamut: chroma drops by 0.004 until in sRGB (same as theme-contracts fromOklch). Ports may differ by at most 1 per channel (libm rounding). Reference: scripts/provider-text-tint.mjs (--write regenerates).",
+  "pillLabel": {
+    "$comment": "Text on the near-white provider-hero pill (white 0.96, worst case #F5F5F5) whose colour is derived from a brand colour: final label = providerTextTint(label, isDark=false). The light backgrounds include #F2EEF7 (luminance below #F5F5F5), so a passing label is >= 4.5 on the pill. Ports assert this for every kind in their hero palette and every preset palette primary/ink used for relay.",
+    "worstBackground": "#F5F5F5",
+    "relaySources": {
+      "$comment": "Theme colour each port feeds into the Relay hero pill formula; heroPillLabelMeetsContrast covers exactly these.",
+      "ios": "Palette.primary (dark palette primary)",
+      "android": "OriveoTheme.colors.primary only (dark palette primary; light-mode ink is not used by the hero)",
+      "web": "light: light-brand ink; dark: runtime --o-primary (7 preset dark primaries)"
+    }
+  },
+  "rule": {
+    "minContrast": 4.5,
+    "step": 0.01,
+    "light": [
+      "#FFFFFF",
+      "#F2EEF7"
+    ],
+    "dark": [
+      "#1C1C1F",
+      "#27272A",
+      "#30343B"
+    ]
+  },
+  "cases": [
+    {
+      "id": "brand.openai",
+      "brand": "#10A37F",
+      "light": "#0C7A5F",
+      "dark": "#2AB08B"
+    },
+    {
+      "id": "brand.anthropic",
+      "brand": "#C7956D",
+      "light": "#91623B",
+      "dark": "#C7956D"
+    },
+    {
+      "id": "brand.gemini",
+      "brand": "#4285F4",
+      "light": "#2669D5",
+      "dark": "#629DFE"
+    },
+    {
+      "id": "brand.deepseek",
+      "brand": "#4D6BFE",
+      "light": "#415AEC",
+      "dark": "#7A98FD"
+    },
+    {
+      "id": "brand.xai",
+      "brand": "#0F0F10",
+      "light": "#0F0F10",
+      "dark": "#9B9B9C"
+    },
+    {
+      "id": "brand.openrouter",
+      "brand": "#6D63FF",
+      "light": "#6052ED",
+      "dark": "#9094FD"
+    },
+    {
+      "id": "brand.groq",
+      "brand": "#F55036",
+      "light": "#D1290D",
+      "dark": "#FF7159"
+    },
+    {
+      "id": "brand.together",
+      "brand": "#0EA5E9",
+      "light": "#0C72A2",
+      "dark": "#0EA5E9"
+    },
+    {
+      "id": "brand.fireworks",
+      "brand": "#FF6B35",
+      "light": "#C34000",
+      "dark": "#FD7343"
+    },
+    {
+      "id": "brand.minimax",
+      "brand": "#E8457C",
+      "light": "#CB2565",
+      "dark": "#FF6995"
+    },
+    {
+      "id": "brand.zhipu",
+      "brand": "#1F63EC",
+      "light": "#1F63EC",
+      "dark": "#669AFE"
+    },
+    {
+      "id": "brand.qwen",
+      "brand": "#615CED",
+      "light": "#5C55E6",
+      "dark": "#8C93FE"
+    },
+    {
+      "id": "brand.moonshot",
+      "brand": "#5B3AFF",
+      "light": "#5B3AFF",
+      "dark": "#8F94FE"
+    },
+    {
+      "id": "brand.mistral",
+      "brand": "#FA500F",
+      "light": "#C63B01",
+      "dark": "#FF7046"
+    },
+    {
+      "id": "brand.siliconflow",
+      "brand": "#7C3AED",
+      "light": "#7C3AED",
+      "dark": "#A78BFD"
+    },
+    {
+      "id": "brand.oriveofree",
+      "brand": "#A855F7",
+      "light": "#933CDF",
+      "dark": "#BD82FE"
+    },
+    {
+      "id": "relay.0",
+      "brand": "#14B8A6",
+      "light": "#0C7B6E",
+      "dark": "#14B8A6"
+    },
+    {
+      "id": "relay.1",
+      "brand": "#F59E0B",
+      "light": "#986000",
+      "dark": "#F59E0B"
+    },
+    {
+      "id": "relay.2",
+      "brand": "#D946EF",
+      "light": "#B716CD",
+      "dark": "#EA64FE"
+    },
+    {
+      "id": "relay.3",
+      "brand": "#84CC16",
+      "light": "#4B7702",
+      "dark": "#84CC16"
+    },
+    {
+      "id": "relay.4",
+      "brand": "#EC4899",
+      "light": "#C81F7B",
+      "dark": "#FE6AAE"
+    },
+    {
+      "id": "relay.5",
+      "brand": "#EAB308",
+      "light": "#88680D",
+      "dark": "#EAB308"
+    },
+    {
+      "id": "relay.6",
+      "brand": "#FB923C",
+      "light": "#A55602",
+      "dark": "#FB923C"
+    },
+    {
+      "id": "relay.7",
+      "brand": "#0891B2",
+      "light": "#0C7792",
+      "dark": "#37AACC"
+    },
+    {
+      "id": "fallback.0",
+      "brand": "#6366F1",
+      "light": "#5959E3",
+      "dark": "#8995FD"
+    },
+    {
+      "id": "fallback.1",
+      "brand": "#22C55E",
+      "light": "#087C37",
+      "dark": "#22C55E"
+    },
+    {
+      "id": "fallback.2",
+      "brand": "#F59E0B",
+      "light": "#986000",
+      "dark": "#F59E0B"
+    },
+    {
+      "id": "fallback.3",
+      "brand": "#EF4444",
+      "light": "#D2222B",
+      "dark": "#FF7069"
+    },
+    {
+      "id": "fallback.4",
+      "brand": "#06B6D4",
+      "light": "#0E778B",
+      "dark": "#06B6D4"
+    }
+  ]
+}

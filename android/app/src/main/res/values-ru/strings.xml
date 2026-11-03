@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">Все ваши модели в одном приложении</string>
-    <string name="provider_disclosure_ack_failed">Не удалось подтвердить уведомление провайдера. Проверьте подключение и повторите попытку.</string>
     <string name="tab_home">Главная</string>
     <string name="tab_providers">Провайдеры</string>
     <string name="tab_settings">Настройки</string>
@@ -21,7 +20,6 @@
     <string name="copy">Копировать</string>
     <string name="copied">Скопировано</string>
     <string name="share">Поделиться</string>
-    <string name="legal_consent_notice">Продолжая, вы соглашаетесь с приведенными ниже юридическими условиями.</string>
     <string name="get_started">Начать</string>
     <string name="api_key">API-ключ</string>
     <string name="validating">Проверка…</string>
@@ -60,6 +58,7 @@
     <string name="new_chat">Новый чат</string>
     <string name="send">Отправить</string>
     <string name="stop">Остановить</string>
+    <string name="generation_parameter_name_stop">Стоп-последовательности</string>
     <string name="type_a_message">Введите сообщение…</string>
     <string name="ai_is_answering">ИИ отвечает…</string>
     <string name="regenerate">Сгенерировать заново</string>
@@ -101,6 +100,7 @@
     <string name="chat_model_removed_choose">Выбрать модель</string>
     <string name="chat_model_retired_banner">Модель %1$s больше не поддерживается.</string>
     <string name="chat_model_retired_switch_to">Перейти на %1$s</string>
+    <string name="chat_last_used_model_retired_hint">Прежняя модель больше не поддерживается. Теперь используется %1$s.</string>
     <string name="conversations">Разговоры</string>
     <string name="no_conversations">Пока нет разговоров</string>
     <string name="search_conversation_titles_or_content">Поиск по заголовкам или содержанию разговоров</string>
@@ -150,6 +150,7 @@
     <string name="provider_detail_add_model_finish_setup">Добавьте идентификатор модели, чтобы завершить настройку.</string>
     <string name="provider_detail_add_model_manually">+ Добавить идентификатор модели вручную</string>
     <string name="provider_detail_available_models">Доступные модели %d</string>
+    <string name="default_model_short">По умолчанию</string>
     <string name="provider_detail_relay_empty_description">Модели ещё не добавлены. Добавьте идентификаторы моделей кнопкой ниже.</string>
     <string name="provider_detail_badge_recent">Недавние</string>
     <string name="provider_detail_removed_model">Удалено: %s</string>
@@ -167,7 +168,6 @@
     <string name="theme_light">Светлая</string>
     <string name="theme_dark">Тёмная</string>
     <string name="theme_section_palettes">Палитры</string>
-    <string name="default_model_short">По умолчанию</string>
     <string name="theme_palette_purple">Фиолетовый</string>
     <string name="theme_palette_graphite">Графит</string>
     <string name="theme_palette_black">Чёрный</string>
@@ -204,8 +204,6 @@
     <string name="backup_and_export">Резервное копирование и экспорт</string>
     <string name="privacy_policy">политика конфиденциальности</string>
     <string name="terms_of_service">Условия использования</string>
-    <string name="settings_source_code">Исходный код</string>
-    <string name="settings_report_issue">Сообщить о проблеме</string>
     <string name="snackbar_provider_ready">Провайдер готов. Вы можете начать общаться прямо сейчас.</string>
     <string name="snackbar_model_added">Добавлено: %1$s</string>
     <string name="snackbar_model_enable_failed">Не удалось включить модель. Попробуйте ещё раз.</string>
@@ -393,7 +391,7 @@
     <string name="share_failed">Не удалось поделиться изображением.</string>
     <string name="file">Файл</string>
     <string name="file_unavailable">Доступно только на оригинальном устройстве</string>
-        <string name="error_generic_title">Что-то пошло не так</string>
+    <string name="error_generic_title">Что-то пошло не так</string>
     <string name="error_generic_message">Произошла непредвиденная ошибка.</string>
     <string name="hide_details">Скрыть детали</string>
     <string name="manual_model_save_failed_title">Сохранить не удалось</string>
@@ -462,11 +460,9 @@
     <string name="skills_newSkill">Новый навык</string>
     <string name="skills_editSkill">Изменить навык</string>
     <string name="skills_useSkill">Используйте этот навык</string>
-    <string name="skills_pinToHome">Закрепить на главной странице</string>
     <string name="pin_conversation">Приколоть</string>
     <string name="unpin_conversation">Открепить</string>
     <string name="pinned_section">Закреплено</string>
-    <string name="skills_unpin">Открепить от дома</string>
     <string name="skills_instructions">Быстрый</string>
     <string name="skills_knowledgeFiles">Справочные материалы</string>
     <string name="skills_advancedSettings">Расширенные настройки</string>
@@ -490,12 +486,12 @@
     <string name="skills_noKnowledgeFiles">Справочных материалов пока нет</string>
     <string name="skills_useMemoryDescription">Включайте свои личные предпочтения в разговоры</string>
     <string name="skills_tipInstructions">Напишите инструкции, определяющие поведение ИИ — его личность, опыт и стиль реагирования. Это видит только ИИ, пользователи нет.</string>
-    <string name="skills_tipKnowledgeFiles">ИИ полностью читает эти файлы при каждом ответе — как заметки, всегда открытые на его столе. Идеально для коротких, важных документов (руководства по стилю, глоссарии, ключевые правила). Чем больше файлы, тем выше стоимость ответа.</string>
+    <string name="skills_tipKnowledgeFiles">ИИ читает эти файлы полностью при каждом ответе — как заметки, всегда открытые на его столе. Лучше всего подходит для коротких, важных документов (руководства по стилю, глоссарии, ключевые правила). Более крупные файлы увеличат стоимость ответа.</string>
     <string name="skills_tipAdvanced">Настройте предпочтения модели и внедрение памяти.</string>
     <string name="skills_filesQuota">%1$d / %2$d</string>
     <string name="skills_fileTooLarge">Содержимое файла превышает лимит в 8000 символов.</string>
     <string name="skills_emojiIcon">Иконка Эмодзи</string>
-    <string name="skills_nChars">%d символы</string>
+    <string name="skills_nChars">%1$d символов</string>
     <string name="skills_skillName">Название навыка</string>
     <string name="skills_briefDescription">Краткое описание</string>
     <string name="skills_discardMessage">У вас есть несохраненные изменения. Вы уверены, что хотите их удалить?</string>
@@ -708,18 +704,24 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">Query ключ параметра</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">Вы собираетесь использовать %1$s</string>
     <string name="provider_disclosure_body_default">Ваше сообщение будет отправлено на адрес %1$s для получения ответа. Oriveo не хранит ваши сообщения или ключи API на наших серверах.</string>
     <string name="provider_disclosure_body_relay">Ваше сообщение будет отправлено в настроенный вами сервис моделей. Oriveo не может проверить его правила конфиденциальности.</string>
     <string name="provider_disclosure_view_policy">Посмотреть политику конфиденциальности %1$s</string>
     <string name="provider_disclosure_continue">Продолжить</string>
     <string name="provider_disclosure_cancel">Отмена</string>
+    <string name="provider_disclosure_ack_failed">Не удалось подтвердить уведомление провайдера. Проверьте подключение и повторите попытку.</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">Поддерживает веб-поиск</string>
     <string name="relay_advanced_web_search_profile">Профиль веб-поиска</string>
     <string name="relay_profile_auto">Авто</string>
     <string name="relay_test_connection">Проверить подключение</string>
     <string name="relay_test_connection_missing_fields">Используйте свой URL запроса и API-ключ</string>
     <string name="relay_value_label">Значение</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">Введите действительный HTTPS-URL запроса.</string>
     <string name="greeting_morning">Доброе утро</string>
     <string name="greeting_afternoon">Добрый день</string>
@@ -729,22 +731,22 @@
     <string name="greeting_afternoon_with_name">Добрый день, %1$s</string>
     <string name="greeting_evening_with_name">Добрый вечер, %1$s</string>
     <string name="greeting_still_up_with_name">%1$s, ещё не спишь?</string>
-<string name="greeting_morning_2">Как спалось?</string>
-<string name="greeting_morning_3">Здравствуй</string>
-<string name="greeting_morning_4">Привет</string>
-<string name="greeting_morning_5">А вот и ты</string>
-<string name="greeting_afternoon_2">Как дела?</string>
-<string name="greeting_afternoon_3">Привет</string>
-<string name="greeting_afternoon_4">А вот и ты</string>
-<string name="greeting_afternoon_5">Здравствуй</string>
-<string name="greeting_evening_2">Как вечер?</string>
-<string name="greeting_evening_3">А вот и ты</string>
-<string name="greeting_evening_4">Здравствуй</string>
-<string name="greeting_evening_5">Привет</string>
-<string name="greeting_night_2">Полуночничаем?</string>
-<string name="greeting_night_3">Привет</string>
-<string name="greeting_night_4">А вот и ты</string>
-<string name="greeting_night_5">Здравствуй</string>
+    <string name="greeting_morning_2">Как спалось?</string>
+    <string name="greeting_morning_3">Здравствуй</string>
+    <string name="greeting_morning_4">Привет</string>
+    <string name="greeting_morning_5">А вот и ты</string>
+    <string name="greeting_afternoon_2">Как дела?</string>
+    <string name="greeting_afternoon_3">Привет</string>
+    <string name="greeting_afternoon_4">А вот и ты</string>
+    <string name="greeting_afternoon_5">Здравствуй</string>
+    <string name="greeting_evening_2">Как вечер?</string>
+    <string name="greeting_evening_3">А вот и ты</string>
+    <string name="greeting_evening_4">Здравствуй</string>
+    <string name="greeting_evening_5">Привет</string>
+    <string name="greeting_night_2">Полуночничаем?</string>
+    <string name="greeting_night_3">Привет</string>
+    <string name="greeting_night_4">А вот и ты</string>
+    <string name="greeting_night_5">Здравствуй</string>
     <string name="tagline_morning_1">Можно не торопиться.</string>
     <string name="tagline_morning_2">Сегодня всё в твоём темпе.</string>
     <string name="tagline_morning_3">Мелких вопросов не бывает.</string>
@@ -761,23 +763,25 @@
     <string name="tagline_night_2">Если сон не идёт — давай поговорим.</string>
     <string name="tagline_night_3">Вокруг стало тише.</string>
     <string name="tagline_night_4">Думай сколько нужно.</string>
-<string name="tagline_morning_5">Хороший день для чего-то нового.</string>
-<string name="tagline_morning_6">Здесь можно думать вслух.</string>
-<string name="tagline_morning_7">Всё по порядку.</string>
-<string name="tagline_morning_8">Разложи мысли по полочкам.</string>
-<string name="tagline_afternoon_5">Продолжим с того же места.</string>
-<string name="tagline_afternoon_6">Спрашивай, когда захочешь.</string>
-<string name="tagline_afternoon_7">Иногда помогает свежий взгляд.</string>
-<string name="tagline_afternoon_8">Можно и не идеально.</string>
-<string name="tagline_evening_5">Остальное подождёт до завтра.</string>
-<string name="tagline_evening_6">Можно просто поболтать.</string>
-<string name="tagline_evening_7">Тихий вечер — время подумать.</string>
-<string name="tagline_evening_8">Пусть день закончится спокойно.</string>
-<string name="tagline_night_5">Запиши то, что крутится в голове.</string>
-<string name="tagline_night_6">Не забывай отдыхать.</string>
-<string name="tagline_night_7">Ночью думается яснее.</string>
-<string name="tagline_night_8">Сейчас спешить некуда.</string>
+    <string name="tagline_morning_5">Хороший день для чего-то нового.</string>
+    <string name="tagline_morning_6">Здесь можно думать вслух.</string>
+    <string name="tagline_morning_7">Всё по порядку.</string>
+    <string name="tagline_morning_8">Разложи мысли по полочкам.</string>
+    <string name="tagline_afternoon_5">Продолжим с того же места.</string>
+    <string name="tagline_afternoon_6">Спрашивай, когда захочешь.</string>
+    <string name="tagline_afternoon_7">Иногда помогает свежий взгляд.</string>
+    <string name="tagline_afternoon_8">Можно и не идеально.</string>
+    <string name="tagline_evening_5">Остальное подождёт до завтра.</string>
+    <string name="tagline_evening_6">Можно просто поболтать.</string>
+    <string name="tagline_evening_7">Тихий вечер — время подумать.</string>
+    <string name="tagline_evening_8">Пусть день закончится спокойно.</string>
+    <string name="tagline_night_5">Запиши то, что крутится в голове.</string>
+    <string name="tagline_night_6">Не забывай отдыхать.</string>
+    <string name="tagline_night_7">Ночью думается яснее.</string>
+    <string name="tagline_night_8">Сейчас спешить некуда.</string>
     <string name="aurora_placeholder_what_can_i_help">Чем я могу помочь?</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">авто / оставьте пустым</string>
     <string name="relay_disable_response_storage_footnote">Только OpenAI Responses · устанавливает store: false</string>
     <string name="relay_disable_response_storage_short">Не хранить ответы в облаке</string>
@@ -836,10 +840,16 @@
     <string name="relay_security_mode_option_unknown_disabled">Прежде чем выбрать этот тип подключения, введите локальный адрес, адрес LAN или частного VPN.</string>
     <string name="relay_connection_no_key_required_cleartext">Для этого подключения ключ не нужен · Незашифрованные подключения никогда не передают учётные данные.</string>
     <string name="relay_remove_api_key">Удалить ключ</string>
-<string name="streaming_pulse_a11y">Генерация</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">Генерация</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">Активные в этом месяце</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">Активные в этом месяце</string>
     <string name="providers_all_providers">Все провайдеры</string>
     <string name="providers_today">Сегодня</string>
     <string name="providers_all_synced">Всё синхронизировано</string>
@@ -848,6 +858,8 @@
     <string name="providers_delete_this_question">Удалить этого провайдера?</string>
     <string name="providers_delete_this_message">Удаление этого провайдера также удалит связанные с ним чаты и настройки модели по умолчанию.</string>
     <string name="manual_model_clear">Очистить</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">Нужен ключ API</string>
     <string name="tap_to_view">Нажмите для просмотра</string>
     <string name="tap_to_set">Нажмите для настройки</string>
@@ -863,6 +875,8 @@
     <string name="code_block_expand">Развернуть</string>
     <string name="chat_show_full_message">Показать полностью</string>
     <string name="code_block_lines">%d строк</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">Нет подключения к интернету</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -872,6 +886,7 @@
     <string name="reasoning_hide">Скрыть рассуждение</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">Не удалось извлечь текст из %1$s (похоже на отсканированный PDF).</string>
@@ -883,7 +898,6 @@
     <string name="file_extraction_error_generic">Не удалось обработать %1$s. Попробуйте снова или выберите другой файл.</string>
     <string name="file_extraction_truncated_notice">Файл %1$s длинный, добавлено только начало (строк: %2$d из %3$d).</string>
     <string name="file_extraction_send_blocked_text_budget">Не отправлено: вместе с %1$s прикреплённый текст превышает лимит этой модели. Уберите файл или выберите другую модель.</string>
-    <string name="error_attachment_not_accepted_title">Вложение не принято</string>
     <string name="file_extraction_text_budget_exceeded">Файл %1$s не добавлен: с ним текст, прикреплённый к этому сообщению, превысил бы лимит.</string>
     <string name="file_extraction_chip_extracted_lines">Извлечено строк: %1$d</string>
     <string name="file_attachment_count_limit_reached">Для этой модели можно прикрепить до %1$d файлов.</string>
@@ -893,6 +907,8 @@
     <string name="empty_greeting_mind">О чём думаешь?</string>
     <string name="empty_greeting_together">Над чем подумаем вместе?</string>
     <string name="empty_chat_ask_anything">Спрашивай что угодно или просто начни писать.</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">Флагманские модели GPT</string>
     <string name="provider_tagline_anthropic">Модели Claude</string>
     <string name="provider_tagline_gemini">Текст, изображение и видео</string>
@@ -908,6 +924,8 @@
     <string name="provider_tagline_groq">Сверхбыстрый инференс</string>
     <string name="provider_tagline_together">Модели с открытым кодом</string>
     <string name="provider_tagline_fireworks">Быстро и доступно</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">Подключить провайдера</string>
     <string name="provider_setup_hero_subtitle">Выберите провайдера ИИ, затем введите ключ API</string>
     <string name="provider_category_all">Все</string>
@@ -920,12 +938,13 @@
     <string name="provider_already_connected_subtitle">Управляйте существующим подключением или добавьте другой аккаунт с другим API-ключом.</string>
     <string name="provider_manage_existing">Управлять существующим</string>
     <string name="provider_add_another_account">Добавить другой аккаунт</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="capability_video">Видео</string>
     <string name="citations_section_title">Источники</string>
     <string name="citations_view_all">Показать все источники (%1$d)</string>
     <string name="citations_collapse">Свернуть</string>
     <string name="api_endpoint">Конечная точка API</string>
-    <string name="api_endpoint_not_configured">Не настроено</string>
     <string name="relay_guidance_codex_identity_switch_type">Этому подключению нужна идентификация клиента Codex. Откройте Провайдеры → это подключение → Библиотека моделей → эта модель → Дополнительно, выберите протокол OpenAI Responses и повторите попытку.</string>
     <string name="relay_guidance_codex_identity_still_rejected">Это подключение всё ещё отклоняет идентификацию клиента Codex от Oriveo. Откройте Провайдеры → это подключение → Изменить подключение → Заголовки и параметры запроса, задайте свой User-Agent или заголовок либо выберите другое подключение.</string>
     <string name="relay_guidance_responses_only_endpoint">Это подключение принимает только /v1/responses и отклоняет /chat/completions. Откройте Провайдеры → это подключение → Библиотека моделей → эта модель → Дополнительно, выберите протокол OpenAI Responses и повторите попытку.</string>
@@ -976,10 +995,19 @@
     <string name="outline_nav_label">Структура беседы</string>
     <string name="outline_jump_to">Перейти к: %1$s</string>
     <string name="outline_attachment_only">(Вложение)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">Заметки</string>
     <string name="notes_subtitle">Сохраняйте содержимое чата как заметки</string>
     <string name="notes_untitled">Безымянная заметка</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="one">%1$d заметка</item>
+        <item quantity="few">%1$d заметки</item>
+        <item quantity="many">%1$d заметок</item>
+        <item quantity="other">%1$d заметки</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">Заметки</string>
     <string name="notes_tab_trash">Корзина</string>
     <!-- Actions -->
@@ -1042,7 +1070,7 @@
     <string name="notes_toast_export_failed">Не удалось экспортировать</string>
     <string name="notes_toast_folder_created">Папка \"%1$s\" создана</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">Сохранить как заметку</string>
     <string name="notes_chat_replace_current_note">Обновить заметку выбранным</string>
     <string name="notes_chat_return_to_note">Назад к заметке</string>
@@ -1074,13 +1102,19 @@
     <string name="notes_detail_delete_this">Удалить эту заметку</string>
     <string name="notes_nothing_written">Пока ничего нет.</string>
     <!-- Проверка обновлений (только Android · Play In-App Updates) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">Цена неизвестна</string>
     <string name="pricing_non_standard">Нестандартный биллинг</string>
     <string name="pricing_free">Бесплатно</string>
     <string name="enabled_models_help">Добавленные модели появляются в выборе моделей на главном экране.</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">Не удалось загрузить этот чат</string>
     <string name="chat_load_stalled_message">Сообщения этого чата ещё не загружены на устройство. Повторите попытку, чтобы получить их из облака.</string>
     <string name="chat_bootstrap_in_progress">Загрузка чата…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">Все ваши модели — {одно приложение}</string>
     <string name="onboarding_title_models">Для каждого вопроса — {подходящая модель}</string>
     <string name="onboarding_title_byok">Ваши ключи — {ваш счёт}</string>
@@ -1097,6 +1131,8 @@
     <string name="onboarding_legal">Продолжая, вы соглашаетесь с [Условия использования](oriveo://terms) и [политика конфиденциальности](oriveo://privacy).</string>
     <string name="developer_options">Параметры разработчика</string>
     <string name="replay_onboarding">Посмотреть знакомство снова</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">Быстрая настройка</string>
     <string name="relay_quick_subtitle">Введите URL запроса и API-ключ. Oriveo сам определит настройки подключения.</string>
     <string name="relay_models_found">Моделей в каталоге: %1$d.</string>
@@ -1164,9 +1200,8 @@
     <string name="generation_empty_not_verified">Для этой модели пока нет настраиваемых параметров</string>
     <string name="generation_empty_not_verified_detail">Мы открываем настройку только после того, как убедимся, что параметр действительно работает, а эту модель на этом подключении мы ещё не проверяли. На её способность рассуждать это не влияет.</string>
     <string name="generation_empty_catalog_managed">Параметры этой модели теперь управляются официальным каталогом и не могут быть настроены здесь.</string>
-    <string name="generation_empty_runtime_locked">Параметры выполнения нельзя изменить для этого подключения.</string>
     <string name="generation_empty_all_unsupported">На этом подключении модель не принимает настраиваемые параметры.</string>
-<string name="generation_parameter_unverified_badge">Не проверено</string>
+    <string name="generation_parameter_unverified_badge">Не проверено</string>
     <string name="generation_parameter_unverified_group_note">Эти параметры выведены из выбранного вами протокола. Oriveo не проверял, работают ли они на этом подключении.</string>
     <string name="generation_parameter_dormant_summary">Заданные вами параметры (%1$d) сохранены и сейчас не отправляются.</string>
     <string name="generation_parameter_dormant_view">Показать</string>
@@ -1184,6 +1219,8 @@
     <string name="chat_token_usage_cache_write">Запись кэша</string>
     <string name="chat_token_usage_total">Всего</string>
     <string name="chat_token_usage_unavailable">Нет данных</string>
+    <string name="chat_token_usage_cost">Стоимость</string>
+    <string name="chat_token_usage_estimated">Примерная</string>
     <string name="generation_conversation_scope_hint">Действует только пока в этом разговоре используется эта модель. Смена модели не копирует значения; при возврате они восстанавливаются.</string>
     <string name="generation_parameter_self_healed">Модель отклонила %1$s. Запрос повторён с настройкой по умолчанию.</string>
     <string name="relay_transport_llamacpp_native">Нативный completion llama.cpp</string>
@@ -1383,30 +1420,22 @@
     <string name="tool_call_unhandled_multiple">Модель попыталась использовать недоступные для этого подключения инструменты (%1$s).</string>
     <string name="tool_call_arguments_truncated">Обрезано до 2 КБ</string>
     <string name="tool_fallback_library_not_searched">Это подключение не поддерживает инструменты, поэтому поиск в библиотеке не выполнялся.</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">Нет свободного места</string>
     <string name="storage_blocked_message">На устройстве не осталось свободного места, поэтому Oriveo не может открыть локальные данные. Освободите место и повторите попытку — ваши чаты по-прежнему сохранены на этом устройстве.</string>
     <string name="storage_blocked_action_free_space">Освободить место</string>
     <string name="database_unavailable_title">Не удаётся открыть локальные данные</string>
     <string name="database_unavailable_message">Oriveo не удалось открыть локальные данные на этом устройстве. Повторите попытку или обратитесь в поддержку, если это повторяется.</string>
     <string name="link_open_failed_message">Не удалось открыть ссылку. Включите браузер и повторите попытку.</string>
-    <string name="contact_support">Связаться с поддержкой</string>
-    <string name="price_input">Ввод</string>
-    <string name="price_output">Вывод</string>
-    <string name="price_cache_read">Чтение кэша</string>
-    <string name="price_cache_write">Запись кэша</string>
     <string name="external_app_unavailable">Нет приложения, чтобы открыть это. Установите или включите его.</string>
-    <plurals name="notes_count">
-        <item quantity="one">%1$d заметка</item>
-        <item quantity="few">%1$d заметки</item>
-        <item quantity="many">%1$d заметок</item>
-        <item quantity="other">%1$d заметки</item>
-    </plurals>
     <string name="secure_field_show">Показать символы</string>
     <string name="secure_field_hide">Скрыть символы</string>
-    <string name="generation_parameter_name_stop">Стоп-последовательности</string>
     <string name="generation_diagnostics_section">Диагностика настроек генерации</string>
     <string name="generation_diagnostics_empty">У тебя пока нет записей диагностики</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">Для этого аккаунта отправка отзывов недоступна.</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">Инструменты</string>
     <string name="mcp_tools_chip_state_on">Включено серверов: %d</string>
     <string name="mcp_tools_chip_state_off">Выключено</string>
@@ -1493,6 +1522,8 @@
     <string name="mcp_detail_seconds">%s с</string>
     <string name="mcp_detail_third_party_note">Результаты получены от стороннего сервера. Показаны только первые 2 КБ. Oriveo не проверял содержимое.</string>
     <string name="mcp_detail_not_on_device">Подробности хранятся только на устройстве, где выполнялся этот шаг.</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">Инструменты и подключения</string>
     <string name="mcp_servers_title">MCP-серверы</string>
     <plurals name="mcp_settings_entry_count">
@@ -1641,109 +1672,164 @@
     <string name="mcp_reauth_failed_body">Страницу входа закрыли, либо сервис не одобрил запрос. Ничего не изменилось.</string>
     <string name="mcp_reauth_unreachable_body">Убедитесь, что сервер сейчас доступен с этого устройства, и попробуйте ещё раз.</string>
     <string name="mcp_reauth_token_title">Вставьте новый токен доступа</string>
-    <string name="additional_body_attachments_filled">Вложения подставляет Oriveo.</string>
-    <string name="additional_body_cannot_change">Нельзя изменить</string>
-    <string name="additional_body_check">Проверьте дополнительное тело запроса</string>
-    <string name="additional_body_conversation_filled">Переписку подставляет Oriveo.</string>
-    <string name="additional_body_device_only">Хранится только на этом устройстве, не синхронизируется</string>
-    <string name="additional_body_docs_link">Какие поля поддерживает %1$s</string>
-    <string name="additional_body_field_filled">Это поле подставляет Oriveo.</string>
-    <string name="additional_body_field_name_invalid">Это имя нельзя использовать как имя поля.</string>
-    <string name="additional_body_footer">Поля отсюда добавляются в запрос как есть; Oriveo не проверяет, принимает ли их ваш сервер. Если имя поля совпадает с расширенной настройкой, используется значение отсюда, а остальные настройки отправляются как обычно.</string>
-    <string name="additional_body_included">Добавляется</string>
-    <string name="additional_body_model_chosen">Модель — та, которую вы выбрали в Oriveo.</string>
-    <string name="additional_body_paste">Вставить</string>
-    <string name="additional_body_paste_replace_body">При вставке текущее содержимое заменится содержимым буфера обмена.</string>
-    <string name="additional_body_paste_replace_title">Заменить текущее содержимое?</string>
-    <string name="additional_body_reason_blocked_segment">«%1$s» нельзя использовать как имя поля в дополнительном теле запроса.</string>
-    <string name="additional_body_reason_invalid_json">Дополнительное тело запроса не является корректным JSON.</string>
-    <string name="additional_body_reason_not_object">Дополнительное тело запроса должно быть JSON-объектом в { }.</string>
-    <string name="additional_body_reason_protected_field">«%1$s» подставляет Oriveo, его нельзя задать в дополнительном теле запроса.</string>
-    <string name="additional_body_reason_too_deep">В дополнительном теле запроса больше 32 уровней вложенности.</string>
-    <string name="additional_body_reason_too_large">Дополнительное тело запроса больше 64 КБ.</string>
-    <string name="additional_body_rejected_upstream">Запрос с дополнительным телом запроса отклонён</string>
-    <string name="additional_body_remove_line">%1$s Удалите строку %2$d, чтобы отправить.</string>
-    <string name="additional_body_retry_without">Повторить без дополнительного тела запроса</string>
-    <string name="additional_body_send_toggle">Отправка вместе с запросами</string>
-    <string name="additional_body_send_toggle_note">Если выключить, содержимое сохранится, но отправляться не будет</string>
-    <string name="additional_body_switch_blocked_invalid">В дополнительном теле запроса ошибка, поэтому этот переключатель не может его изменить. Сначала исправьте её там.</string>
-    <string name="additional_body_switch_blocked_off">Дополнительное тело запроса сейчас не отправляется с запросами. Сначала включите отправку там.</string>
-    <string name="additional_body_system_prompt_filled">Системный промпт подставляет Oriveo.</string>
-    <string name="additional_body_tidy">Отформатировать</string>
-    <string name="additional_body_tidy_invalid">Это ещё не корректный JSON, поэтому ничего не изменено.</string>
-    <string name="additional_body_title">Дополнительное тело запроса</string>
-    <string name="additional_body_when_sending">При отправке</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">Возможности</string>
+    <string name="model_options_local">Локально</string>
+    <string name="model_options_web_note">Сначала ищет в интернете, если вопрос этого требует</string>
+    <string name="model_options_always_thinks">Всегда размышляет перед ответом</string>
+    <string name="model_options_thinks_first_note">Сначала обдумывает ответ, поэтому отвечает чуть дольше</string>
+    <string name="model_options_higher_levels_note">Чем выше уровень, тем дольше ответ и, возможно, выше стоимость.</string>
+    <string name="model_options_template_thinking_note">Включает и выключает размышление через шаблон чата. Сработает ли это, зависит от вашего сервера.</string>
+    <string name="model_options_connection_cannot">Недоступно в этом подключении</string>
+    <string name="model_options_uses_model_default">Как у модели по умолчанию</string>
+    <string name="model_options_reasoning_not_catalogued">В Oriveo пока нет настроек размышления для этой модели, поэтому она работает со своими значениями по умолчанию.</string>
+    <string name="model_options_web_not_catalogued">В Oriveo пока нет настроек поиска в интернете для этой модели, поэтому включить его здесь нельзя.</string>
+    <string name="model_options_see_adjustable_models">Какие модели можно настроить</string>
+    <string name="model_options_no_thinking_mode">У этой модели нет режима размышления</string>
+    <string name="model_options_shows_thinking_fixed">Показывает ход размышлений · не настраивается</string>
+    <string name="model_options_cannot_search">Эта модель не умеет искать в интернете</string>
+    <string name="model_options_always_on">Всегда включён</string>
+    <string name="model_options_subscription_always_searches">С этой подпиской модель всегда ищет в интернете.</string>
+    <string name="model_options_web_when_needed">При необходимости</string>
+    <string name="model_options_web_every_message">В каждом сообщении</string>
+    <string name="model_options_needs_manual_setup">Нужна ручная настройка</string>
+    <string name="model_options_reasoning_no_generic_switch">У этого провайдера нет стандартного переключателя размышления. Добавьте его поля в дополнительное тело запроса.</string>
+    <string name="model_options_web_no_generic_switch">У этого провайдера нет стандартного переключателя поиска в интернете. Добавьте его поля в дополнительное тело запроса.</string>
+    <string name="model_options_open_additional_body">Открыть дополнительное тело запроса</string>
+    <string name="model_options_choose_protocol_first">Сначала выберите протокол этого подключения</string>
+    <string name="model_options_protocol_auto_note">Протокол всё ещё «Авто», поэтому Oriveo не знает, как отправлять настройки поиска в интернете и размышления.</string>
+    <string name="model_options_choose_protocol">Выбрать протокол</string>
+    <string name="model_options_tier_rejected_title">Вариант «%1$s» отклонён</string>
+    <string name="model_options_tier_rejected_body">Эта модель сейчас не принимает «%1$s», поэтому снова выбран уровень «%2$s». Прежний уровень вернётся сам, как только модель снова начнёт его поддерживать.</string>
+    <string name="model_options_more_count">Ещё: %1$d</string>
+    <string name="model_options_cant_switch_here">Здесь пока нельзя переключить</string>
+    <string name="model_options_not_available_yet">Пока недоступно</string>
+    <string name="model_options_web_and_thinking_fields">Поля для поиска в интернете и размышления</string>
+    <string name="model_options_vision_available">Доступно · выбор фото показан</string>
+    <string name="model_options_vision_unknown">Неизвестно · запомнится после отправки</string>
+    <string name="model_options_vision_hidden">Недоступно · выбор фото скрыт</string>
+    <string name="model_options_file_pdf_native">PDF как есть · остальное текстом</string>
+    <string name="model_options_file_native_when_supported">Поддерживаемые форматы как есть · остальное текстом</string>
+    <string name="model_options_file_text">Отправляется текстом</string>
+    <string name="model_options_turn_summary">В этот раз отправится: %1$s</string>
+    <string name="model_options_summary_web_on">Поиск в интернете включён</string>
+    <string name="model_options_summary_thinking_level">Размышление: %1$s</string>
+    <string name="model_options_summary_thinking_on">Размышление включено</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="one">%d уровень</item>
+        <item quantity="few">%d уровня</item>
+        <item quantity="many">%d уровней</item>
+        <item quantity="other">%d уровня</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">Только этот диалог</string>
+    <string name="advanced_reset">Сбросить</string>
+    <string name="advanced_reset_conversation_title">Сбросить настройки этого диалога?</string>
+    <string name="advanced_reset_conversation_body">Сбрасываются только параметры, изменённые в этом диалоге. Ваши значения по умолчанию для модели и дополнительное тело запроса останутся как есть.</string>
+    <string name="advanced_reset_conversation_action">Сбросить изменения в этом диалоге</string>
+    <string name="advanced_reset_model_title">Сбросить значения по умолчанию для этой модели?</string>
+    <string name="advanced_reset_model_body">Сбрасывает параметры по умолчанию, которые вы задали для этой модели в этом подключении. Изменения внутри отдельных диалогов останутся как есть.</string>
+    <string name="advanced_reset_model_action">Сбросить значения по умолчанию для модели</string>
+    <string name="advanced_more">Ещё</string>
+    <string name="advanced_not_adjusted">Без изменений</string>
+    <string name="advanced_entries_count">Записей: %1$d</string>
+    <string name="advanced_fields_count">Полей: %1$d</string>
+    <string name="advanced_random_each_time">Каждый раз случайное</string>
+    <string name="advanced_plain_text">Обычный текст</string>
+    <string name="advanced_write_your_own">Вручную</string>
     <string name="advanced_additional_body_subtitle">Добавьте в формате JSON поля, которых нет выше</string>
+    <string name="advanced_not_in_use">Не используется</string>
+    <string name="advanced_changed_in_conversation">Изменено в этом диалоге</string>
+    <string name="advanced_using_your_default">Используется ваше значение по умолчанию для модели</string>
+    <string name="advanced_model_defaults">По умолчанию для модели</string>
+    <string name="advanced_your_default">Ваше значение по умолчанию</string>
+    <string name="advanced_state_set">Задано</string>
+    <string name="advanced_state_on">Включено</string>
+    <string name="advanced_use_model_default">Вернуть значение по умолчанию для модели</string>
+    <string name="advanced_dont_send">Не отправлять эту настройку</string>
     <string name="advanced_allowed_range">Допустимый диапазон: %1$s</string>
     <string name="advanced_also_covers">Также включает: %1$s</string>
-    <string name="advanced_changed_in_conversation">Изменено в этом диалоге</string>
-    <string name="advanced_crossed_out_legend">Зачёркнутыми настройками сейчас управляет %1$s.</string>
-    <string name="advanced_diagnostics_delete_body">Будут удалены диагностические записи, показанные для этой модели. Записи других моделей сохранятся.</string>
-    <string name="advanced_diagnostics_delete_title">Удалить эти диагностические записи?</string>
-    <string name="advanced_dont_send">Не отправлять эту настройку</string>
+    <string name="advanced_no_limit">Без ограничений</string>
+    <string name="advanced_stop_sequences">Стоп-последовательности</string>
+    <string name="advanced_new_stop_sequence">Новая стоп-последовательность</string>
+    <string name="advanced_stop_sequences_note">Модель останавливается, как только напишет любую из них. В последовательности могут быть запятые, пробелы и переносы строк.</string>
+    <string name="advanced_remove_item">Удалить %1$s</string>
+    <string name="advanced_error_max_tokens">Эта модель может написать не больше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_error_number">Введите число. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_error_integer">Введите целое число. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_error_highest">Эта модель принимает не больше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_error_lowest">Эта модель принимает не меньше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_error_greater_than">Значение должно быть больше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_error_less_than">Значение должно быть меньше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_error_json_schema">Это некорректная JSON Schema. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_error_value_rejected">Эта модель не принимает это значение. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
+    <string name="advanced_dropped_thinking">При включённом размышлении модель это не принимает, поэтому настройка не отправляется.</string>
     <string name="advanced_dropped_conflict">Конфликтует с другой настройкой, поэтому пропускается.</string>
     <string name="advanced_dropped_conflict_with">Нельзя отправить вместе с «%1$s», поэтому эта настройка пропускается.</string>
     <string name="advanced_dropped_depends">Зависит от другой настройки, которая не задана, поэтому не отправляется.</string>
-    <string name="advanced_dropped_reasoning_budget">Меньше бюджета рассуждения, поэтому вместо него отправляется значение по умолчанию.</string>
-    <string name="advanced_dropped_required_default">Эта модель требует это поле, поэтому всё равно отправляется значение по умолчанию.</string>
     <string name="advanced_dropped_requires">Отправляется, только если задан и параметр «%1$s».</string>
-    <string name="advanced_dropped_thinking">При включённом размышлении модель это не принимает, поэтому настройка не отправляется.</string>
     <string name="advanced_dropped_value">Эта модель не принимает это значение, поэтому настройка не отправляется.</string>
+    <string name="advanced_dropped_required_default">Эта модель требует это поле, поэтому всё равно отправляется значение по умолчанию.</string>
+    <string name="advanced_dropped_reasoning_budget">Меньше бюджета рассуждения, поэтому вместо него отправляется значение по умолчанию.</string>
+    <string name="advanced_taken_over">Включён параметр «%1$s», поэтому эта настройка не используется.</string>
+    <string name="advanced_crossed_out_legend">Зачёркнутыми настройками сейчас управляет %1$s.</string>
+    <string name="advanced_grey_defaults_legend">Серые значения — собственные значения %1$s по умолчанию. Они не отправляются, пока вы их не измените.</string>
+    <string name="advanced_mirostat_note">Удерживает случайность вывода около целевого уровня — вместо Top K и Top P.</string>
+    <string name="advanced_target_entropy">Целевая энтропия</string>
+    <string name="advanced_learning_rate">Скорость обучения</string>
+    <string name="advanced_repetition">Повторы</string>
     <string name="advanced_dry_note">Не даёт дословно повторять целые фрагменты предыдущего текста</string>
+    <string name="advanced_more_sampling">Другие параметры сэмплирования</string>
+    <string name="advanced_xtc_note">Иногда пропускает самое вероятное слово, чтобы формулировки были разнообразнее</string>
     <string name="advanced_dynamic_temperature">Динамическая температура</string>
     <string name="advanced_dynamic_temperature_note">Температура меняется в зависимости от уверенности модели</string>
-    <string name="advanced_entries_count">Записей: %1$d</string>
-    <string name="advanced_error_greater_than">Значение должно быть больше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_error_highest">Эта модель принимает не больше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_error_integer">Введите целое число. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_error_json_schema">Это некорректная JSON Schema. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_error_less_than">Значение должно быть меньше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_error_lowest">Эта модель принимает не меньше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_error_max_tokens">Эта модель может написать не больше %1$s. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_error_number">Введите число. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_error_value_rejected">Эта модель не принимает это значение. Пока значение не исправлено, эта настройка не отправляется; на остальные настройки это не влияет.</string>
-    <string name="advanced_fields_count">Полей: %1$d</string>
-    <string name="advanced_grey_defaults_legend">Серые значения — собственные значения %1$s по умолчанию. Они не отправляются, пока вы их не измените.</string>
-    <string name="advanced_learning_rate">Скорость обучения</string>
-    <string name="advanced_mirostat_note">Удерживает случайность вывода около целевого уровня — вместо Top K и Top P.</string>
-    <string name="advanced_model_defaults">По умолчанию для модели</string>
-    <string name="advanced_more">Ещё</string>
-    <string name="advanced_more_sampling">Другие параметры сэмплирования</string>
-    <string name="advanced_new_stop_sequence">Новая стоп-последовательность</string>
-    <string name="advanced_no_limit">Без ограничений</string>
-    <string name="advanced_not_adjusted">Без изменений</string>
-    <string name="advanced_not_in_use">Не используется</string>
-    <string name="advanced_plain_text">Обычный текст</string>
-    <string name="advanced_preset_apply">Применить пресет</string>
-    <string name="advanced_preset_apply_body">«%1$s» заменит всё, что вы задали для этой модели: %2$s.</string>
-    <string name="advanced_preset_apply_title">Применить этот пресет?</string>
-    <string name="advanced_random_each_time">Каждый раз случайное</string>
-    <string name="advanced_reasoning_set_by_thinking">Для этой модели размышление настраивается в разделе «Параметры модели» › «Размышление». Чтобы сделать уровень значением по умолчанию, выбери его там и нажми «Сделать по умолчанию для этой модели». Этот параметр не отправляется с запросом.</string>
-    <string name="advanced_remove_item">Удалить %1$s</string>
-    <string name="advanced_repetition">Повторы</string>
-    <string name="advanced_reset">Сбросить</string>
-    <string name="advanced_reset_conversation_action">Сбросить изменения в этом диалоге</string>
-    <string name="advanced_reset_conversation_body">Сбрасываются только параметры, изменённые в этом диалоге. Ваши значения по умолчанию для модели и дополнительное тело запроса останутся как есть.</string>
-    <string name="advanced_reset_conversation_title">Сбросить настройки этого диалога?</string>
-    <string name="advanced_reset_model_action">Сбросить значения по умолчанию для модели</string>
-    <string name="advanced_reset_model_body">Сбрасывает параметры по умолчанию, которые вы задали для этой модели в этом подключении. Изменения внутри отдельных диалогов останутся как есть.</string>
-    <string name="advanced_reset_model_title">Сбросить значения по умолчанию для этой модели?</string>
-    <string name="advanced_state_on">Включено</string>
-    <string name="advanced_state_set">Задано</string>
-    <string name="advanced_stop_sequences">Стоп-последовательности</string>
-    <string name="advanced_stop_sequences_note">Модель останавливается, как только напишет любую из них. В последовательности могут быть запятые, пробелы и переносы строк.</string>
-    <string name="advanced_taken_over">Включён параметр «%1$s», поэтому эта настройка не используется.</string>
-    <string name="advanced_target_entropy">Целевая энтропия</string>
-    <string name="advanced_this_conversation_only">Только этот диалог</string>
-    <string name="advanced_use_model_default">Вернуть значение по умолчанию для модели</string>
-    <string name="advanced_using_your_default">Используется ваше значение по умолчанию для модели</string>
-    <string name="advanced_write_your_own">Вручную</string>
-    <string name="advanced_xtc_note">Иногда пропускает самое вероятное слово, чтобы формулировки были разнообразнее</string>
-    <string name="advanced_your_default">Ваше значение по умолчанию</string>
+    <string name="additional_body_title">Дополнительное тело запроса</string>
+    <string name="additional_body_send_toggle">Отправка вместе с запросами</string>
+    <string name="additional_body_send_toggle_note">Если выключить, содержимое сохранится, но отправляться не будет</string>
+    <string name="additional_body_device_only">Хранится только на этом устройстве, не синхронизируется</string>
+    <string name="additional_body_paste">Вставить</string>
+    <string name="additional_body_tidy">Отформатировать</string>
+    <string name="additional_body_when_sending">При отправке</string>
+    <string name="additional_body_included">Добавляется</string>
+    <string name="additional_body_cannot_change">Нельзя изменить</string>
+    <string name="additional_body_footer">Поля отсюда добавляются в запрос как есть; Oriveo не проверяет, принимает ли их ваш сервер. Если имя поля совпадает с расширенной настройкой, используется значение отсюда, а остальные настройки отправляются как обычно.</string>
+    <string name="additional_body_docs_link">Какие поля поддерживает %1$s</string>
+    <string name="additional_body_remove_line">%1$s Удалите строку %2$d, чтобы отправить.</string>
+    <string name="additional_body_conversation_filled">Переписку подставляет Oriveo.</string>
+    <string name="additional_body_attachments_filled">Вложения подставляет Oriveo.</string>
+    <string name="additional_body_system_prompt_filled">Системный промпт подставляет Oriveo.</string>
+    <string name="additional_body_tools_managed">Инструментами управляет Oriveo.</string>
+    <string name="additional_body_model_chosen">Модель — та, которую вы выбрали в Oriveo.</string>
+    <string name="additional_body_streaming_by_oriveo">Как передавать ответ потоком, решает Oriveo.</string>
+    <string name="additional_body_field_filled">Это поле подставляет Oriveo.</string>
+    <string name="additional_body_field_name_invalid">Это имя нельзя использовать как имя поля.</string>
+    <string name="additional_body_paste_replace_title">Заменить текущее содержимое?</string>
+    <string name="additional_body_paste_replace_body">При вставке текущее содержимое заменится содержимым буфера обмена.</string>
+    <string name="additional_body_tidy_invalid">Это ещё не корректный JSON, поэтому ничего не изменено.</string>
+    <string name="additional_body_switch_blocked_invalid">В дополнительном теле запроса ошибка, поэтому этот переключатель не может его изменить. Сначала исправьте её там.</string>
+    <string name="additional_body_switch_blocked_off">Дополнительное тело запроса сейчас не отправляется с запросами. Сначала включите отправку там.</string>
+    <string name="additional_body_check">Проверьте дополнительное тело запроса</string>
+    <string name="additional_body_rejected_upstream">Запрос с дополнительным телом запроса отклонён</string>
+    <string name="additional_body_reason_too_large">Дополнительное тело запроса больше 64 КБ.</string>
+    <string name="additional_body_reason_invalid_json">Дополнительное тело запроса не является корректным JSON.</string>
+    <string name="additional_body_reason_not_object">Дополнительное тело запроса должно быть JSON-объектом в { }.</string>
+    <string name="additional_body_reason_too_deep">В дополнительном теле запроса больше 32 уровней вложенности.</string>
+    <string name="additional_body_reason_blocked_segment">«%1$s» нельзя использовать как имя поля в дополнительном теле запроса.</string>
+    <string name="additional_body_reason_protected_field">«%1$s» подставляет Oriveo, его нельзя задать в дополнительном теле запроса.</string>
+    <string name="additional_body_retry_without">Повторить без дополнительного тела запроса</string>
+    <string name="local_request_line_format">Строка %1$d: %2$s</string>
+    <string name="local_request_custom_line_format">Поля «%1$s», строка %2$d: %3$s</string>
+    <string name="local_request_custom_format">Поля «%1$s»: %2$s</string>
+    <string name="local_request_not_sent">Это сообщение не отправлено.</string>
     <string name="generation_parameter_name_grammar">Грамматика (GBNF)</string>
     <string name="generation_parameter_name_min_tokens">Минимум токенов в ответе</string>
     <string name="generation_parameter_name_skip_special_tokens">Скрывать служебные токены в ответе</string>
     <string name="generation_parameter_omitted_value">Пропустить</string>
+    <string name="advanced_reasoning_set_by_thinking">Для этой модели размышление настраивается в разделе «Параметры модели» › «Размышление». Чтобы сделать уровень значением по умолчанию, выбери его там и нажми «Сделать по умолчанию для этой модели». Этот параметр не отправляется с запросом.</string>
+    <string name="advanced_preset_apply">Применить пресет</string>
+    <string name="advanced_preset_apply_title">Применить этот пресет?</string>
+    <string name="advanced_preset_apply_body">«%1$s» заменит всё, что вы задали для этой модели: %2$s.</string>
+    <string name="advanced_diagnostics_delete_title">Удалить эти диагностические записи?</string>
+    <string name="advanced_diagnostics_delete_body">Будут удалены диагностические записи, показанные для этой модели. Записи других моделей сохранятся.</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">Пользовательская LLM · Своя служба ретрансляции</string>
     <string name="relay_setup_hero_title">Подключить свою службу ретрансляции</string>
@@ -1826,6 +1912,7 @@
     <string name="relay_relative_minutes_ago">%d минуту назад</string>
     <string name="relay_relative_hours_ago">%d час назад</string>
     <string name="relay_detail_default_model">Модель по умолчанию</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">Введите адрес и ключ, а на следующем шаге выберите модели. Протокол и возможности определяются для каждой модели отдельно.</string>
     <string name="relay_setup_will_request">Адрес запроса: %1$s</string>
     <string name="relay_setup_key_name">Название (необязательно)</string>
@@ -1945,6 +2032,17 @@
     <string name="relay_catalog_status_denied">У текущего ключа нет доступа</string>
     <string name="relay_catalog_unreachable_title">Почему нет связи</string>
     <string name="relay_catalog_enable_hint">При включении отправляется 1 крошечный запрос, чтобы проверить, что модель работает. Нажмите на модель в каталоге, чтобы сначала открыть «Дополнительно», — запрос при этом не отправляется.</string>
+    <string name="relay_catalog_add_all">Добавить все</string>
+    <string name="relay_catalog_enable_hint_explicit">Нажмите на модель в каталоге, чтобы сначала открыть «Дополнительно», — запрос при этом не отправляется.</string>
+    <string name="relay_catalog_remove_last_reason">У этого подключения должна быть хотя бы одна модель.</string>
+    <string name="relay_model_advanced_auto_equals_connection">Авто = протокол по умолчанию для этого подключения (%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">Изменения применяются сразу и сохраняются только на этом устройстве.</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="one">Добавлена %1$d модель</item>
+        <item quantity="few">Добавлены %1$d модели</item>
+        <item quantity="many">Добавлено %1$d моделей</item>
+        <item quantity="other">Добавлено %1$d модели</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">Не удалось получить список моделей</string>
     <string name="relay_catalog_group_other">Другие</string>
     <string name="relay_advanced_key_section">Ключ</string>
@@ -2045,6 +2143,7 @@
     <string name="relay_web_chat_note">В Chat Completions нет стандартного поля для веб-поиска. Шаблон работает только с поисковыми моделями — уточните в документации сервиса.</string>
     <string name="relay_web_other_protocols">Другие протоколы</string>
     <string name="relay_web_template_replace_body">Шаблон заменит то, что вы ввели для этого протокола.</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">Аутентификация, заголовки и параметры запроса</string>
     <string name="relay_manual_connection_name">Название подключения</string>
     <string name="relay_manual_model_footnote">Введите идентификатор модели точно так, как он указан в вашей службе ретрансляции. Другие модели можно добавить позже в библиотеке моделей.</string>
@@ -2058,70 +2157,6 @@
     <string name="relay_manual_model_entry_note_exact">Введите идентификатор модели точно так, как он указан в вашей службе ретрансляции.</string>
     <string name="relay_manual_model_entry_note_capabilities">Возможности модели запоминаются после отправки сообщения. Их также можно проверить в разделе «Дополнительно».</string>
     <string name="relay_connection_not_verified">Соединение не проверено.</string>
-    <string name="local_request_custom_format">Поля «%1$s»: %2$s</string>
-    <string name="local_request_custom_line_format">Поля «%1$s», строка %2$d: %3$s</string>
-    <string name="local_request_line_format">Строка %1$d: %2$s</string>
-    <string name="local_request_not_sent">Это сообщение не отправлено.</string>
-    <string name="model_options_always_thinks">Всегда размышляет перед ответом</string>
-    <string name="model_options_cannot_search">Эта модель не умеет искать в интернете</string>
-    <string name="model_options_always_on">Всегда включён</string>
-    <string name="model_options_subscription_always_searches">С этой подпиской модель всегда ищет в интернете.</string>
-    <string name="model_options_cant_switch_here">Здесь пока нельзя переключить</string>
-    <string name="model_options_capabilities">Возможности</string>
-    <string name="model_options_choose_protocol">Выбрать протокол</string>
-    <string name="model_options_choose_protocol_first">Сначала выберите протокол этого подключения</string>
-    <string name="model_options_connection_cannot">Недоступно в этом подключении</string>
-    <string name="model_options_higher_levels_note">Чем выше уровень, тем дольше ответ и, возможно, выше стоимость.</string>
-    <string name="model_options_local">Локально</string>
-    <string name="model_options_more_count">Ещё: %1$d</string>
-    <string name="model_options_needs_manual_setup">Нужна ручная настройка</string>
-    <string name="model_options_no_thinking_mode">У этой модели нет режима размышления</string>
-    <string name="model_options_not_available_yet">Пока недоступно</string>
-    <string name="model_options_open_additional_body">Открыть дополнительное тело запроса</string>
-    <string name="model_options_protocol_auto_note">Протокол всё ещё «Авто», поэтому Oriveo не знает, как отправлять настройки поиска в интернете и размышления.</string>
-    <string name="model_options_reasoning_no_generic_switch">У этого провайдера нет стандартного переключателя размышления. Добавьте его поля в дополнительное тело запроса.</string>
-    <string name="model_options_reasoning_not_catalogued">В Oriveo пока нет настроек размышления для этой модели, поэтому она работает со своими значениями по умолчанию.</string>
-    <string name="model_options_see_adjustable_models">Какие модели можно настроить</string>
-    <string name="model_options_template_thinking_note">Включает и выключает размышление через шаблон чата. Сработает ли это, зависит от вашего сервера.</string>
-    <string name="model_options_thinks_first_note">Сначала обдумывает ответ, поэтому отвечает чуть дольше</string>
-    <string name="model_options_tier_rejected_body">Эта модель сейчас не принимает «%1$s», поэтому снова выбран уровень «%2$s». Прежний уровень вернётся сам, как только модель снова начнёт его поддерживать.</string>
-    <string name="model_options_tier_rejected_title">Вариант «%1$s» отклонён</string>
-    <string name="model_options_uses_model_default">Как у модели по умолчанию</string>
-    <string name="model_options_web_and_thinking_fields">Поля для поиска в интернете и размышления</string>
-    <string name="model_options_vision_available">Доступно · выбор фото показан</string>
-    <string name="model_options_vision_unknown">Неизвестно · запомнится после отправки</string>
-    <string name="model_options_vision_hidden">Недоступно · выбор фото скрыт</string>
-    <string name="model_options_file_pdf_native">PDF как есть · остальное текстом</string>
-    <string name="model_options_file_native_when_supported">Поддерживаемые форматы как есть · остальное текстом</string>
-    <string name="model_options_file_text">Отправляется текстом</string>
-    <string name="model_options_turn_summary">В этот раз отправится: %1$s</string>
-    <string name="model_options_summary_web_on">Поиск в интернете включён</string>
-    <string name="model_options_summary_thinking_level">Размышление: %1$s</string>
-    <string name="model_options_summary_thinking_on">Размышление включено</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="one">%d уровень</item>
-        <item quantity="few">%d уровня</item>
-        <item quantity="many">%d уровней</item>
-        <item quantity="other">%d уровня</item>
-    </plurals>
-    <string name="model_options_web_every_message">В каждом сообщении</string>
-    <string name="model_options_web_no_generic_switch">У этого провайдера нет стандартного переключателя поиска в интернете. Добавьте его поля в дополнительное тело запроса.</string>
-    <string name="model_options_web_not_catalogued">В Oriveo пока нет настроек поиска в интернете для этой модели, поэтому включить его здесь нельзя.</string>
-    <string name="model_options_web_note">Сначала ищет в интернете, если вопрос этого требует</string>
-    <string name="model_options_web_when_needed">При необходимости</string>
-    <string name="additional_body_tools_managed">Инструментами управляет Oriveo.</string>
-    <string name="additional_body_streaming_by_oriveo">Как передавать ответ потоком, решает Oriveo.</string>
-    <string name="relay_catalog_add_all">Добавить все</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="one">Добавлена %1$d модель</item>
-        <item quantity="few">Добавлены %1$d модели</item>
-        <item quantity="many">Добавлено %1$d моделей</item>
-        <item quantity="other">Добавлено %1$d модели</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">У этого подключения должна быть хотя бы одна модель.</string>
-    <string name="relay_catalog_enable_hint_explicit">Нажмите на модель в каталоге, чтобы сначала открыть «Дополнительно», — запрос при этом не отправляется.</string>
-    <string name="relay_model_advanced_changes_apply">Изменения применяются сразу и сохраняются только на этом устройстве.</string>
-    <string name="relay_model_advanced_auto_equals_connection">Авто = протокол по умолчанию для этого подключения (%1$s)</string>
     <string name="relay_avatar_change_icon">Сменить значок</string>
     <string name="relay_avatar_letter">Буква</string>
     <string name="relay_avatar_icon_paper_plane">Бумажный самолётик</string>
@@ -2357,7 +2392,7 @@
     <string name="memory_editor_category">Категория</string>
     <string name="memory_editor_too_long">Не больше 2000 символов</string>
     <string name="memory_delete_confirm_title">Удалить эту запись?</string>
-    <string name="memory_delete_confirm_body">Она будет безвозвратно удалена с этого устройства.</string>
+    <string name="memory_delete_confirm_body">Она будет удалена на всех ваших устройствах.</string>
     <string name="memory_action_organize">Разбить на записи</string>
     <string name="memory_raw_view">Обычный текст</string>
     <string name="memory_raw_view_hint">Разделяйте записи строкой, в которой есть только ---.</string>
@@ -2387,8 +2422,165 @@
     <string name="context_confirm_also_price_line">Кроме того, превышен ценовой порог %1$s (%2$s), поэтому весь запрос оплачивается по тарифу для длинного контекста.</string>
     <string name="context_confirm_dont_ask">Больше не спрашивать в этом чате</string>
     <string name="context_confirm_send">Всё равно отправить</string>
-    <string name="chat_last_used_model_retired_hint">Прежняя модель больше не поддерживается. Теперь используется %1$s.</string>
-    <string name="model_options_shows_thinking_fixed">Показывает ход размышлений · не настраивается</string>
     <string name="settings_section_general">Основные</string>
     <string name="settings_section_help_about">Справка и информация</string>
+    <string name="settings_footer_poem">Среди тысяч моделей — тот самый ответ, которого вы ждали.</string>
+    <string name="skills_home_autoCount">Авто · %1$d</string>
+    <string name="skills_home_slashHint">Введите /, чтобы применить</string>
+    <string name="skills_home_empty">Сохраните свой подход к задачам</string>
+    <string name="skills_list_subtitle">Сохраните привычный порядок действий — ИИ применит его, когда это уместно.</string>
+    <string name="skills_create_describePlaceholder">Опишите порядок действий — ИИ оформит навык</string>
+    <string name="skills_create_fromChat">Из чата</string>
+    <string name="skills_create_manual">Создать вручную</string>
+    <string name="skills_segment_mine">Мои</string>
+    <string name="skills_segment_templates">Шаблоны</string>
+    <string name="skills_group_auto">Автоматически</string>
+    <string name="skills_group_manual">Только вручную</string>
+    <string name="skills_card_usageCount">Использований: %1$d</string>
+    <string name="skills_row_slashHint">Применяется, когда вы вводите %1$s</string>
+    <string name="skills_auto_needWhenTitle">Сначала укажите, когда его применять</string>
+    <string name="skills_auto_suggest">Предложить</string>
+    <string name="skills_auto_limitReached">Достигнут лимит автоматического применения (%1$d). Сначала отключите один из навыков.</string>
+    <string name="skills_search_placeholder">Поиск навыков</string>
+    <string name="skills_empty_title">Навыков пока нет</string>
+    <string name="skills_empty_body">Сохраните привычный порядок действий, чтобы не объяснять его каждый раз.</string>
+    <string name="skills_empty_browseTemplates">Посмотреть шаблоны</string>
+    <string name="skills_migrate_banner">Навыки без поля «Когда использовать»: %1$d. Добавьте одну фразу, и они смогут срабатывать автоматически.</string>
+    <string name="skills_migrate_review">Заполнить по очереди</string>
+    <string name="skills_templates_note">Шаблоны применяются автоматически только после того, как вы добавите их в «Мои».</string>
+    <string name="skills_templates_featured">Подборка</string>
+    <string name="skills_templates_addToMine">Добавить в «Мои»</string>
+    <string name="skills_templates_add">Добавить</string>
+    <string name="skills_templates_added">Добавлено</string>
+    <string name="skills_templates_tryOnce">Попробовать один раз</string>
+    <string name="skills_detail_useInNewChat">Использовать в новом чате</string>
+    <string name="skills_detail_orSlash">Или введите %1$s в поле сообщения</string>
+    <string name="skills_detail_usage">Использований: %1$d · Последний раз %2$s</string>
+    <string name="skills_detail_neverUsed">Ещё не применялся</string>
+    <string name="skills_detail_autoInvoke">Применять автоматически</string>
+    <string name="skills_detail_whenToUse">Когда использовать</string>
+    <string name="skills_detail_whenToUseNote">По нему ИИ решает, применять ли навык</string>
+    <string name="skills_detail_instructions">Инструкции</string>
+    <string name="skills_detail_showAll">Показать всё</string>
+    <string name="skills_detail_references">Справочные материалы</string>
+    <string name="skills_detail_starters">Фразы для начала</string>
+    <string name="skills_detail_recentChats">Недавние чаты</string>
+    <string name="skills_detail_try">Попробовать</string>
+    <string name="skills_edit_changeIcon">Сменить значок</string>
+    <string name="skills_edit_name">Название</string>
+    <string name="skills_edit_whenBadge">Определяет автоприменение</string>
+    <string name="skills_edit_whenPlaceholder">Например: когда я прошу собрать заметки в недельный отчёт. Не для ежедневных сводок.</string>
+    <string name="skills_edit_keywordsCaption">Срабатывает на эти слова · достаточно описать ситуацию</string>
+    <string name="skills_edit_whenTip">Напишите, что делает навык, когда его применять и как вы обычно об этом просите. Добавьте «Не для…», чтобы избежать ложных срабатываний. Слова в кавычках подсвечиваются.</string>
+    <string name="skills_edit_polish">Улучшить с ИИ</string>
+    <string name="skills_edit_addStarter">Добавить фразу</string>
+    <string name="skills_edit_modelAndFeatures">Модель и функции</string>
+    <string name="skills_edit_followChat">Как в чате</string>
+    <string name="skills_edit_needWhenForAuto">Заполните «Когда использовать» или отключите автоматическое применение.</string>
+    <string name="skills_draft_askScenarios">Приведите одну-две ситуации, когда он вам пригодится</string>
+    <string name="skills_draft_askQuality">Каким должен быть хороший результат?</string>
+    <string name="skills_draft_skip">Пропустить</string>
+    <string name="skills_draft_generating">Пишем черновик…</string>
+    <string name="skills_draft_title">Черновик</string>
+    <string name="skills_draft_editFirst">Сначала отредактировать</string>
+    <string name="skills_draft_suggestedIcon">Предлагаемый значок</string>
+    <string name="skills_draft_failed">Не удалось завершить черновик. Готовую часть мы уже подставили.</string>
+    <string name="skills_fromChat_menuConversation">Сохранить как навык</string>
+    <string name="skills_fromChat_menuMessage">Сохранить этот подход как навык</string>
+    <string name="skills_fromChat_messages">Сообщений: %1$d</string>
+    <string name="skills_fromChat_extracting">Обобщаем…</string>
+    <string name="skills_limit_upgrade">Расширить лимит</string>
+    <string name="skills_limit_draftKept">Черновик сохранён на этом устройстве.</string>
+    <string name="skills_composer_placeholder">Введите /, чтобы выбрать навык</string>
+    <string name="skills_picker_title">Мои навыки</string>
+    <string name="skills_picker_multi">Можно выбрать несколько</string>
+    <string name="skills_picker_auto">Авто</string>
+    <string name="skills_picker_manual">Вручную</string>
+    <string name="skills_picker_manage">Управление навыками</string>
+    <string name="skills_picker_maxReached">Одновременно — не более %1$d</string>
+    <string name="skills_chip_deleted">Удалён</string>
+    <string name="skills_message_attached">Навыки: %1$s</string>
+    <string name="skills_used_chip">Применено: %1$s</string>
+    <string name="skills_used_loading">Применяется: %1$s…</string>
+    <string name="skills_used_byChoice">Применён, потому что вы его выбрали</string>
+    <string name="skills_used_why">Почему применён</string>
+    <string name="skills_used_disableHere">Не применять автоматически в этом чате</string>
+    <string name="skills_used_view">Открыть навык</string>
+    <string name="skills_settings_autoToggle">Автоматически применять навыки</string>
+    <string name="skills_settings_autoToggleFooter">Если выключено, модель не будет сама выбирать навыки. Чтобы применить навык вручную, введите /.</string>
+    <string name="skills_try_banner">Пробный запуск · Не сохраняется в истории</string>
+    <string name="skills_try_saveToSkill">Сохранить в навык</string>
+    <string name="skills_try_adjust">Изменить инструкции</string>
+    <string name="skills_try_saved">Сохранено в «%1$s»</string>
+    <string name="skills_try_savedToDraft">Перенесено в редактор. Сохраните там, чтобы изменения остались.</string>
+    <string name="skills_improve_prompt">Добавить это в «%1$s»?</string>
+    <string name="skills_improve_review">Посмотреть изменение</string>
+    <string name="skills_improve_accept">Добавить в навык</string>
+    <string name="skills_improve_dismiss">Не сейчас</string>
+    <string name="skills_improve_addedLine">Добавлено</string>
+    <string name="skills_improve_removedLine">Удалено</string>
+    <string name="skills_improve_saved">Добавлено в «%1$s»</string>
+    <string name="skills_saveFailed">Не удалось сохранить изменения. Попробуйте ещё раз.</string>
+    <string name="skills_usage_manifestRow">Накладные расходы на список навыков</string>
+    <string name="skills_glyph_writing">Тексты</string>
+    <string name="skills_glyph_report">Отчёт</string>
+    <string name="skills_glyph_code">Код</string>
+    <string name="skills_glyph_study">Учёба</string>
+    <string name="skills_glyph_travel">Путешествия</string>
+    <string name="skills_glyph_health">Здоровье</string>
+    <string name="skills_glyph_meeting">Встреча</string>
+    <string name="skills_glyph_idea">Идея</string>
+    <string name="skills_glyph_translate">Перевод</string>
+    <string name="skills_glyph_email">Почта</string>
+    <string name="skills_glyph_data">Данные</string>
+    <string name="skills_glyph_design">Дизайн</string>
+    <string name="skills_glyph_legal">Право</string>
+    <string name="skills_glyph_finance">Финансы</string>
+    <string name="skills_glyph_marketing">Маркетинг</string>
+    <string name="skills_glyph_support">Поддержка</string>
+    <string name="skills_glyph_teaching">Преподавание</string>
+    <string name="skills_glyph_research">Исследования</string>
+    <string name="skills_glyph_life">Повседневность</string>
+    <string name="skills_glyph_food">Еда</string>
+    <string name="skills_glyph_music">Музыка</string>
+    <string name="skills_glyph_photo">Фотография</string>
+    <string name="skills_glyph_product">Продукт</string>
+    <string name="skills_glyph_general">Общее</string>
+    <string name="skills_home_notesRecent">Последняя правка</string>
+    <string name="skills_search_noResults">Нет результатов</string>
+    <string name="generic_error_try_again">Что-то пошло не так. Повторите попытку.</string>
+    <string name="loading_usage_trends">Загрузка тенденций использования…</string>
+    <string name="usage_vs_last_month">по сравнению с прошлым месяцем</string>
+    <string name="usage_section_insights">АНАЛИТИКА</string>
+    <string name="usage_section_budgets">БЮДЖЕТЫ</string>
+    <string name="usage_sample_report">Образец отчета</string>
+    <string name="usage_clear">Очистить</string>
+    <string name="usage_monthly_budget_eyebrow">Ежемесячный бюджет</string>
+    <string name="skills_knowledgeErrorOpenAI">Сначала добавьте и настройте провайдера OpenAI.</string>
+    <string name="skills_knowledgeErrorEndpoint">База знаний работает только с официальной конечной точкой OpenAI.</string>
+    <string name="skills_knowledgeErrorModelDisabled">Сначала добавьте и включите %1$s в своем провайдере OpenAI.</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">База знаний сейчас недоступна.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">Файлы базы знаний должны иметь размер 20 МБ или меньше.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">Навык может иметь до 5 файлов базы знаний общим размером 100 МБ.</string>
+    <string name="skills_knowledgeErrorExtractFailed">Не удалось извлечь текст из этого файла.</string>
+    <string name="skills_knowledgeErrorUploadFailed">Не удалось загрузить этот файл.</string>
+    <string name="skills_knowledgeErrorIndexFailed">Не удалось проиндексировать этот файл.</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">Не удалось получить знания для этого сообщения.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">Не удалось очистить удаленный файл. Повторите попытку позже.</string>
+    <string name="custom_llm_connection_method">Способ подключения</string>
+    <string name="local_compute_pairing_code">Код сопряжения</string>
+    <string name="local_compute_scan_qr">Сканировать QR-код</string>
+    <string name="api_endpoint_not_configured">Не настроено</string>
+    <string name="contact_support">Связаться с поддержкой</string>
+    <string name="error_attachment_not_accepted_title">Вложение не принято</string>
+    <string name="generation_empty_runtime_locked">Параметры выполнения нельзя изменить для этого подключения.</string>
+    <string name="legal_consent_notice">Продолжая, вы соглашаетесь с приведенными ниже юридическими условиями.</string>
+    <string name="price_cache_read">Чтение кэша</string>
+    <string name="price_cache_write">Запись кэша</string>
+    <string name="price_input">Ввод</string>
+    <string name="price_output">Вывод</string>
+    <string name="settings_report_issue">Сообщить о проблеме</string>
+    <string name="settings_source_code">Исходный код</string>
+    <string name="skills_pinToHome">Закрепить на главной странице</string>
+    <string name="skills_unpin">Открепить от дома</string>
 </resources>

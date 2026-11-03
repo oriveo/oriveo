@@ -304,7 +304,7 @@ struct ProviderSetupView: View {
                     .tint(OriveoTheme.Palette.primary)
                 Text(text)
                     .font(OriveoTheme.Typography.caption)
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             }
         }
     }
@@ -706,7 +706,7 @@ private struct ProviderCategoryChips: View {
                                 .font(.system(size: 13, weight: isActive ? .semibold : .regular))
                                 .lineLimit(1)
                         }
-                        .foregroundStyle(isActive ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textSecondary)
+                        .foregroundStyle(isActive ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textSecondary)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
                         .background(
@@ -927,16 +927,7 @@ private struct CustomProviderEntry: View {
             .frame(maxWidth: .infinity)
             .frame(minHeight: 70)
             .background {
-                ZStack {
-                    cardShape.fill(OriveoTheme.Palette.surfaceElevated)
-                    cardShape.fill(
-                        LinearGradient(
-                            colors: [OriveoTheme.Palette.cardHighlight.opacity(0.5), .clear],
-                            startPoint: .top,
-                            endPoint: .center
-                        )
-                    )
-                }
+                cardShape.fill(OriveoTheme.Palette.surfaceElevated)
             }
             .clipShape(cardShape)
             .shadow(color: OriveoTheme.Palette.shadow.opacity(0.4), radius: 4, y: 2)
@@ -1273,7 +1264,7 @@ private struct ProviderEndpointOptionCard: View {
 
             Text(kind.localizedSetupEndpointLabel(for: option))
                 .font(OriveoTheme.Typography.body.weight(.semibold))
-                .foregroundStyle(isSelected ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textPrimary)
+                .foregroundStyle(isSelected ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textPrimary)
                 .lineLimit(2)
 
             Text(option.baseURLText)

@@ -11,6 +11,7 @@ import {
 } from '../providers/tool-call-accumulator';
 import type { StreamEvent, StreamUsage } from '../providers/types';
 import type { StreamFinish } from '../context/stream-finish';
+import { emptyUsageBreakdown, type UsageBreakdown } from '../chat/usage-breakdown';
 import {
   DEFAULT_MAX_CONSECUTIVE_TOOL_FAILURES,
   DEFAULT_MAX_SELF_CORRECTIONS,
@@ -584,12 +585,32 @@ function legsOf(usage: StreamUsage): readonly StreamUsage[] {
 function sumLegUsage(current: StreamUsage, next: StreamUsage): StreamUsage {
   const sumOptional = (left: number | undefined, right: number | undefined): number | undefined =>
     left == null && right == null ? undefined : (left ?? 0) + (right ?? 0);
-  const leftBreakdown = current.breakdown;
-  const rightBreakdown = next.breakdown;
+  // A leg with neither a breakdown nor prompt_tokens has unknown input: a partial sum would understate the
+  // message, so the merged input stays empty (never 0); output and cache reads / writes are still added
+  //.
+  const inputKnown = (usage: StreamUsage): boolean =>
+    usage.inputUnknown !== true && (usage.breakdown != null || usage.prompt_tokens != null);
+  const inputUnknown = !inputKnown(current) || !inputKnown(next);
+  // When only one side carries a breakdown, the other side joins it from its prompt / completion tokens (no cache
+  // reads or writes) instead of being dropped from the message fields.
+  const fillBreakdown = (usage: StreamUsage): UsageBreakdown | undefined =>
+    usage.breakdown ?? (current.breakdown || next.breakdown
+      ? {
+          ...emptyUsageBreakdown(),
+          promptTokens: usage.prompt_tokens ?? 0,
+          completionTokens: usage.completion_tokens ?? 0,
+        }
+      : undefined);
+  const leftBreakdown = fillBreakdown(current);
+  const rightBreakdown = fillBreakdown(next);
   return {
-    prompt_tokens: sumOptional(current.prompt_tokens, next.prompt_tokens),
+    ...(inputUnknown
+      ? { inputUnknown: true as const }
+      : {
+          prompt_tokens: sumOptional(current.prompt_tokens, next.prompt_tokens),
+          total_tokens: sumOptional(current.total_tokens, next.total_tokens),
+        }),
     completion_tokens: sumOptional(current.completion_tokens, next.completion_tokens),
-    total_tokens: sumOptional(current.total_tokens, next.total_tokens),
     breakdown:
       leftBreakdown || rightBreakdown
         ? {

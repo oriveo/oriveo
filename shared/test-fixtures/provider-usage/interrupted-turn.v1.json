@@ -1,0 +1,275 @@
+{
+  "$comment": "Usage of a reply the user stopped midway. Same estimate as the skill marker interrupted leg: input = the request's existing input estimate (budget estimatedInput), output = estimateText(visibleText) + estimateText(reasoningText), estimateText(s) = ceil(utf8Bytes(s) * rhoHi) in IEEE double, empty text = 0. Legs that finished before the stop keep their reported usage and are added field by field. costSource assumes a priced model; the cost itself comes from the existing cost derivation fed with these tokens (free, subscription and hosted rules unchanged). A null member must be None (never 0). Nothing visible and no finished leg means nothing is recorded: no token fields, cost unknown, no usage report, no skillManifestTokens; finished legs are always kept, the stopped leg with nothing visible adds nothing. Hosted (managed) stops take the tokens of the server settlement returned by cancel; cache fields only when usage_source is upstream_reported; a pending settlement writes nothing until it settles.",
+  "schema": "oriveo.fixture.interrupted-turn/v1",
+  "cases": [
+    {
+      "id": "stopped-with-text",
+      "path": "byok",
+      "input": {
+        "estimatedInput": 1200,
+        "rhoHi": 0.5,
+        "visibleText": "Hello",
+        "reasoningText": "",
+        "skillManifestTokens": 87
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 1200,
+        "outputTokens": 3,
+        "costSource": "localEstimate",
+        "skillManifestTokens": 87
+      }
+    },
+    {
+      "id": "stopped-with-reasoning-and-text",
+      "path": "byok",
+      "input": {
+        "estimatedInput": 800,
+        "rhoHi": 0.6,
+        "visibleText": "你好",
+        "reasoningText": "think",
+        "skillManifestTokens": null
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 800,
+        "outputTokens": 7,
+        "costSource": "localEstimate",
+        "skillManifestTokens": null
+      },
+      "note": "ceil(6 * 0.6) = 4 plus ceil(5 * 0.6) = 3"
+    },
+    {
+      "id": "stopped-before-output",
+      "path": "byok",
+      "input": {
+        "estimatedInput": 1200,
+        "rhoHi": 0.5,
+        "visibleText": "",
+        "reasoningText": "",
+        "skillManifestTokens": 87
+      },
+      "expect": {
+        "recorded": false,
+        "inputTokens": null,
+        "outputTokens": null,
+        "costSource": "unknown",
+        "skillManifestTokens": null
+      }
+    },
+    {
+      "id": "stopped-without-input-estimate",
+      "path": "byok",
+      "input": {
+        "estimatedInput": null,
+        "rhoHi": 0.5,
+        "visibleText": "Hi",
+        "reasoningText": "",
+        "skillManifestTokens": null
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": null,
+        "outputTokens": 1,
+        "costSource": "unknown",
+        "skillManifestTokens": null
+      }
+    },
+    {
+      "id": "stopped-after-reported-leg",
+      "path": "byok",
+      "input": {
+        "finishedLegs": [
+          {
+            "inputTokens": 1000,
+            "outputTokens": 200,
+            "usageReported": true
+          }
+        ],
+        "estimatedInput": 1300,
+        "rhoHi": 0.5,
+        "visibleText": "Hello",
+        "reasoningText": "",
+        "skillManifestTokens": null
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 2300,
+        "outputTokens": 203,
+        "costSource": "localEstimate",
+        "skillManifestTokens": null
+      }
+    },
+    {
+      "id": "stopped-before-output-after-reported-leg",
+      "path": "byok",
+      "input": {
+        "finishedLegs": [
+          {
+            "inputTokens": 1000,
+            "outputTokens": 200,
+            "usageReported": true
+          }
+        ],
+        "estimatedInput": 1300,
+        "rhoHi": 0.5,
+        "visibleText": "",
+        "reasoningText": "",
+        "skillManifestTokens": 87
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 1000,
+        "outputTokens": 200,
+        "costSource": "localEstimate",
+        "skillManifestTokens": 87
+      }
+    },
+    {
+      "id": "managed-stopped-settled",
+      "path": "managed",
+      "input": {
+        "settlement": {
+          "status": "completed",
+          "normal_input_tokens": 900,
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "output_tokens": 40,
+          "usage_source": "token_estimated"
+        }
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 900,
+        "outputTokens": 40,
+        "cachedInputTokens": null,
+        "cacheCreationInputTokens": null
+      }
+    },
+    {
+      "id": "managed-stopped-pending",
+      "path": "managed",
+      "input": {
+        "settlement": {
+          "status": "pending"
+        }
+      },
+      "expect": {
+        "recorded": false,
+        "inputTokens": null,
+        "outputTokens": null
+      }
+    },
+    {
+      "id": "trial-stopped-with-text",
+      "path": "trial",
+      "input": {
+        "estimatedInput": 1200,
+        "rhoHi": 0.5,
+        "visibleText": "Hello",
+        "reasoningText": "",
+        "skillManifestTokens": null
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 1200,
+        "outputTokens": 3,
+        "costSource": "localEstimate",
+        "skillManifestTokens": null
+      }
+    },
+    {
+      "id": "stopped-without-input-estimate-after-reported-leg",
+      "path": "byok",
+      "input": {
+        "finishedLegs": [
+          {
+            "inputTokens": 1000,
+            "outputTokens": 200,
+            "usageReported": true
+          }
+        ],
+        "estimatedInput": null,
+        "rhoHi": 0.5,
+        "visibleText": "Hi",
+        "reasoningText": "",
+        "skillManifestTokens": null
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": null,
+        "outputTokens": 201,
+        "costSource": "unknown",
+        "skillManifestTokens": null
+      },
+      "note": "Input stays null when any counted leg has no input estimate; output is still added."
+    },
+    {
+      "id": "stopped-after-leg-separator",
+      "path": "byok",
+      "input": {
+        "shownBefore": "Earlier answer",
+        "estimatedInput": 1300,
+        "rhoHi": 0.5,
+        "visibleText": "Earlier answer\n\n  More",
+        "reasoningText": "",
+        "skillManifestTokens": null
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 1300,
+        "outputTokens": 3,
+        "costSource": "localEstimate",
+        "skillManifestTokens": null
+      },
+      "note": "The stopped leg counts visibleText minus the shownBefore prefix minus one leading blank-line separator; nothing else is trimmed: ceil(6 * 0.5) = 3."
+    },
+    {
+      "id": "managed-stopped-settled-upstream-cache",
+      "path": "managed",
+      "input": {
+        "settlement": {
+          "status": "completed",
+          "normal_input_tokens": 500,
+          "cache_read_input_tokens": 300,
+          "cache_creation_input_tokens": 100,
+          "output_tokens": 40,
+          "usage_source": "upstream_reported"
+        }
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 900,
+        "outputTokens": 40,
+        "cachedInputTokens": 300,
+        "cacheCreationInputTokens": 100
+      }
+    },
+    {
+      "id": "managed-stopped-settled-continue",
+      "path": "managed",
+      "input": {
+        "existing": {
+          "inputTokens": 100,
+          "outputTokens": 10
+        },
+        "settlement": {
+          "status": "completed",
+          "normal_input_tokens": 900,
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 0,
+          "output_tokens": 40,
+          "usage_source": "token_estimated"
+        }
+      },
+      "expect": {
+        "recorded": true,
+        "inputTokens": 1000,
+        "outputTokens": 50,
+        "cachedInputTokens": null,
+        "cacheCreationInputTokens": null
+      },
+      "note": "A continued message adds the settlement onto its existing tokens; the same request id is applied once."
+    }
+  ]
+}

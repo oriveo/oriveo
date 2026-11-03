@@ -5,6 +5,7 @@ import Foundation
 nonisolated final class GeminiLiveSessionControl: RealtimeTransport, RealtimeSessionControl, @unchecked Sendable {
     private enum Operation: Sendable {
         case audio(String, bytes: Int)
+        case text(String)
         case close
         case barrier(CheckedContinuation<Void, Never>)
     }
@@ -40,6 +41,8 @@ nonisolated final class GeminiLiveSessionControl: RealtimeTransport, RealtimeSes
             }
         }
 
+        var pendingBytes: Int { lock.withLock { bytes } }
+
         func sent(_ count: Int) {
             lock.withLock {
                 bytes -= count
@@ -59,6 +62,8 @@ nonisolated final class GeminiLiveSessionControl: RealtimeTransport, RealtimeSes
                 case let .audio(chunk, bytes):
                     await transport.appendAudio(base64: chunk)
                     backlog.sent(bytes)
+                case let .text(text):
+                    await transport.sendText(text)
                 case .close:
                     await transport.close()
                 case let .barrier(continuation):
@@ -68,9 +73,13 @@ nonisolated final class GeminiLiveSessionControl: RealtimeTransport, RealtimeSes
         }
     }
 
-    convenience init(endpoint: RealtimeEndpoint, resumeHandle: String? = nil) {
+    convenience init(
+        endpoint: RealtimeEndpoint,
+        resumeHandle: String? = nil,
+        route: @escaping RealtimeRouteProvider = { .speaker }
+    ) {
         self.init(transport: GeminiLiveTransport(
-            config: Self.config(for: endpoint), resumeHandle: resumeHandle
+            config: Self.config(for: endpoint), resumeHandle: resumeHandle, route: route
         ))
     }
 
@@ -84,7 +93,8 @@ nonisolated final class GeminiLiveSessionControl: RealtimeTransport, RealtimeSes
             path: endpoint.path,
             model: endpoint.model,
             voice: endpoint.voice,
-            apiKey: endpoint.apiKey
+            apiKey: endpoint.apiKey,
+            language: endpoint.language
         )
     }
 
@@ -106,6 +116,11 @@ nonisolated final class GeminiLiveSessionControl: RealtimeTransport, RealtimeSes
         }
     }
 
+    /// Typed user turn, ordered with the audio enqueued around it; the transport queues it until the connection is ready.
+    func sendText(_ text: String) {
+        lock.withLock { _ = operations.yield(.text(text)) }
+    }
+
     /// Returns once every chunk enqueued before this call has been handed to the transport.
     func drainUplink() async {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -122,6 +137,11 @@ nonisolated final class GeminiLiveSessionControl: RealtimeTransport, RealtimeSes
             operations.yield(.close)
             operations.finish()
         }
+    }
+
+    /// Uplink backlog as audio duration (PCM16 mono at `uplinkSampleRate`); a failure signal of the controller.
+    var uplinkBacklogMs: Double? {
+        Double(max(0, backlog.pendingBytes)) * 1000 / (uplinkSampleRate * 2)
     }
 
     /// Latest resumable handle seen on this session (or the handle it was opened with).

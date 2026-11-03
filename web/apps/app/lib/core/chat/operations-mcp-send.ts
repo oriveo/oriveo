@@ -32,6 +32,7 @@ import { ToolLoopError, type ToolLoopProgressEvent, type ToolLoopResult, type To
 import { ToolRegistry } from '@oriveo/core/tools/tool-registry';
 import { MCP_LOOP_PROMPTS, MCP_LOOP_STOPPED_ERROR_CODE, MCP_SAFETY_PROMPT, mcpLoopLimits, type McpToolPlan } from '@oriveo/core/mcp/index';
 import { oriveoAbortReason } from '@oriveo/core/util/abort-reason';
+import { hasVisibleReplyContent, isInStreamOverflowFailure, noVisibleReplyError } from './visible-reply';
 import { mapErrorKindKey } from '../../utils/chat-stream-utils';
 import { transportInput } from './context-pipeline/transport-input';
 import { filterCurrentTurnAttachments, withoutUnreceivableImages } from './attachment-policy';
@@ -85,6 +86,8 @@ import { generationParameterFallbackModelId, generationParameterProfileFingerpri
 import { createAssistantMessage, createUserMessage } from './message-factory';
 import type { ChatOpCtx, SendHandle } from './operations';
 import { reportSendCompletion } from './send-completion';
+import type { PromptInjectionContext } from './prompt-injection';
+import { interruptedTurnUsage } from './interrupted-turn-usage';
 import { prepareSendStart, reportSendStartedTelemetry, rollbackSendStart } from './send-start';
 import { CapConfirmCancelledError, capConfirmAttemptOf, gateCapConfirm, onceCallback } from './context-visibility/cap-confirm-gate';
 import { reportChatFailed } from './send-failure';
@@ -260,7 +263,12 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
     searchRef?.patch(existing, controller.signal.aborted) ?? {};
 
   let latestUsage: StreamUsage | undefined;
+  // The leg running when the user stops is estimated from what it showed.
+  const stoppedLeg = { text: '', reasoning: '' };
+  let stoppedLegEstimate: () => { estimatedInput: number | undefined; rhoHi: number } | undefined = () => undefined;
   let retrievalCost = 0;
+  // This turn's knowledge retrievals: a stop reports their usage as a completed reply does.
+  let stoppedPromptContext: PromptInjectionContext | undefined;
   const unhandled: ProxyToolCall[] = [];
 
   // The failure block reads send-path facts from the model leg, so the tap lives outside the try.
@@ -303,9 +311,14 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       });
       const history = toolLoopContext.history;
       const promptContext = toolLoopContext.promptContext;
+      stoppedLegEstimate = () => ({
+        estimatedInput: toolLoopContext.planned.plan.budget.estimatedInput ?? undefined,
+        rhoHi: toolLoopContext.searchBudget.rhoHi,
+      });
       retrievalCost = promptContext.retrievalCost;
-      // Confirmation gate: after compaction and before the first leg, judge the estimated input of this plan; a cancel throws CapConfirmCancelledError.
-      // Only a gate that actually asked the user makes a stop count as a cancel rollback; without a prompt, a stop is still received by the first leg as an abort and finishes as an interruption.
+      stoppedPromptContext = promptContext;
+      // Gate after assembly and before the first leg: judged against this plan's P̂; cancelling throws CapConfirmCancelledError.
+      // The stop counts as a cancel rollback only if the gate actually asked the user; when it did not ask, a stop is handled by the first leg as an abort and wrapped up as interrupted.
       let asked = false;
       await gateCapConfirm({
         store, conversationId: finalConvId, provider: params.provider, model: params.model,
@@ -415,22 +428,30 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         switch (event.type) {
           case 'legStarted':
             legText = '';
+            stoppedLeg.text = '';
+            stoppedLeg.reasoning = '';
             break;
           case 'textDelta':
             legText += event.text;
-            // The activity line is cleared as soon as body text arrives.
+            stoppedLeg.text += event.text;
+            // Text arrives: clear the streaming activity status line (see the streaming activity status line spec §3).
             store.getState().setStreamingActivity(finalConvId, null);
             store.getState().setStreamingText(finalConvId, appendText(initialText, legText));
             break;
           case 'reasoningDelta':
+            stoppedLeg.reasoning += event.text;
             store.getState().appendStreamingReasoningText(finalConvId, event.text);
             break;
           case 'usage':
             latestUsage = event.usage;
+            // The leg finished: its usage is in latestUsage, nothing of it is left to estimate.
+            stoppedLeg.text = '';
+            stoppedLeg.reasoning = '';
             break;
           case 'toolCallsAccepted':
-            // After a leg with tool calls the body is cleared and the next leg renders from scratch (same
-            // semantics as the library loop).
+            stoppedLeg.text = '';
+            stoppedLeg.reasoning = '';
+            // After a leg with tool calls passes, the text is cleared and the next leg renders from the start (same semantics as the library loop).
             store.getState().setStreamingText(finalConvId, initialText);
             break;
           default:
@@ -558,6 +579,11 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
           ? { unhandledToolCalls: unhandled.map((call) => ({ id: call.id, name: call.function.name, arguments: call.function.arguments })) }
           : {}),
       }, toolLoopContext.memoryIds, Boolean(params.appendToAssistant));
+      // Nothing visible from this round fails as empty_response; a stop keeps the cancel path.
+      if (!controller.signal.aborted && !hasVisibleReplyContent({ ...delivered, text: result.text, attachments: undefined })) {
+        // An upstream context-window overflow wins over the empty-reply fallback (same as operations-send).
+        throw noVisibleReplyError(result.finish);
+      }
       completeRound(store, finalConvId, effectiveConversation, params.prevMessages, userMessage, delivered);
       reportSent();
       reportSendCompletion({
@@ -595,10 +621,26 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
       sendConfirmed();
       // Exactly one sent event per attempt: a stop or a failure also reports it first, through the same helper as the plain send.
       reportSent();
-      const partialCost = latestUsage
-        ? deriveCostFields(latestUsage, params.model, params.provider, () => new Date(), undefined)
+      // A stop adds the stopped leg's estimate to the finished legs; a failure bills
+      // the finished legs only.
+      const stopEstimate = controller.signal.aborted ? stoppedLegEstimate() : undefined;
+      const billedUsage = stopEstimate
+        ? interruptedTurnUsage({
+          ...stopEstimate,
+          visibleText: stoppedLeg.text,
+          reasoningText: stoppedLeg.reasoning.trim(),
+          ...(latestUsage ? { finishedLegs: latestUsage } : {}),
+        })
+        : latestUsage;
+      const partialCost = billedUsage
+        ? deriveCostFields(billedUsage, params.model, params.provider, () => new Date(), undefined)
         : undefined;
-      const partialRound = partialCost ? roundCostOf(partialCost, retrievalCost) : undefined;
+      const partialRound = partialCost
+        // On a stop, any leg unknown keeps the whole cost unknown: retrievals only join a known model cost.
+        ? roundCostOf(partialCost, stopEstimate && partialCost.costSource === 'unknown'
+          ? 0
+          : retrievalCost)
+        : undefined;
       const partialCostPatch: Partial<ChatMessage> = partialCost && partialRound
         ? {
             ...addMessageCost(params.appendToAssistant ? assistantMessage : undefined, partialRound),
@@ -624,7 +666,11 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
             ...partialCostPatch,
           });
         } else {
-          patchAssistantMessage(store, finalConvId, assistantMessage.id, { ...toolStepsPatch(), ...searchPatch(currentAssistant) });
+          patchAssistantMessage(store, finalConvId, assistantMessage.id, {
+            ...toolStepsPatch(),
+            ...searchPatch(currentAssistant),
+            ...partialCostPatch,
+          });
         }
         return;
       }
@@ -639,8 +685,10 @@ export function sendMcpToolMessage(ctx: ChatOpCtx, params: SendMcpToolMessagePar
         ...assistantMessage,
         text: partialText,
         state: 'failed',
-        // Persist stopReason: hadContent only looks at the answer text, not reasoning.
-        stopReason: stopReasonFromError(error, params.provider.kind, partialText.trim() !== ''),
+        // Persist stopReason: hadContent looks only at the answer text, not reasoning.
+        stopReason: isInStreamOverflowFailure(error)
+          ? 'context_window_exceeded'
+          : stopReasonFromError(error, params.provider.kind, partialText.trim() !== ''),
         errorTitle: additionalBodyRetry?.eligible ? te('additionalBodyRejected.upstreamTitle') : failureTitle,
         ...(additionalBodyRetry?.eligible ? { additionalBodyRetryEligible: true } : {}),
         ...(additionalBodyRetry?.eligible && additionalBodyRetry.technicalDetail

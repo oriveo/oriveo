@@ -203,103 +203,305 @@
         }
       }
     },
-    "A realtime model hears you and answers directly, so replies come faster, but this chat's model isn't used." : {
+    "%1$@ is no longer available." : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يستمع إليك النموذج الفوري ويرد مباشرة، فتصل الردود أسرع، لكن لا يُستخدم نموذج هذه المحادثة."
+            "value" : "لم يعد النموذج %1$@ متاحًا."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ein Echtzeitmodell hört dir zu und antwortet direkt. Antworten kommen so schneller, aber das Modell dieses Chats wird nicht verwendet."
+            "value" : "%1$@ ist nicht mehr verfügbar."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A realtime model hears you and answers directly, so replies come faster, but this chat's model isn't used."
+            "value" : "%1$@ is no longer available."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un modelo en tiempo real te escucha y responde directamente, así que las respuestas llegan antes, pero no se usa el modelo de este chat."
+            "value" : "%1$@ ya no está disponible."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un modèle en temps réel vous écoute et répond directement : les réponses arrivent plus vite, mais le modèle de cette conversation n’est pas utilisé."
+            "value" : "%1$@ n’est plus disponible."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "रियलटाइम मॉडल आपकी बात सुनकर सीधे जवाब देता है, इसलिए जवाब जल्दी आते हैं, लेकिन इस चैट का मॉडल इस्तेमाल नहीं होता।"
+            "value" : "%1$@ अब उपलब्ध नहीं है।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Model real-time mendengarkan Anda dan langsung menjawab, jadi balasan datang lebih cepat, tetapi model percakapan ini tidak dipakai."
+            "value" : "%1$@ sudah tidak tersedia."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "リアルタイムモデルは声を聞いて直接答えるため返答が速くなりますが、この会話のモデルは使われません。"
+            "value" : "%1$@ は利用できなくなりました。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "실시간 모델이 직접 듣고 답하므로 답변이 더 빠르지만, 이 대화의 모델은 사용되지 않습니다."
+            "value" : "%1$@을(를) 더 이상 사용할 수 없습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Um modelo em tempo real ouve você e responde direto, então as respostas chegam mais rápido, mas o modelo desta conversa não é usado."
+            "value" : "%1$@ não está mais disponível."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Модель реального времени слышит вас и отвечает сама, поэтому ответы приходят быстрее, но модель этого чата не используется."
+            "value" : "Модель %1$@ больше недоступна."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "โมเดลเรียลไทม์จะฟังคุณและตอบโดยตรง จึงตอบได้เร็วขึ้น แต่จะไม่ใช้โมเดลของแชทนี้"
+            "value" : "%1$@ ใช้งานไม่ได้แล้ว"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gerçek zamanlı model sizi dinler ve doğrudan yanıt verir; yanıtlar daha hızlı gelir ama bu sohbetin modeli kullanılmaz."
+            "value" : "%1$@ artık kullanılamıyor."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mô hình thời gian thực nghe bạn và trả lời trực tiếp nên phản hồi nhanh hơn, nhưng sẽ không dùng mô hình của cuộc trò chuyện này."
+            "value" : "%1$@ không còn dùng được nữa."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "实时模型直接听你说话并回答，回复更快，但不会用这个对话的模型。"
+            "value" : "%1$@ 已不可用"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "即時模型直接聽你說話並回答，回覆更快，但不會用這個對話的模型。"
+            "value" : "%1$@ 已無法使用"
+          }
+        }
+      }
+    },
+    "%1$@ quota is used up, or there were too many requests." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "نفدت حصة %1$@، أو أُرسلت طلبات كثيرة جدًا."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Kontingent bei %1$@ ist aufgebraucht, oder es gab zu viele Anfragen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ quota is used up, or there were too many requests."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se agotó la cuota de %1$@ o hubo demasiadas solicitudes."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le quota %1$@ est épuisé, ou il y a eu trop de requêtes."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ का कोटा खत्म हो गया है या बहुत ज़्यादा अनुरोध भेजे गए हैं।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kuota %1$@ sudah habis, atau terlalu banyak permintaan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ の利用枠を使い切ったか、リクエストが多すぎます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 사용 한도를 모두 썼거나 요청이 너무 많습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A cota de %1$@ acabou ou houve solicitações demais."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Лимит %1$@ исчерпан, или запросов было слишком много."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โควตา %1$@ หมดแล้ว หรือมีคำขอมากเกินไป"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ kotası doldu ya da çok fazla istek gönderildi."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã hết hạn mức %1$@ hoặc có quá nhiều yêu cầu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 额度已用完，或请求过于频繁"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 額度已用完，或請求太頻繁"
+          }
+        }
+      }
+    },
+    "Add an official API key from a provider with realtime voice to use it here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أضف مفتاح API رسميًا من مزوّد يدعم الصوت الفوري لتستخدمه هنا."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Füge den offiziellen API-Key eines Anbieters mit Echtzeit-Audio hinzu, um hier ein Modell auszuwählen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add an official API key from a provider with realtime voice to use it here."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Añade la clave de API oficial de un proveedor con voz en tiempo real para usarla aquí."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez la clé API officielle d’un fournisseur proposant la voix en temps réel pour l’utiliser ici."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "यहाँ इस्तेमाल करने के लिए रियलटाइम वॉइस वाले प्रोवाइडर की आधिकारिक API key जोड़ें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tambahkan API key resmi dari penyedia yang mendukung suara real-time agar bisa dipilih di sini."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声に対応したプロバイダーの公式APIキーを追加すると、ここで選べます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성을 지원하는 제공업체의 공식 API 키를 추가하면 여기서 고를 수 있어요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adicione a chave de API oficial de um provedor com voz em tempo real para usar aqui."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Добавьте официальный API-ключ провайдера с голосом в реальном времени, чтобы выбрать модель здесь."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เพิ่ม API key ทางการของผู้ให้บริการที่รองรับเสียงเรียลไทม์ เพื่อเลือกใช้ที่นี่"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Burada kullanmak için gerçek zamanlı ses sunan bir sağlayıcının resmi API anahtarını ekleyin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thêm API key chính thức của nhà cung cấp hỗ trợ giọng nói thời gian thực để dùng tại đây."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加支持实时语音的供应商官方 API Key 后，就能在这里选用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新增支援即時語音的供應商官方 API 金鑰後，就能在這裡選用。"
           }
         }
       }
@@ -607,6 +809,107 @@
         }
       }
     },
+    "Back to Voice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "العودة إلى الصوت"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Sprachmodus"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Voice"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volver a la voz"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Revenir à la voix"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "वॉइस पर वापस जाएँ"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kembali ke Suara"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声に戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음성으로 돌아가기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voltar para a voz"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Вернуться к голосу"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "กลับไปที่เสียง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sese Dön"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quay lại giọng nói"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到语音"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到語音"
+          }
+        }
+      }
+    },
     "Built into your device, free" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -704,6 +1007,511 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "系統內建，免費"
+          }
+        }
+      }
+    },
+    "Can't reach %1$@." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّر الاتصال بـ %1$@."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist nicht erreichbar."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't reach %1$@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede conectar con %1$@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de joindre %1$@."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ से कनेक्ट नहीं हो पा रहा है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak bisa terhubung ke %1$@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ に接続できません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@에 연결할 수 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível conectar a %1$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удаётся подключиться к %1$@."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เชื่อมต่อ %1$@ ไม่ได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ modeline bağlanılamıyor."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không kết nối được với %1$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法连接 %1$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法連上 %1$@"
+          }
+        }
+      }
+    },
+    "Can't reach %1$@. Check your network." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تعذّر الاتصال بـ %1$@. تحقّق من الاتصال بالشبكة."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ ist nicht erreichbar. Prüfe deine Internetverbindung."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Can't reach %1$@. Check your network."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede conectar con %1$@. Revisa tu conexión a internet."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de joindre %1$@. Vérifiez votre connexion réseau."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ से कनेक्ट नहीं हो पा रहा है। अपना नेटवर्क जाँचें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak bisa terhubung ke %1$@. Periksa koneksi internet Anda."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ に接続できません。ネットワークを確認してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@에 연결할 수 없습니다. 네트워크를 확인하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível conectar a %1$@. Verifique sua conexão com a internet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удаётся подключиться к %1$@. Проверьте подключение к сети."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เชื่อมต่อ %1$@ ไม่ได้ ตรวจสอบเครือข่ายของคุณ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ modeline bağlanılamıyor. Ağ bağlantınızı kontrol edin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không kết nối được với %1$@. Hãy kiểm tra mạng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法连接 %1$@，请检查网络"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法連上 %1$@，請檢查網路"
+          }
+        }
+      }
+    },
+    "Change Dictation Engine" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تغيير محرك الإملاء"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diktier-Engine ändern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Dictation Engine"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar motor de dictado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changer de moteur de dictée"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "बोलकर लिखने का इंजन बदलें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ganti mesin dikte"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声入力エンジンを変更"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "받아쓰기 엔진 변경"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trocar mecanismo de ditado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сменить движок диктовки"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เปลี่ยนเครื่องมือพิมพ์ด้วยเสียง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dikte motorunu değiştir"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đổi công cụ đọc chính tả"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "换听写引擎"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更換聽寫引擎"
+          }
+        }
+      }
+    },
+    "Change Language" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تغيير اللغة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sprache ändern"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change Language"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar idioma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changer de langue"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "भाषा बदलें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ganti bahasa"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "言語を変更"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "언어 변경"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trocar idioma"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Сменить язык"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เปลี่ยนภาษา"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dili değiştir"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đổi ngôn ngữ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改识别语言"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更改辨識語言"
+          }
+        }
+      }
+    },
+    "Changes the recognition language" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يغيّر لغة التعرّف"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ändert die Erkennungssprache"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changes the recognition language"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia el idioma de reconocimiento"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change la langue de reconnaissance"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "पहचान की भाषा बदलता है"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mengganti bahasa pengenalan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認識する言語を変更します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인식 언어를 변경합니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Altera o idioma de reconhecimento"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Меняет язык распознавания"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เปลี่ยนภาษาที่ใช้รู้จำ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanıma dilini değiştirir"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đổi ngôn ngữ nhận dạng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更换识别语言"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更換辨識語言"
           }
         }
       }
@@ -809,6 +1617,107 @@
         }
       }
     },
+    "Choose another recognition language or a different dictation engine. Your recording is saved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يمكن اختيار لغة تعرّف أخرى أو محرك إملاء آخر. التسجيل محفوظ."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle eine andere Erkennungssprache oder eine andere Diktier-Engine. Die Aufnahme ist gespeichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose another recognition language or a different dictation engine. Your recording is saved."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige otro idioma de reconocimiento u otro motor de dictado. La grabación está guardada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez une autre langue de reconnaissance ou un autre moteur de dictée. L’enregistrement est conservé."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "पहचान की कोई दूसरी भाषा या बोलकर लिखने का कोई दूसरा इंजन चुनें। रिकॉर्डिंग सेव है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pilih bahasa pengenalan lain atau mesin dikte lain. Rekaman sudah disimpan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "別の認識する言語か、別の音声入力エンジンを選んでください。録音は保存されています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다른 인식 언어나 다른 받아쓰기 엔진을 선택하세요. 녹음은 저장되어 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha outro idioma de reconhecimento ou outro mecanismo de ditado. A gravação foi salva."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите другой язык распознавания или другой движок диктовки. Запись сохранена."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เลือกภาษาที่ใช้รู้จำอื่น หรือเครื่องมือพิมพ์ด้วยเสียงอื่น บันทึกเสียงไว้แล้ว"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Başka bir tanıma dili ya da başka bir dikte motoru seçin. Kayıt saklandı."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hãy chọn ngôn ngữ nhận dạng khác hoặc công cụ đọc chính tả khác. Bản ghi âm đã được lưu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "换一种识别语言，或换用其他听写引擎。录音已保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請換一種辨識語言，或改用其他聽寫引擎。錄音已儲存。"
+          }
+        }
+      }
+    },
     "Cloud engines can't be loaded right now" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -906,6 +1815,107 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "雲端引擎暫時無法載入"
+          }
+        }
+      }
+    },
+    "Connect to the internet, then retry. Your recording is saved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُرجى الاتصال بالإنترنت ثم إعادة المحاولة. التسجيل محفوظ."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stell eine Internetverbindung her und versuch es dann erneut. Die Aufnahme ist gespeichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connect to the internet, then retry. Your recording is saved."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conéctate a internet y vuelve a intentarlo. La grabación está guardada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous à Internet, puis réessayez. L’enregistrement est conservé."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इंटरनेट से कनेक्ट करके फिर से कोशिश करें। रिकॉर्डिंग सेव है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sambungkan ke internet, lalu coba lagi. Rekaman sudah disimpan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネットワークに接続してから再試行してください。録音は保存されています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "네트워크에 연결한 뒤 다시 시도해 주세요. 녹음은 저장되어 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conecte-se à internet e tente de novo. A gravação foi salva."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Подключитесь к интернету и повторите попытку. Запись сохранена."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เชื่อมต่ออินเทอร์เน็ตแล้วลองใหม่ บันทึกเสียงไว้แล้ว"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İnternete bağlanıp tekrar deneyin. Kayıt saklandı."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hãy kết nối mạng rồi thử lại. Bản ghi âm đã được lưu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "连上网络后再重试。录音已保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "連上網路後再重試。錄音已儲存。"
           }
         }
       }
@@ -1011,103 +2021,103 @@
         }
       }
     },
-    "Conversation Engine" : {
+    "Couldn't load realtime voice models" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "محرك المحادثة"
+            "value" : "تعذّر تحميل نماذج الصوت الفوري"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gesprächs-Engine"
+            "value" : "Echtzeit-Audiomodelle konnten nicht geladen werden"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Conversation Engine"
+            "value" : "Couldn't load realtime voice models"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Motor de conversación"
+            "value" : "No se pudieron cargar los modelos de voz en tiempo real"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Moteur de conversation"
+            "value" : "Impossible de charger les modèles vocaux en temps réel"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "बातचीत का इंजन"
+            "value" : "रियलटाइम वॉइस मॉडल लोड नहीं हो सके"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mesin percakapan"
+            "value" : "Model suara real-time gagal dimuat"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "会話エンジン"
+            "value" : "リアルタイム音声モデルを読み込めませんでした"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "대화 엔진"
+            "value" : "실시간 음성 모델을 불러오지 못했어요"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mecanismo de conversa"
+            "value" : "Não foi possível carregar os modelos de voz em tempo real"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Движок диалога"
+            "value" : "Не удалось загрузить голосовые модели реального времени"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "เครื่องมือสนทนา"
+            "value" : "โหลดโมเดลเสียงเรียลไทม์ไม่ได้"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sohbet motoru"
+            "value" : "Gerçek zamanlı ses modelleri yüklenemedi"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Công cụ trò chuyện"
+            "value" : "Không tải được mô hình giọng nói thời gian thực"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "对话引擎"
+            "value" : "暂时无法加载实时语音模型"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "對話引擎"
+            "value" : "暫時無法取得即時語音模型"
           }
         }
       }
@@ -1618,103 +2628,103 @@
         }
       }
     },
-    "Dictation → current model → read aloud" : {
+    "Dictation and read aloud use your device's built-in voice for free. For better accuracy or a more natural voice, switch to a provider you've connected. Realtime voice talks to your provider's model directly and is billed to your account with that provider." : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "الإملاء ← النموذج الحالي ← القراءة بصوت عالٍ"
+            "value" : "يستخدم الإملاء والقراءة بصوت عالٍ صوتَ جهازك المدمج مجانًا. وللحصول على دقة أعلى أو صوت أكثر طبيعية، يمكن التبديل إلى مزوّد متصل لديك. أما الصوت الفوري فيتصل مباشرةً بنموذج المزوّد، وتُحمَّل رسومه على حسابك لدى ذلك المزوّد."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Diktieren → aktuelles Modell → Vorlesen"
+            "value" : "Diktieren und Vorlesen nutzen kostenlos die integrierte Stimme deines Geräts. Für mehr Genauigkeit oder eine natürlichere Stimme wechsle zu einem verbundenen Anbieter. Echtzeit-Audio verbindet sich direkt mit dem Modell des Anbieters; die Kosten werden deinem Konto bei diesem Anbieter belastet."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dictation → current model → read aloud"
+            "value" : "Dictation and read aloud use your device's built-in voice for free. For better accuracy or a more natural voice, switch to a provider you've connected. Realtime voice talks to your provider's model directly and is billed to your account with that provider."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dictado → modelo actual → lectura en voz alta"
+            "value" : "El dictado y la lectura en voz alta usan gratis la voz integrada de tu dispositivo. Si quieres más precisión o una voz más natural, cambia a un proveedor que hayas conectado. La voz en tiempo real se conecta directamente al modelo del proveedor y se cobra en tu cuenta de ese proveedor."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dictée → modèle actuel → lecture à voix haute"
+            "value" : "La dictée et la lecture à voix haute utilisent gratuitement la voix intégrée de votre appareil. Pour plus de précision ou une voix plus naturelle, passez à l’un de vos fournisseurs connectés. La voix en temps réel se connecte directement au modèle du fournisseur et est facturée sur votre compte chez ce fournisseur."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "बोलकर लिखना → मौजूदा मॉडल → पढ़कर सुनाना"
+            "value" : "बोलकर लिखना और पढ़कर सुनाना आपके डिवाइस की बिल्ट-इन आवाज़ से मुफ़्त में चलते हैं। ज़्यादा सटीक पहचान या ज़्यादा स्वाभाविक आवाज़ के लिए अपने कनेक्ट किए गए किसी प्रोवाइडर पर स्विच करें। रियलटाइम वॉइस सीधे प्रोवाइडर के मॉडल से जुड़ती है, और इसका शुल्क उस प्रोवाइडर वाले आपके अकाउंट पर लगता है।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dikte → model saat ini → Bacakan"
+            "value" : "Dikte dan fitur Bacakan memakai suara bawaan perangkat tanpa biaya. Untuk hasil yang lebih akurat atau suara yang lebih alami, beralihlah ke penyedia yang sudah Anda hubungkan. Suara real-time terhubung langsung ke model penyedia, dan biayanya dibebankan ke akun Anda di penyedia tersebut."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音声入力 → 現在のモデル → 読み上げ"
+            "value" : "音声入力と読み上げはデバイス内蔵の音声を使い、料金はかかりません。より正確に、またはより自然な声にしたいときは、接続済みのプロバイダーに切り替えてください。リアルタイム音声はプロバイダーのモデルに直接つながり、料金はそのプロバイダーでお使いのアカウントに請求されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "받아쓰기 → 현재 모델 → 소리 내어 읽기"
+            "value" : "받아쓰기와 소리 내어 읽기는 기기에 내장된 음성을 무료로 사용합니다. 더 정확한 인식이나 더 자연스러운 목소리를 원하면 연결한 제공업체로 바꾸세요. 실시간 음성은 제공업체의 모델에 바로 연결되며, 요금은 해당 제공업체의 내 계정으로 청구됩니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ditado → modelo atual → leitura em voz alta"
+            "value" : "O ditado e a leitura em voz alta usam a voz integrada do seu dispositivo, sem custo. Para mais precisão ou uma voz mais natural, troque para um provedor que você conectou. A voz em tempo real se conecta direto ao modelo do provedor, e a cobrança vai para a sua conta nesse provedor."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Диктовка → текущая модель → чтение вслух"
+            "value" : "Диктовка и чтение вслух бесплатно работают на встроенном голосе устройства. Для большей точности или более естественного голоса переключитесь на подключённого провайдера. Голос в реальном времени подключается напрямую к модели провайдера, а оплата списывается с вашего аккаунта у этого провайдера."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "พิมพ์ด้วยเสียง → โมเดลปัจจุบัน → อ่านออกเสียง"
+            "value" : "การพิมพ์ด้วยเสียงและการอ่านออกเสียงใช้เสียงในตัวของอุปกรณ์โดยไม่มีค่าใช้จ่าย หากต้องการความแม่นยำมากขึ้นหรือเสียงที่เป็นธรรมชาติกว่า ให้เปลี่ยนไปใช้ผู้ให้บริการที่คุณเชื่อมต่อไว้ ส่วนเสียงเรียลไทม์จะเชื่อมต่อกับโมเดลของผู้ให้บริการโดยตรง และค่าใช้จ่ายจะเรียกเก็บจากบัญชีผู้ให้บริการรายนั้นของคุณ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dikte → mevcut model → sesli okuma"
+            "value" : "Dikte ve sesli okuma, cihazınızın yerleşik sesini ücretsiz kullanır. Daha doğru tanıma ya da daha doğal bir ses için bağladığınız bir sağlayıcıya geçin. Gerçek zamanlı ses doğrudan sağlayıcının modeline bağlanır; ücretler o sağlayıcıdaki hesabınıza yansıtılır."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đọc chính tả → mô hình hiện tại → đọc to"
+            "value" : "Đọc chính tả và đọc to dùng giọng có sẵn trên thiết bị, miễn phí. Muốn chính xác hơn hoặc giọng tự nhiên hơn, hãy chuyển sang nhà cung cấp bạn đã kết nối. Giọng nói thời gian thực kết nối thẳng đến mô hình của nhà cung cấp, và chi phí được tính vào tài khoản của bạn tại nhà cung cấp đó."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "听写 → 当前模型 → 朗读"
+            "value" : "听写和朗读默认用设备内置语音，免费；想更准、更自然，可以换成已连接的供应商。实时语音直接连供应商的模型，费用由你在该供应商的账户承担。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "聽寫 → 目前模型 → 朗讀"
+            "value" : "聽寫和朗讀預設使用裝置內建語音，免費；想更準、更自然，可以換成已設定連線的供應商。即時語音直接連到供應商的模型，費用由你在該供應商的帳戶支付。"
           }
         }
       }
@@ -1816,6 +2826,208 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "聽寫引擎"
+          }
+        }
+      }
+    },
+    "Didn’t catch that" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم أسمعك جيدًا"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht verstanden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Didn’t catch that"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No te entendí"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je n’ai pas compris"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सुनाई नहीं दिया"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kurang jelas"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聞き取れませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘 듣지 못했습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não entendi"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не удалось расслышать"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ฟังไม่ชัด"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anlaşılamadı"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chưa nghe rõ"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没听清"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒聽清楚"
+          }
+        }
+      }
+    },
+    "Didn’t catch that — say it again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم أسمعك جيدًا، يُرجى الإعادة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht verstanden – sag es noch mal"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Didn’t catch that — say it again"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No te entendí, repítelo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je n’ai pas compris, pouvez-vous répéter ?"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सुनाई नहीं दिया, फिर से बोलें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kurang jelas, ulangi lagi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聞き取れませんでした。もう一度どうぞ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "잘 듣지 못했습니다. 다시 말해 주세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não entendi, repita"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Не разобрать, повторите"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ฟังไม่ชัด ลองพูดอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anlaşılamadı, tekrar söyleyin"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chưa nghe rõ, hãy nói lại"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没听清，再说一次"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒聽清楚，再說一次"
           }
         }
       }
@@ -2224,6 +3436,410 @@
         }
       }
     },
+    "Done" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fertig"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Done"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Terminé"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "हो गया"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selesai"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完了"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "완료"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Concluir"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Готово"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เสร็จ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bitti"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Xong"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "完成"
+          }
+        }
+      }
+    },
+    "Download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تنزيل"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Herunterladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Télécharger"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "डाउनलोड करें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unduh"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다운로드"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачать"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ดาวน์โหลด"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İndir"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tải về"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載"
+          }
+        }
+      }
+    },
+    "Download the %1$@ speech pack for faster recognition that also works offline." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تنزيل حزمة التعرّف للغة %1$@ يجعل التعرّف أسرع ويتيحه دون اتصال."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lade das Sprachpaket für %1$@ herunter – dann geht die Erkennung schneller und auch offline."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download the %1$@ speech pack for faster recognition that also works offline."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descarga el paquete de voz de %1$@ para un reconocimiento más rápido que también funciona sin conexión."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargez le pack vocal %1$@ pour une reconnaissance plus rapide, même hors ligne."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ का स्पीच पैक डाउनलोड करें, ताकि पहचान तेज़ हो और ऑफ़लाइन भी काम करे।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unduh paket bahasa %1$@ agar pengenalan lebih cepat dan bisa offline."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」の音声認識パックをダウンロードすると、認識が速くなり、オフラインでも使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘%1$@’ 음성 인식 팩을 다운로드하면 인식이 더 빨라지고 오프라인에서도 사용할 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixe o pacote de voz de %1$@ para um reconhecimento mais rápido, que funciona até sem internet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачайте языковой пакет «%1$@»: распознавание станет быстрее и будет работать без интернета."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ดาวน์โหลดแพ็กภาษา %1$@ เพื่อให้รู้จำได้เร็วขึ้นและใช้แบบออฟไลน์ได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daha hızlı ve çevrimdışı da çalışan tanıma için %1$@ konuşma paketini indirin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tải gói nhận dạng %1$@ để nhận dạng nhanh hơn và dùng được khi ngoại tuyến."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载「%1$@」识别包后，识别更快，也能离线用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載「%1$@」辨識套件後，辨識更快，也能離線使用。"
+          }
+        }
+      }
+    },
+    "Downloading the %1$@ speech pack. Until it finishes, recognition uses the internet." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جارٍ تنزيل حزمة التعرّف للغة %1$@. حتى يكتمل التنزيل، يتم التعرّف عبر الإنترنت."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Sprachpaket für %1$@ wird geladen. Bis dahin läuft die Erkennung über das Internet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading the %1$@ speech pack. Until it finishes, recognition uses the internet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargando el paquete de voz de %1$@. Mientras tanto, el reconocimiento usa internet."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargement du pack vocal %1$@. En attendant, la reconnaissance passe par Internet."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ का स्पीच पैक डाउनलोड हो रहा है। तब तक पहचान इंटरनेट से होगी।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mengunduh paket bahasa %1$@. Sampai selesai, pengenalan memakai internet."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%1$@」の音声認識パックをダウンロード中です。完了するまではオンラインで認識します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "‘%1$@’ 음성 인식 팩을 다운로드하는 중입니다. 완료될 때까지는 온라인으로 인식합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixando o pacote de voz de %1$@. Enquanto isso, o reconhecimento usa a internet."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Скачивается языковой пакет «%1$@». Пока загрузка не завершится, распознавание идёт через интернет."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "กำลังดาวน์โหลดแพ็กภาษา %1$@ ระหว่างนี้จะรู้จำผ่านอินเทอร์เน็ต"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ konuşma paketi indiriliyor. Bitene kadar tanıma internet üzerinden yapılır."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang tải gói nhận dạng %1$@. Trong lúc chờ, hệ thống nhận dạng qua mạng."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下载「%1$@」识别包，下载完成前先联网识别。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在下載「%1$@」辨識套件，下載完成前會先使用連網辨識。"
+          }
+        }
+      }
+    },
     "End voice conversation" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2321,107 +3937,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "結束語音對話"
-          }
-        }
-      }
-    },
-    "Follow Current Model" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "حسب النموذج الحالي"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Aktuelles Modell nutzen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Follow Current Model"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seguir el modelo actual"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Suivre le modèle actuel"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "मौजूदा मॉडल के अनुसार"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ikuti model saat ini"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "現在のモデルに従う"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "현재 모델 따르기"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seguir o modelo atual"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Текущая модель"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ตามโมเดลปัจจุบัน"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mevcut modeli kullan"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Theo mô hình hiện tại"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "跟随当前模型"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "跟隨目前模型"
           }
         }
       }
@@ -2931,103 +4446,305 @@
         }
       }
     },
-    "In voice conversations, %1$@ answers instead of this chat's model. Your voice and this chat's history are sent to %1$@, usage is billed to your connection, and %1$@'s privacy policy applies." : {
+    "I didn’t catch that. Could you say it again?" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "في المحادثة الصوتية، يرد %1$@ بدلًا من نموذج هذه المحادثة. يُرسَل صوتك وسجل هذه المحادثة إلى %1$@، ويُحتسب الاستخدام على اتصالك، وتنطبق سياسة الخصوصية لدى %1$@."
+            "value" : "لم أسمعك جيدًا. هل يمكن الإعادة مرة أخرى؟"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In Sprachgesprächen antwortet %1$@ statt des Modells dieses Chats. Deine Stimme und der Verlauf dieses Chats werden an %1$@ gesendet, die Nutzung wird über deine Verbindung abgerechnet, und es gilt die Datenschutzerklärung von %1$@."
+            "value" : "Das habe ich nicht verstanden. Sag es bitte noch einmal."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "In voice conversations, %1$@ answers instead of this chat's model. Your voice and this chat's history are sent to %1$@, usage is billed to your connection, and %1$@'s privacy policy applies."
+            "value" : "I didn’t catch that. Could you say it again?"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En las conversaciones por voz, responde %1$@ en lugar del modelo de este chat. Tu voz y el historial de este chat se envían a %1$@, el uso se cobra a tu conexión y se aplica la política de privacidad de %1$@."
+            "value" : "No te entendí. ¿Puedes repetirlo?"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dans les conversations vocales, c’est %1$@ qui répond à la place du modèle de cette conversation. Votre voix et l’historique de cette conversation sont envoyés à %1$@, l’utilisation est facturée via votre connexion, et la politique de confidentialité de %1$@ s’applique."
+            "value" : "Je n’ai pas compris. Pouvez-vous répéter ?"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "बोलकर बातचीत में इस चैट के मॉडल की जगह %1$@ जवाब देगा। आपकी आवाज़ और इस चैट की हिस्ट्री %1$@ को भेजी जाएगी, इस्तेमाल का बिल आपके कनेक्शन से आएगा, और %1$@ की प्राइवेसी पॉलिसी लागू होगी।"
+            "value" : "मुझे ठीक से सुनाई नहीं दिया। कृपया फिर से बोलें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dalam percakapan suara, %1$@ yang menjawab, bukan model percakapan ini. Suara Anda dan riwayat percakapan ini dikirim ke %1$@, pemakaian ditagih ke koneksi Anda, dan kebijakan privasi %1$@ berlaku."
+            "value" : "Maaf, kurang jelas. Bisa diulangi?"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "音声会話では、この会話のモデルの代わりに %1$@ が答えます。あなたの声とこの会話の履歴は %1$@ に送信され、利用分はお使いの接続で課金され、%1$@ のプライバシーポリシーが適用されます。"
+            "value" : "聞き取れませんでした。もう一度言ってください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "음성 대화에서는 이 대화의 모델 대신 %1$@이(가) 답합니다. 음성과 이 대화의 기록이 %1$@(으)로 전송되고, 사용 요금은 내 연결로 청구되며, %1$@의 개인정보 처리방침이 적용됩니다."
+            "value" : "잘 듣지 못했습니다. 다시 한번 말씀해 주세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nas conversas por voz, quem responde é %1$@, e não o modelo desta conversa. Sua voz e o histórico desta conversa são enviados para %1$@, o uso é cobrado na sua conexão e vale a política de privacidade de %1$@."
+            "value" : "Não entendi. Pode repetir?"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "В голосовом диалоге вместо модели этого чата отвечает %1$@. Ваш голос и история этого чата отправляются в %1$@, использование оплачивается через ваше подключение, действует политика конфиденциальности %1$@."
+            "value" : "Не удалось расслышать. Повторите, пожалуйста."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ในการสนทนาด้วยเสียง %1$@ จะเป็นผู้ตอบแทนโมเดลของแชทนี้ เสียงของคุณและประวัติของแชทนี้จะถูกส่งไปยัง %1$@ ค่าใช้งานจะคิดผ่านการเชื่อมต่อของคุณ และนโยบายความเป็นส่วนตัวของ %1$@ จะมีผลบังคับใช้"
+            "value" : "ฟังไม่ชัด ช่วยพูดอีกครั้งได้ไหม"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sesli sohbette bu sohbetin modeli yerine %1$@ yanıt verir. Sesiniz ve bu sohbetin geçmişi %1$@ hizmetine gönderilir, kullanım bağlantınız üzerinden ücretlendirilir ve %1$@ gizlilik politikası geçerlidir."
+            "value" : "Anlayamadım. Tekrar söyler misiniz?"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Khi trò chuyện bằng giọng nói, %1$@ sẽ trả lời thay cho mô hình của cuộc trò chuyện này. Giọng nói của bạn và lịch sử cuộc trò chuyện này được gửi đến %1$@, mức sử dụng được tính phí vào kết nối của bạn, và chính sách quyền riêng tư của %1$@ sẽ được áp dụng."
+            "value" : "Mình chưa nghe rõ. Bạn nói lại được không?"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "语音对话时，由 %1$@ 代替这个对话的模型来回答。你的语音和这个对话的记录会发送给 %1$@，用量计入你的连接，适用 %1$@ 的隐私政策。"
+            "value" : "没听清，可以再说一次吗？"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "語音對話時，由 %1$@ 代替這個對話的模型來回答。你的語音和這個對話的紀錄會傳送給 %1$@，用量以你的連線計費，適用 %1$@ 的隱私權政策。"
+            "value" : "沒聽清楚，可以再說一次嗎？"
+          }
+        }
+      }
+    },
+    "I still didn’t catch that. If you’re speaking another language, tap Recognition Language to change it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ما زلت لا أسمعك جيدًا. إذا كان الكلام بلغة أخرى، فاضغط على «لغة التعرّف» لتغييرها."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ich habe es wieder nicht verstanden. Wenn du eine andere Sprache sprichst, tippe auf „Erkennungssprache“, um sie zu ändern."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "I still didn’t catch that. If you’re speaking another language, tap Recognition Language to change it."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sigo sin entenderte. Si hablas otro idioma, toca «Idioma de reconocimiento» para cambiarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Je n’ai toujours pas compris. Si vous parlez une autre langue, touchez « Langue de reconnaissance » pour la changer."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "अब भी ठीक से सुनाई नहीं दिया। अगर आप किसी दूसरी भाषा में बोल रहे हैं, तो इसे बदलने के लिए “पहचान की भाषा” पर टैप करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Masih kurang jelas. Jika berbicara dalam bahasa lain, ketuk “Bahasa pengenalan” untuk menggantinya."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだ聞き取れません。別の言語で話している場合は、「認識する言語」をタップして変更してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여전히 잘 듣지 못했습니다. 다른 언어로 말씀하고 계시면 ‘인식 언어’를 눌러 바꿔 주세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ainda não entendi. Se você estiver falando outro idioma, toque em “Idioma de reconhecimento” para trocar."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Снова не удалось расслышать. Если вы говорите на другом языке, нажмите «Язык распознавания», чтобы сменить его."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ยังฟังไม่ชัด ถ้าพูดภาษาอื่นอยู่ แตะ “ภาษาที่ใช้รู้จำ” เพื่อเปลี่ยน"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yine anlayamadım. Başka bir dilde konuşuyorsanız değiştirmek için “Tanıma dili”ne dokunun."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mình vẫn chưa nghe rõ. Nếu bạn đang nói ngôn ngữ khác, hãy chạm vào “Ngôn ngữ nhận dạng” để đổi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "还是没听清。如果你说的是别的语言，可以点「识别语言」换一下。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還是沒聽清楚。如果你說的是其他語言，可以點「辨識語言」換一下。"
+          }
+        }
+      }
+    },
+    "Keep Current Model" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الإبقاء على النموذج الحالي"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuelles Modell behalten"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep Current Model"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguir con el modelo actual"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder le modèle actuel"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "मौजूदा मॉडल ही रखें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tetap pakai model saat ini"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在のモデルのまま使う"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 모델 계속 사용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manter o modelo atual"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Оставить текущую модель"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ใช้โมเดลปัจจุบันต่อ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mevcut modelle devam et"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giữ mô hình hiện tại"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "继续用当前模型"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繼續用目前模型"
           }
         }
       }
@@ -3129,6 +4846,208 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在聽"
+          }
+        }
+      }
+    },
+    "Listening…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جارٍ الاستماع…"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hört zu …"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escuchando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "À l’écoute…"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सुन रहे हैं…"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mendengarkan…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聞いています…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "듣는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvindo…"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Слушаю…"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "กำลังฟัง…"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dinliyor…"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang nghe…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在听…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在聽…"
+          }
+        }
+      }
+    },
+    "Loading model" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جارٍ تحميل النموذج"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modell wird geladen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loading model"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cargando el modelo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chargement du modèle"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "मॉडल लोड हो रहा है"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Memuat model"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "モデルを読み込み中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모델 불러오는 중"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carregando o modelo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Загрузка модели"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "กำลังโหลดโมเดล"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model yükleniyor"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang tải mô hình"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在加载模型"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在載入模型"
           }
         }
       }
@@ -3537,6 +5456,208 @@
         }
       }
     },
+    "No network connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا يوجد اتصال بالشبكة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Internetverbindung"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No network connection"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin conexión a internet"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de connexion réseau"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "नेटवर्क उपलब्ध नहीं है"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak ada koneksi internet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ネットワークに接続できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "네트워크에 연결할 수 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem conexão com a internet"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нет подключения к сети"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่มีการเชื่อมต่อเครือข่าย"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ağ bağlantısı yok"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không có kết nối mạng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网络不可用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網路無法使用"
+          }
+        }
+      }
+    },
+    "No speech recognition service on this device" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا توجد خدمة متاحة للتعرّف على الكلام في هذا الجهاز"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Gerät ist keine Spracherkennung verfügbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No speech recognition service on this device"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay servicio de reconocimiento de voz en este dispositivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun service de reconnaissance vocale sur cet appareil"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इस डिवाइस पर आवाज़ पहचानने की कोई सेवा उपलब्ध नहीं है"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tidak ada layanan pengenalan ucapan di perangkat ini"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデバイスには使える音声認識サービスがありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 기기에 사용할 수 있는 음성 인식 서비스가 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum serviço de reconhecimento de voz neste dispositivo"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "На устройстве нет службы распознавания речи"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "อุปกรณ์นี้ไม่มีบริการรู้จำเสียงที่ใช้ได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu cihazda kullanılabilir konuşma tanıma hizmeti yok"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thiết bị không có dịch vụ nhận dạng giọng nói khả dụng"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "设备没有可用的语音识别服务"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裝置上沒有可用的語音辨識服務"
+          }
+        }
+      }
+    },
     "No system voice is available on this device" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3840,6 +5961,107 @@
         }
       }
     },
+    "Open Connection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "فتح الاتصال"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbindung öffnen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Connection"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir conexión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir la connexion"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कनेक्शन खोलें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buka Koneksi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接続を開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "연결 열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir conexão"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Открыть подключение"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เปิดการเชื่อมต่อ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bağlantıyı Aç"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mở kết nối"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开连接"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟連線"
+          }
+        }
+      }
+    },
     "Open Settings" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -3941,6 +6163,107 @@
         }
       }
     },
+    "Pick one and Home shows the voice stage — tap the orb to start talking. Any chat's model picker has it too; pick a text model to go back to typing." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اختر نموذجًا لتتحول الصفحة الرئيسية إلى وضع الصوت، ثم اضغط على الكرة لبدء الحديث. ويمكن اختياره أيضًا من قائمة اختيار النموذج في كل محادثة، واختيار نموذج نصي يعيدك إلى الكتابة."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle eines aus, dann zeigt die Startseite den Sprachmodus – tippe auf die Kugel, um zu sprechen. Das geht auch in der Modellauswahl jedes Chats; mit einem Textmodell schreibst du wieder."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick one and Home shows the voice stage — tap the orb to start talking. Any chat's model picker has it too; pick a text model to go back to typing."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige uno y el inicio mostrará el modo de voz: toca la esfera para empezar a hablar. También está en el selector de modelos de cada chat; elige un modelo de texto para volver a escribir."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez-en un et l’accueil passe en mode vocal : touchez la sphère pour parler. Il figure aussi dans le sélecteur de modèle de chaque conversation ; un modèle de texte vous ramène à la saisie."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "चुनते ही होम पर वॉइस स्क्रीन आ जाती है — बोलने के लिए गोले पर टैप करें। इसे हर चैट की मॉडल सूची में भी चुन सकते हैं; टाइपिंग पर लौटने के लिए टेक्स्ट मॉडल चुनें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pilih salah satu, Beranda langsung beralih ke mode suara — ketuk bola untuk mulai bicara. Pilihan ini juga ada di pemilih model setiap percakapan; pilih model teks untuk kembali mengetik."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選ぶとホームが音声モードに切り替わり、中央の球をタップするだけで話せます。各会話のモデル選択からも選べ、テキストモデルを選ぶとキーボード入力に戻ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택하면 홈이 음성 화면으로 바뀌고, 가운데 원을 탭하면 바로 말할 수 있어요. 모든 대화의 모델 선택에서도 고를 수 있고, 텍스트 모델을 고르면 다시 키보드로 입력할 수 있어요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha um e a tela inicial mostra o modo de voz — toque na esfera para começar a falar. Ele também está no seletor de modelos de cada conversa; escolha um modelo de texto para voltar a digitar."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Выберите модель — главный экран переключится в голосовой режим: нажмите на шар, чтобы говорить. Её можно выбрать и в списке моделей каждого чата; выберите текстовую модель, чтобы снова печатать."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เลือกแล้วหน้าหลักจะเปลี่ยนเป็นโหมดเสียง แตะลูกบอลเพื่อเริ่มพูดได้เลย จะเลือกจากตัวเลือกโมเดลในทุกแชทก็ได้ และเลือกโมเดลข้อความเมื่ออยากกลับไปพิมพ์"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Birini seçtiğinizde ana sayfa ses ekranına geçer; konuşmak için küreye dokunun. Her sohbetin model seçicisinde de bulunur; yazmaya dönmek için bir metin modeli seçin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chọn một mô hình là trang chủ chuyển sang chế độ giọng nói — chạm vào quả cầu để nói. Bạn cũng có thể chọn ở phần chọn mô hình trong mỗi cuộc trò chuyện; chọn mô hình văn bản để quay lại gõ phím."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选中后首页会换成语音界面，轻点圆球即可开口。每个对话的模型选择器里也能选；选回文字模型就恢复打字。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選定後首頁會換成語音介面，點一下圓球即可開口。每個對話的模型選擇器也能選；選回文字模型就恢復打字。"
+          }
+        }
+      }
+    },
     "Please confirm on the screen." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4038,107 +6361,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請在螢幕上確認。"
-          }
-        }
-      }
-    },
-    "Preparing speech recognition" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "جارٍ تجهيز التعرّف على الكلام"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Spracherkennung wird vorbereitet"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preparing speech recognition"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preparando el reconocimiento de voz"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Préparation de la reconnaissance vocale"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "आवाज़ पहचान तैयार हो रही है"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Menyiapkan pengenalan ucapan"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "音声認識を準備中"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "음성 인식 준비 중"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preparando o reconhecimento de fala"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Подготовка распознавания речи"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "กำลังเตรียมการรู้จำเสียงพูด"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Konuşma tanıma hazırlanıyor"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đang chuẩn bị nhận dạng giọng nói"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在准备语音识别"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "正在準備語音辨識"
           }
         }
       }
@@ -4749,6 +6971,814 @@
         }
       }
     },
+    "Realtime Voice" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "صوت فوري"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtzeit-Audio"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Realtime Voice"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voz en tiempo real"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voix en temps réel"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रियलटाइम वॉइस"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suara real-time"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voz em tempo real"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Реальное время"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เสียงเรียลไทม์"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerçek zamanlı ses"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thời gian thực"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时语音"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即時語音"
+          }
+        }
+      }
+    },
+    "Realtime voice · Interrupt anytime" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "صوت فوري · يمكنك المقاطعة في أي وقت"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtzeit-Audio · Jederzeit unterbrechbar"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Realtime voice · Interrupt anytime"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voz en tiempo real · Puedes interrumpir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voix en temps réel · Vous pouvez interrompre"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रियलटाइम वॉइस · कभी भी बीच में बोल सकते हैं"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suara real-time · Bisa disela kapan saja"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声 · いつでも割り込めます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성 · 언제든 끼어들 수 있어요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voz em tempo real · Você pode interromper"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голос в реальном времени · Можно перебивать"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เสียงเรียลไทม์ · พูดแทรกได้ทุกเมื่อ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerçek zamanlı ses · Araya girebilirsiniz"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thời gian thực · Ngắt lời lúc nào cũng được"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时语音 · 可随时打断"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即時語音 · 可隨時打斷"
+          }
+        }
+      }
+    },
+    "Realtime Voice %1$d" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "صوت فوري %1$d"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtzeit-Audio %1$d"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Realtime Voice %1$d"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voz en tiempo real %1$d"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voix en temps réel %1$d"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रियलटाइम वॉइस %1$d"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suara real-time %1$d"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声 %1$d"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성 %1$d"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voz em tempo real %1$d"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Реальное время %1$d"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เสียงเรียลไทม์ %1$d"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerçek zamanlı ses %1$d"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thời gian thực %1$d"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时语音 %1$d"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即時語音 %1$d"
+          }
+        }
+      }
+    },
+    "Realtime voice has moved to the model picker" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "أصبح الصوت الفوري في قائمة اختيار النموذج"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtzeit-Audiomodelle findest du jetzt in der Modellauswahl"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Realtime voice has moved to the model picker"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La voz en tiempo real ahora está en el selector de modelos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La voix en temps réel se trouve désormais dans le sélecteur de modèle"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रियलटाइम वॉइस अब मॉडल सूची में है"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suara real-time kini ada di pemilih model"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声はモデル選択に移動しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성이 모델 선택으로 옮겨졌습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A voz em tempo real agora fica no seletor de modelos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голосовые модели реального времени теперь выбираются в списке моделей"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เสียงเรียลไทม์ย้ายไปอยู่ในตัวเลือกโมเดลแล้ว"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerçek zamanlı ses artık model seçicide"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giọng nói thời gian thực đã chuyển sang phần chọn mô hình"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时语音已移到模型选择器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即時語音已移到模型選擇器"
+          }
+        }
+      }
+    },
+    "Realtime voice models can't search the web." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا تستطيع نماذج الصوت الفوري البحث في الويب."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtzeit-Audiomodelle können nicht im Web suchen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Realtime voice models can't search the web."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los modelos de voz en tiempo real no pueden buscar en la web."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modèles vocaux en temps réel ne peuvent pas faire de recherche web."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रियलटाइम वॉइस मॉडल वेब खोज नहीं कर सकते।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model suara real-time tidak bisa melakukan pencarian web."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声モデルではウェブ検索を使えません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성 모델은 웹 검색을 사용할 수 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelos de voz em tempo real não fazem busca na web."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голосовые модели реального времени не умеют искать в интернете."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โมเดลเสียงเรียลไทม์ค้นเว็บไม่ได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerçek zamanlı ses modelleri web araması yapamaz."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mô hình giọng nói thời gian thực không tìm kiếm web được."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时语音模型不支持联网搜索"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即時語音模型不支援聯網搜尋"
+          }
+        }
+      }
+    },
+    "Realtime voice models can't use tools." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا تستطيع نماذج الصوت الفوري استخدام الأدوات."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtzeit-Audiomodelle können keine Tools verwenden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Realtime voice models can't use tools."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los modelos de voz en tiempo real no pueden usar herramientas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modèles vocaux en temps réel ne peuvent pas utiliser d’outils."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रियलटाइम वॉइस मॉडल टूल्स इस्तेमाल नहीं कर सकते।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model suara real-time tidak bisa memakai alat."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声モデルはツールを使えません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성 모델은 도구를 사용할 수 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelos de voz em tempo real não usam ferramentas."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голосовые модели реального времени не могут использовать инструменты."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โมเดลเสียงเรียลไทม์ใช้เครื่องมือไม่ได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerçek zamanlı ses modelleri araç kullanamaz."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mô hình giọng nói thời gian thực không dùng được công cụ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时语音模型不支持工具"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即時語音模型不支援工具"
+          }
+        }
+      }
+    },
+    "Realtime voice models don't support thinking." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا تدعم نماذج الصوت الفوري التفكير."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtzeit-Audiomodelle unterstützen kein Nachdenken."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Realtime voice models don't support thinking."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los modelos de voz en tiempo real no admiten razonamiento."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modèles vocaux en temps réel ne prennent pas en charge la réflexion."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रियलटाइम वॉइस मॉडल में सोच की सुविधा नहीं है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model suara real-time tidak mendukung mode berpikir."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声モデルは思考に対応していません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성 모델은 사고 기능을 지원하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelos de voz em tempo real não têm suporte a raciocínio."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голосовые модели реального времени не поддерживают размышление."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โมเดลเสียงเรียลไทม์ไม่รองรับการคิด"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerçek zamanlı ses modelleri düşünmeyi desteklemez."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mô hình giọng nói thời gian thực không hỗ trợ suy nghĩ."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时语音模型不支持思考"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即時語音模型不支援思考"
+          }
+        }
+      }
+    },
+    "Realtime voice models don't take attachments. Switch to a text model to send them." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا تقبل نماذج الصوت الفوري المرفقات. لإرسالها، بدّل إلى نموذج نصي."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Echtzeit-Audiomodelle nehmen keine Anhänge an. Wechsle zu einem Textmodell, um sie zu senden."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Realtime voice models don't take attachments. Switch to a text model to send them."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los modelos de voz en tiempo real no admiten adjuntos. Cambia a un modelo de texto para enviarlos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les modèles vocaux en temps réel n’acceptent pas les pièces jointes. Passez à un modèle de texte pour les envoyer."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रियलटाइम वॉइस मॉडल अटैचमेंट नहीं लेते। इन्हें भेजने के लिए टेक्स्ट मॉडल पर स्विच करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Model suara real-time tidak menerima lampiran. Ganti ke model teks untuk mengirimnya."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リアルタイム音声モデルは添付ファイルに対応していません。送信するにはテキストモデルに切り替えてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실시간 음성 모델은 첨부파일을 지원하지 않습니다. 첨부파일을 보내려면 텍스트 모델로 전환하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modelos de voz em tempo real não aceitam anexos. Troque para um modelo de texto para enviá-los."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Голосовые модели реального времени не принимают вложения. Чтобы отправить их, переключитесь на текстовую модель."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "โมเดลเสียงเรียลไทม์รับไฟล์แนบไม่ได้ หากต้องการส่ง ให้เปลี่ยนไปใช้โมเดลข้อความ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gerçek zamanlı ses modelleri ek kabul etmez. Ek göndermek için bir metin modeline geçin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mô hình giọng nói thời gian thực không nhận tệp đính kèm. Hãy chuyển sang mô hình văn bản để gửi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实时语音模型不支持附件，换用文字模型后可发送"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "即時語音模型不支援附件，改用文字模型後即可傳送"
+          }
+        }
+      }
+    },
     "Recognition Language" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -4846,6 +7876,209 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "辨識語言"
+          }
+        }
+      }
+    },
+    "Recognition Language: %1$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لغة التعرّف: %1$@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erkennungssprache: %1$@"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recognition Language: %1$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idioma de reconocimiento: %1$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langue de reconnaissance : %1$@"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "पहचान की भाषा: %1$@"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bahasa pengenalan: %1$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認識する言語：%1$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인식 언어: %1$@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Idioma de reconhecimento: %1$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Язык распознавания: %1$@"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ภาษาที่ใช้รู้จำ: %1$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanıma dili: %1$@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngôn ngữ nhận dạng: %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "识别语言 %1$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辨識語言 %1$@"
+          }
+        }
+      }
+    },
+    "Recording" : {
+      "comment" : "Accessibility label of the recording timer",
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "جارٍ التسجيل"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aufnahme läuft"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recording"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grabando"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enregistrement en cours"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "रिकॉर्डिंग हो रही है"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Merekam"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録音中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "녹음 중"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gravando"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Идёт запись"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "กำลังบันทึก"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kayıt yapılıyor"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đang ghi âm"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在录音"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在錄音"
           }
         }
       }
@@ -6265,6 +9498,208 @@
         }
       }
     },
+    "Speech recognition is busy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خدمة التعرّف على الكلام مشغولة حاليًا"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Spracherkennung ist gerade ausgelastet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speech recognition is busy"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El reconocimiento de voz está ocupado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La reconnaissance vocale est occupée"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "आवाज़ पहचानने की सेवा अभी व्यस्त है"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layanan pengenalan ucapan sedang sibuk"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声認識サービスが混み合っています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음성 인식 서비스가 사용 중입니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O reconhecimento de voz está ocupado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Служба распознавания речи сейчас занята"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บริการรู้จำเสียงไม่ว่างชั่วคราว"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşma tanıma şu anda meşgul"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dịch vụ nhận dạng giọng nói đang bận"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "识别服务繁忙"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辨識服務暫時忙碌"
+          }
+        }
+      }
+    },
+    "Speech recognition on this device doesn’t support %1$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا تدعم خدمة التعرّف على الكلام في هذا الجهاز اللغة %1$@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Spracherkennung auf diesem Gerät unterstützt %1$@ nicht"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speech recognition on this device doesn’t support %1$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El reconocimiento de voz de este dispositivo no admite %1$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La reconnaissance vocale de cet appareil ne prend pas en charge cette langue : %1$@"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इस डिवाइस की आवाज़ पहचानने की सेवा %1$@ को सपोर्ट नहीं करती"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pengenalan ucapan di perangkat ini tidak mendukung %1$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このデバイスの音声認識は「%1$@」に対応していません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 기기의 음성 인식에서 지원하지 않는 언어입니다: %1$@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O reconhecimento de voz deste dispositivo não oferece suporte ao idioma %1$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Распознавание речи на этом устройстве не поддерживает язык «%1$@»"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บริการรู้จำเสียงในอุปกรณ์นี้ไม่รองรับ %1$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu cihazdaki konuşma tanıma şu dili desteklemiyor: %1$@"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dịch vụ nhận dạng trên thiết bị này không hỗ trợ %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这台设备的识别服务不支持「%1$@」"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台裝置的辨識服務不支援「%1$@」"
+          }
+        }
+      }
+    },
     "Speed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6568,103 +10003,406 @@
         }
       }
     },
-    "Switched back to Follow Current Model." : {
+    "Switch Model" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تمت العودة إلى «حسب النموذج الحالي»."
+            "value" : "تبديل النموذج"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Zurück zu „Aktuelles Modell nutzen“ gewechselt."
+            "value" : "Modell wechseln"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Switched back to Follow Current Model."
+            "value" : "Switch Model"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se ha cambiado a «Seguir el modelo actual»."
+            "value" : "Cambiar modelo"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Retour à « Suivre le modèle actuel »."
+            "value" : "Changer de modèle"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "वापस “मौजूदा मॉडल के अनुसार” पर कर दिया गया है।"
+            "value" : "मॉडल स्विच करें"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dikembalikan ke “Ikuti model saat ini”."
+            "value" : "Ganti Model"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "「現在のモデルに従う」に戻しました。"
+            "value" : "モデルを切り替え"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "‘현재 모델 따르기’로 되돌렸습니다."
+            "value" : "모델 전환"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Voltamos para “Seguir o modelo atual”."
+            "value" : "Trocar modelo"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Снова используется «Текущая модель»."
+            "value" : "Сменить модель"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "เปลี่ยนกลับเป็น “ตามโมเดลปัจจุบัน” แล้ว"
+            "value" : "เปลี่ยนโมเดล"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "“Mevcut modeli kullan” seçeneğine geri dönüldü."
+            "value" : "Modeli Değiştir"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đã chuyển về “Theo mô hình hiện tại”."
+            "value" : "Đổi mô hình"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已改回“跟随当前模型”"
+            "value" : "切换模型"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已改回「跟隨目前模型」"
+            "value" : "切換模型"
+          }
+        }
+      }
+    },
+    "Switch to %1$@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "التبديل إلى %1$@"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu %1$@ wechseln"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to %1$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar a %1$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passer à %1$@"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ पर स्विच करें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ganti ke %1$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ に切り替える"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@(으)로 전환"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mudar para %1$@"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перейти на %1$@"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เปลี่ยนเป็น %1$@"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ modeline geç"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chuyển sang %1$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切换到 %1$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換到 %1$@"
+          }
+        }
+      }
+    },
+    "Switch to Typing" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "التبديل إلى الكتابة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zur Texteingabe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switch to Typing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar a texto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passer au clavier"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "टाइपिंग पर जाएँ"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beralih ke Keyboard"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーボードで入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키보드로 입력하기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar o teclado"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Перейти к вводу текста"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "สลับไปพิมพ์"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Yazmaya Geç"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chuyển sang gõ phím"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改打字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改用打字"
+          }
+        }
+      }
+    },
+    "Switched to %1$s" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "تم التبديل إلى %1$s"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu %1$s gewechselt"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Switched to %1$s"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se cambió a %1$s"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Modèle changé : %1$s"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$s पर स्विच किया गया"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sudah beralih ke %1$s"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$s に切り替えました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$s(으)로 전환했어요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mudou para %1$s"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Переключено на %1$s"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เปลี่ยนเป็น %1$s แล้ว"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$s modeline geçildi"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Đã chuyển sang %1$s"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已切换到 %1$s"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已切換至 %1$s"
           }
         }
       }
@@ -6867,6 +10605,107 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "系統聽寫可能由 Apple 處理。轉寫失敗的錄音在本機最多保留 7 天。語音對話也用這個引擎聽你說話。"
+          }
+        }
+      }
+    },
+    "Tap to start talking" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اضغط لبدء الحديث"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippen zum Sprechen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tap to start talking"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toca para empezar a hablar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Touchez pour parler"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "बोलने के लिए टैप करें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ketuk untuk mulai bicara"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "タップして話す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "탭하여 말하기 시작"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toque para começar a falar"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Нажмите, чтобы говорить"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "แตะเพื่อเริ่มพูด"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Konuşmak için dokunun"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chạm để bắt đầu nói"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "轻点开始说话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點一下開始說話"
           }
         }
       }
@@ -7174,6 +11013,208 @@
         }
       }
     },
+    "The %1$@ key is invalid or doesn't have realtime voice access." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "مفتاح API الخاص بـ %1$@ غير صالح أو لا يملك صلاحية الصوت الفوري."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der API-Key für %1$@ ist ungültig oder hat keinen Zugriff auf Echtzeit-Audio."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The %1$@ key is invalid or doesn't have realtime voice access."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clave de API de %1$@ no es válida o no tiene acceso a la voz en tiempo real."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clé API %1$@ n’est pas valide ou n’a pas accès à la voix en temps réel."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ की API key अमान्य है या उसमें रियलटाइम वॉइस की अनुमति नहीं है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key %1$@ tidak valid atau tidak punya akses ke suara real-time."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ の APIキーが無効か、リアルタイム音声を使う権限がありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ API 키가 유효하지 않거나 실시간 음성 사용 권한이 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A chave de API de %1$@ é inválida ou não tem acesso à voz em tempo real."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API-ключ %1$@ недействителен или не даёт доступа к голосу в реальном времени."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key ของ %1$@ ไม่ถูกต้อง หรือไม่มีสิทธิ์ใช้เสียงเรียลไทม์"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ API anahtarı geçersiz ya da gerçek zamanlı sese erişimi yok."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API key %1$@ không hợp lệ hoặc không có quyền dùng giọng nói thời gian thực."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 的 API Key 无效，或没有实时语音权限"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 的 API 金鑰無效，或沒有即時語音權限"
+          }
+        }
+      }
+    },
+    "The recognition language is %1$@. If you spoke another language, change it and try again. Your recording is saved." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لغة التعرّف الحالية هي %1$@. إذا كان الكلام بلغة أخرى، فيمكن تغيير اللغة وإعادة المحاولة. التسجيل محفوظ."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Erkennungssprache ist %1$@. Wenn du eine andere Sprache gesprochen hast, ändere sie und versuch es noch einmal. Die Aufnahme ist gespeichert."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The recognition language is %1$@. If you spoke another language, change it and try again. Your recording is saved."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El idioma de reconocimiento es %1$@. Si hablaste en otro idioma, cámbialo y vuelve a intentarlo. La grabación está guardada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Langue de reconnaissance actuelle : %1$@. Si vous avez parlé une autre langue, changez-la et réessayez. L’enregistrement est conservé."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "पहचान की भाषा अभी %1$@ है। अगर आपने कोई दूसरी भाषा बोली थी, तो उसे बदलकर फिर से कोशिश करें। रिकॉर्डिंग सेव है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bahasa pengenalan saat ini %1$@. Jika berbicara dalam bahasa lain, ganti lalu coba lagi. Rekaman sudah disimpan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "認識する言語は「%1$@」です。別の言語で話した場合は、変更してもう一度お試しください。録音は保存されています。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "현재 인식 언어는 ‘%1$@’입니다. 다른 언어로 말씀하셨다면 언어를 바꿔 다시 시도해 주세요. 녹음은 저장되어 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O idioma de reconhecimento é %1$@. Se você falou em outro idioma, troque e tente de novo. A gravação foi salva."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Язык распознавания: %1$@. Если вы говорили на другом языке, смените его и попробуйте ещё раз. Запись сохранена."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ภาษาที่ใช้รู้จำตอนนี้คือ %1$@ ถ้าพูดภาษาอื่น ให้เปลี่ยนแล้วลองใหม่ บันทึกเสียงไว้แล้ว"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tanıma dili şu anda %1$@. Başka bir dilde konuştuysanız dili değiştirip tekrar deneyin. Kayıt saklandı."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ngôn ngữ nhận dạng hiện là %1$@. Nếu bạn nói ngôn ngữ khác, hãy đổi rồi thử lại. Bản ghi âm đã được lưu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前识别语言是「%1$@」。说的是别的语言就换一下再试。录音已保存。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前的辨識語言是「%1$@」。如果說的是其他語言，請換一下再試。錄音已儲存。"
+          }
+        }
+      }
+    },
     "The selected dictation engine is unavailable. Using system dictation." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7477,6 +11518,208 @@
         }
       }
     },
+    "The system speech recognition service is busy (already retried once). Your recording is saved, so you can retry later." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "خدمة التعرّف على الكلام في النظام مشغولة (تمت إعادة المحاولة تلقائيًا مرة واحدة). التسجيل محفوظ، ويمكن إعادة المحاولة لاحقًا."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Spracherkennung des Systems ist ausgelastet (ein automatischer neuer Versuch ist schon erfolgt). Die Aufnahme ist gespeichert, du kannst es später noch einmal versuchen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The system speech recognition service is busy (already retried once). Your recording is saved, so you can retry later."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El servicio de reconocimiento de voz del sistema está ocupado (ya se reintentó una vez). La grabación está guardada; puedes reintentarlo más tarde."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le service de reconnaissance vocale du système est occupé (une nouvelle tentative a déjà été faite). L’enregistrement est conservé ; vous pourrez réessayer plus tard."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "सिस्टम की आवाज़ पहचानने की सेवा अभी व्यस्त है (एक बार अपने-आप फिर से कोशिश की जा चुकी है)। रिकॉर्डिंग सेव है, बाद में फिर से कोशिश करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layanan pengenalan ucapan sistem sedang sibuk (sudah dicoba ulang otomatis 1 kali). Rekaman sudah disimpan, coba lagi nanti."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システムの音声認識サービスが混み合っています（自動で 1 回再試行しました）。録音は保存されているので、あとで再試行できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 음성 인식 서비스가 사용 중입니다(자동으로 1번 다시 시도했습니다). 녹음은 저장되어 있으니 나중에 다시 시도해 주세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O serviço de reconhecimento de voz do sistema está ocupado (já tentamos de novo uma vez). A gravação foi salva e você pode tentar mais tarde."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Системная служба распознавания речи занята (одна повторная попытка уже была). Запись сохранена — можно повторить позже."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "บริการรู้จำเสียงของระบบไม่ว่าง (ลองใหม่อัตโนมัติแล้ว 1 ครั้ง) บันทึกเสียงไว้แล้ว ลองใหม่ภายหลังได้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sistemin konuşma tanıma hizmeti meşgul (otomatik olarak 1 kez yeniden denendi). Kayıt saklandı, daha sonra tekrar deneyebilirsiniz."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dịch vụ nhận dạng giọng nói của hệ thống đang bận (đã tự thử lại 1 lần). Bản ghi âm đã được lưu, bạn có thể thử lại sau."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系统语音识别服务正忙（已自动重试 1 次）。录音已保存，稍后可以重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "系統語音辨識服務正在忙碌（已自動重試 1 次）。錄音已儲存，稍後可以重試。"
+          }
+        }
+      }
+    },
+    "There’s an echo from the speaker. Headphones will work better." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُحدث مكبّر الصوت صدى. ستكون التجربة أفضل مع سماعات الأذن."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Lautsprecher erzeugt ein Echo. Mit Kopfhörern klappt es besser."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "There’s an echo from the speaker. Headphones will work better."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El altavoz genera eco. Funcionará mejor con auriculares."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le haut-parleur crée de l’écho. Ce sera mieux avec des écouteurs."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "स्पीकर से गूँज आ रही है। हेडफ़ोन लगाने पर बेहतर रहेगा।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaker menimbulkan gema. Lebih baik pakai headphone."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スピーカーの音が反響しています。イヤホンを使うとより快適です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스피커에서 에코가 생깁니다. 이어폰을 사용하면 더 좋습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O alto-falante está gerando eco. Com fones de ouvido funciona melhor."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Динамик даёт эхо. С наушниками будет лучше."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ลำโพงมีเสียงสะท้อน ใช้หูฟังจะดีกว่า"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hoparlör yankı yapıyor. Kulaklıkla daha iyi olur."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loa ngoài đang bị vọng tiếng. Dùng tai nghe sẽ tốt hơn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "外放有回声，戴上耳机效果会更好。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "喇叭播放會有回音，戴上耳機效果會更好。"
+          }
+        }
+      }
+    },
     "Thinking" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7679,104 +11922,103 @@
         }
       }
     },
-    "Transcribe" : {
-      "comment" : "Recording bar button: stop recording and put the text into the composer",
+    "This realtime call reached its length limit. Tap to continue." : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تحويل إلى نص"
+            "value" : "بلغت هذه المكالمة الفورية أقصى مدة لها. اضغط للمتابعة."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transkribieren"
+            "value" : "Dieses Echtzeitgespräch hat die maximale Länge erreicht. Tippe, um weiterzumachen."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transcribe"
+            "value" : "This realtime call reached its length limit. Tap to continue."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transcribir"
+            "value" : "Esta llamada en tiempo real llegó a su duración máxima. Toca para continuar."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transcrire"
+            "value" : "Cet appel en temps réel a atteint sa durée maximale. Touchez pour continuer."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "टेक्स्ट में बदलें"
+            "value" : "यह रियलटाइम कॉल अपनी समय-सीमा तक पहुँच गई है। जारी रखने के लिए टैप करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ubah ke teks"
+            "value" : "Panggilan real-time ini sudah mencapai batas durasi. Ketuk untuk melanjutkan."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "文字起こし"
+            "value" : "リアルタイム通話の時間が上限に達しました。タップで続けられます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "텍스트로 변환"
+            "value" : "이번 실시간 통화가 최대 시간에 도달했습니다. 탭하여 계속하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Transcrever"
+            "value" : "Esta chamada em tempo real chegou à duração máxima. Toque para continuar."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Распознать"
+            "value" : "Разговор в реальном времени достиг максимальной длительности. Нажмите, чтобы продолжить."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "แปลงเป็นข้อความ"
+            "value" : "การโทรแบบเรียลไทม์นี้ครบเวลาสูงสุดแล้ว แตะเพื่อคุยต่อ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Metne dök"
+            "value" : "Bu gerçek zamanlı görüşme süre sınırına ulaştı. Devam etmek için dokunun."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chuyển thành chữ"
+            "value" : "Cuộc gọi thời gian thực này đã đạt giới hạn thời lượng. Chạm để tiếp tục."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "转文字"
+            "value" : "这次实时通话已到时长上限，轻点继续"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "轉文字"
+            "value" : "這次即時通話已達時間上限，點一下繼續"
           }
         }
       }
@@ -8385,6 +12627,107 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "轉寫失敗"
+          }
+        }
+      }
+    },
+    "Try Again" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "إعادة المحاولة"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erneut versuchen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Try Again"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reintentar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réessayer"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "फिर से कोशिश करें"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Coba Lagi"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一度試す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 시도"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tentar novamente"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Повторить"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ลองอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tekrar Dene"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thử lại"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重试"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試一次"
           }
         }
       }
@@ -9096,107 +13439,6 @@
         }
       }
     },
-    "Voice Conversation" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "المحادثة الصوتية"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sprachgespräch"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Voice Conversation"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Conversación por voz"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Conversation vocale"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "बोलकर बातचीत"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Percakapan suara"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "音声会話"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "음성 대화"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Conversa por voz"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Голосовой диалог"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "สนทนาด้วยเสียง"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Sesli sohbet"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trò chuyện bằng giọng nói"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "语音对话"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "語音對話"
-          }
-        }
-      }
-    },
     "Voice isn't available yet for your %@ connections" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9399,204 +13641,103 @@
         }
       }
     },
-    "You don't need to change anything here: dictation, read aloud, and voice conversations use your device's built-in voice at no cost. For better accuracy or a nicer voice, switch to a provider you've connected." : {
+    "You can switch to the dictation engine of a provider you’ve connected. Your recording is saved." : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا حاجة إلى تغيير أي شيء هنا: الإملاء والقراءة بصوت عالٍ والمحادثة الصوتية تستخدم صوت جهازك المدمج مجانًا. وللحصول على دقة أعلى أو صوت أجمل، يمكن التبديل إلى مزوّد متصل لديك."
+            "value" : "يمكن التبديل إلى محرك إملاء من مزوّد متصل. التسجيل محفوظ."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hier musst du nichts ändern: Diktieren, Vorlesen und Sprachgespräche nutzen kostenlos die integrierte Stimme deines Geräts. Für mehr Genauigkeit oder eine schönere Stimme wechsle zu einem verbundenen Anbieter."
+            "value" : "Du kannst zur Diktier-Engine eines verbundenen Anbieters wechseln. Die Aufnahme ist gespeichert."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "You don't need to change anything here: dictation, read aloud, and voice conversations use your device's built-in voice at no cost. For better accuracy or a nicer voice, switch to a provider you've connected."
+            "value" : "You can switch to the dictation engine of a provider you’ve connected. Your recording is saved."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No necesitas cambiar nada aquí: el dictado, la lectura en voz alta y las conversaciones por voz usan gratis la voz integrada de tu dispositivo. Si quieres más precisión o una voz más agradable, cambia a un proveedor que hayas conectado."
+            "value" : "Puedes cambiar al motor de dictado de un proveedor que hayas conectado. La grabación está guardada."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rien à changer ici : la dictée, la lecture à voix haute et les conversations vocales utilisent gratuitement la voix intégrée de votre appareil. Pour plus de précision ou une voix plus agréable, passez à un fournisseur que vous avez connecté."
+            "value" : "Vous pouvez passer au moteur de dictée d’un fournisseur que vous avez connecté. L’enregistrement est conservé."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यहाँ कुछ बदलने की ज़रूरत नहीं है: बोलकर लिखना, पढ़कर सुनाना और बोलकर बातचीत आपके डिवाइस की बिल्ट-इन आवाज़ से मुफ़्त में चलते हैं। ज़्यादा सटीक पहचान या बेहतर आवाज़ के लिए अपने कनेक्ट किए गए किसी प्रोवाइडर पर स्विच करें।"
+            "value" : "आप जोड़े गए किसी प्रोवाइडर का बोलकर लिखने वाला इंजन चुन सकते हैं। रिकॉर्डिंग सेव है।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anda tidak perlu mengubah apa pun di sini: dikte, fitur Bacakan, dan percakapan suara memakai suara bawaan perangkat tanpa biaya. Untuk hasil yang lebih akurat atau suara yang lebih enak didengar, beralihlah ke penyedia yang sudah Anda hubungkan."
+            "value" : "Bisa beralih ke mesin dikte dari penyedia yang sudah terhubung. Rekaman sudah disimpan."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ここは変更しなくても使えます。音声入力、読み上げ、音声会話はデバイス内蔵の音声で、料金はかかりません。より正確に、またはより自然な声にしたいときは、接続済みのプロバイダーに切り替えてください。"
+            "value" : "接続済みのプロバイダーの音声入力エンジンに切り替えられます。録音は保存されています。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "여기서 아무것도 바꾸지 않아도 됩니다. 받아쓰기, 소리 내어 읽기, 음성 대화는 기기에 내장된 음성을 무료로 사용합니다. 더 정확한 인식이나 더 좋은 목소리를 원하면 연결한 제공업체로 바꾸세요."
+            "value" : "연결한 제공업체의 받아쓰기 엔진으로 바꿀 수 있습니다. 녹음은 저장되어 있습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Você não precisa mudar nada aqui: o ditado, a leitura em voz alta e as conversas por voz usam a voz integrada do seu dispositivo, sem custo. Para mais precisão ou uma voz mais agradável, troque para um provedor que você conectou."
+            "value" : "Você pode trocar para o mecanismo de ditado de um provedor que você conectou. A gravação foi salva."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Здесь можно ничего не менять: диктовка, чтение вслух и голосовой диалог бесплатно работают на встроенном голосе устройства. Для большей точности или более приятного голоса переключитесь на подключённого провайдера."
+            "value" : "Можно переключиться на движок диктовки подключённого провайдера. Запись сохранена."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไม่ต้องเปลี่ยนอะไรที่นี่ก็ใช้ได้: การพิมพ์ด้วยเสียง การอ่านออกเสียง และการสนทนาด้วยเสียงใช้เสียงในตัวของอุปกรณ์โดยไม่มีค่าใช้จ่าย หากต้องการความแม่นยำมากขึ้นหรือเสียงที่ฟังดีกว่า ให้เปลี่ยนไปใช้ผู้ให้บริการที่คุณเชื่อมต่อไว้"
+            "value" : "เปลี่ยนไปใช้เครื่องมือพิมพ์ด้วยเสียงของผู้ให้บริการที่เชื่อมต่อไว้ได้ บันทึกเสียงไว้แล้ว"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Burada hiçbir şeyi değiştirmeniz gerekmez: dikte, sesli okuma ve sesli sohbet, cihazınızın yerleşik sesini ücretsiz kullanır. Daha doğru tanıma ya da daha hoş bir ses için bağladığınız bir sağlayıcıya geçin."
+            "value" : "Bağladığınız bir sağlayıcının dikte motoruna geçebilirsiniz. Kayıt saklandı."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bạn không cần thay đổi gì ở đây: đọc chính tả, đọc to và trò chuyện bằng giọng nói đều dùng giọng có sẵn trên thiết bị, miễn phí. Muốn chính xác hơn hoặc giọng hay hơn, hãy chuyển sang nhà cung cấp bạn đã kết nối."
+            "value" : "Bạn có thể chuyển sang công cụ đọc chính tả của nhà cung cấp đã kết nối. Bản ghi âm đã được lưu."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不改这里也能用：听写、朗读和语音对话都交给系统，不花钱。想要更准或更好听，再换成你已连接的供应商。"
+            "value" : "可以换用你已连接的供应商来听写。录音已保存。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不改這裡也能用：聽寫、朗讀和語音對話都交給系統，不花錢。想要更準或更好聽，再換成你已設定連線的供應商。"
-          }
-        }
-      }
-    },
-    "Your conversation engine isn't available anymore, so this conversation uses the current model." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "محرك المحادثة الذي اخترته لم يعد متاحًا، لذا تستخدم هذه المحادثة النموذج الحالي."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Deine Gesprächs-Engine ist nicht mehr verfügbar. Diese Unterhaltung nutzt daher das aktuelle Modell."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Your conversation engine isn't available anymore, so this conversation uses the current model."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tu motor de conversación ya no está disponible, así que esta conversación usa el modelo actual."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Votre moteur de conversation n’est plus disponible : cette conversation utilise donc le modèle actuel."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "आपका चुना हुआ बातचीत का इंजन अब उपलब्ध नहीं है, इसलिए यह बातचीत मौजूदा मॉडल से हो रही है।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mesin percakapan Anda sudah tidak tersedia, jadi percakapan ini memakai model saat ini."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択した会話エンジンは利用できなくなったため、この会話では現在のモデルを使います。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택한 대화 엔진을 더 이상 사용할 수 없어 이번 대화는 현재 모델로 진행합니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seu mecanismo de conversa não está mais disponível, então esta conversa usa o modelo atual."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Выбранный движок диалога больше недоступен, поэтому в этом диалоге используется текущая модель."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "เครื่องมือสนทนาที่เลือกไว้ใช้ไม่ได้แล้ว การสนทนานี้จึงใช้โมเดลปัจจุบัน"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seçtiğiniz sohbet motoru artık kullanılamadığı için bu sohbette mevcut model kullanılıyor."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Công cụ trò chuyện bạn chọn không còn dùng được, nên cuộc trò chuyện này dùng mô hình hiện tại."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所选对话引擎已不可用，这次对话改用当前模型"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所選對話引擎已無法使用，這次對話改用目前模型"
+            "value" : "可以改用你已連接的供應商來聽寫。錄音已儲存。"
           }
         }
       }
@@ -9698,6 +13839,107 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的錄音會傳送給 %@ 轉成文字。Oriveo 不保存錄音，適用該供應商的隱私權政策。"
+          }
+        }
+      }
+    },
+    "Your voice and this chat's history are sent directly to %1$@, and %1$@'s privacy policy applies. Realtime voice is billed by audio length and usually costs more than text chats; charges go to your %1$@ account." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُرسَل صوتك وسجل هذه المحادثة مباشرةً إلى %1$@، وتنطبق سياسة الخصوصية لدى %1$@. يُحتسب الصوت الفوري حسب مدته، وعادةً ما تكون تكلفته أعلى من المحادثات النصية، وتُحمَّل الرسوم على حسابك لدى %1$@."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine Stimme und der Verlauf dieses Chats werden direkt an %1$@ gesendet, und es gilt die Datenschutzerklärung von %1$@. Echtzeit-Audio wird nach Audiodauer abgerechnet und kostet meist mehr als Text-Chats; die Kosten werden deinem %1$@-Konto belastet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your voice and this chat's history are sent directly to %1$@, and %1$@'s privacy policy applies. Realtime voice is billed by audio length and usually costs more than text chats; charges go to your %1$@ account."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu voz y el historial de este chat se envían directamente a %1$@, y se aplica la política de privacidad de %1$@. La voz en tiempo real se cobra según la duración del audio y suele costar más que los chats de texto; el cargo va a tu cuenta de %1$@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre voix et l’historique de cette conversation sont envoyés directement à %1$@, et la politique de confidentialité de %1$@ s’applique. La voix en temps réel est facturée à la durée audio et coûte généralement plus cher que les conversations écrites ; les frais sont imputés à votre compte %1$@."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "आपकी आवाज़ और इस चैट की हिस्ट्री सीधे %1$@ को भेजी जाएगी, और %1$@ की प्राइवेसी पॉलिसी लागू होगी। रियलटाइम वॉइस का बिल ऑडियो की लंबाई के हिसाब से बनता है और आम तौर पर टेक्स्ट चैट से ज़्यादा खर्च आता है; यह खर्च आपके %1$@ अकाउंट से लिया जाएगा।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Suara Anda dan riwayat percakapan ini dikirim langsung ke %1$@, dan kebijakan privasi %1$@ berlaku. Suara real-time ditagih berdasarkan durasi audio dan biasanya lebih mahal daripada percakapan teks; biayanya dibebankan ke akun %1$@ Anda."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あなたの声とこの会話の履歴は %1$@ に直接送信され、%1$@ のプライバシーポリシーが適用されます。リアルタイム音声は音声の長さで課金され、通常はテキストでの会話より高くなります。料金はお使いの %1$@ アカウントに請求されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음성과 이 대화의 기록이 %1$@(으)로 바로 전송되며, %1$@의 개인정보 처리방침이 적용됩니다. 실시간 음성은 오디오 길이에 따라 요금이 부과되어 보통 텍스트 대화보다 비싸며, 요금은 내 %1$@ 계정으로 청구됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua voz e o histórico desta conversa são enviados diretamente para %1$@, e vale a política de privacidade de %1$@. A voz em tempo real é cobrada pela duração do áudio e costuma custar mais que conversas por texto; a cobrança vai para sua conta de %1$@."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ваш голос и история этого чата отправляются напрямую в %1$@, действует политика конфиденциальности %1$@. Голос в реальном времени оплачивается по длительности аудио и обычно обходится дороже текстовых чатов; оплата списывается с вашего аккаунта %1$@."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "เสียงของคุณและประวัติของแชทนี้จะถูกส่งไปยัง %1$@ โดยตรง และนโยบายความเป็นส่วนตัวของ %1$@ จะมีผลบังคับใช้ เสียงเรียลไทม์คิดค่าบริการตามความยาวของเสียงและมักแพงกว่าการแชทด้วยข้อความ ค่าใช้จ่ายจะเรียกเก็บจากบัญชี %1$@ ของคุณ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesiniz ve bu sohbetin geçmişi doğrudan %1$@ hizmetine gönderilir ve %1$@ gizlilik politikası geçerlidir. Gerçek zamanlı ses, ses süresine göre ücretlendirilir ve genellikle yazılı sohbetlerden daha pahalıdır; ücretler %1$@ hesabınıza yansıtılır."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Giọng nói của bạn và lịch sử cuộc trò chuyện này được gửi thẳng đến %1$@, và chính sách quyền riêng tư của %1$@ sẽ được áp dụng. Giọng nói thời gian thực tính phí theo thời lượng âm thanh và thường đắt hơn trò chuyện bằng văn bản; chi phí được tính vào tài khoản %1$@ của bạn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的语音和这个对话的记录会直接发送给 %1$@，适用 %1$@ 的隐私政策。实时语音按音频时长计费，通常比文字对话贵，费用由你的 %1$@ 账户承担。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的語音和這個對話的紀錄會直接傳送給 %1$@，適用 %1$@ 的隱私權政策。即時語音依音訊長度計費，通常比文字對話貴，費用由你的 %1$@ 帳戶支付。"
           }
         }
       }

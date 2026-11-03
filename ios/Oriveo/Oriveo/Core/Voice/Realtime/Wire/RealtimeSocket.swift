@@ -10,6 +10,17 @@ nonisolated protocol RealtimeSocket: Sendable {
     func close()
 }
 
+/// A realtime connection failure that carries the HTTP status of a rejected WebSocket handshake
+/// (S4b failure signals: 401 / 403 → auth, 429 → quota, 404 → model_gone). Never carries the URL or key.
+nonisolated protocol RealtimeHTTPStatusError: Error {
+    var httpStatus: Int? { get }
+}
+
+/// The server answered the WebSocket upgrade with an HTTP error status instead of 101.
+nonisolated struct RealtimeHandshakeError: RealtimeHTTPStatusError, Equatable {
+    let httpStatus: Int?
+}
+
 /// Per-connection URLSession shared by the realtime sockets.
 /// Each connection owns an ephemeral session so a dropped connection is never reused by the next one.
 /// No WebSocket ping (E-199): the observed silent-period drop is the server idling out the session (1008),
@@ -39,6 +50,12 @@ nonisolated final class RealtimeSocketConnection: @unchecked Sendable {
         session.invalidateAndCancel()
     }
 
+    /// HTTP status of a rejected upgrade (≥ 400) read from the task response; nil while open or when none arrived.
+    var handshakeStatus: Int? {
+        guard let status = (task.response as? HTTPURLResponse)?.statusCode, status >= 400 else { return nil }
+        return status
+    }
+
     deinit {
         close()
     }
@@ -54,12 +71,23 @@ nonisolated final class URLSessionRealtimeSocket: RealtimeSocket, @unchecked Sen
     }
 
     func send(_ text: String, completion: @escaping @Sendable (Error?) -> Void) {
-        task.send(.string(text)) { error in completion(error) }
+        let connection = connection
+        task.send(.string(text)) { error in
+            completion(error.map { connection.handshakeStatus.map(RealtimeHandshakeError.init(httpStatus:)) ?? $0 })
+        }
     }
 
+    /// A failure on a rejected handshake surfaces as `RealtimeHandshakeError` with the response status.
     func receive() async throws -> String? {
         while true {
-            if let text = Self.text(of: try await task.receive()) { return text }
+            let message: URLSessionWebSocketTask.Message
+            do {
+                message = try await task.receive()
+            } catch {
+                if let status = connection.handshakeStatus { throw RealtimeHandshakeError(httpStatus: status) }
+                throw error
+            }
+            if let text = Self.text(of: message) { return text }
         }
     }
 

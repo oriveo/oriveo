@@ -34,6 +34,7 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.context.ConversationInstructions
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
+import ai.oriveo.community.ui.component.oriveoSwitchColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 /** Pure rules behind the chat settings sheet. */
@@ -167,6 +168,7 @@ fun ConversationSettingsSheet(
                         Switch(
                             checked = memoryEnabled,
                             onCheckedChange = { onToggleUseMemory() },
+                            colors = oriveoSwitchColors(),
                             modifier = Modifier
                                 .semantics { contentDescription = useMemoryLabel }
                                 ,

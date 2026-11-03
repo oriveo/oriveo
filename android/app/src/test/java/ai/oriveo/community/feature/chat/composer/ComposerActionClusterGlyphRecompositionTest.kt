@@ -9,8 +9,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performClick
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 import org.junit.After
@@ -118,6 +121,65 @@ class ComposerActionClusterGlyphRecompositionTest {
         composeRule.onNodeWithContentDescription(context.getString(R.string.stop)).assertExists()
         composeRule.onNodeWithContentDescription(context.getString(R.string.send)).assertDoesNotExist()
         composeRule.onNodeWithContentDescription(context.getString(R.string.voice_conversation_start_a11y)).assertDoesNotExist()
+    }
+
+    @Test
+    fun loading_mode_announces_loading_and_ignores_tap() {
+        var awaiting by mutableStateOf(true)
+        var taps = 0
+        var voiceTaps = 0
+        val context = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        context.setContent {
+            OriveoTheme(darkTheme = false) {
+                ComposerActionCluster(
+                    isGenerating = false,
+                    isPrimed = true,
+                    enabled = true,
+                    voiceAvailable = true,
+                    onStartVoice = { voiceTaps++ },
+                    awaitingCatalog = awaiting,
+                    onClick = { taps++ },
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        val loading = context.getString(R.string.voice_realtime_model_loading)
+        composeRule.onNodeWithContentDescription(loading).assertExists()
+        // Screen readers must see "unavailable" in both the merged and unmerged trees
+        composeRule.onNodeWithContentDescription(loading, useUnmergedTree = true).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(loading, useUnmergedTree = false).assertIsNotEnabled()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.send)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.voice_conversation_start_a11y)).assertDoesNotExist()
+        composeRule.onNodeWithContentDescription(loading).performClick()
+        composeRule.waitForIdle()
+        assertEquals("Primary button in loading state must not respond to taps", 0, taps + voiceTaps)
+
+        // Catalog arrived: restore the up arrow; screen reader no longer reports loading
+        awaiting = false
+        composeRule.waitForIdle()
+        composeRule.onNodeWithContentDescription(context.getString(R.string.send)).assertExists()
+        composeRule.onNodeWithContentDescription(loading).assertDoesNotExist()
+    }
+
+    @Test
+    fun loading_mode_off_key_is_enabled() {
+        val context = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
+        context.setContent {
+            OriveoTheme(darkTheme = false) {
+                ComposerActionCluster(
+                    isGenerating = false,
+                    isPrimed = true,
+                    enabled = true,
+                    voiceAvailable = true,
+                    onStartVoice = {},
+                    awaitingCatalog = false,
+                    onClick = {},
+                )
+            }
+        }
+        composeRule.waitForIdle()
+        // The primary button is enabled outside loading state; guards against disabled() landing on another icon
+        composeRule.onNodeWithContentDescription(context.getString(R.string.send)).assertIsEnabled()
     }
 
     private companion object {

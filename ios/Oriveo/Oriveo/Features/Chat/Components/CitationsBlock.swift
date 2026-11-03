@@ -140,7 +140,7 @@ final class CitationsBlock: UIView {
 
         toggleButton.titleLabel?.font = .systemFont(ofSize: 13, weight: .medium)
         toggleButton.contentHorizontalAlignment = .leading
-        toggleButton.setTitleColor(UIColor(OriveoTheme.Palette.primary), for: .normal)
+        toggleButton.setTitleColor(OriveoTheme.Palette.primaryTextOnSurfaceUIColor, for: .normal)
         toggleButton.addTarget(self, action: #selector(toggleTapped), for: .touchUpInside)
         toggleButton.isHidden = true
         containerStack.addArrangedSubview(toggleButton)
@@ -280,7 +280,7 @@ private final class CitationRowView: UIControl {
         ])
 
         indexLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        indexLabel.textColor = UIColor(OriveoTheme.Palette.primary)
+        indexLabel.textColor = OriveoTheme.Palette.primaryTextOnSurfaceUIColor
         indexLabel.setContentHuggingPriority(.required, for: .horizontal)
         indexLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         row.addArrangedSubview(indexLabel)

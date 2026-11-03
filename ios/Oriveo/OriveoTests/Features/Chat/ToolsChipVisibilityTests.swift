@@ -58,4 +58,24 @@ struct ToolsChipVisibilityTests {
         let state = try load(database)
         #expect(ComposerToolsChipState.resolve(featureEnabled: false, panelState: state) == nil)
     }
+
+    @Test("Realtime model selected, typing state: chip shown but unavailable, reads out the realtime reason")
+    func realtimeTypingShownUnavailable() throws {
+        let database = try McpTestDatabase.make(); defer { database.cleanUp() }
+        try addServer(database)
+        let state = try load(database)
+        let chip = try #require(
+            ComposerToolsChipState.resolve(featureEnabled: true, panelState: state, realtimeMode: .typing)
+        )
+        #expect(!chip.isAvailable)
+        #expect(chip.accessibilityValue == L10n.tr("Realtime voice models can't use tools.", table: .voice))
+    }
+
+    @Test("Realtime model selected, voice stage state: chip absent")
+    func realtimeStageHidden() throws {
+        let database = try McpTestDatabase.make(); defer { database.cleanUp() }
+        try addServer(database)
+        let state = try load(database)
+        #expect(ComposerToolsChipState.resolve(featureEnabled: true, panelState: state, realtimeMode: .stage) == nil)
+    }
 }

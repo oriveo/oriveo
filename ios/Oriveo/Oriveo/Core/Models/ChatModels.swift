@@ -636,6 +636,16 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
     var stopReason: StopReason? = nil
     /// IDs of the memory items injected into this answer (plan.memoryIds): stored in the local database only, not in backups (not in CodingKeys).
     var memoryItemIds: [String] = []
+    /// User messages: skills attached when sent, in order (skill_sync_fields.v1). Empty on other roles.
+    var attachedSkillIds: [String] = []
+    /// Assistant messages: skills this reply used (skill_sync_fields.v1). Empty on other roles.
+    var usedSkills: [UsedSkill] = []
+    /// v45_message_remote_confirmed_at: the moment (ms) the server's authoritative read was seen. nil = pre-migration legacy row; 0 = created locally,
+    /// not yet seen on the server (new rows are always 0); >0 = confirmed by the server. Local only: not synced, not in the field golden samples or backups (not in CodingKeys).
+    var remoteConfirmedAt: Int64? = 0
+    /// Estimated skill list overhead tokens of this turn (skill_manifest_cost.v1); nil = not recorded (old rows,
+    /// turns without a manifest). Local only: not synced, not backed up (not in CodingKeys).
+    var skillManifestTokens: Int? = nil
     /// Set to the local time on creation; optional so that old backups can still be imported
     var createdAt: Date? = Date()
     var inputTokens: Int? = nil
@@ -677,7 +687,9 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
     /// or the non-USD part is recorded. A mixed-currency message counts once.
     nonisolated var isBilled: Bool {
         let usdRecorded = estimatedCost > CostFormatter.costEpsilon
-            && (costSource == nil || costSource == .upstream || costSource == .localEstimate)
+            && (costSource == nil || costSource == .upstream || costSource == .localEstimate
+                // Hosted messages count only when they carry an amount.
+                || costSource == .managed)
         return usdRecorded || billedNonUsdCost != nil
     }
 
@@ -811,6 +823,10 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         toolSteps: [McpToolStep]? = nil,
         stopReason: StopReason? = nil,
         memoryItemIds: [String] = [],
+        attachedSkillIds: [String] = [],
+        usedSkills: [UsedSkill] = [],
+        remoteConfirmedAt: Int64? = 0,
+        skillManifestTokens: Int? = nil,
         createdAt: Date? = Date(),
         inputTokens: Int? = nil,
         outputTokens: Int? = nil,
@@ -846,6 +862,10 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         self.toolSteps = toolSteps
         self.stopReason = stopReason
         self.memoryItemIds = memoryItemIds
+        self.attachedSkillIds = attachedSkillIds
+        self.usedSkills = usedSkills
+        self.remoteConfirmedAt = remoteConfirmedAt
+        self.skillManifestTokens = skillManifestTokens
         self.createdAt = createdAt
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -873,6 +893,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         case recoveryPrimaryAction = "managedPrimaryAction"
         // Why the stream ended, stored as the fixture raw value; unknown strings read as unknown.
         case stopReason
+        case attachedSkillIds, usedSkills
     }
 
     init(from decoder: Decoder) throws {
@@ -915,9 +936,15 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         cacheCreationInputTokens = try c.decodeIfPresent(Int.self, forKey: .cacheCreationInputTokens)
         cacheCreation5mTokens = try c.decodeIfPresent(Int.self, forKey: .cacheCreation5mTokens)
         cacheCreation1hTokens = try c.decodeIfPresent(Int.self, forKey: .cacheCreation1hTokens)
-        costSource = try c.decodeIfPresent(CostSource.self, forKey: .costSource)
+        // Decode as String first: an unknown raw value reads as .unknown instead of failing the
+        // whole message (same rule as SyncAdapter.costSource(fromFirestore:)); a missing key stays nil.
+        costSource = try c.decodeIfPresent(String.self, forKey: .costSource)
+            .map { CostSource(rawValue: $0) ?? .unknown }
         nonUsdCost = try? c.decodeIfPresent(NonUsdCost.self, forKey: .nonUsdCost)
         stopReason = StopReason.fromStored(try? c.decodeIfPresent(String.self, forKey: .stopReason))
+        // Skills revamp fields: missing or malformed keys decode as empty.
+        attachedSkillIds = ((try? c.decodeIfPresent([String].self, forKey: .attachedSkillIds)) ?? nil) ?? []
+        usedSkills = ((try? c.decodeIfPresent([UsedSkill].self, forKey: .usedSkills)) ?? nil) ?? []
         capabilityExecution = nil
         unhandledToolCalls = nil
         toolFallbackNotice = nil
@@ -949,6 +976,8 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         }
         try c.encodeIfPresent(citations, forKey: .citations)
         try c.encodeIfPresent(toolSteps, forKey: .toolSteps)
+        if !attachedSkillIds.isEmpty { try c.encode(attachedSkillIds, forKey: .attachedSkillIds) }
+        if !usedSkills.isEmpty { try c.encode(usedSkills, forKey: .usedSkills) }
         try c.encodeIfPresent(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(inputTokens, forKey: .inputTokens)
         try c.encodeIfPresent(outputTokens, forKey: .outputTokens)
@@ -996,8 +1025,18 @@ struct Conversation: Identifiable, Hashable, Codable {
     var updatedAt: Date = Date()
     var folderID: UUID?
     var useMemory: Bool = true
-    var skillId: UUID?
+    /// Selected skills (chips), in selection order (skill_sync_fields.v1; sync ids, at most 3).
+    var skillIds: [String] = []
+    /// Skills the user turned off for automatic use in this conversation.
+    var disabledAutoSkillIds: [String] = []
+    /// Legacy single skill: the first selected skill. Setting it replaces the whole selection.
+    var skillId: UUID? {
+        get { skillIds.first.flatMap(UUID.init(uuidString:)) }
+        set { skillIds = newValue.map { [$0.uuidString] } ?? [] }
+    }
+    /// Metadata-level LWW tracking: changes that do not affect ordering, such as rename / model switch / folder move.
     var metadataUpdatedAt: Date?
+    /// Display-only messageCount override for list rows; falls back to messages.count when a legacy full thread is absent.
     var messageCountOverride: Int?
     /// Whether `messages` is the complete stored thread. Summary projections that read only the
     /// conversation row set this to false: an empty `messages` then means "not read", not "deleted",
@@ -1068,7 +1107,7 @@ struct Conversation: Identifiable, Hashable, Codable {
         case id, title, hasCustomTitle, providerID, providerKind, modelID, previewText
         case estimatedCost, isDraft, messages, draftText
         case estimatedCostText, createdAt, updatedAt
-        case updatedAtText, folderID, useMemory, skillId
+        case updatedAtText, folderID, useMemory, skillId, skillIds, disabledAutoSkillIds
         case metadataUpdatedAt
         case deletedAt
         case isConflictCopy
@@ -1100,7 +1139,11 @@ struct Conversation: Identifiable, Hashable, Codable {
 
         folderID = try c.decodeIfPresent(UUID.self, forKey: .folderID)
         useMemory = try c.decode(Bool.self, forKey: .useMemory)
-        skillId = try c.decodeIfPresent(UUID.self, forKey: .skillId)
+        // Missing / malformed keys decode as no selection; old payloads only carry skillId.
+        let legacySkillId = (try? c.decodeIfPresent(UUID.self, forKey: .skillId)) ?? nil
+        let decodedSkillIds = (try? c.decodeIfPresent([String].self, forKey: .skillIds)) ?? nil
+        skillIds = SkillSyncFields.localSkillIds(skillIds: decodedSkillIds ?? [], legacySkillId: legacySkillId?.uuidString)
+        disabledAutoSkillIds = ((try? c.decodeIfPresent([String].self, forKey: .disabledAutoSkillIds)) ?? nil) ?? []
         metadataUpdatedAt = try c.decodeIfPresent(Date.self, forKey: .metadataUpdatedAt)
         deletedAt = try c.decodeIfPresent(Date.self, forKey: .deletedAt)
         isConflictCopy = try c.decodeIfPresent(Bool.self, forKey: .isConflictCopy) ?? false
@@ -1125,6 +1168,8 @@ struct Conversation: Identifiable, Hashable, Codable {
         try c.encodeIfPresent(folderID, forKey: .folderID)
         try c.encode(useMemory, forKey: .useMemory)
         try c.encodeIfPresent(skillId, forKey: .skillId)
+        if !skillIds.isEmpty { try c.encode(skillIds, forKey: .skillIds) }
+        if !disabledAutoSkillIds.isEmpty { try c.encode(disabledAutoSkillIds, forKey: .disabledAutoSkillIds) }
         try c.encodeIfPresent(metadataUpdatedAt, forKey: .metadataUpdatedAt)
         try c.encodeIfPresent(deletedAt, forKey: .deletedAt)
         if isConflictCopy {
@@ -1152,7 +1197,8 @@ extension Conversation {
         if providerID != other.providerID { return false }
         if modelID != other.modelID { return false }
         if folderID != other.folderID { return false }
-        if skillId != other.skillId { return false }
+        if skillIds != other.skillIds { return false }
+        if disabledAutoSkillIds != other.disabledAutoSkillIds { return false }
         if useMemory != other.useMemory { return false }
         if previewText != other.previewText { return false }
         if messageCountOverride != other.messageCountOverride { return false }
@@ -1255,13 +1301,156 @@ enum CostFormatter {
     /// Floating-point noise threshold: values below it count as 0.
     nonisolated static let costEpsilon: Double = 0.00001
 
-    nonisolated static func format(_ value: Double) -> String {
+    /// Formats a Double cost value as a display string.
+    nonisolated static func format(_ value: Double, locale: Locale = AppLocalization.currentLocale) -> String {
         guard value.isFinite, value > costEpsilon, let digits = fractionDigits(value) else { return "" }
-        return String(format: "$%.\(digits)f", roundedHalfAwayFromZero(value, digits: digits))
+        return usd(
+            roundedHalfAwayFromZero(value, digits: digits),
+            minFraction: digits,
+            maxFraction: digits,
+            locale: locale
+        )
+    }
+
+    /// Shared USD display: the locale's platform currency pattern with the symbol forced to "$"
+    /// (never US$ / $US / USD), grouping on, and Latin digits for Arabic. Callers keep their own
+    /// fraction digits and rounding; only symbol placement and separators follow the locale.
+    nonisolated static func usd(
+        _ value: Double,
+        minFraction: Int,
+        maxFraction: Int,
+        locale: Locale = AppLocalization.currentLocale,
+        roundingMode: NumberFormatter.RoundingMode = .halfUp
+    ) -> String {
+        // Non-finite amounts render empty, same as Android / Web; a formatter failure also yields "".
+        guard value.isFinite else { return "" }
+        return withUsdFormatter(locale: locale, minFraction: minFraction, maxFraction: maxFraction, roundingMode: roundingMode) {
+            $0.string(from: NSNumber(value: value))
+        } ?? ""
+    }
+
+    /// Managed usage charge: server micro-USD formatted on the client per locale, rounded half-up to 2 digits.
+    nonisolated static func managedChargeMicroUSD(_ micro: Int64, locale: Locale = AppLocalization.currentLocale) -> String {
+        usd(Double(micro) / 1_000_000, minFraction: 2, maxFraction: 2, locale: locale, roundingMode: .halfUp)
+    }
+
+    /// Wallet ledger amount: server micro-USD formatted on the client per locale, same precision as the server
+    /// (at least 2, at most 6 fraction digits, trailing zeros dropped; micro-USD is exact so nothing is rounded).
+    /// Negative amounts use the platform minus sign; positive amounts carry no "+".
+    nonisolated static func managedLedgerMicroUSD(_ micro: Int64, locale: Locale = AppLocalization.currentLocale) -> String {
+        usd(Double(micro) / 1_000_000, minFraction: 2, maxFraction: 6, locale: locale)
+    }
+
+    /// Splits a USD display string into leading symbol / integer / fraction / trailing symbol using the
+    /// locale's currency decimal separator, so both "$103.98" (en) and "103,98 $" (de) split correctly.
+    /// Returns nil when the text carries no digits (placeholders such as "--").
+    /// Bidi marks (LRM / RLM / ALM) are removed first so they never end up inside a symbol part.
+    nonisolated static func usdParts(_ text: String, locale: Locale = AppLocalization.currentLocale) -> UsdDisplayParts? {
+        let chars = Array(strippingBidiMarks(text))
+        guard let first = chars.firstIndex(where: \.isNumber),
+              let last = chars.lastIndex(where: \.isNumber) else { return nil }
+        let body = String(chars[first...last])
+        let separator = withUsdFormatter(locale: locale, minFraction: 2, maxFraction: 2, roundingMode: .halfUp) {
+            $0.currencyDecimalSeparator
+        } ?? "."
+        var integer = body
+        var fraction = ""
+        if !separator.isEmpty, let range = body.range(of: separator, options: .backwards) {
+            integer = String(body[..<range.lowerBound])
+            fraction = String(body[range.lowerBound...])
+        }
+        return UsdDisplayParts(
+            leadingSymbol: String(chars[..<first]),
+            integer: integer,
+            fraction: fraction,
+            trailingSymbol: String(chars[chars.index(after: last)...])
+        )
+    }
+
+    /// Removes the invisible bidi marks U+200E (LRM), U+200F (RLM) and U+061C (ALM) that some
+    /// locales (e.g. ar) insert around currency text, so the text can be split into parts.
+    nonisolated static func strippingBidiMarks(_ text: String) -> String {
+        var scalars = String.UnicodeScalarView()
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "\u{200E}", "\u{200F}", "\u{061C}": continue
+            default: scalars.append(scalar)
+            }
+        }
+        return String(scalars)
+    }
+
+    nonisolated private struct UsdFormatterKey: Hashable {
+        let locale: String
+        let minFraction: Int
+        let maxFraction: Int
+        let roundingMode: UInt
+    }
+
+    nonisolated private static let usdFormatterLock = NSLock()
+    nonisolated(unsafe) private static var usdFormatters: [UsdFormatterKey: NumberFormatter] = [:]
+
+    /// Reuses one NumberFormatter per (locale, fraction digits, rounding); the formatter is only touched inside the lock.
+    nonisolated private static func withUsdFormatter<T>(
+        locale: Locale,
+        minFraction: Int,
+        maxFraction: Int,
+        roundingMode: NumberFormatter.RoundingMode,
+        _ body: (NumberFormatter) -> T
+    ) -> T {
+        let key = UsdFormatterKey(
+            locale: locale.identifier,
+            minFraction: minFraction,
+            maxFraction: maxFraction,
+            roundingMode: roundingMode.rawValue
+        )
+        usdFormatterLock.lock()
+        defer { usdFormatterLock.unlock() }
+        if let cached = usdFormatters[key] { return body(cached) }
+        let formatter = NumberFormatter()
+        formatter.locale = usdFormattingLocale(locale)
+        formatter.numberStyle = .currency
+        formatter.currencyCode = CostCalculator.usd
+        formatter.currencySymbol = "$"
+        formatter.usesGroupingSeparator = true
+        formatter.minimumFractionDigits = minFraction
+        formatter.maximumFractionDigits = maxFraction
+        formatter.roundingMode = roundingMode
+        usdFormatters[key] = formatter
+        return body(formatter)
+    }
+
+    #if DEBUG
+    /// Test hook: identity of the cached formatter for a key, to prove reuse without exposing the formatter.
+    nonisolated static func usdFormatterIdentity(
+        locale: Locale,
+        minFraction: Int,
+        maxFraction: Int,
+        roundingMode: NumberFormatter.RoundingMode = .halfUp
+    ) -> ObjectIdentifier {
+        withUsdFormatter(locale: locale, minFraction: minFraction, maxFraction: maxFraction, roundingMode: roundingMode) {
+            ObjectIdentifier($0)
+        }
+    }
+    #endif
+
+    /// Arabic always renders Latin digits (same rule as `L10n.formattingLocale`); other locales pass through.
+    nonisolated private static func usdFormattingLocale(_ locale: Locale) -> Locale {
+        guard locale.language.languageCode?.identifier == "ar" else { return locale }
+        var components = Locale.Components(locale: locale)
+        components.numberingSystem = Locale.NumberingSystem("latn")
+        return Locale(components: components)
     }
 
     /// Round half away from zero (the same rule on every platform); printf itself rounds half to even on the binary value, so round first and hand the result to it.
+    /// Rounds on the shortest decimal of the amount (fixture usd_half_rounds_away_from_zero: 1.005 is stored
+    /// as 1.00499..., must still round to 1.01).
     nonisolated static func roundedHalfAwayFromZero(_ value: Double, digits: Int) -> Double {
+        if var decimal = Decimal(string: "\(value)", locale: Locale(identifier: "en_US_POSIX")) {
+            var rounded = Decimal()
+            NSDecimalRound(&rounded, &decimal, digits, .plain)
+            return NSDecimalNumber(decimal: rounded).doubleValue
+        }
         let scale = pow(10, Double(digits))
         return (value * scale).rounded(.toNearestOrAwayFromZero) / scale
     }
@@ -1280,12 +1469,12 @@ enum CostFormatter {
     nonisolated static func format(
         parts: [CurrencyAmount],
         locale: Locale,
-        usd: (Double) -> String = { format($0) }
+        usd: ((Double) -> String)? = nil
     ) -> String {
         parts
             .map { part in
                 part.currencyCode == CostCalculator.usd
-                    ? usd(part.amount)
+                    ? (usd?(part.amount) ?? format(part.amount, locale: locale))
                     : formatNonUsd(part.amount, currencyCode: part.currencyCode, locale: locale)
             }
             .filter { !$0.isEmpty }
@@ -1332,13 +1521,14 @@ enum CostFormatter {
     }
 
     /// Conversation / summary total text (UI locale).
-    static func totalsText(usd: Double, nonUsdTotals: [String: Double], usdFormat: (Double) -> String = { format($0) }) -> String {
+    static func totalsText(usd: Double, nonUsdTotals: [String: Double], usdFormat: ((Double) -> String)? = nil) -> String {
         format(parts: parts(usd: usd, nonUsdTotals: nonUsdTotals), locale: AppLocalization.currentLocale, usd: usdFormat)
     }
 
-    nonisolated static func formatPerMillion(_ perTokenPrice: Double) -> String {
-        guard perTokenPrice > 0 else { return "" }
-        return "$\(perMillionDigitsText(perTokenPrice))/M"
+    /// Formats a per-token price as a priceTier (e.g. "$2.5/M").
+    nonisolated static func formatPerMillion(_ perTokenPrice: Double, locale: Locale = AppLocalization.currentLocale) -> String {
+        guard perTokenPrice > 0, let perMillion = Double(perMillionDigitsText(perTokenPrice)) else { return "" }
+        return usd(perMillion, minFraction: 0, maxFraction: 6, locale: locale) + "/M"
     }
 
     /// The numeric part of a USD per-million price label: three significant digits, `%g` strips trailing zeros (integers carry no decimals). Non-USD takes its fraction digits from it.
@@ -1351,7 +1541,7 @@ enum CostFormatter {
     /// position, see `NonUsdCurrencyFormatters`). An empty `currencyCode` means USD.
     nonisolated static func formatPerMillion(_ perTokenPrice: Double, currencyCode: String?, locale: Locale) -> String {
         let code = CostCalculator.normalizedCurrency(currencyCode)
-        guard code != CostCalculator.usd else { return formatPerMillion(perTokenPrice) }
+        guard code != CostCalculator.usd else { return formatPerMillion(perTokenPrice, locale: locale) }
         guard perTokenPrice.isFinite, perTokenPrice >= 0 else { return "" }
         let text = perMillionDigitsText(perTokenPrice)
         guard let perMillion = Double(text) else { return "" }
@@ -1373,20 +1563,34 @@ enum CostFormatter {
         return Double(cleaned) ?? 0
     }
 
+    /// Usage Insights currency helper: micro amounts (< $0.1) use 3-4 fraction digits, others 2.
+    /// `currencyCode` is kept for API compatibility; the product only shows USD.
     static func localizedCurrency(_ value: Double, currencyCode: String) -> String {
-        let formatter = NumberFormatter()
-        formatter.locale = AppLocalization.currentLocale
-        formatter.numberStyle = .decimal
-        if value < 0.1 {
-            formatter.minimumFractionDigits = 3
-            formatter.maximumFractionDigits = 4
-        } else {
-            formatter.minimumFractionDigits = 2
-            formatter.maximumFractionDigits = 2
-        }
-        let number = formatter.string(from: NSNumber(value: value)) ?? "\(value)"
-        return "$\(number)"
+        // Keeps the previous NumberFormatter default rounding (half-even); only placement changes.
+        value < 0.1
+            ? usd(value, minFraction: 3, maxFraction: 4, roundingMode: .halfEven)
+            : usd(value, minFraction: 2, maxFraction: 2, roundingMode: .halfEven)
     }
+
+    /// Managed balance: truncated (never rounded up) to two fixed fraction digits, same rule on every platform.
+    /// Does not reuse `localizedCurrency`, whose < $0.1 branch would show 3-4 digits.
+    nonisolated static func managedBalanceMicroUSD(_ micro: Int64) -> String {
+        managedBalanceMicroUSD(micro, locale: AppLocalization.currentLocale)
+    }
+
+    nonisolated static func managedBalanceMicroUSD(_ micro: Int64, locale: Locale) -> String {
+        // Truncation happens in the formatter (.down) on the exact micro value, so a pre-truncated
+        // binary double such as 103.97999... can never drop a cent.
+        usd(Double(Swift.max(0, micro)) / 1_000_000, minFraction: 2, maxFraction: 2, locale: locale, roundingMode: .down)
+    }
+}
+
+/// A USD display string split for tiered typography; the symbol sits on whichever side the locale puts it.
+nonisolated struct UsdDisplayParts: Equatable, Sendable {
+    var leadingSymbol: String
+    var integer: String
+    var fraction: String
+    var trailingSymbol: String
 }
 
 nonisolated struct NonUsdCurrencyFormatters: Sendable {
@@ -1412,4 +1616,190 @@ nonisolated struct UnhandledToolCall: Codable, Hashable, Sendable {
 nonisolated enum ToolFallbackNotice: String, Sendable {
     /// The remote MCP tool loop hit its step limit; the tool step block says so in its last row.
     case mcpToolLimitReached = "mcp_tool_limit_reached"
+}
+
+// MARK: - Skills revamp sync fields (skill_sync_fields.v1)
+
+/// One skill a reply used (assistant message `usedSkills`). `name` is kept so the chip still renders after the
+/// skill is deleted; `via` is `auto` or `manual`; `reason` only for auto, nil when empty.
+nonisolated struct UsedSkill: Codable, Hashable, Sendable {
+    var id: String
+    var name: String
+    var via: String
+    var reason: String?
+
+    init(id: String, name: String, via: String, reason: String? = nil) {
+        self.id = id
+        self.name = name
+        self.via = via
+        self.reason = reason
+    }
+
+    var firestoreData: [String: Any] {
+        var data: [String: Any] = ["id": id, "name": name, "via": via]
+        if let reason, !reason.isEmpty { data["reason"] = reason }
+        return data
+    }
+}
+
+/// Write / read rules of the shared contract `skill-contracts/skill_sync_fields.v1.json` (same semantics as the reference
+/// implementation's conversationWrite / conversationRead / messageWrite / messageRead).
+nonisolated enum SkillSyncFields {
+    static let skillIdsMax = 3
+    static let disabledAutoSkillIdsMax = 30
+    static let reasonMax = 60
+    static let usedSkillVia: Set<String> = ["auto", "manual"]
+
+    /// Unicode White_Space, same set as the assemble.v1 trim().
+    private static func isWhiteSpace(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x09...0x0D, 0x20, 0x85, 0xA0, 0x1680, 0x2000...0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000:
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func trim(_ text: String) -> String {
+        let scalars = Array(text.unicodeScalars)
+        guard let start = scalars.firstIndex(where: { !isWhiteSpace($0) }),
+              let end = scalars.lastIndex(where: { !isWhiteSpace($0) }) else { return "" }
+        var view = String.UnicodeScalarView()
+        view.append(contentsOf: scalars[start...end])
+        return String(view)
+    }
+
+    /// Runs of white space become one space, then trim.
+    static func collapse(_ text: String) -> String {
+        var view = String.UnicodeScalarView()
+        var inSpace = false
+        for scalar in text.unicodeScalars {
+            if isWhiteSpace(scalar) {
+                if !inSpace { view.append(" ") }
+                inSpace = true
+            } else {
+                view.append(scalar)
+                inSpace = false
+            }
+        }
+        return trim(String(view))
+    }
+
+    /// Sync-layer id: trimmed; UUIDs upper-cased (like Web normalizeUUID), anything else unchanged.
+    static func syncId(_ raw: String) -> String {
+        let trimmed = trim(raw)
+        return isUUIDText(trimmed) ? trimmed.uppercased() : trimmed
+    }
+
+    private static func isUUIDText(_ text: String) -> Bool {
+        let parts = text.split(separator: "-", omittingEmptySubsequences: false)
+        guard parts.map(\.count) == [8, 4, 4, 4, 12] else { return false }
+        return parts.allSatisfy { part in part.unicodeScalars.allSatisfy { $0.properties.isASCIIHexDigit } }
+    }
+
+    /// Normalised, deduplicated in order, non-string / blank items skipped, first `max` kept.
+    static func idList(_ raw: Any?, max: Int) -> [String] {
+        var out: [String] = []
+        for item in raw as? [Any] ?? [] {
+            guard let text = item as? String else { continue }
+            let id = syncId(text)
+            if !id.isEmpty, !out.contains(id) { out.append(id) }
+        }
+        return Array(out.prefix(max))
+    }
+
+    /// Conversation payload keys: `skillIds` + dual-written `skillId` only when non-empty; `disabledAutoSkillIds`
+    /// only when non-empty.
+    static func conversationWrite(skillIds: [String], disabledAutoSkillIds: [String]) -> [String: Any] {
+        var out: [String: Any] = [:]
+        let ids = idList(skillIds, max: skillIdsMax)
+        if let first = ids.first {
+            out["skillIds"] = ids
+            out["skillId"] = first
+        }
+        let disabled = idList(disabledAutoSkillIds, max: disabledAutoSkillIdsMax)
+        if !disabled.isEmpty { out["disabledAutoSkillIds"] = disabled }
+        return out
+    }
+
+    /// Conversation document → local values. A string `skillId` that differs from `skillIds[0]` means an old
+    /// client changed it, so it wins as a single selection.
+    static func conversationRead(_ doc: [String: Any]) -> (skillIds: [String], disabledAutoSkillIds: [String]) {
+        var legacy: String?
+        if let raw = doc["skillId"] as? String, !trim(raw).isEmpty { legacy = syncId(raw) }
+        var skillIds: [String]
+        if doc["skillIds"] is [Any] {
+            skillIds = idList(doc["skillIds"], max: skillIdsMax)
+            if let legacy, skillIds.first != legacy { skillIds = [legacy] }
+        } else {
+            skillIds = legacy.map { [$0] } ?? []
+        }
+        return (skillIds, idList(doc["disabledAutoSkillIds"], max: disabledAutoSkillIdsMax))
+    }
+
+    /// Valid `usedSkills` entries from local values or a document array.
+    static func usedSkills(_ raw: Any?) -> [UsedSkill] {
+        var out: [UsedSkill] = []
+        let items: [Any]
+        if let local = raw as? [UsedSkill] {
+            items = local.map { entry -> [String: Any] in
+                var data: [String: Any] = ["id": entry.id, "name": entry.name, "via": entry.via]
+                if let reason = entry.reason { data["reason"] = reason }
+                return data
+            }
+        } else {
+            items = raw as? [Any] ?? []
+        }
+        for item in items {
+            guard let entry = item as? [String: Any],
+                  let rawID = entry["id"] as? String,
+                  let rawName = entry["name"] as? String,
+                  let via = entry["via"] as? String, usedSkillVia.contains(via) else { continue }
+            let id = syncId(rawID)
+            guard !id.isEmpty, !trim(rawName).isEmpty, !out.contains(where: { $0.id == id }) else { continue }
+            let reasonText = (entry["reason"] as? String).map { cutCodePoints(collapse($0), reasonMax) } ?? ""
+            out.append(UsedSkill(id: id, name: collapse(rawName), via: via, reason: reasonText.isEmpty ? nil : reasonText))
+        }
+        return out
+    }
+
+    private static func cutCodePoints(_ text: String, _ max: Int) -> String {
+        var view = String.UnicodeScalarView()
+        view.append(contentsOf: text.unicodeScalars.prefix(max))
+        return String(view)
+    }
+
+    /// Message payload keys: `attachedSkillIds` on user messages, `usedSkills` on assistant messages, only when
+    /// non-empty; ignored on other roles.
+    static func messageWrite(role: ChatRole, attachedSkillIds: [String], usedSkills used: [UsedSkill]) -> [String: Any] {
+        var out: [String: Any] = [:]
+        if role == .user {
+            let ids = idList(attachedSkillIds, max: skillIdsMax)
+            if !ids.isEmpty { out["attachedSkillIds"] = ids }
+        }
+        if role == .assistant {
+            let entries = usedSkills(used)
+            if !entries.isEmpty { out["usedSkills"] = entries.map(\.firestoreData) }
+        }
+        return out
+    }
+
+    static func messageRead(role: ChatRole?, doc: [String: Any]) -> (attachedSkillIds: [String], usedSkills: [UsedSkill]) {
+        (
+            role == .user ? idList(doc["attachedSkillIds"], max: skillIdsMax) : [],
+            role == .assistant ? usedSkills(doc["usedSkills"]) : []
+        )
+    }
+
+    /// "Turn off for this conversation": append once (normalised), keep the first `disabledAutoSkillIdsMax`.
+    static func disablingAutoSkill(_ skillId: String, in current: [String]) -> [String] {
+        idList(current + [skillId], max: disabledAutoSkillIdsMax)
+    }
+
+    /// Local skill selection: `skillIds` when set, otherwise the legacy single `skillId` column.
+    static func localSkillIds(skillIds: [String], legacySkillId: String?) -> [String] {
+        if !skillIds.isEmpty { return skillIds }
+        guard let legacySkillId, !trim(legacySkillId).isEmpty else { return [] }
+        return [syncId(legacySkillId)]
+    }
 }

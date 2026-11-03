@@ -255,6 +255,13 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         if cachedPoolUID == uid, let cachedPool {
             return cachedPool
         }
+        // Same reuse rule as the main store: a retiring sidecar of this uid that has not closed yet is handed out
+        // (not cached) instead of opening another connection, and closes with its retirement. Only for a departing
+        // uid: once the uid is the manager's current / secondary partition again, open (and cache) a fresh pool.
+        if DatabaseManager.shared.openedPool(for: uid) == nil,
+           let retiring = DatabaseManager.shared.retiringPool(for: uid, store: .continuationSidecar) {
+            return retiring
+        }
 
         let directory = AppSessionStore.userDir(for: uid).appendingPathComponent("LocalOnly", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -283,14 +290,17 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         _ = try? localOnlyPool(for: uid)
     }
 
-    /// Drop the cached pool on logout / uid switch. Mirrors `DatabaseManager.close()`: the
-    /// reference is released and the connection closes with the pool, rather than calling
-    /// `close()` while an observation may still hold it.
-    static func closeLocalOnlyPool() {
+    /// Drop the cached pool on logout / uid switch and really close it through the same retirement as
+    /// `DatabaseManager.close(after:)`: the reference is dropped synchronously, `pool.close()` runs on `queue`
+    /// after its already enqueued writes (or on the manager's own serial queue when nil), off the main thread.
+    static func closeLocalOnlyPool(after queue: DispatchQueue? = nil) {
         poolLock.lock()
+        defer { poolLock.unlock() }
+        if let cachedPoolUID, let cachedPool {
+            DatabaseManager.shared.retire(cachedPool, uid: cachedPoolUID, store: .continuationSidecar, after: queue)
+        }
         cachedPoolUID = nil
         cachedPool = nil
-        poolLock.unlock()
     }
 
     #if DEBUG

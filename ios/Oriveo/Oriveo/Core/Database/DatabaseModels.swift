@@ -32,6 +32,16 @@ struct ConversationSummary: Identifiable, Hashable {
     var instructions: String = ""
     /// nil = follow the global default.
     var contextCap: ContextBudgetCap? = nil
+    /// v44: on-device "thread complete" marker (contract §5.7); stored locally only and not synced to the cloud; old rows are false.
+    var localThreadComplete: Bool = false
+    /// v46: selected skills in order; empty falls back to the legacy `skillId`.
+    var skillIds: [String] = []
+    var disabledAutoSkillIds: [String] = []
+
+    /// Selection with the legacy single-skill fallback (contract: local skillIds empty and skillId set -> [skillId]).
+    nonisolated var resolvedSkillIds: [String] {
+        SkillSyncFields.localSkillIds(skillIds: skillIds, legacySkillId: skillId?.uuidString)
+    }
 
     nonisolated var isVisibleInConversationList: Bool {
         ConversationVisibility.isVisible(
@@ -80,6 +90,11 @@ struct ConversationRecord {
     let contextCap: ContextBudgetCap?
     /// v43_message_non_usd_cost: non-USD totals as JSON (currency code -> amount); NULL on old rows.
     let nonUsdCostTotals: String?
+    /// v44_conversation_local_thread_complete: on-device "thread complete" marker; old rows are 0.
+    let localThreadComplete: Bool
+    /// v46_skills_revamp: JSON string arrays; NULL = [].
+    let skillIds: String?
+    let disabledAutoSkillIds: String?
 
     nonisolated init(row: Row) {
         id = row["id"]
@@ -110,6 +125,9 @@ struct ConversationRecord {
         // Rows from before v40 are NULL; text that cannot be decoded also counts as following the global default.
         contextCap = (row["contextCap"] as String?).flatMap(ContextBudgetCap.init(storageText:))
         nonUsdCostTotals = row["nonUsdCostTotals"]
+        localThreadComplete = row["localThreadComplete"] ?? false
+        skillIds = row["skillIds"]
+        disabledAutoSkillIds = row["disabledAutoSkillIds"]
     }
 }
 
@@ -156,6 +174,14 @@ struct MessageRecord {
     let stopReason: String?
     /// IDs of the memory items injected into this answer (JSON array, stored on this device only); NULL when none.
     let memoryItemIds: String?
+    /// v45_message_remote_confirmed_at: remote confirmation time (milliseconds, stored locally only). NULL = pre-migration legacy; 0 = created locally and never seen on the server;
+    /// >0 = seen in the authoritative server snapshot.
+    let remoteConfirmedAt: Int64?
+    /// v46_skills_revamp: user `attachedSkillIds` (JSON string array) / assistant `usedSkills` (JSON); NULL = [].
+    let attachedSkillIds: String?
+    let usedSkills: String?
+    /// v47_message_skill_manifest_tokens: estimated skill list overhead of this turn (local only); NULL = not recorded.
+    let skillManifestTokens: Int?
 
     nonisolated init(row: Row) {
         id = row["id"]
@@ -195,6 +221,10 @@ struct MessageRecord {
         recoveryPrimaryAction = row["recoveryPrimaryAction"]
         stopReason = row["stopReason"]
         memoryItemIds = row["memoryItemIds"]
+        remoteConfirmedAt = row["remoteConfirmedAt"]
+        attachedSkillIds = row["attachedSkillIds"]
+        usedSkills = row["usedSkills"]
+        skillManifestTokens = row["skillManifestTokens"]
     }
 }
 
@@ -211,7 +241,7 @@ struct AttachmentRecord {
     let extractedTotalLines: Int?
     let extractedTruncated: Bool?
     let extractedSizeBytes: Int?
-    let extractionErrorCode: String?    // D18
+    let extractionErrorCode: String?
     let originalFileID: String?
 
     nonisolated init(row: Row) {

@@ -1,13 +1,13 @@
+import AVFoundation
 import Foundation
 import OriveoProviderKit
 
 extension RealtimeVoiceConversationController: VoiceConversationSurface {}
 
-/// Audio for a realtime session: forwards to VPIO and also records the system-interruption callback, so the host (on going to the background) can trigger the same systemInterruption itself.
+/// Audio for the realtime session: forwarded to VPIO, and also provides the real current route for analytics.
 final class RealtimeVoiceAudio: RealtimeAudioIO, SessionLeaseAwareAudio {
     private let inner: any RealtimeAudioIO
     private let currentRoute: () -> VoiceConversationLogic.Route
-    private var interruption: (() -> Void)?
 
     init(_ inner: any RealtimeAudioIO, route: @escaping () -> VoiceConversationLogic.Route) {
         self.inner = inner
@@ -17,13 +17,8 @@ final class RealtimeVoiceAudio: RealtimeAudioIO, SessionLeaseAwareAudio {
     /// The actual current route of the realtime audio (analytics route).
     var route: VoiceConversationLogic.Route { currentRoute() }
 
-    /// Host-side interruption such as going to the background: takes the same path as an incoming call / Siri (reducer input systemInterruption, closes the connection).
-    /// Returns false when audio has not started yet (the connection is not ready), and the host ends the session itself.
-    @discardableResult
-    func interrupt() -> Bool {
-        guard let interruption else { return false }
-        interruption()
-        return true
+    func prepareSession() async throws {
+        try await inner.prepareSession()
     }
 
     func startRealtime(
@@ -31,8 +26,15 @@ final class RealtimeVoiceAudio: RealtimeAudioIO, SessionLeaseAwareAudio {
         onFrame: @escaping (Data) -> Void,
         onInterruption: @escaping () -> Void
     ) throws {
-        interruption = onInterruption
         try inner.startRealtime(uplinkSampleRate: uplinkSampleRate, onFrame: onFrame, onInterruption: onInterruption)
+    }
+
+    func startRealtimePlayback(onInterruption: @escaping () -> Void) throws {
+        try inner.startRealtimePlayback(onInterruption: onInterruption)
+    }
+
+    func startRealtimeCapture(uplinkSampleRate: Double, onFrame: @escaping (Data) -> Void) throws {
+        try inner.startRealtimeCapture(uplinkSampleRate: uplinkSampleRate, onFrame: onFrame)
     }
 
     func enqueue(pcm16: Data, itemId: String) { inner.enqueue(pcm16: pcm16, itemId: itemId) }
@@ -42,9 +44,16 @@ final class RealtimeVoiceAudio: RealtimeAudioIO, SessionLeaseAwareAudio {
         get { inner.onPlaybackDrained }
         set { inner.onPlaybackDrained = newValue }
     }
+    var onOutputLevel: ((Double) -> Void)? {
+        get { inner.onOutputLevel }
+        set { inner.onOutputLevel = newValue }
+    }
+    var onRouteChanged: ((VoiceConversationLogic.Route) -> Void)? {
+        get { inner.onRouteChanged }
+        set { inner.onRouteChanged = newValue }
+    }
     func stopRealtimePlayback() { inner.stopRealtimePlayback() }
     func stopRealtime() {
-        interruption = nil
         inner.stopRealtime()
     }
     func playEarcon(_ earcon: VoiceConversationLogic.Earcon) { inner.playEarcon(earcon) }
@@ -71,6 +80,10 @@ struct RealtimeVoiceSessionParts {
     var reopen: RealtimeVoiceSessionBuilder.Reopen?
     /// Turn-boundary replan: reassembles the plan with the current conversation id and returns the new fingerprint (the session's own transcript stays out of the plan).
     var replanFingerprint: RealtimeVoiceConversationController.Replanner?
+    /// For failure classification and copy: provider display name, catalog model, and the catalog's per-session limit.
+    var failureContext = RealtimeFailureContext()
+    /// When a failure happens before this connection was ever ready, re-fetch the catalog and answer whether the model is still in the realtime catalog (nil = unavailable).
+    var catalogHasModel: RealtimeVoiceConversationController.CatalogCheck?
 }
 
 /// Projection result shared by the first open and reopen: the opening plan and the unopened connection.
@@ -104,14 +117,24 @@ enum RealtimeVoiceStart {
     /// Use the cascade; a non-nil toast is shown once (fallback / opening plan rejected).
     case cascade(toast: String?)
     case realtime(RealtimeVoiceSessionParts)
+    /// Realtime selection is active but cannot open: the stage reports the failure in place (copy and way out), without cascading or toasting.
+    case failed(RealtimeVoiceFailure)
+    /// Realtime selection is active but the provider's realtime direction has not yet consented to the disclosure (e.g. restored from backup): the page shows the disclosure first and opens after consent (no cascade).
+    case needsDisclosure(RealtimeModelSelection)
 }
 
-/// Conversation engine (realtime) selection → realtime session parts: resolve fallback, disclosure gate, opening plan, endpoint, transport and audio.
+/// Realtime selection from the picker (AppState.realtimeModelSelection) → realtime session parts: disclosure gate, catalog entry, opening plan, endpoint, transport and audio.
+/// No longer reads the old conversation engine choice in VoiceEngineSettings (only for migration reads).
 struct RealtimeVoiceSessionBuilder {
     typealias Reopen = (_ conversationID: UUID?) async throws -> RealtimeVoiceOpening
 
-    var settings: VoiceEngineSettings
+    /// Realtime selection for this conversation (nil on the home page); nil = a text model is selected, so cascade.
+    var selection: (_ conversationID: UUID?) -> RealtimeModelSelection?
+    /// Disclosure consent record for the realtime direction (the same one written when a realtime row is picked in the picker).
+    var disclosures: VoiceDisclosureStore
     var catalog: @MainActor @Sendable () async -> VoiceCatalog?
+    /// Catalog re-fetch used for failure classification (network refresh, not cache-first), also bounded by catalogLimit.
+    var refreshCatalog: @MainActor @Sendable () async -> VoiceCatalog?
     var providers: () -> [Provider]
     /// Source of the opening input, shared with chat sending (ChatManager.prepareRequestSnapshot → realtimeSessionSource): the main thread only takes a snapshot,
     /// assembly happens in RealtimeSessionSource.input; with a nil conversation id (home page) it uses new-conversation defaults + the current memory items.
@@ -119,8 +142,12 @@ struct RealtimeVoiceSessionBuilder {
     var makeConnection: (_ kind: RealtimeTransportKind, _ endpoint: RealtimeEndpoint) -> (any RealtimeTransport & RealtimeSessionControl)?
     var makeAudio: () -> RealtimeVoiceAudio
     var makeSink: (_ conversationID: UUID?, _ attribution: RealtimeVoiceAttribution) -> AppStateRealtimeTranscriptSink
-    /// Upper bound for fetching the catalog before entering (a cold start goes to the network to refresh); a timeout counts as the catalog being unavailable: this entry uses the cascade, shows no prompt and changes no settings.
+    /// Upper bound on fetching the catalog before entering (network refresh on cold start); on timeout the model is unavailable: the stage reports unknown and settings are not changed.
     var catalogLimit: Duration = DictationEngineSource.catalogLimit
+    /// Recognition language setting (same one as dictation); the transcription language uses it, and if empty, the UI language.
+    var voiceSettings = VoiceEngineSettings()
+    /// App UI language; read each time a connection opens.
+    var uiLocale: () -> Locale = { AppLocalization.currentLanguage.locale }
 
     static var fallbackToast: String {
         L10n.tr("Your conversation engine isn't available anymore, so this conversation uses the current model.", table: .voice)
@@ -129,15 +156,19 @@ struct RealtimeVoiceSessionBuilder {
     /// audioSession is passed in through VoiceConversationSession.Dependencies (the same instance as its audioSession).
     static func production(appState: AppState, audioSession: VoiceAudioSessionOwner) -> RealtimeVoiceSessionBuilder {
         RealtimeVoiceSessionBuilder(
-            settings: VoiceEngineSettings(),
+            selection: { [weak appState] id in appState?.realtimeModelSelection(for: id) },
+            disclosures: VoiceDisclosureStore(),
             catalog: { await DictationEngineSource.sharedCatalog()?.catalog },
+            refreshCatalog: { await VoiceCatalogClient.shared.refresh().catalog },
             providers: { [weak appState] in appState?.providers ?? [] },
             sessionSource: { [weak appState] id in
                 guard let appState else { return nil }
                 guard let id else { return appState.chatManager.realtimeSessionSourceForNewConversation() }
                 return appState.chatManager.realtimeSessionSource(in: id)
             },
-            makeConnection: { kind, endpoint in RealtimeTransportFactory.make(kind: kind, endpoint: endpoint) },
+            makeConnection: { kind, endpoint in
+                RealtimeTransportFactory.make(kind: kind, endpoint: endpoint, route: { Self.currentOutputRoute() })
+            },
             makeAudio: {
                 let engine = VPIOConversationAudioEngine(owner: audioSession)
                 return RealtimeVoiceAudio(engine, route: { engine.route })
@@ -151,30 +182,35 @@ struct RealtimeVoiceSessionBuilder {
         )
     }
 
+    /// Output route at the moment the connection opens, mapped like the VPIO engine. Called on the transport layer in the background: reading currentRoute does not require the main thread,
+    /// and must not synchronously wait for the main thread (which may itself be waiting for the coordinator or the transport layer).
+    nonisolated static func currentOutputRoute() -> VoiceConversationLogic.Route {
+        VPIOConversationAudioEngine.route(of: AVAudioSession.sharedInstance().currentRoute)
+    }
+
     func prepare(conversationID: UUID?) async -> RealtimeVoiceStart {
-        // When the settings page noticed a fallback first and the selection was changed back to system, it left one pending notice here: taken and cleared on first read, so this entry shows it once.
-        let pending = settings.takePendingNotice(site: .use, direction: .realtime)
-        let pendingToast = pending == nil ? nil : Self.fallbackToast
-        guard case .cloud(let stored) = settings.selection(for: .realtime) else { return .cascade(toast: pendingToast) }
-        // The disclosure for this provider's conversation engine was never accepted (older version data / restored backup): this entry uses the cascade, with no dialog, no prompt and no settings change.
-        guard settings.disclosures.hasAccepted(stored.providerKind, direction: .realtime) else { return .cascade(toast: nil) }
+        guard let selected = selection(conversationID) else { return .cascade(toast: nil) }
+        // The selection takes effect only after consent; without consent (e.g. restored from backup): hand off to the page to show the disclosure first, no cascade, and do not clear the selection.
+        guard disclosures.hasAccepted(selected.providerKind, direction: .realtime) else { return .needsDisclosure(selected) }
+        let selectedProvider = providers().first(where: { $0.id == selected.providerID })
+        // Catalog fetch failed / timed out: the stage reports unknown (only a connection or catalog missing the model is model_gone), no cascade.
         let catalog = self.catalog
-        guard let catalog = await VoiceDeadline.value(within: catalogLimit, { await catalog() }) ?? nil
-        else { return .cascade(toast: nil) }
-        let providers = providers()
-        let resolution = settings.resolve(
-            direction: .realtime,
-            catalog: catalog,
-            connections: providers.map(VoiceConnection.init(provider:)),
-            site: .use
-        )
-        guard case .cloud(let selected) = resolution else {
-            return .cascade(toast: resolution.notice ? Self.fallbackToast : pendingToast)
+        guard let catalog = await VoiceDeadline.value(within: catalogLimit, { await catalog() }) ?? nil else {
+            return .failed(RealtimeVoiceConversationController.failure(
+                category: .unknown,
+                context: RealtimeFailureContext(providerName: selectedProvider?.displayName, model: selected.model)
+            ))
         }
-        guard let provider = providers.first(where: { $0.id.uuidString == selected.connectionID }),
+        // Selected connection deleted / catalog delisted the model / no usable voice: the stage reports model_gone, no cascade.
+        guard let provider = selectedProvider,
               let entry = catalog.realtimeEntries(selected.providerKind).first(where: { $0.model == selected.model }),
-              let voice = selected.voice ?? entry.defaultVoice?.id
-        else { return .cascade(toast: nil) }
+              let voice = entry.defaultVoice?.id
+        else {
+            return .failed(RealtimeVoiceConversationController.failure(
+                category: .modelGone,
+                context: RealtimeFailureContext(providerName: selectedProvider?.displayName, model: selected.model)
+            ))
+        }
         let target = RealtimeVoiceTarget(provider: provider, entry: entry, voice: voice)
         let attribution = RealtimeVoiceAttribution(
             providerID: provider.id,
@@ -183,8 +219,15 @@ struct RealtimeVoiceSessionBuilder {
             model: entry.model
         )
         let sink = makeSink(conversationID, attribution)
+        let failureContext = RealtimeFailureContext(
+            providerName: provider.displayName,
+            model: entry.model,
+            maxSessionSec: entry.maxSessionSec.map(Double.init)
+        )
+        // Opening plan rejected / connection address missing: there is no handshake signal at all, so classifyFailure's empty signal maps it to unknown, and the stage reports the failure.
         guard let opening = try? await open(target, conversationID: conversationID, transcript: sink) else {
-            return .cascade(toast: VoiceConversationCopy.startFailedToast)
+            let category = RealtimeModelPolicy.classifyFailure(RealtimeModelPolicy.FailureSignal()).category
+            return .failed(RealtimeVoiceConversationController.failure(category: category, context: failureContext))
         }
         return .realtime(RealtimeVoiceSessionParts(
             connection: opening.connection,
@@ -193,12 +236,26 @@ struct RealtimeVoiceSessionBuilder {
             sink: sink,
             attribution: attribution,
             reopen: { id in try await open(target, conversationID: id, transcript: sink) },
-            replanFingerprint: replanFingerprint(transcript: sink, contextWindow: entry.contextWindow)
+            replanFingerprint: replanFingerprint(transcript: sink, contextWindow: entry.contextWindow),
+            failureContext: failureContext,
+            catalogHasModel: catalogHasModel(selected.providerKind, model: entry.model)
         ))
     }
 
-    /// Produces only plan + connection: the opening input takes the conversation's current content (including transcript persisted by earlier connections) → assemble → endpoint → transport.
-    /// Shared by the first open and reopen; each call takes a fresh realtime session id (transcript.beginSession) and has no prompt, settings or audio side effects.
+    /// After a failure, re-fetch the catalog: whether the new catalog's realtime[kind] still contains the model; nil if unavailable or timed out; cancellation is rethrown.
+    func catalogHasModel(_ kind: ProviderKind, model: String) -> RealtimeVoiceConversationController.CatalogCheck {
+        let refresh = refreshCatalog
+        let limit = catalogLimit
+        return {
+            let fetched = await VoiceDeadline.value(within: limit, { await refresh() }) ?? nil
+            try Task.checkCancellation()
+            guard let fetched else { return nil }
+            return fetched.realtimeEntries(kind).contains { $0.model == model }
+        }
+    }
+
+    /// Produces only the plan + connection: the opening input takes the conversation's current content (including transcripts already persisted by earlier connections) → assemble → endpoint → transport.
+    /// Shared by the first open and reopen; each time a new realtime session id is issued (transcript.beginSession), with no prompt, settings or audio side effects.
     /// The main thread only takes the conversation snapshot; checkpoint reads and assembly run in the background (same as replanFingerprint).
     func open(
         _ target: RealtimeVoiceTarget,
@@ -225,7 +282,8 @@ struct RealtimeVoiceSessionBuilder {
             model: target.entry.model,
             path: target.entry.path,
             voice: target.voice,
-            inputTranscriptionModel: target.entry.inputTranscriptionModel
+            inputTranscriptionModel: target.entry.inputTranscriptionModel,
+            language: DictationController.recognitionLanguageID(voiceSettings.recognitionLanguage, uiLocale: uiLocale())
         )
         guard let connection = makeConnection(target.entry.transport, endpoint) else {
             throw RealtimeVoiceOpenError.connectionUnavailable

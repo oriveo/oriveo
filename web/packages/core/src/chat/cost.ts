@@ -36,7 +36,10 @@ export interface PricingInput {
  * amount: the catalog unit price must not be multiplied out into money the user never spent (a
  * monthly fee was paid instead), and it must not be reported as a missing measurement either.
  */
-export type CostSource = 'upstream' | 'localEstimate' | 'unknown' | 'subscription';
+/**
+ * `managed`: billed by the Oriveo server or paid by the platform; the message is not priced per token.
+ */
+export type CostSource = 'upstream' | 'localEstimate' | 'unknown' | 'subscription' | 'managed';
 
 export interface CalcCostResult {
   cost: number;

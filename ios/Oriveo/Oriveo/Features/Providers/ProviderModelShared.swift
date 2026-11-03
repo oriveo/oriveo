@@ -1202,7 +1202,6 @@ private struct ProviderPanelGroupSurface: View {
         case let (.catalogCard(flat), .background):
             shape
                 .fill(OriveoTheme.Palette.surfaceElevated)
-                .overlay(highlightGradient([OriveoTheme.Palette.cardHighlight, Color.clear]))
                 .shadow(
                     color: flat ? .clear : OriveoTheme.Palette.shadow,
                     radius: flat ? 0 : (dark ? 16 : 8),

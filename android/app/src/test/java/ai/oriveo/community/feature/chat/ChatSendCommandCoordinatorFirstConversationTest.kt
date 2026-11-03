@@ -10,6 +10,11 @@ import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.voice.VoiceCatalog
+import ai.oriveo.community.core.voice.VoiceOption
+import ai.oriveo.community.core.voice.VoiceProviderCatalog
+import ai.oriveo.community.core.voice.VoiceRealtimeEntry
+import ai.oriveo.community.core.voice.VoiceTransport
 import io.mockk.coEvery
 import io.mockk.mockk
 import io.mockk.slot
@@ -24,8 +29,7 @@ import org.junit.Test
 
 /**
  * A realtime voice session on the draft page creates the conversation through the same path as the first
- * [ChatSendCommandCoordinator.sendMessage] (pending instructions, draft migration, onConversationActivated),
- * but sends nothing.
+ * [ChatSendCommandCoordinator.sendMessage] (pending instructions, draft migration, onConversationActivated), but sends nothing.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatSendCommandCoordinatorFirstConversationTest {
@@ -49,7 +53,10 @@ class ChatSendCommandCoordinatorFirstConversationTest {
     private val adopted = mutableListOf<String>()
     private var launches = 0
 
-    private fun TestScope.coordinator(draftInstructions: String = "DRAFT-INSTRUCTIONS"): ChatSendCommandCoordinator {
+    private fun TestScope.coordinator(
+        draftInstructions: String = "DRAFT-INSTRUCTIONS",
+        voiceCatalog: VoiceCatalog? = null,
+    ): ChatSendCommandCoordinator {
         coEvery { providerRepository.getById(provider.id) } returns provider
         coEvery {
             conversationRepository.create(
@@ -92,6 +99,7 @@ class ChatSendCommandCoordinatorFirstConversationTest {
             requestPin = {},
             onSendSettled = {},
             launchSend = { _, _, _, _, _, _, _, _, _, _, _ -> launches++ },
+            voiceCatalog = { voiceCatalog },
         )
     }
 
@@ -136,5 +144,31 @@ class ChatSendCommandCoordinatorFirstConversationTest {
         val raw = "  \n\t  "
         val planned = coordinator(draftInstructions = raw).plannedFirstConversation(provider.id, model.id)!!
         assertEquals(ai.oriveo.community.core.context.ConversationInstructions.normalize(raw), planned.instructions)
+    }
+
+    @Test
+    fun first_conversation_keeps_realtime_model() = runTest(timeout = 30.seconds) {
+        val catalog = VoiceCatalog(
+            schemaVersion = 2,
+            providers = mapOf(
+                ProviderKind.OpenAI to VoiceProviderCatalog(
+                    realtime = listOf(
+                        VoiceRealtimeEntry(
+                            model = "gpt-realtime",
+                            transport = VoiceTransport.OpenAIRealtime,
+                            path = "/v1/realtime",
+                            contextWindow = 32_000,
+                            voices = listOf(VoiceOption("marin", isDefault = true)),
+                            inputTranscriptionModel = "gpt-4o-mini-transcribe",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val c = coordinator(voiceCatalog = catalog)
+        // On the draft page, the user picks a realtime model and says the first sentence: the opening plan and the persisted conversation both use that realtime model, not the default text model gpt-4o-mini.
+        assertEquals("gpt-realtime", c.plannedFirstConversation(provider.id, "gpt-realtime")?.modelID)
+        assertEquals("conversation-1", c.createFirstConversation(provider.id, "gpt-realtime"))
+        assertEquals("gpt-realtime", modelSlot.captured)
     }
 }

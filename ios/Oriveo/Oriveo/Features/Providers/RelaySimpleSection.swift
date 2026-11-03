@@ -129,7 +129,7 @@ struct RelaySetupField: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .disabled(!isEnabled)
                     .accessibilityLabel(trailingActionTitle)
                 }
@@ -148,7 +148,7 @@ struct RelaySetupField: View {
                 if schemePrefix != nil {
                     Text(verbatim: displayedScheme)
                         .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 5)
                         .background(
@@ -215,7 +215,7 @@ struct RelaySetupField: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .disabled(!isEnabled)
                     .accessibilityLabel(trailingActionTitle)
                 }
@@ -461,6 +461,32 @@ struct RelaySetupPrimaryButtonStyle: ButtonStyle {
                 y: 3
             )
             .scaleEffect(configuration.isPressed && isEnabled ? 0.99 : 1)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: configuration.isPressed)
+    }
+}
+
+struct RelaySetupSecondaryActionStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(OriveoTheme.Typography.footnote.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .fixedSize(horizontal: false, vertical: true)
+            .foregroundStyle(isEnabled ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textTertiary)
+            .frame(maxWidth: .infinity)
+            .frame(minHeight: 50)
+            .padding(.vertical, OriveoTheme.Spacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: OriveoTheme.Radius.lg, style: .continuous)
+                    .fill(
+                        isEnabled
+                            ? OriveoTheme.Palette.primarySoft.opacity(configuration.isPressed ? 0.82 : 0.62)
+                            : OriveoTheme.Palette.surfaceInset
+                    )
+            )
+            .scaleEffect(configuration.isPressed && isEnabled ? 0.985 : 1)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.14), value: configuration.isPressed)
     }
 }

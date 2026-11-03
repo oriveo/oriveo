@@ -11,7 +11,14 @@ struct NoteSourceBadge: View {
     }
 
     private var brand: Color {
-        ProviderTints.tint(for: providerKind?.rawValue ?? "")
+        Self.textColor(for: providerKind)
+    }
+
+    /// Label color: provider text tint when the source provider is known, otherwise the theme's
+    /// on-surface readable primary (same role as Android primaryTextSafe / Web --o-primary-text-on-surface).
+    static func textColor(for providerKind: ProviderKind?) -> Color {
+        guard let providerKind else { return OriveoTheme.Palette.primaryTextOnSurface }
+        return ProviderTints.textTint(for: providerKind.rawValue, fallbackId: "")
     }
 
     var body: some View {

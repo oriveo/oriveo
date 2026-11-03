@@ -434,6 +434,8 @@ class MetadataClient internal constructor(
         val vendorName: String? = null,
 
         val toolCall: Boolean? = null,
+        /** Backend-authoritative library agentic retrieval bit; null when an older server omits it. */
+        val libraryAgentic: Boolean? = null,
 
         val transport: String? = null,
 
@@ -842,6 +844,11 @@ class MetadataClient internal constructor(
         val webSearch: Map<String, WebSearchProfileDefinition> = emptyMap(),
         val imageGen: Map<String, ImageGenProfileDefinition> = emptyMap(),
         val generation: GenerationProfileDefinitions? = null,
+        /**
+         * image_profile.v2 table keyed by ref, kept as raw JSON: a non-object table is empty and a
+         * non-object entry only makes its ref dangle, neither fails the whole decode.
+         */
+        val image: JsonElement? = null,
     )
 
     @Serializable
@@ -954,6 +961,7 @@ class MetadataClient internal constructor(
         val vendorKey: String? = null,
         val vendorName: String? = null,
         val toolCall: Boolean? = null,
+        val libraryAgentic: Boolean? = null,
 
         val transport: String? = null,
 
@@ -981,6 +989,10 @@ class MetadataClient internal constructor(
         val currencyCode: String? = null,
         /** Prices for other regions are received as a raw JsonElement and parsed leniently per entry: a bad entry drops only itself (contract section 5.7). */
         val regionPricing: JsonElement? = null,
+        /** Ref into profiles.image, raw JSON; a non-string, null or empty ref means no image profile. */
+        val imageProfile: JsonElement? = null,
+        /** Shallow override over the referenced profile; raw JSON so a non-object value is ignored, not fatal. */
+        val imageProfileOverride: JsonElement? = null,
     ) {
         /** Read-only view of lifecycle state / shutdownAt / routedTo (used for retirement checks). */
         fun lifecycleInfo(): ModelLifecycle? = ModelLifecycle.from(lifecycle)
@@ -998,6 +1010,11 @@ class MetadataClient internal constructor(
         val transport: ProviderTransport? = null,
         /** Catalog tombstones (only sent under index provider entries, merged as is by assembleLeanData); empty by default. */
         val retiredModels: List<RetiredModel>? = null,
+        /**
+         * Image-only models keyed by wire id; split moves them in from the catalog. Raw JSON so a
+         * malformed table or entry never fails the provider decode.
+         */
+        val imageModels: JsonElement? = null,
     )
 
     @Serializable
@@ -1867,6 +1884,16 @@ class MetadataClient internal constructor(
     private fun catalogKeyFor(kind: ProviderKind): String? =
         if (kind == ProviderKind.Relay) null else kindMap[kind.rawValue] ?: kind.rawValue
 
+    /** Server catalog key of [kind] (together -> togetherAI); null for Relay, which has no official catalog. */
+    internal fun catalogKey(kind: ProviderKind): String? = catalogKeyFor(kind)
+
+    /**
+     * Revision of the current metadata publication (the ETag of the published snapshot); null when it has not loaded successfully.
+     *
+     * A connection the catalog resolve misses (Relay is the norm: the backend catalog never ships relay) has no per-model
+     * revision, but it still needs an invalidation boundary of the same generation as the publication, otherwise local runtime evidence would
+     * lack a revision, and every message would hit an upstream 400 again. On null the caller must leave the whole thing empty (fail-closed).
+     */
     fun currentMetadataRevision(): String? = evidencePublication.metadataRevision
 
     /**
@@ -2320,6 +2347,7 @@ class MetadataClient internal constructor(
             vendorName = model.vendorName?.takeIf { it.isNotBlank() },
 
             toolCall = model.toolCall,
+            libraryAgentic = model.libraryAgentic,
             transport = model.transport?.takeIf { it.isNotBlank() },
             nativeFileMimes = model.nativeFileMimes.orEmpty(),
             pdfNativeDefault = model.pdfNativeDefault ?: false,
@@ -3920,6 +3948,7 @@ class MetadataClient internal constructor(
                     provider.copy(
                         resolveMap = old.resolveMap,
                         models = old.models,
+                        imageModels = old.imageModels,
                         retiredModels = if (compactIndex) old.retiredModels else provider.retiredModels,
                     )
                 } else {
@@ -4396,6 +4425,22 @@ class MetadataClient internal constructor(
 
     internal suspend fun fetchModelFactsForTesting() {
         fetchModelFacts()
+    }
+
+    /** Image-profile slice of the published snapshot (metadata -> slice adapter); no UI consumer yet. */
+    internal fun imageProfileSlice(): ai.oriveo.community.core.studio.ImageProfileSlice? = table?.let { data ->
+        val resolver = ai.oriveo.community.core.studio.ImageProfileResolver
+        resolver.sliceOf(
+            profiles = data.profiles.image,
+            providers = data.providers.mapValues { (_, provider) ->
+                ai.oriveo.community.core.studio.ImageProfileSlice.Provider(
+                    models = provider.models.mapValues { (_, model) ->
+                        resolver.entryOf(model.imageProfile, model.imageProfileOverride)
+                    },
+                    imageModels = resolver.entriesOf(provider.imageModels),
+                )
+            },
+        )
     }
 
     internal fun encodedCachePayloadForTesting(): String? = evidencePublication.table?.let { safe ->

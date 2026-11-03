@@ -3,8 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { MonthlyCostSummary } from '../../lib/core/cost/cost-summary';
 import { ProviderCostSummaryCard } from './ProviderCostSummaryCard';
 
+const localeState = vi.hoisted(() => ({ value: 'en-US' }));
+
 vi.mock('next-intl', () => ({
-  useLocale: () => 'en-US',
+  useLocale: () => localeState.value,
   useTranslations: () => (key: string, values?: Record<string, unknown>) => {
     switch (key) {
       case 'byProvider':
@@ -86,6 +88,62 @@ describe('ProviderCostSummaryCard', () => {
     const { container } = render(<ProviderCostSummaryCard summary={summary} />);
     expect(container.textContent).toContain('CN¥3.50');
     expect(container.textContent).not.toContain('$0');
+  });
+
+  it('zero-cost fallback follows the locale currency format (de shows 0 $, not $0)', () => {
+    const summary: MonthlyCostSummary = {
+      totalCost: 0,
+      providers: [],
+      hiddenProviderCount: 0,
+      isVisible: true,
+      source: 'local_device',
+    };
+    localeState.value = 'de';
+    try {
+      const { container } = render(<ProviderCostSummaryCard summary={summary} />);
+      // The hero splits "0 $" into the amount and a trailing symbol.
+      expect(screen.getByText('0').nextElementSibling).toBe(screen.getByText('$'));
+      expect(container.textContent).not.toContain('$0');
+    } finally {
+      localeState.value = 'en-US';
+    }
+  });
+
+  it('de total splits into the amount "1,20" and a trailing "$" symbol', () => {
+    const summary: MonthlyCostSummary = {
+      totalCost: 1.2,
+      providers: [
+        { providerKind: 'openAI', providerID: 'openai-1', displayName: 'OpenAI', cost: 1.2 },
+      ],
+      hiddenProviderCount: 0,
+      isVisible: true,
+      source: 'local_device',
+    };
+    localeState.value = 'de';
+    try {
+      render(<ProviderCostSummaryCard summary={summary} />);
+      const amount = screen.getByText('1,20');
+      const dollar = screen.getByText('$');
+      expect(amount.parentElement).toBe(dollar.parentElement);
+      expect(amount.nextElementSibling).toBe(dollar);
+    } finally {
+      localeState.value = 'en-US';
+    }
+  });
+
+  it('ar total drops the U+200F mark and splits a trailing "$" symbol', () => {
+    localeState.value = 'ar';
+    try {
+      render(<ProviderCostSummaryCard summary={singleProviderSummary} />);
+      const dollar = screen.getByText('$');
+      const amount = dollar.previousElementSibling as HTMLElement;
+      expect(amount).toBeTruthy();
+      expect(amount.textContent).toMatch(/^1(\.00)?$/);
+      expect(dollar.nextElementSibling).toBeNull();
+      expect(amount.parentElement?.textContent).not.toContain('\u200f');
+    } finally {
+      localeState.value = 'en-US';
+    }
   });
 
   it('renders the iOS-aligned cost card with By Provider eyebrow, segmented bar, and Capsule chip legend', () => {

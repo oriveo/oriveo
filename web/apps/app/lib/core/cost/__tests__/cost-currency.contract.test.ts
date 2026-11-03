@@ -26,7 +26,9 @@ import {
   initMetadata,
 } from '../../metadata/metadata-client';
 import type { PricingV2Estimate } from '../../pricing/pricing-v2-estimate';
+import type { CostSource } from '../../chat/cost';
 import { costFractionDigits } from '../../../utils/format-utils';
+import { formatLedgerAmountMicroUSD } from '../../../utils/currency-format';
 import { anthropicMessagesStrategy } from '../../providers/transport/strategies/anthropic-messages';
 import { mergeToolLoopUsage } from '@oriveo/core/tools/tool-call-loop';
 import { createStreamContext } from '../../providers/transport/transport-strategy';
@@ -147,12 +149,20 @@ interface DisplayCase {
   expect: string;
 }
 
+interface LedgerAmountCase {
+  id: string;
+  locale: string;
+  amountMicrousd: number;
+  expect: string;
+}
+
 const fixture = JSON.parse(readFileSync(
   resolve(ROOT, 'shared/test-fixtures/provider-pricing/cost-currency.v1.json'), 'utf8',
 )) as {
   recordCases: RecordCase[];
   totalCases: TotalCase[];
   displayCases: DisplayCase[];
+  ledgerAmountCases: LedgerAmountCase[];
   totalsIncompleteThreadCases: IncompleteThreadCase[];
   relayPricingCases: RelayPricingCase[];
   multiLegCostCases: MultiLegCostCase[];
@@ -185,6 +195,11 @@ describe('cost-currency.v1 recordCases', () => {
   }
 });
 
+// Contract normalization before comparing displayCases: drop bidi marks, map NBSP / NNBSP to a space.
+function normalizeDisplay(text: string): string {
+  return text.replace(/[\u200e\u200f\u061c]/g, '').replace(/[\u00a0\u202f]/g, ' ');
+}
+
 describe('cost-currency.v1 displayCases', () => {
   for (const entry of fixture.displayCases) {
     it(`COST-CURRENCY-${entry.id}`, () => {
@@ -199,8 +214,17 @@ describe('cost-currency.v1 displayCases', () => {
         : nonUsdPart
           ? { currencyCode: nonUsdPart.currencyCode, amount: nonUsdPart.amount, costSource: 'localEstimate' as const }
           : null;
-      expect(formatCostParts(usd, nonUsd, entry.locale)).toBe(entry.expect);
+      expect(normalizeDisplay(formatCostParts(usd, nonUsd, entry.locale))).toBe(entry.expect);
       expect(notAvailableCostParts(nonUsd)).toEqual(entry.notAvailableParts ?? []);
+    });
+  }
+});
+
+// Wallet ledger row amounts: formatted from amount_microusd in the app language (same normalization).
+describe('cost-currency.v1 ledgerAmountCases', () => {
+  for (const entry of fixture.ledgerAmountCases) {
+    it(`COST-CURRENCY-${entry.id}`, () => {
+      expect(normalizeDisplay(formatLedgerAmountMicroUSD(entry.amountMicrousd, entry.locale))).toBe(entry.expect);
     });
   }
 });

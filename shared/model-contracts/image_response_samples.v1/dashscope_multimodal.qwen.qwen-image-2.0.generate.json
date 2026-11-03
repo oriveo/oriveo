@@ -1,0 +1,48 @@
+{
+  "meta": {
+    "route": "dashscope_multimodal",
+    "provider": "qwen",
+    "op": "generate",
+    "http": 200,
+    "seconds": 5,
+    "captured_at": "2026-10-28T01:14:15.336Z",
+    "endpoint": "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+  },
+  "observed": {
+    "shapes": [
+      "output.choices[].message.content[].image"
+    ],
+    "images": [
+      {
+        "mime": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1314241,
+        "host": "dashscope-f4de.oss-accelerate.aliyuncs.com"
+      }
+    ]
+  },
+  "response": {
+    "output": {
+      "choices": [
+        {
+          "finish_reason": "stop",
+          "message": {
+            "content": [
+              {
+                "image": "https://dashscope-f4de.oss-accelerate.aliyuncs.com/7d/9c/20261028/7693227b/489c46cc-4f24-4752-b3e2-9ddea40840e8.png?<query redacted>"
+              }
+            ],
+            "role": "assistant"
+          }
+        }
+      ]
+    },
+    "usage": {
+      "height": 1024,
+      "image_count": 1,
+      "width": 1024
+    },
+    "request_id": "590d1cde-a96d-98a8-9071-183b87c3c0fc"
+  }
+}

@@ -400,7 +400,7 @@ struct RelayCatalogFilterChips: View {
                             }
                             Text(label(filter))
                                 .font(OriveoTheme.Typography.footnote.weight(.medium))
-                                .foregroundStyle(isSelected ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textSecondary)
+                                .foregroundStyle(isSelected ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textSecondary)
                                 .lineLimit(1)
                         }
                         .padding(.horizontal, OriveoTheme.Spacing.md)

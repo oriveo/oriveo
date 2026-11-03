@@ -1,0 +1,1837 @@
+{
+  "$comment": "Resolve the ImageProfile of one model (方案 §4.3–§4.6, §7). Input: the metadata slice in wire shape (profiles.image + providers.<kind>.models and providers.<kind>.imageModels, both maps keyed by wire model id whose entries carry imageProfile / imageProfileOverride; models wins on a shared id) and a provider kind + model id (relay: officialMatch is { providerKind, modelId }), optionally a relay connection context (officialMatch from the Server alias table, probe state, user-declared / probed profile). Output: which profile applies (profileRef, or \"user_declared\" for a connection-level profile) or null with a closed reason. Any unknown enum value or a transport the route does not allow makes the profile unusable — never fall back to chat. visibilityCases lock where a resolved model appears in the studio model list (§7). Executable reference: scripts/lib/studio-image-reference.mjs resolveProfile / visibleInStudio.",
+  "contractId": "image_profile_resolution.v1",
+  "version": 1,
+  "reasons": [
+    "missing_required_field",
+    "no_image_profile",
+    "dangling_profile",
+    "model_not_in_catalog",
+    "unknown_route",
+    "unknown_edit_transport",
+    "unknown_size_param",
+    "unknown_operation",
+    "size_param_not_allowed",
+    "edit_transport_not_allowed",
+    "edit_transport_without_edit",
+    "unknown_source",
+    "not_image_output",
+    "relay_unmatched",
+    "probe_pending_confirmation"
+  ],
+  "metadata": {
+    "profiles": {
+      "image": {
+        "openai_gpt_image": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "siliconflow_qwen_edit": {
+          "imageOutput": true,
+          "operations": [
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "json_image",
+          "maxReferenceImages": 1,
+          "aspectRatios": [
+            "1:1"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 262144,
+            "maxPixels": 4194304,
+            "maxLongEdge": 2048
+          },
+          "maxNPerCall": 1,
+          "nParam": false,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            40
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "together_flux_kontext": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "json_image_url",
+          "maxReferenceImages": 1,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 262144,
+            "maxPixels": 4194304,
+            "maxLongEdge": 2048
+          },
+          "maxNPerCall": 4,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            5,
+            20
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "xai_grok_imagine": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "xai_images",
+          "editTransport": "json_image_object",
+          "maxReferenceImages": 5,
+          "aspectRatios": [
+            "1:1",
+            "3:4",
+            "4:3",
+            "9:16",
+            "16:9",
+            "2:3",
+            "3:2",
+            "1:2",
+            "2:1",
+            "21:9"
+          ],
+          "sizeParam": "aspect_resolution",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048
+          },
+          "resolutionValues": {
+            "1K": "1k",
+            "2K": "2k"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            5,
+            20
+          ],
+          "source": "official_api",
+          "verifiedAt": "2026-10-28"
+        },
+        "gemini_flash_image": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "gemini_generate_content",
+          "editTransport": "inline",
+          "maxReferenceImages": 14,
+          "aspectRatios": [
+            "1:1",
+            "2:3",
+            "3:2",
+            "3:4",
+            "4:3",
+            "4:5",
+            "5:4",
+            "9:16",
+            "16:9",
+            "21:9"
+          ],
+          "sizeParam": "gemini_image_config",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 4096
+          },
+          "resolutionValues": {
+            "1K": "1K",
+            "2K": "2K",
+            "4K": "4K"
+          },
+          "maxNPerCall": 1,
+          "nParam": false,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            5,
+            40
+          ],
+          "source": "official_api",
+          "verifiedAt": "2026-10-28"
+        },
+        "openrouter_gemini_chat": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "chat_modalities",
+          "editTransport": "inline",
+          "maxReferenceImages": 3,
+          "aspectRatios": [
+            "1:1",
+            "2:3",
+            "3:2",
+            "3:4",
+            "4:3",
+            "4:5",
+            "5:4",
+            "9:16",
+            "16:9",
+            "21:9"
+          ],
+          "sizeParam": "chat_image_config",
+          "resolutions": {
+            "1K": 1024
+          },
+          "maxNPerCall": 1,
+          "nParam": false,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            5,
+            40
+          ],
+          "source": "openrouter",
+          "verifiedAt": "2026-10-28"
+        },
+        "openrouter_gpt_images": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openrouter_images",
+          "editTransport": "input_references",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "openrouter",
+          "verifiedAt": "2026-10-28"
+        },
+        "dashscope_qwen_image": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "dashscope_multimodal",
+          "editTransport": "inline",
+          "maxReferenceImages": 3,
+          "aspectRatios": [
+            "1:1",
+            "16:9",
+            "9:16",
+            "4:3",
+            "3:4"
+          ],
+          "sizeParam": "dashscope_wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 262144,
+            "maxPixels": 4194304,
+            "maxLongEdge": 2048
+          },
+          "maxNPerCall": 1,
+          "nParam": true,
+          "nativeMultiTurn": false,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            5,
+            20
+          ],
+          "source": "official_api",
+          "verifiedAt": "2026-10-28"
+        },
+        "minimax_image01": {
+          "imageOutput": true,
+          "operations": [
+            "generate"
+          ],
+          "route": "minimax_image_generation",
+          "aspectRatios": [
+            "1:1",
+            "16:9",
+            "4:3",
+            "3:2",
+            "2:3",
+            "3:4",
+            "9:16",
+            "21:9"
+          ],
+          "sizeParam": "aspect_only",
+          "resolutions": {
+            "1K": 1024
+          },
+          "maxNPerCall": 9,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            20,
+            60
+          ],
+          "source": "official_api",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_unknown_route": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "images_api",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_unknown_transport": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "form",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_unknown_size_param": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "pixels",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_transport_not_allowed": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "xai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 5,
+          "aspectRatios": [
+            "1:1",
+            "3:4",
+            "4:3",
+            "9:16",
+            "16:9",
+            "2:3",
+            "3:2",
+            "1:2",
+            "2:1",
+            "21:9"
+          ],
+          "sizeParam": "aspect_resolution",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048
+          },
+          "resolutionValues": {
+            "1K": "1k",
+            "2K": "2k"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            5,
+            20
+          ],
+          "source": "official_api",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_missing_route": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_not_image_output": {
+          "imageOutput": false,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_required_wrong_type": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": "10",
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "optional_wrong_type": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": "fast",
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_not_object": "not-an-object",
+        "generate_only_null_transport": {
+          "imageOutput": true,
+          "operations": [
+            "generate"
+          ],
+          "route": "minimax_image_generation",
+          "aspectRatios": [
+            "1:1",
+            "16:9",
+            "4:3",
+            "3:2",
+            "2:3",
+            "3:4",
+            "9:16",
+            "21:9"
+          ],
+          "sizeParam": "aspect_only",
+          "resolutions": {
+            "1K": 1024
+          },
+          "maxNPerCall": 9,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            20,
+            60
+          ],
+          "source": "official_api",
+          "verifiedAt": "2026-10-28",
+          "editTransport": null
+        },
+        "broken_required_element_type": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            1,
+            "3:2"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_required_not_integer": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 1.5,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_wxh_without_size_constraints": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            15,
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        },
+        "broken_aspect_resolution_without_values": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "xai_images",
+          "editTransport": "json_image_object",
+          "maxReferenceImages": 5,
+          "aspectRatios": [
+            "1:1",
+            "3:4",
+            "4:3",
+            "9:16",
+            "16:9",
+            "2:3",
+            "3:2",
+            "1:2",
+            "2:1",
+            "21:9"
+          ],
+          "sizeParam": "aspect_resolution",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            5,
+            20
+          ],
+          "source": "official_api",
+          "verifiedAt": "2026-10-28"
+        },
+        "optional_element_wrong_type": {
+          "imageOutput": true,
+          "operations": [
+            "generate",
+            "edit"
+          ],
+          "route": "openai_images",
+          "editTransport": "multipart",
+          "maxReferenceImages": 16,
+          "aspectRatios": [
+            "1:1",
+            "3:2",
+            "2:3",
+            "4:3",
+            "3:4",
+            "16:9",
+            "9:16"
+          ],
+          "sizeParam": "wxh",
+          "resolutions": {
+            "1K": 1024,
+            "2K": 2048,
+            "4K": 3840
+          },
+          "sizeConstraints": {
+            "multipleOf": 16,
+            "minPixels": 655360,
+            "maxPixels": 8294400,
+            "maxLongEdge": 3840,
+            "ratioRange": [
+              0.333,
+              3
+            ]
+          },
+          "qualityMap": {
+            "draft": "low",
+            "standard": "medium",
+            "fine": "high"
+          },
+          "maxNPerCall": 10,
+          "nParam": true,
+          "timeoutSeconds": 180,
+          "typicalSeconds": [
+            "fast",
+            60
+          ],
+          "source": "verified_allowlist",
+          "verifiedAt": "2026-10-28"
+        }
+      }
+    },
+    "providers": {
+      "openAI": {
+        "models": {
+          "gpt-image-2": {
+            "imageProfile": "openai_gpt_image"
+          },
+          "gpt-5-mini": {},
+          "legacy-only-image-model": {
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "imageGenProfile": "images_api_default"
+          },
+          "dangling-model": {
+            "imageProfile": "no_such_profile"
+          },
+          "future-route-model": {
+            "imageProfile": "broken_unknown_route"
+          },
+          "future-transport-model": {
+            "imageProfile": "broken_unknown_transport"
+          },
+          "future-size-model": {
+            "imageProfile": "broken_unknown_size_param"
+          },
+          "mismatched-transport-model": {
+            "imageProfile": "broken_transport_not_allowed"
+          },
+          "shared-id-model": {
+            "imageProfile": "openai_gpt_image"
+          },
+          "missing-field-model": {
+            "imageProfile": "broken_missing_route"
+          },
+          "not-image-output-model": {
+            "imageProfile": "broken_not_image_output"
+          },
+          "required-wrong-type-model": {
+            "imageProfile": "broken_required_wrong_type"
+          },
+          "optional-wrong-type-model": {
+            "imageProfile": "optional_wrong_type"
+          },
+          "profile-not-object-model": {
+            "imageProfile": "broken_not_object"
+          },
+          "override-not-object-model": {
+            "imageProfile": "openai_gpt_image",
+            "imageProfileOverride": "not-an-object"
+          },
+          "null-transport-model": {
+            "imageProfile": "generate_only_null_transport"
+          },
+          "empty-ref-model": {
+            "imageProfile": ""
+          },
+          "required-element-type-model": {
+            "imageProfile": "broken_required_element_type"
+          },
+          "required-not-integer-model": {
+            "imageProfile": "broken_required_not_integer"
+          },
+          "wxh-no-constraints-model": {
+            "imageProfile": "broken_wxh_without_size_constraints"
+          },
+          "aspect-no-values-model": {
+            "imageProfile": "broken_aspect_resolution_without_values"
+          },
+          "optional-element-type-model": {
+            "imageProfile": "optional_element_wrong_type"
+          },
+          "ref-not-string-model": {
+            "imageProfile": 5
+          }
+        },
+        "imageModels": {
+          "shared-id-model": {
+            "displayName": "Shadow",
+            "imageProfile": "broken_unknown_route"
+          },
+          "entry-not-object-model": "not-an-object"
+        }
+      },
+      "siliconFlow": {
+        "imageModels": {
+          "Qwen/Qwen-Image-Edit": {
+            "displayName": "Qwen-Image-Edit",
+            "imageProfile": "siliconflow_qwen_edit"
+          }
+        }
+      },
+      "togetherAI": {
+        "models": {
+          "black-forest-labs/FLUX.1-kontext-pro": {
+            "imageProfile": "together_flux_kontext"
+          }
+        }
+      },
+      "grok": {
+        "models": {
+          "grok-imagine-image": {
+            "imageProfile": "xai_grok_imagine"
+          }
+        }
+      },
+      "gemini": {
+        "models": {
+          "gemini-3.1-flash-lite-image": {
+            "imageProfile": "gemini_flash_image"
+          }
+        }
+      },
+      "openRouter": {
+        "models": {
+          "google/gemini-3.1-flash-lite-image": {
+            "imageProfile": "openrouter_gemini_chat"
+          }
+        },
+        "imageModels": {
+          "openai/gpt-image-2": {
+            "displayName": "GPT Image 2",
+            "imageProfile": "openrouter_gpt_images"
+          }
+        }
+      },
+      "qwen": {
+        "models": {
+          "qwen-image-2.0": {
+            "imageProfile": "dashscope_qwen_image",
+            "imageProfileOverride": {
+              "maxReferenceImages": 2,
+              "typicalSeconds": [
+                5,
+                15
+              ]
+            }
+          }
+        }
+      },
+      "miniMax": {
+        "models": {
+          "image-01": {
+            "imageProfile": "minimax_image01"
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "caseId": "official.openai_images.multipart",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-2"
+      },
+      "expect": {
+        "profileRef": "openai_gpt_image",
+        "reason": null
+      }
+    },
+    {
+      "caseId": "official.openai_images.json_image.edit_only",
+      "input": {
+        "providerKind": "siliconFlow",
+        "modelId": "Qwen/Qwen-Image-Edit"
+      },
+      "expect": {
+        "profileRef": "siliconflow_qwen_edit",
+        "reason": null
+      },
+      "$comment": "Edit-only model (E-04) shipped in providers.siliconFlow.imageModels, never in models (E-44 ④); the client merges it into the same per-provider lookup. Listed only with a base or reference image (see visibilityCases)."
+    },
+    {
+      "caseId": "official.openai_images.json_image_url",
+      "input": {
+        "providerKind": "togetherAI",
+        "modelId": "black-forest-labs/FLUX.1-kontext-pro"
+      },
+      "expect": {
+        "profileRef": "together_flux_kontext",
+        "reason": null
+      }
+    },
+    {
+      "caseId": "official.xai_images.json_image_object",
+      "input": {
+        "providerKind": "grok",
+        "modelId": "grok-imagine-image"
+      },
+      "expect": {
+        "profileRef": "xai_grok_imagine",
+        "reason": null
+      }
+    },
+    {
+      "caseId": "official.gemini_generate_content.inline",
+      "input": {
+        "providerKind": "gemini",
+        "modelId": "gemini-3.1-flash-lite-image"
+      },
+      "expect": {
+        "profileRef": "gemini_flash_image",
+        "reason": null
+      }
+    },
+    {
+      "caseId": "official.chat_modalities.inline",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "google/gemini-3.1-flash-lite-image"
+      },
+      "expect": {
+        "profileRef": "openrouter_gemini_chat",
+        "reason": null
+      }
+    },
+    {
+      "caseId": "official.openrouter_images.input_references",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "openai/gpt-image-2"
+      },
+      "expect": {
+        "profileRef": "openrouter_gpt_images",
+        "reason": null
+      },
+      "$comment": "Image-only model shipped in providers.openRouter.imageModels (E-44 ④)."
+    },
+    {
+      "caseId": "official.dashscope_multimodal.override_merges",
+      "input": {
+        "providerKind": "qwen",
+        "modelId": "qwen-image-2.0"
+      },
+      "expect": {
+        "profileRef": "dashscope_qwen_image",
+        "reason": null,
+        "appliedOverride": {
+          "maxReferenceImages": 2,
+          "typicalSeconds": [
+            5,
+            15
+          ]
+        }
+      },
+      "$comment": "imageProfileOverride only carries the fields that differ; it is shallow-merged over the table entry."
+    },
+    {
+      "caseId": "official.minimax_image_generation.generate_only",
+      "input": {
+        "providerKind": "miniMax",
+        "modelId": "image-01"
+      },
+      "expect": {
+        "profileRef": "minimax_image01",
+        "reason": null
+      }
+    },
+    {
+      "caseId": "chat_model_has_no_profile",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5-mini"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "no_image_profile"
+      }
+    },
+    {
+      "caseId": "legacy_fields_are_not_read",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "legacy-only-image-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "no_image_profile"
+      },
+      "$comment": "Old capabilities[imageGeneration] / imageGenProfile keep shipping for old app versions; a new client never derives an ImageProfile from them."
+    },
+    {
+      "caseId": "dangling_profile_ref_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "dangling-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "dangling_profile"
+      }
+    },
+    {
+      "caseId": "unknown_route_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "future-route-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "unknown_route"
+      },
+      "$comment": "Never falls back to chat (方案 §4.2)."
+    },
+    {
+      "caseId": "unknown_edit_transport_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "future-transport-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "unknown_edit_transport"
+      }
+    },
+    {
+      "caseId": "unknown_size_param_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "future-size-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "unknown_size_param"
+      }
+    },
+    {
+      "caseId": "edit_transport_not_allowed_for_route",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "mismatched-transport-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "edit_transport_not_allowed"
+      }
+    },
+    {
+      "caseId": "model_not_in_catalog",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "nope"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "model_not_in_catalog"
+      }
+    },
+    {
+      "caseId": "merge.models_entry_wins_over_image_models",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "shared-id-model"
+      },
+      "expect": {
+        "profileRef": "openai_gpt_image",
+        "reason": null
+      },
+      "$comment": "The Server never ships one id in both maps; if it does, providers.<kind>.models wins and imageModels only supplements ids models lacks."
+    },
+    {
+      "caseId": "scope.lookup_is_per_provider",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "gpt-image-2"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "model_not_in_catalog"
+      },
+      "$comment": "Lookup is scoped to the connection provider kind; an id that exists only under another provider does not resolve."
+    },
+    {
+      "caseId": "scope.unknown_provider_kind",
+      "input": {
+        "providerKind": "noSuchProvider",
+        "modelId": "gpt-image-2"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "model_not_in_catalog"
+      }
+    },
+    {
+      "caseId": "missing_required_field_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "missing-field-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "missing_required_field"
+      },
+      "$comment": "Any image_profile.v2 fields.required entry missing after the override merge makes the profile unusable; checked before every other rule."
+    },
+    {
+      "caseId": "image_output_false_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "not-image-output-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "not_image_output"
+      }
+    },
+    {
+      "caseId": "edge.required_field_wrong_type_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "required-wrong-type-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "missing_required_field"
+      },
+      "$comment": "aspectRatios must be an array, resolutions an object, maxNPerCall / timeoutSeconds numbers; a wrong JSON type counts as missing. imageOutput / route / sizeParam / operations / source keep their own reasons."
+    },
+    {
+      "caseId": "edge.optional_field_wrong_type_is_dropped",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "optional-wrong-type-model"
+      },
+      "expect": {
+        "profileRef": "optional_wrong_type",
+        "reason": null
+      },
+      "$comment": "An optional field with a wrong JSON type is treated as absent; the profile stays usable."
+    },
+    {
+      "caseId": "edge.profile_entry_not_object_is_dangling",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "profile-not-object-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "dangling_profile"
+      }
+    },
+    {
+      "caseId": "edge.override_not_object_is_ignored",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "override-not-object-model"
+      },
+      "expect": {
+        "profileRef": "openai_gpt_image",
+        "reason": null
+      },
+      "$comment": "A non-object imageProfileOverride is ignored, never merged."
+    },
+    {
+      "caseId": "edge.null_edit_transport_equals_absent",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "null-transport-model"
+      },
+      "expect": {
+        "profileRef": "generate_only_null_transport",
+        "reason": null
+      },
+      "$comment": "JSON null is the same as an absent key for every field."
+    },
+    {
+      "caseId": "edge.empty_profile_ref",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "empty-ref-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "no_image_profile"
+      }
+    },
+    {
+      "caseId": "edge.required_element_wrong_type_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "required-element-type-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "missing_required_field"
+      },
+      "$comment": "Element types count too: aspectRatios is an array of strings, resolutions maps tier to an integer."
+    },
+    {
+      "caseId": "edge.required_integer_not_whole_fails_closed",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "required-not-integer-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "missing_required_field"
+      },
+      "$comment": "maxNPerCall / timeoutSeconds must be whole numbers (2.0 is 2)."
+    },
+    {
+      "caseId": "edge.wxh_requires_size_constraints",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "wxh-no-constraints-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "missing_required_field"
+      },
+      "$comment": "image_profile.v2 rules: sizeConstraints is required when sizeParam is wxh or dashscope_wxh."
+    },
+    {
+      "caseId": "edge.aspect_resolution_requires_resolution_values",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "aspect-no-values-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "missing_required_field"
+      },
+      "$comment": "image_profile.v2 rules: resolutionValues is required when sizeParam is aspect_resolution or gemini_image_config."
+    },
+    {
+      "caseId": "edge.optional_element_wrong_type_is_dropped",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "optional-element-type-model"
+      },
+      "expect": {
+        "profileRef": "optional_element_wrong_type",
+        "reason": null
+      },
+      "$comment": "An optional field whose elements have the wrong type is dropped as a whole (typicalSeconds is an array of numbers); the profile stays usable."
+    },
+    {
+      "caseId": "edge.profile_ref_not_string",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "ref-not-string-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "no_image_profile"
+      },
+      "$comment": "A non-string imageProfile is the same as an absent one."
+    },
+    {
+      "caseId": "edge.image_model_entry_not_object",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "entry-not-object-model"
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "no_image_profile"
+      },
+      "$comment": "A non-object entry in models / imageModels is an entry without imageProfile; it never breaks decoding of the other models or providers."
+    },
+    {
+      "caseId": "relay.inherits_official_match",
+      "input": {
+        "modelId": "gpt-image-2-all",
+        "relay": {
+          "officialMatch": {
+            "providerKind": "openAI",
+            "modelId": "gpt-image-2"
+          }
+        }
+      },
+      "expect": {
+        "profileRef": "openai_gpt_image",
+        "reason": null
+      },
+      "$comment": "The Server alias table maps the relay id to an official model; the relay inherits that profile (方案 §4.4 / §4.5)."
+    },
+    {
+      "caseId": "relay.unmatched_waits_for_user_probe",
+      "input": {
+        "modelId": "mystery-image-x",
+        "relay": {
+          "officialMatch": null,
+          "probe": "pending"
+        }
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "probe_pending_confirmation"
+      },
+      "$comment": "E-25: no automatic probe. The model shows 能力待确认 until the user confirms a paid test."
+    },
+    {
+      "caseId": "relay.unmatched_no_probe",
+      "input": {
+        "modelId": "mystery-chat-x",
+        "relay": {
+          "officialMatch": null
+        }
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "relay_unmatched"
+      }
+    },
+    {
+      "caseId": "relay.empty_probe_is_absent",
+      "input": {
+        "modelId": "mystery-chat-x",
+        "relay": {
+          "officialMatch": null,
+          "probe": ""
+        }
+      },
+      "expect": {
+        "profileRef": null,
+        "reason": "relay_unmatched"
+      },
+      "$comment": "An empty string is the same as an absent value."
+    },
+    {
+      "caseId": "relay.user_declared_wins",
+      "input": {
+        "modelId": "gpt-image-2-all",
+        "relay": {
+          "officialMatch": {
+            "providerKind": "openAI",
+            "modelId": "gpt-image-2"
+          },
+          "userDeclared": {
+            "imageOutput": true,
+            "operations": [
+              "generate"
+            ],
+            "route": "openai_images",
+            "maxReferenceImages": 16,
+            "aspectRatios": [
+              "1:1",
+              "3:2",
+              "2:3",
+              "4:3",
+              "3:4",
+              "16:9",
+              "9:16"
+            ],
+            "sizeParam": "wxh",
+            "resolutions": {
+              "1K": 1024,
+              "2K": 2048,
+              "4K": 3840
+            },
+            "sizeConstraints": {
+              "multipleOf": 16,
+              "minPixels": 655360,
+              "maxPixels": 8294400,
+              "maxLongEdge": 3840,
+              "ratioRange": [
+                0.333,
+                3
+              ]
+            },
+            "qualityMap": {
+              "draft": "low",
+              "standard": "medium",
+              "fine": "high"
+            },
+            "maxNPerCall": 10,
+            "nParam": true,
+            "timeoutSeconds": 180,
+            "typicalSeconds": [
+              15,
+              60
+            ],
+            "source": "user_declared",
+            "verifiedAt": "2026-10-28"
+          }
+        }
+      },
+      "expect": {
+        "profileRef": "user_declared",
+        "reason": null
+      },
+      "$comment": "Relay spec §3.9.2 priority: user › engine › Server › official catalog. The declared profile is used as-is (generate only)."
+    },
+    {
+      "caseId": "relay.relay_probe_result",
+      "input": {
+        "modelId": "mystery-image-x",
+        "relay": {
+          "officialMatch": null,
+          "userDeclared": {
+            "imageOutput": true,
+            "operations": [
+              "generate",
+              "edit"
+            ],
+            "route": "openai_images",
+            "editTransport": "multipart",
+            "maxReferenceImages": 16,
+            "aspectRatios": [
+              "1:1",
+              "3:2",
+              "2:3",
+              "4:3",
+              "3:4",
+              "16:9",
+              "9:16"
+            ],
+            "sizeParam": "wxh",
+            "resolutions": {
+              "1K": 1024,
+              "2K": 2048,
+              "4K": 3840
+            },
+            "sizeConstraints": {
+              "multipleOf": 16,
+              "minPixels": 655360,
+              "maxPixels": 8294400,
+              "maxLongEdge": 3840,
+              "ratioRange": [
+                0.333,
+                3
+              ]
+            },
+            "qualityMap": {
+              "draft": "low",
+              "standard": "medium",
+              "fine": "high"
+            },
+            "maxNPerCall": 10,
+            "nParam": true,
+            "timeoutSeconds": 180,
+            "typicalSeconds": [
+              15,
+              60
+            ],
+            "source": "relay_probe",
+            "verifiedAt": "2026-10-28"
+          }
+        }
+      },
+      "expect": {
+        "profileRef": "user_declared",
+        "reason": null
+      },
+      "$comment": "A confirmed 测一下 result is stored as the connection-level profile with source relay_probe."
+    }
+  ],
+  "visibilityCases": [
+    {
+      "caseId": "generate_only_no_images",
+      "profileRef": "minimax_image01",
+      "context": {
+        "connectionUsable": true,
+        "hasBase": false,
+        "referenceCount": 0
+      },
+      "expectVisible": true
+    },
+    {
+      "caseId": "generate_only_with_reference_hidden",
+      "profileRef": "minimax_image01",
+      "context": {
+        "connectionUsable": true,
+        "hasBase": false,
+        "referenceCount": 1
+      },
+      "expectVisible": false
+    },
+    {
+      "caseId": "edit_only_without_images_hidden",
+      "profileRef": "siliconflow_qwen_edit",
+      "context": {
+        "connectionUsable": true,
+        "hasBase": false,
+        "referenceCount": 0
+      },
+      "expectVisible": false
+    },
+    {
+      "caseId": "edit_only_with_base_listed",
+      "profileRef": "siliconflow_qwen_edit",
+      "context": {
+        "connectionUsable": true,
+        "hasBase": true,
+        "referenceCount": 0
+      },
+      "expectVisible": true
+    },
+    {
+      "caseId": "edit_only_base_plus_ref_over_limit",
+      "profileRef": "siliconflow_qwen_edit",
+      "context": {
+        "connectionUsable": true,
+        "hasBase": true,
+        "referenceCount": 1
+      },
+      "expectVisible": false
+    },
+    {
+      "caseId": "both_ops_refs_within_limit",
+      "profileRef": "xai_grok_imagine",
+      "context": {
+        "connectionUsable": true,
+        "hasBase": true,
+        "referenceCount": 4
+      },
+      "expectVisible": true
+    },
+    {
+      "caseId": "both_ops_refs_over_limit",
+      "profileRef": "xai_grok_imagine",
+      "context": {
+        "connectionUsable": true,
+        "hasBase": true,
+        "referenceCount": 5
+      },
+      "expectVisible": false
+    },
+    {
+      "caseId": "connection_unusable_hidden",
+      "profileRef": "openai_gpt_image",
+      "context": {
+        "connectionUsable": false,
+        "hasBase": false,
+        "referenceCount": 0
+      },
+      "expectVisible": false
+    }
+  ]
+}

@@ -33,6 +33,8 @@ export interface ExpandedMetadataCatalog {
   resolveMap?: Record<string, string>;
   models: Record<string, Record<string, unknown>>;
   generationParameters: GenerationParameterTable;
+  /** Catalog imageModels (wire model id -> image-only entry), carried as-is; missing = none. */
+  imageModels?: Record<string, unknown>;
   /**
    * Tombstone snapshot: a schema 3 catalog takes its own retiredModels (default []); schema 1 / 2 catalogs do not carry it,
    * so the caller fills it from that provider's tombstones in the index at adoption time. When assembling, it is only used if the index is schema 3.
@@ -322,6 +324,7 @@ export function expandMetadataCatalog(
         : {}),
       models,
       generationParameters: generationParameters as GenerationParameterTable,
+      ...(isRecord(raw.imageModels) ? { imageModels: raw.imageModels } : {}),
       ...(schema3 ? { retiredModels: Array.isArray(raw.retiredModels) ? raw.retiredModels : [] } : {}),
       metadataSchema: metadataSchemaOf(raw),
       dropped,
@@ -347,6 +350,7 @@ export function assembleLeanFromSplit(
     models: Record<string, object>;
     generationParameters: Record<string, unknown>;
     retiredModels?: unknown[];
+    imageModels?: Record<string, unknown>;
   }>,
   options: { includeIndexOnlyProviders?: boolean } = {},
 ): Record<string, unknown> & {
@@ -371,6 +375,7 @@ export function assembleLeanFromSplit(
       ...(indexIsSchema3 && catalog.retiredModels ? { retiredModels: catalog.retiredModels } : {}),
       ...(catalog.resolveMap ? { resolveMap: catalog.resolveMap } : {}),
       models: catalog.models,
+      ...(catalog.imageModels ? { imageModels: catalog.imageModels } : {}),
     };
     Object.assign(generationParameterTables, catalog.generationParameters);
   }

@@ -1,0 +1,53 @@
+{
+  "meta": {
+    "route": "openrouter_images",
+    "provider": "openRouter",
+    "op": "edit",
+    "http": 200,
+    "seconds": 13.2,
+    "captured_at": "2026-10-28T01:18:01.325Z",
+    "endpoint": "https://openrouter.ai/api/v1/images"
+  },
+  "observed": {
+    "shapes": [
+      "data[].b64_json"
+    ],
+    "images": [
+      {
+        "mime": "image/png",
+        "width": 1024,
+        "height": 1024,
+        "bytes": 1287162,
+        "host": null
+      }
+    ]
+  },
+  "response": {
+    "created": 1793150279,
+    "data": [
+      {
+        "b64_json": "<base64 bytes=1287162 sha256=308c6390e05560e8>",
+        "media_type": "image/png"
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 1043,
+      "completion_tokens": 196,
+      "total_tokens": 1239,
+      "cost": 0.014167,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.014167,
+        "upstream_inference_prompt_cost": 0.008287,
+        "upstream_inference_completions_cost": 0.00588
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "image_tokens": 196
+      }
+    }
+  }
+}

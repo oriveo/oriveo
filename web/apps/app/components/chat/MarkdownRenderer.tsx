@@ -500,7 +500,7 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({ content, isStre
   );
 
   return (
-    <div className={styles.markdown} data-streaming={isStreaming ? 'true' : undefined}>
+    <div className={styles.markdown} dir="auto" data-streaming={isStreaming ? 'true' : undefined}>
       <ReactMarkdown
         // Strikethrough needs a paired `~~`: a single `~` is a range marker in CJK text (11~19°C), and two of them in one sentence would strike out everything between.
         remarkPlugins={remarkPlugins}
@@ -593,7 +593,7 @@ export const ProgressiveMarkdownRenderer = memo(function ProgressiveMarkdownRend
   }, [complete]);
 
   return (
-    <div ref={containerRef} className={styles.markdown} data-sections={total} data-sections-mounted={visible}>
+    <div ref={containerRef} className={styles.markdown} dir="auto" data-sections={total} data-sections-mounted={visible}>
       {sections.slice(0, visible).map((text, index) => (
         <Fragment key={index}>
           {index > 0 ? '\n' : null}

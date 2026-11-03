@@ -1,6 +1,9 @@
 package ai.oriveo.community.feature.chat.composer
 
+import ai.oriveo.community.feature.chat.attachmentEntryModel
+import ai.oriveo.community.feature.chat.isRealtimeModelSelected
 import ai.oriveo.community.feature.chat.realtimeVoiceTarget
+import ai.oriveo.community.feature.chat.recomputeWhenVoiceCatalogReady
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -17,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +28,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import org.koin.compose.koinInject
@@ -49,6 +54,7 @@ import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 import ai.oriveo.community.core.voice.RecordingStore
 import ai.oriveo.community.ui.component.ComposerSelectionProbe
+import ai.oriveo.community.ui.component.rememberCostLocale
 import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 
 /**
@@ -82,10 +88,10 @@ internal fun ChatComposerHost(
     viewModel: ChatViewModel,
     activeProvider: Provider?,
     conversationId: String?,
-    conversationSkillId: String?,
+    /** The shown conversation's skillIds, passed through to the composer chips. */
+    conversationSkillIds: List<String>,
     /** Loading states (skeleton, backfill, stalled) block writing; OR-ed with `canSendMessages`. */
     sendingBlockedByLoadState: Boolean,
-    transparentChrome: Boolean,
     hazeState: HazeState,
     trueTransparentBlurEnabled: Boolean,
     onOverlayHeightChange: (Int) -> Unit,
@@ -102,6 +108,14 @@ internal fun ChatComposerHost(
     onOpenContextUsage: () -> Unit = {},
     /** Waveform key on an empty draft; defaults to the view model's voice request hook. */
     onStartVoiceConversation: () -> Unit = viewModel.voice::request,
+    /** The voice stage replaced the composer (true) or left (false); the page fades its message list's top. */
+    onVoiceStageChange: (Boolean) -> Unit = {},
+    /** The realtime session's live bubbles (null = no realtime session); the page shows them in its list. */
+    onRealtimeLiveChange: (ai.oriveo.community.feature.chat.RealtimeLiveBubbleSource?) -> Unit = {},
+    /** The model's short name (no top-bar locality suffix): the voice switch notice names the new model with it. */
+    voiceModelName: String? = null,
+    /** Realtime voice model in typing mode: the orb in the waveform slot returns to the voice stage. */
+    onBackToVoiceStage: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val restore = viewModel.composerTextRestore
@@ -149,6 +163,7 @@ internal fun ChatComposerHost(
     // The relay verdict for the image entry needs the connection identity (obtained the same way as the
     // generation parameters in EnhancedComposer); it stays null when unavailable and the check fails closed.
     val providerRepository = koinInject<ProviderRepository>()
+    val preferences = koinInject<ai.oriveo.community.core.app.AppPreferencesRepository>()
     val capabilityPartition = providerRepository.currentCapabilityPartitionId()
     var imageCapabilityIdentity by remember(activeProvider, mcpModelId, capabilityPartition) {
         mutableStateOf<ai.oriveo.community.core.model.CapabilityEvidenceIdentity?>(null)
@@ -183,6 +198,19 @@ internal fun ChatComposerHost(
 
     val isGenerating = streamingMessageId != null || sendCompactingHere || confirmWaitingHere != null
     val isReadOnly = viewModel.conversationState.isReadOnly || sendingBlockedByLoadState
+    // While the voice catalog is loading the main key spins; a failed load shows no spinner (failure row instead).
+    val voiceCatalogStates = remember {
+        org.koin.mp.KoinPlatform.getKoinOrNull()?.getOrNull<ai.oriveo.community.core.voice.VoiceCatalogClient>()?.state
+            ?: kotlinx.coroutines.flow.MutableStateFlow<ai.oriveo.community.core.voice.VoiceCatalogState?>(null)
+    }
+    val voiceCatalogState by voiceCatalogStates.collectAsStateWithLifecycle()
+    val isAwaitingVoiceCatalog = viewModel.conversationState.isAwaitingVoiceCatalog &&
+        voiceCatalogState !is ai.oriveo.community.core.voice.VoiceCatalogState.LoadFailed
+    // Realtime model awaiting a catalog that failed to load -> failure row with retry above the composer.
+    val voiceCatalogLoadFailed = viewModel.conversationState.isAwaitingVoiceCatalog &&
+        voiceCatalogState is ai.oriveo.community.core.voice.VoiceCatalogState.LoadFailed
+    var voiceCatalogRetrying by remember { mutableStateOf(false) }
+    val voiceCatalogRetryScope = androidx.compose.runtime.rememberCoroutineScope()
 
     // Dictation host: the slot is the conversation, or the home draft slot before one exists.
     // Only the handle is built here; controller state is collected inside the dictation components.
@@ -210,6 +238,20 @@ internal fun ChatComposerHost(
             viewModel.onInputTextChanged(newText)
         }
 
+        override fun beginLive() = selectionProbe.beginLive(inputTextProvider())
+
+        // Live dictation region: rebuilt from the text and caret at the start, removed on retract.
+        override fun updateLive(finals: List<String>, partial: String) =
+            writeDictated(selectionProbe.updateLive(finals, partial, inputTextProvider()))
+
+        override fun retractLive() = writeDictated(selectionProbe.retractLive(inputTextProvider()))
+
+        private fun writeDictated(newText: String) {
+            if (newText == inputTextProvider()) return
+            composerText.value = newText
+            viewModel.onInputTextChanged(newText)
+        }
+
         // Same gate as the send button.
         override fun canSend(): Boolean = !isReadOnly && viewModel.canSendMessages && !isGenerating
 
@@ -218,7 +260,7 @@ internal fun ChatComposerHost(
         override fun showToast(spec: DictationToastSpec, onUndo: (() -> Unit)?) {
             chatSnackbar?.show(
                 GlobalSnackbarMessage(
-                    message = UiText.Resource(spec.message),
+                    message = spec.snackbarText(),
                     style = spec.style,
                     action = spec.snackbarAction(onUndo),
                     durationMs = spec.durationMillis,
@@ -256,10 +298,47 @@ internal fun ChatComposerHost(
     val voice = ai.oriveo.community.feature.chat.voice.rememberVoiceConversationHost(
         page = ai.oriveo.community.feature.chat.voice.VoiceConversationPage.Chat,
         requests = viewModel.voice.requests,
-        target = viewModel.realtimeVoiceTarget(conversationId),
+        // Realtime failure card: connection details and the page's model picker.
+        target = viewModel.realtimeVoiceTarget(
+            conversationId,
+            onOpenConnection = onNavigateToProviderDetail,
+            openModelPicker = { viewModel.showModelSwitcher = true },
+            lastUsedModel = { preferences.lastUsedModelRefSnapshot ?: preferences.getLastUsedModelRef() },
+            modelName = voiceModelName,
+        ),
         gate = viewModel.voice::entryAllowed,
         onDraftTranscript = dictationActions::insert,
+        // Realtime model in typing mode: the send goes to this host's realtime session, never the chat API.
+        typed = viewModel.sendCommandCoordinator.realtimeTyped,
+        // The draft is cleared once that sentence is stored, and only if it still holds the sentence.
+        onTypedOutcome = { text, outcome ->
+            viewModel.sendCommandCoordinator.realtimeTypedSettled(text, outcome, inputTextProvider())
+        },
     )
+    // Cold start: the voice catalog may arrive after the page resolved its model; recompute once it becomes available.
+    LaunchedEffect(viewModel) {
+        val catalogStates = org.koin.mp.KoinPlatform.getKoinOrNull()
+            ?.getOrNull<ai.oriveo.community.core.voice.VoiceCatalogClient>()?.state ?: return@LaunchedEffect
+        viewModel.recomputeWhenVoiceCatalogReady(catalogStates)
+    }
+    // Read through derivedStateOf: the host body recomposes when the stage comes or goes, not per status.
+    val voiceStageShown by remember(voice) { derivedStateOf { voice.status != null } }
+    val currentOnVoiceStageChange by rememberUpdatedState(onVoiceStageChange)
+    LaunchedEffect(voiceStageShown) { currentOnVoiceStageChange(voiceStageShown) }
+    val currentOnRealtimeLiveChange by rememberUpdatedState(onRealtimeLiveChange)
+    LaunchedEffect(voice) {
+        currentOnRealtimeLiveChange(
+            ai.oriveo.community.feature.chat.realtimeLiveBubbleSource(
+                voice.drafts,
+                voice.realtimeAttribution,
+                voice.realtimeCallMessageIds,
+            ),
+        )
+    }
+    // Realtime voice model: the voice dock replaces the composer; the keyboard switches to typing until the
+    // back-to-voice orb, another conversation or leaving the page (state is per conversation, not saved).
+    val realtimeSelected = viewModel.isRealtimeModelSelected()
+    var realtimeTyping by remember(conversationId) { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -307,6 +386,26 @@ internal fun ChatComposerHost(
             )
         }
 
+        if (voiceCatalogLoadFailed) {
+            VoiceCatalogUnavailableRow(
+                retrying = voiceCatalogRetrying,
+                onRetry = {
+                    val client = org.koin.mp.KoinPlatform.getKoinOrNull()
+                        ?.getOrNull<ai.oriveo.community.core.voice.VoiceCatalogClient>()
+                    if (client != null && !voiceCatalogRetrying) {
+                        voiceCatalogRetrying = true
+                        voiceCatalogRetryScope.launch {
+                            try {
+                                client.refresh()
+                            } finally {
+                                voiceCatalogRetrying = false
+                            }
+                        }
+                    }
+                },
+            )
+        }
+
         // Dictation status card sits right above the composer; takes no space without a card.
         DictationPromptSlot(
             handle = dictation,
@@ -317,12 +416,15 @@ internal fun ChatComposerHost(
 
         ai.oriveo.community.feature.chat.voice.VoiceConversationSwitcher(
             handle = voice,
-            barModifier = Modifier
-                .padding(horizontal = OriveoTheme.spacing.lg)
-                .navigationBarsPadding()
-                .padding(top = OriveoTheme.spacing.xs, bottom = OriveoTheme.spacing.sm),
+            // Full-width stage; it draws its own top fade and fog.
+            barModifier = Modifier.navigationBarsPadding(),
         ) {
-        EnhancedComposer(
+        if (realtimeSelected && !realtimeTyping) {
+            ai.oriveo.community.feature.chat.voice.RealtimeVoiceDock(
+                onStart = onStartVoiceConversation,
+                onKeyboard = { realtimeTyping = true },
+            )
+        } else EnhancedComposer(
             inputTextProvider = inputTextProvider,
             hasComposerText = hasComposerText,
             onInputChange = {
@@ -339,7 +441,7 @@ internal fun ChatComposerHost(
             generationParameterProvider = activeProvider,
             generationParameterConversationId = conversationId ?: viewModel.generationParameterDraftSessionId,
             isExistingConversation = conversationId != null,
-            conversationSkillId = conversationSkillId,
+            skillIds = conversationSkillIds,
             modelControlsFinalTransport = viewModel.modelControlsFinalTransport(),
             attachmentEntry = viewModel.attachmentEntryModel(imageCapabilityIdentity),
             outboundHistoryHasVideo = outboundHistoryHasVideo,
@@ -347,9 +449,14 @@ internal fun ChatComposerHost(
             onSelectModel = viewModel::selectModel,
             onOpenModelSwitcher = { viewModel.showModelSwitcher = true },
             mcpEntryVisible = viewModel.mcpCoordinator.isToolsChipVisible,
-            mcpToolsAvailable = mcpPanelState.availability.isAvailable,
+            // Realtime voice model: chip stays visible but dimmed; a tap explains why instead of opening the panel.
+            mcpToolsAvailable = mcpPanelState.availability.isAvailable && !viewModel.mcpCoordinator.isToolsChipDimmed,
             mcpEnabledServerCount = mcpPanelState.enabledServerCount,
-            onOpenMcpTools = viewModel.mcpCoordinator::openToolPanel,
+            onOpenMcpTools = {
+                viewModel.mcpCoordinator.onToolsChipTapped()?.let { reason ->
+                    chatSnackbar?.show(GlobalSnackbarMessage(message = UiText.Resource(reason)))
+                }
+            },
             showAttachmentSizeLimitDialog = viewModel.showAttachmentSizeLimitDialog,
             onDismissAttachmentSizeLimitDialog = viewModel::dismissAttachmentSizeLimitDialog,
             onProcessImageUri = { uri -> viewModel.processImageUri(context, uri) },
@@ -377,7 +484,15 @@ internal fun ChatComposerHost(
             // Not remembered: the metadata catalog (imageGen route) can land after the first frame.
             voiceConversationAvailable = ComposerVoiceEntry.voiceAvailable(viewModel.conversationState.model, activeProvider?.kind),
             onStartVoiceConversation = onStartVoiceConversation,
-            transparentChrome = transparentChrome,
+            voiceBackToStage = ComposerVoiceEntry.backToStage(realtimeSelected),
+            onBackToVoiceStage = {
+                ai.oriveo.community.feature.chat.voice.backToVoiceStage(
+                    typedSessionRunning = voice.typedSessionRunning,
+                    leaveTyping = { realtimeTyping = false },
+                    request = onBackToVoiceStage,
+                )
+            },
+            isAwaitingVoiceCatalog = isAwaitingVoiceCatalog,
             hazeState = hazeState,
             trueTransparentBlurEnabled = trueTransparentBlurEnabled,
             attachedNotes = attachedNotes,

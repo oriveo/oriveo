@@ -233,6 +233,10 @@ data class ChatMessage(
     val costSource: String? = null,
     /** The non-USD part; [estimatedCost] and [costSource] describe only the USD part. Null = there is no non-USD part. */
     val nonUsdCost: NonUsdCost? = null,
+    /** User messages only: skills attached when the message was sent, in order (skill_sync_fields.v1). */
+    val attachedSkillIds: List<String> = emptyList(),
+    /** Assistant messages only: skills this reply used (skill_sync_fields.v1). */
+    val usedSkills: List<UsedSkill> = emptyList(),
 ) {
     /** Cost parts for display, per currency: USD first, zero amounts omitted. */
     val costParts: List<CostPart>

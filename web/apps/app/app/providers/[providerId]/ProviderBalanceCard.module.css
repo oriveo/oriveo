@@ -101,7 +101,7 @@
   justify-content: center;
   border-radius: 10px;
   background: color-mix(in srgb, var(--o-primary) 12%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .title {
@@ -121,7 +121,7 @@
   justify-content: center;
   padding: 0;
   background: color-mix(in srgb, var(--o-primary) 12%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   border: 0;
   border-radius: 999px;
   cursor: pointer;
@@ -346,7 +346,7 @@
   font-size: 12px;
   font-weight: 600;
   background: color-mix(in srgb, var(--o-primary) 12%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   border: 0;
   border-radius: 999px;
   cursor: pointer;

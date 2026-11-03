@@ -38,7 +38,7 @@ button.header {
   margin-inline-start: 6px;
   padding: 0 6px;
   border-radius: var(--o-radius-sm, 4px);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   border: 1px solid var(--o-border);
   color: var(--o-text-tertiary);
   font-size: 11px;

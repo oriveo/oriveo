@@ -467,7 +467,7 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
     id: 'primary-fill-with-primary-text',
     foreground: 'var(--o-primary-text)',
     layers: ['var(--o-surface)', 'var(--o-primary)'],
-    measured: { light: 4.2344, dark: 6.9305 },
+    measured: { light: 4.1117, dark: 6.9305 },
     reason:
       'Primary fill with primary text on .btnPrimary and similar CTAs. Contrast is accepted as a known gap.',
   },
@@ -480,7 +480,7 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
       'color-mix(in srgb, var(--o-primary) 14%, transparent)',
       'color-mix(in srgb, var(--o-primary) 22%, transparent)',
     ],
-    measured: { light: 4.0233, dark: 2.7889 },
+    measured: { light: 4.3551, dark: 2.7889 },
     reason:
       'Primary text on a card with a glow overlay. Contrast is accepted as a known gap.',
   },
@@ -492,16 +492,13 @@ export const LEGACY_UNTRIAGED: readonly string[] = [
   'apps/app/app/providers/[providerId]/ProviderBalanceCard.module.css {.breakdownValueWarning}',
   'apps/app/app/providers/[providerId]/ProviderBalanceCard.module.css {.errorTitle}',
   'apps/app/app/providers/[providerId]/ProviderBalanceCard.module.css {.owingTag}',
-  'apps/app/app/providers/[providerId]/ProviderBalanceCard.module.css {.retryChip}',
   'apps/app/app/providers/[providerId]/ProviderDetail.module.css {.dangerLabel}',
   'apps/app/app/providers/[providerId]/ProviderDetail.module.css {.editFieldError}',
   'apps/app/app/providers/[providerId]/ProviderDetail.module.css {.managedWalletError}',
   'apps/app/app/providers/new/ProviderSetup.module.css {.fieldError}',
-  'apps/app/app/providers/new/ProviderSetup.module.css {.helpLink}',
-  'apps/app/app/providers/new/ProviderSetup.module.css {.manualLink}',
-  'apps/app/app/providers/new/ProviderSetup.module.css {.progress}',
   'apps/app/app/providers/relay/new/RelaySetup.module.css {.fieldError}',
   'apps/app/app/providers/relay/new/RelaySetup.module.css {.statusCard > strong}',
+  'apps/app/components/conversations/ConflictCopyGroup.module.css {.banner}',
   'apps/app/app/skills/edit/SkillEditPage.module.css {.addStarterBtn}',
   'apps/app/app/skills/edit/SkillEditPage.module.css {.inlineActionBtn}',
   'apps/app/app/welcome/Welcome.module.css {.errorMsg}',
@@ -514,12 +511,10 @@ export const LEGACY_UNTRIAGED: readonly string[] = [
   'apps/app/components/chat/MessageTokenUsageDialog.module.css {.total strong}',
   'apps/app/components/chat/NoteReferencePreview.module.css {.sourceChip}',
   'apps/app/components/conversations/ConflictCopyGroup.module.css {.banner}',
-  'apps/app/components/mobile/MobileHomeView.module.css {.sectionHeader button}',
   'apps/app/components/notes/Notes.module.css {.countPill}',
   'apps/app/components/providers/RelaySecurityModeControl.module.css {.change}',
   'apps/app/components/providers/RelaySecurityModeControl.module.css {.error}',
   'packages/ui/src/components/Input/Input.module.css {.error}',
-  'packages/ui/src/components/PageSection/PageSection.module.css {.eyebrow}',
 ];
 
 // ─────────────────────────── Evaluation and scanning ───────────────────────────

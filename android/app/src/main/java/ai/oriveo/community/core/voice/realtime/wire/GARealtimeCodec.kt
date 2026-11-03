@@ -2,6 +2,7 @@ package ai.oriveo.community.core.voice.realtime.wire
 
 import ai.oriveo.community.core.context.RealtimeHistoryItem
 import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.realtime.RealtimeSessionEvent
 import ai.oriveo.community.core.voice.realtime.RealtimeTransportKind
 import ai.oriveo.community.core.voice.realtime.RealtimeTurnStatus
@@ -23,7 +24,7 @@ import kotlinx.serialization.json.putJsonObject
  */
 object GARealtimeCodec {
     const val OUTPUT_SAMPLE_RATE_HZ = 24_000
-    private const val INPUT_SAMPLE_RATE_HZ = 24_000
+    const val INPUT_SAMPLE_RATE_HZ = 24_000
     private val sessionEndErrorTypes = setOf("max_duration", "timeout")
 
     /** Per-connection mapping state; the turn part resets after response.done. */
@@ -33,6 +34,13 @@ object GARealtimeCodec {
         internal var userFinal: Boolean = false
         internal var assistantText: String = ""
         internal var assistantItem: String? = null
+
+        /**
+         * A response is in progress: set by response.created (and by the transport as soon as it sends
+         * response.create), cleared by response.done.
+         */
+        @Volatile
+        internal var responseActive: Boolean = false
 
         internal fun resetTurn() {
             userText = ""
@@ -108,7 +116,12 @@ object GARealtimeCodec {
                 message.str("transcript")?.let { state.assistantText = it }
                 listOf(RealtimeSessionEvent.AssistantTranscript(itemId, state.assistantText, final = true))
             }
+            "response.created" -> {
+                state.responseActive = true
+                emptyList()
+            }
             "response.done" -> {
+                state.responseActive = false
                 val response = message["response"] as? JsonObject
                 val status = when (response?.str("status")) {
                     "completed" -> RealtimeTurnStatus.Completed
@@ -145,9 +158,12 @@ object GARealtimeCodec {
         history: List<RealtimeHistoryItem>,
         voice: String,
         inputTranscriptionModel: String?,
+        route: ConversationRoute = ConversationRoute.SPEAKER,
+        language: String? = null,
     ): List<JsonObject> {
         if (!isGa(kind)) return emptyList()
         val openAi = kind == RealtimeTransportKind.OpenAiRealtime
+        val lang = transcriptionLanguage(kind, language)
         val transcriptionModel = inputTranscriptionModel?.takeIf { it.isNotEmpty() }
         val session = buildJsonObject {
             if (openAi) {
@@ -166,9 +182,17 @@ object GARealtimeCodec {
                         put("rate", INPUT_SAMPLE_RATE_HZ)
                     }
                     if (transcriptionModel != null) {
-                        putJsonObject("transcription") { put("model", transcriptionModel) }
+                        // Language hint is sent only with the transcription model: OpenAI writes language, xAI writes language_hint
+                        putJsonObject("transcription") {
+                            put("model", transcriptionModel)
+                            if (lang != null) put(if (openAi) "language" else "language_hint", lang)
+                        }
                     }
-                    if (openAi) putJsonObject("turn_detection") { put("type", "semantic_vad") }
+                    if (openAi) {
+                        putJsonObject("turn_detection") { put("type", "semantic_vad") }
+                        // Noise-reduction knob is dispatched by transport: OpenAI speaker mode uses far_field, others near_field; xAI sends none
+                        put("noise_reduction", noiseReduction(route))
+                    }
                 }
                 putJsonObject("output") {
                     putJsonObject("format") {
@@ -201,6 +225,58 @@ object GARealtimeCodec {
             put("session", session)
         }
         return listOf(update) + items
+    }
+
+    /** OpenAI input noise reduction for [route]: far_field on the speaker, near_field otherwise. */
+    private fun noiseReduction(route: ConversationRoute): JsonObject = buildJsonObject {
+        put("type", if (route == ConversationRoute.SPEAKER) "far_field" else "near_field")
+    }
+
+    /**
+     * Mid-session route change: a session.update carrying only audio.input.noise_reduction (plus the GA session
+     * type). Null for xAI (it never gets the knob) and Gemini.
+     */
+    fun routeUpdate(kind: RealtimeTransportKind, route: ConversationRoute): JsonObject? {
+        if (kind != RealtimeTransportKind.OpenAiRealtime) return null
+        return buildJsonObject {
+            put("type", "session.update")
+            putJsonObject("session") {
+                put("type", "realtime")
+                putJsonObject("audio") {
+                    putJsonObject("input") { put("noise_reduction", noiseReduction(route)) }
+                }
+            }
+        }
+    }
+
+    /** The typed user item (conversation.item.create, input_text); null for Gemini. */
+    fun userItem(kind: RealtimeTransportKind, text: String): JsonObject? {
+        if (!isGa(kind)) return null
+        return buildJsonObject {
+            put("type", "conversation.item.create")
+            putJsonObject("item") {
+                put("type", "message")
+                put("role", "user")
+                putJsonArray("content") {
+                    addJsonObject {
+                        put("type", "input_text")
+                        put("text", text)
+                    }
+                }
+            }
+        }
+    }
+
+    /** A response.create without output_modalities; null for Gemini. */
+    fun responseCreate(kind: RealtimeTransportKind): JsonObject? {
+        if (!isGa(kind)) return null
+        return buildJsonObject { put("type", "response.create") }
+    }
+
+    /** Cancels the in-progress response; null for Gemini. */
+    fun responseCancel(kind: RealtimeTransportKind): JsonObject? {
+        if (!isGa(kind)) return null
+        return buildJsonObject { put("type", "response.cancel") }
     }
 
     /** wss://{host}{path}?model={percent-encoded model}; null for Gemini (its host builds the URL). */

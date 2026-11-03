@@ -263,7 +263,7 @@ button.row:disabled {
 .detectButton {
   border-color: transparent;
   background: var(--o-surface);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .deleteButton {
@@ -616,7 +616,7 @@ button.keyRow:disabled {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -821,7 +821,7 @@ button.keyRow:disabled {
 
 .keyInputReveal:hover,
 .keyInputReveal:focus-visible {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   outline: none;
 }
 

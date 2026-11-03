@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">จบ</string>
     <string name="voice_conversation_start_failed_toast">เริ่มการสนทนาด้วยเสียงไม่สำเร็จ ลองอีกครั้ง</string>
     <string name="voice_conversation_background_paused_toast">การสนทนาด้วยเสียงจะหยุดชั่วคราวขณะที่ Oriveo อยู่ในเบื้องหลัง</string>
+    <string name="voice_conversation_status_say_again">ฟังไม่ชัด ลองพูดอีกครั้ง</string>
+    <string name="voice_conversation_status_check_language">ฟังไม่ชัด</string>
+    <string name="voice_conversation_prompt_say_again">ฟังไม่ชัด ช่วยพูดอีกครั้งได้ไหม</string>
+    <string name="voice_conversation_prompt_check_language">ยังฟังไม่ชัด ถ้าพูดภาษาอื่นอยู่ แตะ “ภาษาที่ใช้รู้จำ” เพื่อเปลี่ยน</string>
+    <string name="voice_conversation_prompt_echo_hint">ลำโพงมีเสียงสะท้อน ใช้หูฟังจะดีกว่า</string>
+    <string name="voice_conversation_language_chip">ภาษาที่ใช้รู้จำ: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">เปลี่ยนภาษาที่ใช้รู้จำ</string>
 </resources>

@@ -95,6 +95,29 @@ class ChatRetryCoordinatorModelRetiredTest {
         assertTrue(conversation.messages.last().text == "partial")
     }
 
+    /** When the voice catalog is not ready, a realtime-id retry on an official apiKey connection is not blocked as delisted (no_model is not recorded). */
+    @Test
+    fun `retry_realtime_id_not_blocked_while_voice_catalog_pending`() = runTest {
+        val retry = ChatRetryCoordinator(
+            viewModelScope = this,
+            conversationRepository = conversationRepository,
+            providerRepository = providerRepository,
+            chatStreamingManager = mockk<ChatStreamingManager>(relaxed = true),
+            currentConversation = { conversation.copy(modelID = "gpt-realtime") },
+            activeProviderId = { provider.id },
+            activeModelId = { "gpt-realtime" },
+            providers = { listOf(provider) },
+            requestPin = {},
+            launchSend = ChatSendLauncher { _, _, _, _, _, _, _, _, _, _, _, _, _, _ -> },
+            voiceCatalog = { null },
+        )
+
+        retry.retryMessage("a1")
+        advanceUntilIdle()
+
+        assertTrue(tracked.none { it.first == TelemetryEvent.ChatSendBlocked })
+    }
+
     private companion object {
         val OPENAI_CATALOG = """
             {

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { makeRelayRequested, type ChatMessage, type Provider } from "@oriveo/shared";
@@ -74,7 +76,8 @@ vi.mock("@oriveo/ui", () => ({
   ),
 }));
 
-vi.mock("../../lib/utils/format-utils", () => ({
+vi.mock("../../lib/utils/format-utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../lib/utils/format-utils")>()),
   formatCost: () => null,
 }));
 
@@ -195,6 +198,20 @@ vi.mock("../../lib/hooks/useMessageEdit", () => ({
 
 const mockSetPreferences = vi.fn();
 let mockHasSeenNoteCaptureHint = false;
+let mockUserSkills: unknown[] = [];
+
+const { mockDisableAutoSkill, mockTrackEvent } = vi.hoisted(() => ({
+  mockDisableAutoSkill: vi.fn(),
+  mockTrackEvent: vi.fn(),
+}));
+
+vi.mock("../../lib/core/conversation-ops", () => ({
+  disableAutoSkill: (...args: unknown[]) => mockDisableAutoSkill(...args),
+}));
+
+vi.mock("../../lib/core/telemetry", () => ({
+  trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
+}));
 
 vi.mock("../../providers/StoreProvider", () => ({
   useAppStore: (
@@ -204,6 +221,8 @@ vi.mock("../../providers/StoreProvider", () => ({
       setPreferences: ReturnType<typeof vi.fn>;
       conversations: unknown[];
       providers: unknown[];
+      userSkills: unknown[];
+      catalogSkills: unknown[];
     }) => unknown,
   ) =>
     selector({
@@ -212,6 +231,8 @@ vi.mock("../../providers/StoreProvider", () => ({
       setPreferences: mockSetPreferences,
       conversations: [],
       providers: [],
+      userSkills: mockUserSkills,
+      catalogSkills: [],
     }),
   getVanillaStore: () => ({ getState: () => ({}) }),
 }));
@@ -340,6 +361,31 @@ describe("MessageBubble", () => {
 
     expect(screen.getAllByText("GPT-4o Latest").length).toBeGreaterThan(0);
     expect(mockCreateModelDisplayLookup).toHaveBeenCalledWith(provider);
+  });
+
+  it("shows the brand name when the provider is unresolved and the stored name is a raw kind id", () => {
+    mockCreateModelDisplayLookup.mockReturnValue({
+      resolve: vi.fn().mockReturnValue(null),
+    });
+
+    render(<MessageBubble message={{ ...baseMessage, role: "assistant", providerName: "openAI" }} />);
+
+    expect(screen.getAllByText("OpenAI").length).toBeGreaterThan(0);
+    expect(screen.queryByText("openAI")).toBeNull();
+  });
+
+  it("keeps a stored custom provider name when the provider is unresolved", () => {
+    mockCreateModelDisplayLookup.mockReturnValue({
+      resolve: vi.fn().mockReturnValue(null),
+    });
+
+    render(
+      <MessageBubble
+        message={{ ...baseMessage, role: "assistant", providerKind: "relay", providerName: "My Relay" }}
+      />,
+    );
+
+    expect(screen.getAllByText("My Relay").length).toBeGreaterThan(0);
   });
 
   it("falls back to the persisted message model name when lookup returns nothing", () => {
@@ -552,6 +598,28 @@ describe("MessageBubble", () => {
       "saveAsNote",
       "editAndResend",
     ]);
+  });
+
+  it("renders user text as a start-aligned block in its own direction", () => {
+    mockCreateModelDisplayLookup.mockReturnValue({
+      resolve: vi.fn().mockReturnValue(null),
+    });
+
+    render(
+      <MessageBubble
+        message={{ ...baseMessage, role: "user", text: "Plain English question" }}
+        provider={provider}
+        conversationId="conv-1"
+      />,
+    );
+
+    const text = screen.getByText("Plain English question");
+    expect(text.getAttribute("dir")).toBe("auto");
+    expect(text.className).toMatch(/plainText/);
+    const css = readFileSync(resolve(__dirname, "MessageBubble.module.css"), "utf8");
+    const plain = /(?:^|\n)\.plainText\s*\{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(plain).toMatch(/display:\s*block;/);
+    expect(plain).toMatch(/text-align:\s*start;/);
   });
 
   it("folds an overlong user message to a bounded prefix and reads the whole text in a dialog", async () => {
@@ -1261,6 +1329,66 @@ describe("MessageBubble", () => {
       } finally {
         resetCapabilityEvidenceIdentitiesForTesting();
       }
+    });
+  });
+
+  describe("skill usage labels", () => {
+    const gamma = { id: "skill-c", name: "Gamma", category: "writing" };
+    const conversation = { id: "conv-1", disabledAutoSkillIds: [] } as unknown as Conversation;
+
+    beforeEach(() => {
+      mockUserSkills = [gamma, { id: "skill-a", name: "Alpha", category: "writing" }];
+      mockCreateModelDisplayLookup.mockReturnValue({ resolve: vi.fn().mockReturnValue(null) });
+      mockDisableAutoSkill.mockReset();
+      mockTrackEvent.mockReset();
+      mockRouterPush.mockReset();
+    });
+
+    it("shows the attached skills line under a user message", () => {
+      const user: ChatMessage = { ...baseMessage, id: "u-skill", role: "user", text: "hi", attachedSkillIds: ["skill-a", "gone"] };
+      render(<MessageBubble message={user} provider={provider} />);
+      expect(screen.getByText("message.attached")).toBeTruthy();
+    });
+
+    it("expands the used chip; disabling here calls disableAutoSkill and hides the button", () => {
+      mockDisableAutoSkill.mockReturnValue(true);
+      const reply: ChatMessage = {
+        ...baseMessage,
+        id: "a-skill",
+        usedSkills: [{ id: "skill-c", name: "Gamma", via: "auto", reason: "fits gamma" }],
+      };
+      render(<MessageBubble message={reply} provider={provider} conversationId="conv-1" conversation={conversation} />);
+
+      const chip = screen.getByTestId("skill-used-chip");
+      expect(chip.getAttribute("aria-expanded")).toBe("false");
+      expect(screen.queryByTestId("skill-used-card")).toBeNull();
+      fireEvent.click(chip);
+      expect(chip.getAttribute("aria-expanded")).toBe("true");
+      expect(screen.getByText("fits gamma")).toBeTruthy();
+
+      fireEvent.click(screen.getByText("used.disableHere"));
+      expect(mockDisableAutoSkill).toHaveBeenCalledWith(expect.anything(), "conv-1", "skill-c");
+      expect(mockTrackEvent).toHaveBeenCalledWith("skill_auto_disabled_in_conversation", { skill_id: "skill-c" });
+      expect(screen.queryByText("used.disableHere")).toBeNull();
+
+      fireEvent.click(screen.getByText("used.view"));
+      expect(mockRouterPush).toHaveBeenCalledWith("/skills/detail?id=skill-c");
+    });
+
+    it("manual items show byChoice with view only; deleted skills hide view", () => {
+      const reply: ChatMessage = {
+        ...baseMessage,
+        id: "a-manual",
+        usedSkills: [
+          { id: "skill-a", name: "Alpha", via: "manual" },
+          { id: "gone", name: "Removed", via: "manual" },
+        ],
+      };
+      render(<MessageBubble message={reply} provider={provider} conversationId="conv-1" conversation={conversation} />);
+      fireEvent.click(screen.getByTestId("skill-used-chip"));
+      expect(screen.getAllByText("used.byChoice")).toHaveLength(2);
+      expect(screen.queryByText("used.disableHere")).toBeNull();
+      expect(screen.getAllByText("used.view")).toHaveLength(1);
     });
   });
 });

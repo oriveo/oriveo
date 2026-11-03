@@ -1,0 +1,87 @@
+{
+  "meta": {
+    "route": "chat_modalities",
+    "provider": "openRouter",
+    "op": "generate",
+    "http": 200,
+    "seconds": 5.7,
+    "captured_at": "2026-10-28T01:17:29.247Z",
+    "endpoint": "https://openrouter.ai/api/v1/chat/completions"
+  },
+  "observed": {
+    "shapes": [
+      "message.images[]"
+    ],
+    "images": [
+      {
+        "mime": "image/jpeg",
+        "width": 1408,
+        "height": 768,
+        "bytes": 121083,
+        "host": null
+      }
+    ]
+  },
+  "response": {
+    "id": "gen-1793150243-3Ayea3esTqUfjg0Sh0tG",
+    "object": "chat.completion",
+    "created": 1793150243,
+    "model": "google/gemini-3.1-flash-lite-image",
+    "provider": "Google",
+    "system_fingerprint": null,
+    "service_tier": "default",
+    "choices": [
+      {
+        "index": 0,
+        "logprobs": null,
+        "finish_reason": "stop",
+        "native_finish_reason": "STOP",
+        "message": {
+          "role": "assistant",
+          "content": null,
+          "refusal": null,
+          "reasoning": null,
+          "reasoning_details": [
+            {
+              "type": "reasoning.encrypted",
+              "data": "<base64 bytes=1002518 sha256=b83d33b851c0e0c2>",
+              "format": "google-gemini-v1",
+              "index": 0
+            }
+          ],
+          "images": [
+            {
+              "type": "image_url",
+              "image_url": {
+                "url": "data:image/jpeg;base64,<base64 bytes=121083 sha256=b4b1b58d3adffebf>"
+              }
+            }
+          ]
+        }
+      }
+    ],
+    "usage": {
+      "prompt_tokens": 13,
+      "completion_tokens": 1120,
+      "total_tokens": 1133,
+      "cost": 0.03360325,
+      "is_byok": false,
+      "prompt_tokens_details": {
+        "cached_tokens": 0,
+        "cache_write_tokens": 0,
+        "audio_tokens": 0,
+        "video_tokens": 0
+      },
+      "cost_details": {
+        "upstream_inference_cost": 0.03360325,
+        "upstream_inference_prompt_cost": 0.00000325,
+        "upstream_inference_completions_cost": 0.0336
+      },
+      "completion_tokens_details": {
+        "reasoning_tokens": 0,
+        "image_tokens": 1120,
+        "audio_tokens": 0
+      }
+    }
+  }
+}

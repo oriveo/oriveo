@@ -4,15 +4,15 @@ import Testing
 import UIKit
 @testable import Oriveo
 
-/// Yield the main thread for `seconds`: the test itself runs inside one block on the main queue, and a nested `RunLoop.run` does not drain the main queue again,
-/// so the `Task { @MainActor }` in the detail page's `reload()` and CachedMarkdownView's main-thread backfill only run once this block yields.
+/// Yields the main thread for `seconds`: the test itself runs inside a block on the main queue, and a nested `RunLoop.run` does not drain the main queue again,
+/// the detail page's `Task { @MainActor }` in `reload()` and the main-thread backfill of CachedMarkdownView both need this block to yield before they run.
 @MainActor
 func settle(_ seconds: Double) async {
     try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
 }
 
-/// Attach to the test host's window scene: a UIWindow without a scene does not drive SwiftUI's onAppear / rendering,
-/// leaving the detail page in its blank "note not loaded yet" state, so the measurement would be of an empty page (the first version of the probe hit this).
+/// Attached to the test host's window scene: a UIWindow without a scene does not drive SwiftUI's onAppear / rendering,
+/// the detail page stays in the blank "note not loaded yet" state, so the measurement captures an empty page (the first version of the probe hit this before the change).
 @MainActor
 func makeSceneWindow(width: CGFloat, height: CGFloat) -> UIWindow {
     let window: UIWindow
@@ -26,13 +26,13 @@ func makeSceneWindow(width: CGFloat, height: CGFloat) -> UIWindow {
     return window
 }
 
-/// Curve of the note detail first-frame cost against body length: mounts the real `NoteDetailView` in an iPhone 12-sized window,
-/// with a body that is a sample AI answer mixing headings + paragraphs + lists + code blocks + tables.
+/// Curve of note-detail first-frame cost against body length: the real `NoteDetailView` is mounted in an iPhone 12-sized window,
+/// with a body sample of AI answers mixing headings + paragraphs + lists + code blocks + tables.
 @MainActor
 @Suite("Note detail first-frame cost", .serialized, .sharedProcessState)
 struct NoteDetailRenderCostTests {
 
-    /// One section is about 330 characters and 11 lines; every 3rd section carries a table.
+    /// One section is about 330 characters and 11 lines; every 3 sections carry a table.
     static func mixedBody(sections: Int) -> String {
         var parts: [String] = []
         for index in 0..<sections {
@@ -64,7 +64,7 @@ struct NoteDetailRenderCostTests {
         case plain = "plain text"
     }
 
-    /// Same section structure minus code blocks / tables, hitting the renderer's three routes respectively (segmented code / MarkdownUI / CachedMarkdownView).
+    /// The same section structure without code blocks / tables, hitting the renderer's three paths respectively (segmented code / MarkdownUI / CachedMarkdownView).
     static func body(_ kind: Kind, sections: Int) -> String {
         switch kind {
         case .mixed:
@@ -98,13 +98,13 @@ struct NoteDetailRenderCostTests {
         let jank: CFTimeInterval
     }
 
-    /// Create all notes inside one AppState: closing and recreating the database per measurement collides with the previous database's cleanup (measured: a steady ~10s block each time, unrelated to the body).
+    /// Create all notes within one AppState: closing the DB and rebuilding it for each test collides with cleanup of the previous DB (measured: a consistent ~10s stall each time, unrelated to the body).
     private func measure(state: AppState, label: String, body: String) async -> Sample {
         guard let note = state.noteManager.createNote(from: NoteDraft(title: "Cost", body: body, captureKind: .blank)) else {
             Issue.record("createNote failed")
             return Sample(maxStall: 0, jank: 0)
         }
-        // The persistence / mirror / notification aftermath of creating the note is not counted in the cost of opening the detail.
+        // The DB write / mirror / notification aftermath of creating the note itself is not counted in the cost of opening the detail.
         await settle(1.0)
 
         let host = UIHostingController(rootView: NoteDetailView(noteID: note.id).environment(state))
@@ -131,9 +131,7 @@ struct NoteDetailRenderCostTests {
     func curve() async {
         let state = AppState(seedDemoData: false, sessionUID: "note-detail-cost-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         _ = await measure(state: state, label: "warm-up", body: Self.mixedBody(sections: 2))
         for kind in Kind.allCases {
@@ -142,14 +140,14 @@ struct NoteDetailRenderCostTests {
                 let body = Self.body(kind, sections: sections)
                 stalls[sections] = await measure(state: state, label: "\(kind.rawValue) \(sections) sections", body: body).maxStall
             }
-            // Independent of length: the longest tier within the bounded plain-text threshold (38 sections, ~6-9k UTF-16) is the same order as 2 sections.
-            // Before the fix (simulator), 38 sections cost 78ms more than 2 (prose) / 85-200ms (table prose) / 340ms+ (code + table).
+            // Independent of length: the longest tier within the bounded plain-text threshold (38 sections, ≈ 6–9k UTF-16) is in the same order as 2 sections.
+            // Before the change (M5 simulator), 38 sections were 78ms slower than 2 (plain body) / 85–200ms (table body) / 340ms+ (code + table).
             #expect((stalls[38] ?? 1) < (stalls[2] ?? 0) + 0.06, "\(kind.rawValue): 38 sections \(stalls[38] ?? -1)s vs 2 sections \(stalls[2] ?? -1)s")
         }
     }
 }
 
-/// The detail first frame only builds lazy cells near the viewport (independent of length). Uses the main-thread stall probe, so it is a wall-clock test.
+/// The first detail frame only builds lazy cells near the viewport (independent of length). It uses the main-thread stall probe, so it is wall-clock class.
 @MainActor
 @Suite("Note detail long-body first-frame cell count", .serialized, .sharedProcessState)
 struct NoteLazyMarkdownFirstFrameTests {
@@ -163,9 +161,7 @@ struct NoteLazyMarkdownFirstFrameTests {
     func firstFrameBuildsOnlyVisibleUnits(kind: NoteDetailRenderCostTests.Kind) async throws {
         let state = AppState(seedDemoData: false, sessionUID: "note-lazy-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         var built: [Int: Int] = [:]
         for sections in [20, 38] {
@@ -173,7 +169,7 @@ struct NoteLazyMarkdownFirstFrameTests {
             let total = try #require(gate(body)).count
             let note = try #require(state.noteManager.createNote(from: NoteDraft(title: "Lazy", body: body, captureKind: .blank)))
             let loaded = await state.noteManager.noteDetail(id: note.id)
-            #expect(loaded?.body == body, "The detail read path must be able to read this note")
+            #expect(loaded?.body == body, "the detail read path must be able to read this note")
             await settle(1.0)
             NoteLazyMarkdownBody.debugRowBodyCount = 0
             let host = UIHostingController(rootView: NoteDetailView(noteID: note.id).environment(state))
@@ -198,8 +194,8 @@ struct NoteLazyMarkdownFirstFrameTests {
     }
 }
 
-/// First-frame cost of the card look (same background view + same two shadow layers) does not grow with card height; content is replaced by fixed-height blank space so only the card itself is measured.
-/// The old drawing (whole group clipped by the full-card corner radius) is printed for comparison: on the simulator card heights 2000 / 5000 / 10000 / 15000pt -> 24 / 53 / 97 / 130ms, layered drawing 1-2ms.
+/// The first-frame cost of the card look (same background view + same two-layer shadow) does not grow with card height; content is swapped for fixed-height blank space, so only the card itself is measured.
+/// The old drawing (whole group clipped by the card's rounded corners) is printed as a control: M5 simulator card heights 2000 / 5000 / 10000 / 15000pt → 24 / 53 / 97 / 130ms, layered drawing 1–2ms.
 @MainActor
 @Suite("Note card look cost", .serialized, .sharedProcessState)
 struct NoteCardSurfaceCostTests {

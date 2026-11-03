@@ -39,6 +39,8 @@ struct ModelControlsEntrySheet: View {
     var onOpenSearchSettings: () -> Void = {}
     /// A sub-page pushed as soon as the panel opens (the error card's "Switch service" -> "Search method").
     var initialRoute: ModelControlsRoute? = nil
+    /// A realtime model is selected on this page: web search and thinking each show an unavailable-state row plus a switch-model action.
+    var realtimeSelected = false
 
     @ViewBuilder
     var body: some View {
@@ -59,7 +61,8 @@ struct ModelControlsEntrySheet: View {
                 onOpenConnectionWebSearch: onOpenConnectionWebSearch,
                 onOpenTestCapabilities: onOpenTestCapabilities,
                 onOpenSearchSettings: onOpenSearchSettings,
-                initialRoute: initialRoute
+                initialRoute: initialRoute,
+                realtimeSelected: realtimeSelected
             )
         } else {
             ModelControlsMissingModelSheet(provider: provider, onChooseConnection: onChooseConnection)
@@ -192,6 +195,8 @@ struct ModelControlsSheet: View {
     var onOpenSearchSettings: () -> Void = {}
     /// See `ModelControlsEntrySheet.initialRoute`.
     var initialRoute: ModelControlsRoute? = nil
+    /// A realtime model is selected on this page: web search and thinking are drawn as a status row plus a switch-model action, per `RealtimeModelPolicy.capability`.
+    var realtimeSelected = false
 
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
@@ -457,6 +462,9 @@ struct ModelControlsSheet: View {
         facts.pdfNativeDefault = fileModel.pdfNativeDefault
         facts.relayFileRejected = relayFileRejected
         facts.web.webSearchState = webSearchState(web: facts.web, nativeRejected: facts.webRejectedUpstream)
+        if realtimeSelected {
+            facts.realtimeCapability = RealtimeModelPolicy.capability(modelKind: .realtime, mode: .typing)
+        }
         return facts
     }
 

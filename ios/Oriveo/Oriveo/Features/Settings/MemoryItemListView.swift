@@ -474,7 +474,7 @@ struct MemoryItemListView: View {
                                 Image(systemName: "chevron.forward")
                                     .font(.system(size: 14, weight: .semibold))
                             }
-                            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             .padding(.leading, MemoryTimeline.textInset)
                             .padding(.trailing, 14)
                             .frame(minHeight: 50)
@@ -599,7 +599,7 @@ struct MemoryItemListView: View {
                             Text(L10n.tr("memory_action_organize", table: .chat))
                                 .font(.system(size: 13, weight: .semibold))
                         }
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .padding(.leading, 10)
                         .padding(.trailing, 12)
                         .padding(.vertical, 6)
@@ -1041,7 +1041,7 @@ struct MemoryPillButtonStyle: ButtonStyle {
         configuration.label
             .font(.system(size: fontSize, weight: .semibold))
             .lineLimit(1)
-            .foregroundStyle(filled ? OriveoTheme.Palette.onPrimary : OriveoTheme.Palette.primaryTextSafe)
+            .foregroundStyle(filled ? OriveoTheme.Palette.onPrimary : OriveoTheme.Palette.primaryTextOnSurface)
             .padding(.horizontal, 14)
             .frame(minHeight: height)
             .background(

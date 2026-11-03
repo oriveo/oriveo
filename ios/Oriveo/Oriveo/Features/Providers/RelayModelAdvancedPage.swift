@@ -90,7 +90,7 @@ struct RelayModelAdvancedPage: View {
                             .font(OriveoTheme.Typography.footnote.weight(.medium))
                             .lineLimit(1)
                     }
-                    .foregroundStyle(board.restoreAllEnabled ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textTertiary)
+                    .foregroundStyle(board.restoreAllEnabled ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textTertiary)
                     .frame(minHeight: Self.minHit)
                     .contentShape(Rectangle())
                 }
@@ -187,7 +187,7 @@ struct RelayModelAdvancedPage: View {
                 }
                 Text(transport == .auto ? L10n.tr("Auto") : RelayProtocolMix.legendName(transport))
                     .font(OriveoTheme.Typography.footnote.weight(.medium))
-                    .foregroundStyle(isSelected ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textSecondary)
+                    .foregroundStyle(isSelected ? OriveoTheme.Palette.primaryTextOnSurface : OriveoTheme.Palette.textSecondary)
                     .lineLimit(1)
             }
             .padding(.horizontal, OriveoTheme.Spacing.md)
@@ -294,7 +294,7 @@ struct RelayModelAdvancedPage: View {
                     .truncationMode(.middle)
                 icon(.caretDown, size: 12)
             }
-            .foregroundStyle(section.isAuto ? OriveoTheme.Palette.textSecondary : OriveoTheme.Palette.primary)
+            .foregroundStyle(section.isAuto ? OriveoTheme.Palette.textSecondary : OriveoTheme.Palette.primaryTextOnSurface)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Capsule().fill(OriveoTheme.Palette.surfaceInset.opacity(0.8)))
@@ -330,7 +330,7 @@ struct RelayModelAdvancedPage: View {
                     Button(action: onTestCapabilities) {
                         Text(L10n.tr("Test capabilities", table: .providers))
                             .font(OriveoTheme.Typography.body.weight(.medium))
-                            .foregroundStyle(OriveoTheme.Palette.primary)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.top, OriveoTheme.Spacing.md)
                             .contentShape(Rectangle())
@@ -419,7 +419,7 @@ struct RelayModelAdvancedPage: View {
                     .lineLimit(1)
                 icon(.caretDown, size: 12)
             }
-            .foregroundStyle(row.control == .auto ? OriveoTheme.Palette.textSecondary : OriveoTheme.Palette.primary)
+            .foregroundStyle(row.control == .auto ? OriveoTheme.Palette.textSecondary : OriveoTheme.Palette.primaryTextOnSurface)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .background(Capsule().fill(OriveoTheme.Palette.surfaceInset.opacity(0.8)))

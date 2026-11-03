@@ -140,7 +140,8 @@ class ChatComposerHostRealtimeContextTest {
     @Test
     fun chat_composer_host_uses_view_model_realtime_target() {
         val host = java.io.File("src/main/java/ai/oriveo/community/feature/chat/composer/ChatComposerHost.kt").readText()
-        assertTrue(host.contains("target = viewModel.realtimeVoiceTarget(conversationId)"))
+        // The failure card's exits (connection details, model picker) arrive via target; the ViewModel still assembles target.
+        assertTrue(host.contains("target = viewModel.realtimeVoiceTarget(\n            conversationId,"))
         assertFalse(host.contains("VoiceConversationTarget.Chat("))
         assertFalse(host.contains("manualCompactionContext"))
     }

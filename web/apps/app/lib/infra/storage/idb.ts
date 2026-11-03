@@ -1,4 +1,4 @@
-import { deleteDB, type DBSchema, type IDBPDatabase } from 'idb';
+import { deleteDB, unwrap, type DBSchema, type IDBPDatabase } from 'idb';
 import { openDB } from './idb-open';
 import type { Conversation, Provider, Folder, Note, NoteFolder } from '@oriveo/shared';
 import type { RhoCalibrationJSON } from '@oriveo/core/context/calibration';
@@ -77,6 +77,98 @@ interface OriveoDBSchema extends DBSchema {
     key: string;
     value: MemoryCandidateRow;
   };
+  studio_works: {
+    key: string;
+    value: StudioWorkRow;
+    indexes: { 'by-updated': string };
+  };
+  studio_rounds: {
+    key: string;
+    value: StudioRoundRow;
+    indexes: { 'by-work': string };
+  };
+  studio_versions: {
+    key: string;
+    value: StudioVersionRow;
+    indexes: { 'by-work': string; 'by-round': string; 'by-asset': string };
+  };
+  studio_round_refs: {
+    /** [roundId, order]. */
+    key: [string, number];
+    value: StudioRoundRefRow;
+    indexes: { 'by-round': string; 'by-asset': string };
+  };
+}
+
+/* Studio local tables: fields follow studio_data_model.v1 localTables (identical on the three clients). */
+
+export interface StudioWorkRow {
+  id: string;
+  title: string;
+  /** Cover version; null only on a tombstone. */
+  currentVersionId: string | null;
+  source: 'studio' | 'chat';
+  chatConversationId: string | null;
+  chatMessageId: string | null;
+  favorite: boolean;
+  /** Keep order across the whole work (append-only); version number vN = position + 1. */
+  selectedVersionIds: string[];
+  deletedVersionIds: string[];
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+  revision: number;
+  baseRevision: number;
+  accountPartition: string;
+  syncState: string;
+}
+
+export interface StudioRoundRow {
+  id: string;
+  workId: string;
+  index: number;
+  baseVersionId: string | null;
+  operation: 'generate' | 'edit' | 'import';
+  prompt: string;
+  composedPrompt: string | null;
+  enhancedPrompt: string | null;
+  presetIds: string[];
+  params: Record<string, unknown>;
+  modelRef: Record<string, unknown> | null;
+  status: string;
+  errorKind: string | null;
+  adjustments: unknown;
+  nRequested: number;
+  nDelivered: number;
+  costEstimateUsd: number | null;
+  chargedUsd: number | null;
+  fundingSource: 'byok' | 'free_quota' | 'balance' | 'none';
+  managedJobId: string | null;
+  clientJobId: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface StudioVersionRow {
+  id: string;
+  roundId: string;
+  workId: string;
+  parentVersionId: string | null;
+  /** Image store key of the original; referenced by the orphan sweeper whether kept or candidate. */
+  assetId: string;
+  width: number;
+  height: number;
+  mime: string;
+  kept: boolean;
+  createdAt: string;
+}
+
+export interface StudioRoundRefRow {
+  roundId: string;
+  order: number;
+  /** Image store key of the reference image; referenced by the orphan sweeper. */
+  assetId: string;
+  role: 'base' | 'subject' | 'style' | 'composition' | 'person' | 'element';
 }
 
 export interface PendingProviderDeletion {
@@ -126,11 +218,25 @@ function makeProviderDeletionOperationID(): string {
 //   the migration is generated from memoryText by bootstrap's reconcileLegacy, upgrade backfills nothing.
 // - v14: memory candidates - adds memoryCandidates (keyPath id); a row = { id, status, candidate }.
 //   Brand new store holding only the current local partition: not part of any backup, upgrade backfills nothing.
-export const DB_VERSION = 14;
+// - v15: no schema change in this build (the version number is kept so databases stay in step with other clients).
+// - v16: Image Studio data model (studio_data_model.v1): adds studio_works (keyPath id, by-updated),
+//   studio_rounds (keyPath id, by-work), studio_versions (keyPath id, by-work / by-round / by-asset) and
+//   studio_round_refs (keyPath [roundId, order], by-round / by-asset). New empty stores, no backfill;
+//   the orphan image sweeper counts their assetIds as references.
+export const DB_VERSION = 16;
 
 // Active database name and connection promise (reset when the partition changes).
 let currentDBName: string | null = null;
 let dbPromise: Promise<IDBPDatabase<OriveoDBSchema>> | null = null;
+// Raw connection behind the settled dbPromise, so the page-leave flush can start a transaction
+// inside the pagehide call stack without awaiting anything.
+let syncDB: IDBDatabase | null = null;
+let syncDBName: string | null = null;
+
+function clearSyncDB(): void {
+  syncDB = null;
+  syncDBName = null;
+}
 
 async function openPartitionDB(dbName: string) {
   // Detect an empty DB (no stores) accidentally created by hasPartitionData: delete and
@@ -166,6 +272,7 @@ async function openPartitionDB(dbName: string) {
         dbPromise = null;
         currentDBName = null;
       }
+      if (syncDBName === dbName) clearSyncDB();
     },
     upgrade(db, oldVersion, _newVersion, tx) {
       // v0 -> v4: create every store on first run.
@@ -222,6 +329,26 @@ async function openPartitionDB(dbName: string) {
       // v13 -> v14: memory candidates. Brand new store, no history to backfill.
       if (!db.objectStoreNames.contains('memoryCandidates')) {
         db.createObjectStore('memoryCandidates', { keyPath: 'id' });
+      }
+      // v15 -> v16: Image Studio stores. New empty stores, nothing to backfill.
+      if (!db.objectStoreNames.contains('studio_works')) {
+        const works = db.createObjectStore('studio_works', { keyPath: 'id' });
+        works.createIndex('by-updated', 'updatedAt');
+      }
+      if (!db.objectStoreNames.contains('studio_rounds')) {
+        const rounds = db.createObjectStore('studio_rounds', { keyPath: 'id' });
+        rounds.createIndex('by-work', 'workId');
+      }
+      if (!db.objectStoreNames.contains('studio_versions')) {
+        const versions = db.createObjectStore('studio_versions', { keyPath: 'id' });
+        versions.createIndex('by-work', 'workId');
+        versions.createIndex('by-round', 'roundId');
+        versions.createIndex('by-asset', 'assetId');
+      }
+      if (!db.objectStoreNames.contains('studio_round_refs')) {
+        const refs = db.createObjectStore('studio_round_refs', { keyPath: ['roundId', 'order'] });
+        refs.createIndex('by-round', 'roundId');
+        refs.createIndex('by-asset', 'assetId');
       }
       if (oldVersion >= 8 && oldVersion < 9) {
         void (async () => {
@@ -293,11 +420,17 @@ async function getDB(expectedUID?: string) {
     } catch { /* Ignore a failed close */ }
   }
 
+  clearSyncDB();
   currentDBName = dbName;
   const opening = openWithStaleSchemaRecovery(() => openPartitionDB(dbName));
   dbPromise = opening;
-  // Never keep a failed open in the cache: every later read and write would get the same
-  // rejected promise until the page is reloaded.
+  opening.then((db) => {
+    if (dbPromise === opening) {
+      syncDB = unwrap(db) as IDBDatabase;
+      syncDBName = dbName;
+    }
+  }, () => {});
+  // A failed open must not stay cached: otherwise every later read and write in this tab gets the same rejected promise until a refresh.
   opening.catch(() => {
     if (dbPromise === opening) {
       dbPromise = null;
@@ -314,6 +447,7 @@ export function resetDBConnection() {
   }
   dbPromise = null;
   currentDBName = null;
+  clearSyncDB();
 }
 
 /* ── Conversations ───────────────────────────────────── */
@@ -559,7 +693,52 @@ export async function putConversationPreservingHydratedMessagesReportingDroppedK
   return { written: partitionIsCurrent(), droppedImageKeys: [] };
 }
 
-/** Attachment keys present in the old record but no longer referenced by the new one; attachments an edited message keeps do not count. */
+/** Explicit commit where supported; older engines keep auto-commit. */
+function commitNow(tx: IDBTransaction): void {
+  if (typeof tx.commit === 'function') tx.commit();
+}
+
+/**
+ * Page-leave flush: issues the readwrite put in the current call stack, so it is queued before the
+ * page is torn down. Returns false (nothing written) when no settled connection to the active
+ * partition is cached, when the partition is not expectedUID, or when the conversation is summary-only
+ * (its stored messages must be preserved, which needs an async read). Callers fall back to the async path.
+ * Dropped-image purge is skipped here; the next regular write of the conversation reports the keys again.
+ */
+export function putConversationForPageLeaveSync(conversation: Conversation, expectedUID?: string): boolean {
+  const uid = getActiveUIDSync();
+  if (expectedUID !== undefined && uid !== expectedUID) return false;
+  if (!syncDB || syncDBName !== getDBName(uid)) return false;
+  if (conversation.messages.length === 0 && (conversation.remoteMessageCount ?? 0) > 0) return false;
+  const db = syncDB;
+  const value = sanitizeConversationQuoteContexts(conversation);
+  try {
+    const tx = db.transaction('conversations', 'readwrite');
+    tx.objectStore('conversations').put(value);
+    // Auto-commit waits for the put's success event to reach this page; a page torn down first never
+    // sends it and the transaction is aborted. commit() asks for the commit right away.
+    commitNow(tx);
+    tx.onabort = () => {
+      // Same quota fallback as writeConversationWithQuotaFallback: retry without inline attachment payloads.
+      if (!isQuotaExceededError(tx.error)) return;
+      const lightweight = stripInlineAttachmentPayloads(value);
+      if (lightweight === value) return;
+      try {
+        const retry = db.transaction('conversations', 'readwrite');
+        retry.objectStore('conversations').put(lightweight);
+        commitNow(retry);
+      } catch {
+        // Connection closed while leaving the page; nothing more can be written.
+      }
+    };
+    return true;
+  } catch {
+    // Closed or closing connection: let the caller use the async path.
+    return false;
+  }
+}
+
+/** Attachment keys the old record had and the new record no longer references; attachments a new message inherits when editing do not count. */
 function droppedImageKeys(previous: Conversation | undefined, next: Conversation): string[] {
   if (!previous || previous.messages.length === 0) return [];
   const kept = collectAttachmentKeys(next.messages);

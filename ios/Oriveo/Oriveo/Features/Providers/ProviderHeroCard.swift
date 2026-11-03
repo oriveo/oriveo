@@ -3,6 +3,8 @@ import SwiftUI
 struct ProviderHeroCard: View {
     let provider: Provider
     let monthlyEstimatedCost: Double
+    /// Non-USD totals this month (currency → amount in that currency), shown separately from USD, never converted.
+    var monthlyNonUsdCosts: [String: Double] = [:]
 
     @Environment(\.colorScheme) private var colorScheme
 
@@ -42,12 +44,17 @@ struct ProviderHeroCard: View {
     }
 
     private var monthlyCostText: String {
-        let formatted = CostFormatter.format(monthlyEstimatedCost)
-        return formatted.isEmpty ? "$0" : formatted
+        let formatted = CostFormatter.totalsText(usd: monthlyEstimatedCost, nonUsdTotals: monthlyNonUsdCosts)
+        return Self.costTextOrZero(formatted)
+    }
+
+    /// Falls back to a locale-formatted zero (de: "0 $") instead of a hard-coded US string.
+    static func costTextOrZero(_ formatted: String, locale: Locale = AppLocalization.currentLocale) -> String {
+        formatted.isEmpty ? CostFormatter.usd(0, minFraction: 0, maxFraction: 0, locale: locale) : formatted
     }
 
     private var isZeroCost: Bool {
-        monthlyEstimatedCost <= CostFormatter.costEpsilon
+        monthlyEstimatedCost <= CostFormatter.costEpsilon && monthlyNonUsdCosts.isEmpty
     }
 
     private var statusColor: Color {

@@ -5,6 +5,8 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.voice.DictationCatalogSource
 import ai.oriveo.community.core.voice.DictationController
 import ai.oriveo.community.core.voice.DictationEngineFactory
+import ai.oriveo.community.core.voice.DictationLiveSession
+import ai.oriveo.community.core.voice.LiveTranscript
 import ai.oriveo.community.core.voice.STTEngine
 import ai.oriveo.community.core.voice.STTResult
 import ai.oriveo.community.core.voice.STTSegment
@@ -25,6 +27,8 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -67,11 +71,30 @@ class DictationConversationSttSourceTest {
 
     private class FakeEngineFactory(private val system: STTEngine, private val cloud: STTEngine) : DictationEngineFactory {
         val cloudCalls = mutableListOf<Triple<VoiceSttEntry, String, String>>()
+        var route: SystemSTTRoute = SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "zh-Hans")
+        val downloads = mutableListOf<String>()
+        val pipeSessions = mutableListOf<Pair<SystemSTTRoute.Pipe, DictationLiveSession>>()
 
         override fun system(): STTEngine = system
 
-        override suspend fun systemRoute(language: String?): SystemSTTRoute =
-            SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "zh-Hans")
+        override suspend fun startPipeSession(route: SystemSTTRoute.Pipe): DictationLiveSession {
+            val session = object : DictationLiveSession {
+                override val live: StateFlow<LiveTranscript> = MutableStateFlow(LiveTranscript())
+                override fun onPcm(samples: ShortArray, count: Int) = Unit
+                override fun stop() = Unit
+                override suspend fun await(): STTResult = STTResult.Success("")
+                override fun cancel() = Unit
+            }
+            pipeSessions += route to session
+            return session
+        }
+
+        override suspend fun systemRoute(language: String?): SystemSTTRoute = route
+
+        override suspend fun downloadLanguagePack(language: String): Boolean {
+            downloads += language
+            return true
+        }
 
         override suspend fun startSelfRecord(route: SystemSTTRoute.SelfRecord): SystemSTTSelfRecordSession =
             error("not used")
@@ -153,9 +176,38 @@ class DictationConversationSttSourceTest {
         val stt = source.resolve() as ConversationStt.FromFile
 
         assertSame(cloudEngine, stt.engine)
+        // The cloud engine does not open a realtime session
+        assertEquals(null, stt.live)
         assertEquals("openAI", stt.providerKind)
         assertEquals("zh-Hans", stt.language)
         assertEquals(0, catalog.refreshes)
         assertEquals(sttEntry, engines.cloudCalls.single().first)
+    }
+
+    @Test
+    fun `conversation never offers a language pack on pipe or self record routes`() = runTest {
+        engines.route = SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "zh-Hans", languagePackOffer = true)
+        val pipe = source.resolve() as ConversationStt.FromFile
+        assertSame(systemEngine, pipe.engine)
+
+        engines.route = SystemSTTRoute.SelfRecord(SystemSTTRecognizer.DEFAULT, "zh-Hans", languagePackOffer = true)
+        assertTrue(source.resolve() is ConversationStt.SelfRecord)
+
+        // Matches iOS: no prompt in conversation, no prompted state recorded, no download
+        assertFalse(settings.languagePackOffered("zh-Hans"))
+        assertTrue(engines.downloads.isEmpty())
+    }
+
+    @Test
+    fun `pipe route gives the system engine with a live session opener on that route`() = runTest {
+        val route = SystemSTTRoute.Pipe(SystemSTTRecognizer.DEFAULT, "zh-Hans")
+        engines.route = route
+        val stt = source.resolve() as ConversationStt.FromFile
+        assertSame(systemEngine, stt.engine)
+        // Resolving alone does not open a session: it opens when each sentence starts.
+        assertTrue(engines.pipeSessions.isEmpty())
+        val opened = stt.live!!.invoke()
+        assertSame(engines.pipeSessions.single().second, opened)
+        assertEquals(route, engines.pipeSessions.single().first)
     }
 }

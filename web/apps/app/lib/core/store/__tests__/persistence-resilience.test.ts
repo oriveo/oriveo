@@ -9,6 +9,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const h = vi.hoisted(() => ({
   captureException: vi.fn(),
+  flushAllStreamsForLifecycle: vi.fn(),
   getAllProviders: vi.fn(),
   getAllConversations: vi.fn(),
   scanConversationsInChunks: vi.fn(),
@@ -22,6 +23,8 @@ const h = vi.hoisted(() => ({
   putConversation: vi.fn(),
   putConversationPreservingHydratedMessages: vi.fn(),
   putConversationPreservingHydratedMessagesReportingDroppedKeys: vi.fn(),
+  // No cached sync connection under the idb mock: the page-leave flush falls back to the async path.
+  putConversationForPageLeaveSync: vi.fn(() => false),
   deleteConversation: vi.fn(),
   getConversationById: vi.fn(),
   putFolder: vi.fn(),
@@ -62,6 +65,7 @@ vi.mock('../../../infra/storage/idb', () => ({
   putConversation: h.putConversation,
   putConversationPreservingHydratedMessages: h.putConversationPreservingHydratedMessages,
   putConversationPreservingHydratedMessagesReportingDroppedKeys: h.putConversationPreservingHydratedMessagesReportingDroppedKeys,
+  putConversationForPageLeaveSync: h.putConversationForPageLeaveSync,
   deleteConversation: h.deleteConversation,
   getConversationById: h.getConversationById,
   putFolder: h.putFolder,
@@ -81,6 +85,10 @@ vi.mock('../../providers/catalog-model', () => ({
   enrichStoredModel: h.enrichStoredModel,
   deduplicateModels: h.deduplicateModels,
 }));
+vi.mock('../../chat/active-streams', () => ({
+  flushAllStreamsForLifecycle: () => h.flushAllStreamsForLifecycle(),
+  backupAllStreamsToSessionStorage: () => {},
+}));
 vi.mock('../../folder-ops', () => ({ assignFolderColors: h.assignFolderColors }));
 vi.mock('../stream-partial-backup', () => ({
   readStreamPartialBackup: h.readStreamPartialBackup,
@@ -95,6 +103,10 @@ vi.mock('../../../infra/storage/partition', async (importOriginal) => ({
 import { createAppStore } from '../app-store';
 import { hydrateStore, refreshProviderMetadata } from '../persistence';
 import { subscribePinned, subscribeConversations } from '../persistence-subscribers';
+import {
+  installStreamLifecycleListeners,
+  __resetStreamLifecycleListenersForTests,
+} from '../../chat/lifecycle-listeners';
 import type { Provider, Conversation } from '@oriveo/shared';
 
 function makeProvider(overrides: Partial<Provider> = {}): Provider {
@@ -352,6 +364,75 @@ describe('subscribeConversations debounce cleanup on unsubscribe', () => {
       message: 'storage.conversation.persist',
     }));
     unsub();
+  });
+});
+
+describe('subscribeConversations flushes the pending write when the page is left', () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it('pagehide writes the pending conversation at once, and the debounce does not write it again', () => {
+    const store = createAppStore();
+    store.setState({ hydrationPhase: 'ready' });
+    const unsub = subscribeConversations(store);
+
+    store.getState().addConversation(makeConversation({ id: 'c1' }));
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(h.putConversationPreservingHydratedMessages).toHaveBeenCalledTimes(1);
+    expect(h.putConversationPreservingHydratedMessages.mock.calls[0][0].id).toBe('c1');
+    vi.advanceTimersByTime(600);
+    expect(h.putConversationPreservingHydratedMessages).toHaveBeenCalledTimes(1);
+    unsub();
+  });
+
+  it('visibilitychange to hidden writes the pending conversation at once', () => {
+    const store = createAppStore();
+    store.setState({ hydrationPhase: 'ready' });
+    const unsub = subscribeConversations(store);
+    const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+
+    store.getState().addConversation(makeConversation({ id: 'c1' }));
+    document.dispatchEvent(new Event('visibilitychange'));
+
+    expect(h.putConversationPreservingHydratedMessages).toHaveBeenCalledTimes(1);
+    visibility.mockRestore();
+    unsub();
+  });
+
+  it('pagehide writes the conversation as changed by the stream sync, whatever the listener order', () => {
+    const store = createAppStore();
+    store.setState({ hydrationPhase: 'ready' });
+    store.getState().addConversation(makeConversation({ id: 'c1', previewText: 'before' }));
+    // The subscriber's own pagehide listener is registered first and finds nothing pending.
+    const unsub = subscribeConversations(store);
+    h.flushAllStreamsForLifecycle.mockImplementation(() => {
+      store.setState((state) => ({
+        conversations: state.conversations.map((c) => (c.id === 'c1' ? { ...c, previewText: 'streamed' } : c)),
+      }));
+    });
+    installStreamLifecycleListeners();
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(h.putConversationPreservingHydratedMessages).toHaveBeenCalledTimes(1);
+    expect(h.putConversationPreservingHydratedMessages.mock.calls[0][0].previewText).toBe('streamed');
+    __resetStreamLifecycleListenersForTests();
+    h.flushAllStreamsForLifecycle.mockReset();
+    unsub();
+  });
+
+  it('nothing pending or already unsubscribed: pagehide writes nothing', () => {
+    const store = createAppStore();
+    store.setState({ hydrationPhase: 'ready' });
+    const unsub = subscribeConversations(store);
+    window.dispatchEvent(new Event('pagehide'));
+    expect(h.putConversationPreservingHydratedMessages).not.toHaveBeenCalled();
+
+    store.getState().addConversation(makeConversation({ id: 'c1' }));
+    unsub();
+    window.dispatchEvent(new Event('pagehide'));
+    expect(h.putConversationPreservingHydratedMessages).not.toHaveBeenCalled();
   });
 });
 

@@ -306,7 +306,7 @@ struct ThemeSettingsView: View {
             Spacer(minLength: 8)
             Text(Self.previewCost)
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(OriveoTheme.Palette.primary)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
         }
         .padding(.horizontal, 14)
         .frame(height: 46)
@@ -414,7 +414,7 @@ struct ThemeSettingsView: View {
 
     private var previewTags: some View {
         HStack(spacing: 6) {
-            previewTag(L10n.tr("Reasoning"), fill: OriveoTheme.V2.Colors.primarySubtle, text: OriveoTheme.Palette.primary)
+            previewTag(L10n.tr("Reasoning"), fill: OriveoTheme.V2.Colors.primarySubtle, text: OriveoTheme.Palette.primaryTextOnSurface)
             previewTag(L10n.tr("Web"), fill: Self.previewAccent.opacity(0.14), text: Self.previewAccent)
         }
     }
@@ -488,7 +488,7 @@ struct ThemeSettingsView: View {
             if rest[range] == "%1$@" {
                 var owner = AttributedString(L10n.tr("Theme Preview Owner", table: .settings))
                 owner.font = .system(size: 13.5, weight: .semibold)
-                owner.foregroundColor = OriveoTheme.Palette.primary
+                owner.foregroundColor = OriveoTheme.Palette.primaryTextOnSurface
                 result += owner
             } else {
                 var code = AttributedString(previewCode)

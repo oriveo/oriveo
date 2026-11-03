@@ -37,9 +37,9 @@ struct ChatListDataSourceReuseIdentityRegressionTests {
                     state: state, attachments: nil, citations: nil)
     }
 
-    private func makeContext() -> ChatListDataSource.RenderContext {
+    private func makeContext(parent: UIViewController = UIViewController()) -> ChatListDataSource.RenderContext {
         ChatListDataSource.RenderContext(
-            parentViewController: UIViewController(),
+            parentViewController: parent,
             maxBubbleWidth: 300,
             onRetry: { _ in }, onContinue: { _ in },
             onRegenerate: { _ in }, onEditMessage: { _ in }, onSwitchModel: {},
@@ -123,5 +123,49 @@ struct ChatListDataSourceReuseIdentityRegressionTests {
         let diff = dataSource.computeDiff(newRows: newRows, newRenderModels: newPlan.renderModelsByID)
         #expect(!diff.requiresFullReload)
         #expect(diff.reconfigures == [0])
+    }
+
+    @Test("Cells configured for transient live bubbles (liveUser / liveAssistant) show no action row or long-press menu; regular messages still do")
+    func realtimeLiveCellsHaveNoActions() throws {
+        let dataSource = ChatListDataSource()
+        let cv = makeCollectionView()
+        cv.dataSource = dataSource
+        let rows = ChatCollectionProjectionBuilder.makeRows(from: [user(), assistant()], metadata: .empty)
+        let attribution = RealtimeVoiceAttribution(
+            providerID: UUID(), providerKind: .gemini, providerName: "Gemini", model: "gemini-live"
+        )
+        let plan = ChatCollectionProjectionBuilder.makeSnapshotPlan(
+            from: rows,
+            providerMetadataVersion: 0,
+            realtimeLive: .init(
+                drafts: RealtimeDrafts(user: "hello there", assistant: "hi"),
+                attribution: attribution,
+                callMessageIDs: []
+            )
+        )
+        #expect(plan.items.map(\.presentationKind) == [.user, .assistant, .liveUser, .liveAssistant])
+        // The context holds its parent controller weakly; the test holds it strongly, so it takes the production configuration path rather than the missing-fallback path.
+        let parent = UIViewController()
+        dataSource.commit(rows: rows + plan.liveRows, renderModels: plan.renderModelsByID, context: makeContext(parent: parent))
+
+        func cell(_ item: Int) -> UICollectionViewCell {
+            dataSource.collectionView(cv, cellForItemAt: IndexPath(item: item, section: 0))
+        }
+        func menu(_ cell: UserMessageCell) -> UIContextMenuConfiguration? {
+            cell.contextMenuInteraction(UIContextMenuInteraction(delegate: cell), configurationForMenuAtLocation: .zero)
+        }
+        let storedUser = try #require(cell(0) as? UserMessageCell)
+        let storedAssistant = try #require(cell(1) as? AssistantMessageCell)
+        let liveUser = try #require(cell(2) as? UserMessageCell)
+        let liveAssistant = try #require(cell(3) as? AssistantMessageCell)
+
+        #expect(storedUser.allowsMessageActions && menu(storedUser) != nil)
+        #expect(!storedAssistant.metadataView.isActionRowHidden)
+        #expect(!liveUser.allowsMessageActions)
+        #expect(menu(liveUser) == nil)
+        // The header (model name row) remains; only the action row is absent.
+        #expect(!liveAssistant.metadataView.isHidden)
+        #expect(liveAssistant.metadataView.isActionRowHidden)
+        withExtendedLifetime(parent) {}
     }
 }

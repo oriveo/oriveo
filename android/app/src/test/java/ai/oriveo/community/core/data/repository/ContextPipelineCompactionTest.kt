@@ -15,6 +15,9 @@ import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.RelayConnectionSecurityMode
+import ai.oriveo.community.core.model.RelayRequestedConfig
+import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.AnthropicService
 import ai.oriveo.community.core.provider.MetadataTestFixtures
 import ai.oriveo.community.core.provider.transport.TransportRegistry
@@ -282,6 +285,26 @@ class ContextPipelineCompactionTest {
     }
 
     @Test
+    fun relay_local_http_options() = runTest {
+        // The one-shot summary call carries the connection's Relay options like the main chat send.
+        val relay = PROVIDER.copy(
+            kind = ProviderKind.Relay,
+            baseUrlText = "http://127.0.0.1:8080",
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIChatCompletions,
+                securityMode = RelayConnectionSecurityMode.LocalHttp,
+            ),
+        )
+        val harness = Harness(this, aiSummary = true, provider = relay)
+        harness.send("Next question", existing = longHistory(bytes = 1_500))
+
+        val options = harness.summaryOptions.single()
+        assertEquals(relay.relayRequested, options.relayRequested)
+        assertEquals(RelayTransport.OpenAIChatCompletions, options.relayRouteTransport)
+        assertEquals("http://127.0.0.1:8080/v1", options.relayRouteAPIRoot)
+    }
+
+    @Test
     fun compaction_none_sends_full_history() = runTest {
         val history = listOf(
             message("u0", ChatRole.User, "First question"),
@@ -315,7 +338,12 @@ class ContextPipelineCompactionTest {
         )
     }
 
-    private inner class Harness(scope: TestScope, aiSummary: Boolean = false, accountFails: Boolean = false) {
+    private inner class Harness(
+        scope: TestScope,
+        aiSummary: Boolean = false,
+        accountFails: Boolean = false,
+        private val provider: Provider = PROVIDER,
+    ) {
         val bodies = mutableListOf<JsonObject>()
         val added = mutableListOf<ChatMessage>()
         var addedAtSummary: List<ChatMessage>? = null
@@ -366,7 +394,7 @@ class ContextPipelineCompactionTest {
                 }
             }
             every { it.serviceFor(any<Provider>(), any()) } returns service
-            coEvery { it.getById(PROVIDER.id) } returns PROVIDER
+            coEvery { it.getById(provider.id) } returns provider
         }
         private val repository = ChatRepository(
             conversationRepository = conversationRepository,
@@ -391,7 +419,7 @@ class ContextPipelineCompactionTest {
                 repository.sendMessage(
                     conversation = CONVERSATION,
                     text = text,
-                    provider = PROVIDER,
+                    provider = provider,
                     modelID = MODEL.id,
                     existingMessages = existing,
                     requestOptions = ChatRequestOptions(

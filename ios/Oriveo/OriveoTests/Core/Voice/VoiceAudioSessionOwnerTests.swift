@@ -38,6 +38,98 @@ struct VoiceAudioSessionOwnerTests {
     }
 
     @Test("While a conversation lease is held, dictation waits; releasing a lease superseded by a newer conversation does not wake it, only releasing the current conversation lease does")
+    func test_readAloudClaim_takesOverAndReleases() {
+        let owner = VoiceAudioSessionOwner()
+        let dictation = owner.claim(.dictation)
+        let readAloud = owner.claim(.readAloud)
+        #expect(readAloud.client == .readAloud)
+        #expect(readAloud.generation > dictation.generation)
+        #expect(!owner.release(dictation))
+        #expect(owner.current == readAloud)
+
+        // Conversation takes over read-aloud: release is false when read-aloud ends; must not deactivate
+        let conversation = owner.claim(.conversation)
+        #expect(!owner.release(readAloud))
+        #expect(owner.current == conversation)
+        #expect(owner.release(conversation))
+
+        let again = owner.claim(.readAloud)
+        #expect(owner.release(again))
+        #expect(owner.current == nil)
+        #expect(!owner.release(again))
+    }
+
+    @Test("While a conversation lease is held, dictation waits; releasing a lease superseded by a newer conversation does not wake it, only releasing the current conversation lease does")
+    func test_readAloudClaim_wakesConversationWaiters() async {
+        let queued = QueuedSignal()
+        let owner = VoiceAudioSessionOwner(onWaiterQueued: { queued.fire() })
+        let conversation = owner.claim(.conversation)
+        var waiter: Task<Void, Never>?
+        await queued.wait {
+            waiter = Task { await owner.waitForConversationRelease() }
+        }
+        #expect(owner.waitingCount == 1)
+
+        let readAloud = owner.claim(.readAloud)
+        await waiter?.value
+        #expect(owner.waitingCount == 0)
+        #expect(!owner.release(conversation))
+        #expect(owner.current == readAloud)
+
+        // Not suspended while read-aloud holds the session
+        await owner.waitForConversationRelease()
+        #expect(owner.waitingCount == 0)
+    }
+
+    @Test("While a conversation lease is held, dictation waits; releasing a lease superseded by a newer conversation does not wake it, only releasing the current conversation lease does")
+    func test_concurrentStart_claimsAndInstallsOnce() async throws {
+        let owner = VoiceAudioSessionOwner()
+        let activator = RecordingSessionActivator()
+        let input = FakeInputTap(sampleRate: 48_000)
+        let capture = EngineAudioCapture(activator: activator, owner: owner, input: input)
+        let gate = ThreadGate()
+        input.onStart = { gate.block() }
+        let box = CaptureBox(capture: capture)
+
+        let first = Task { await startOnGCD(box) }
+        await gate.waitUntilReached()
+        let second = await startOnGCD(box)
+        gate.open()
+        let firstError = await first.value
+
+        #expect(firstError == nil)
+        #expect((second as? AudioCaptureError) == .alreadyStarted)
+        #expect(input.startCount == 1)
+        #expect(activator.calls == [.activate])
+        #expect(owner.current?.client == .dictation)
+        capture.stop()
+        #expect(input.stopCount == 1)
+        #expect(activator.calls == [.activate, .deactivate])
+        #expect(owner.current == nil)
+    }
+
+    @Test("While a conversation lease is held, dictation waits; releasing a lease superseded by a newer conversation does not wake it, only releasing the current conversation lease does")
+    func test_systemActivator_routesThroughCoordinatorOffMain() async throws {
+        let recorder = SessionOpRecorder()
+        let coordinator = AudioSessionCoordinator(apply: recorder.apply)
+        let activator = SystemAudioSessionActivator(coordinator: coordinator)
+
+        // Activation is a synchronous blocking call: started from a background thread as in production; on return, configuration and activation have both run.
+        try await Task.detached { try activator.activateForRecording() }.value
+        let config = AudioSessionCoordinator.Configuration(
+            category: .record, mode: .measurement, options: .duckOthers, allowHapticsDuringRecording: true
+        )
+        #expect(recorder.operations == [.configure(config), .activate])
+
+        // Deactivation does not block: it is queued; drain it with an empty perform, then check.
+        activator.deactivate()
+        try await coordinator.perform([])
+
+        #expect(recorder.operations == [.configure(config), .activate, .deactivate(notifyOthers: true)])
+        #expect(recorder.anyOnMain == false)
+    }
+
+    @Test("While a conversation lease is held, dictation waits; releasing a lease superseded by a newer conversation does not wake it, only releasing the current conversation lease does")
     func test_dictationClaim_waitsForConversationRelease() async {
         let queued = QueuedSignal()
         let owner = VoiceAudioSessionOwner(onWaiterQueued: { queued.fire() })
@@ -100,7 +192,7 @@ struct VoiceAudioSessionOwnerTests {
             rig.clock.nowMs = VoiceConversationLogic.Constants.idleTimeoutMs
             rig.clock.tick()
             #expect(!rig.session.isActive)
-            #expect(rig.audio.earcons == [.end])
+            #expect(rig.audio.earcons == [.start, .end])
             #expect(rig.audio.stops == 0)
             #expect(rig.owner.current?.client == .conversation)
             await rig.owner.waitForConversationRelease()
@@ -121,6 +213,7 @@ struct VoiceAudioSessionOwnerTests {
         do {
             let owner = VoiceAudioSessionOwner()
             var audio: SessionLeasedConversationAudio? = SessionLeasedConversationAudio(LeaseProbeAudio(owner: owner), owner: owner)
+            try await audio?.prepareSession()
             try audio?.start()
             #expect(owner.current?.client == .conversation)
             audio = nil
@@ -151,7 +244,7 @@ extension VoiceAudioSessionOwnerTests {
 
 extension VoiceAudioSessionOwnerTests {
     @Test("The session already belongs to a newer conversation when the old engine's deferred stop arrives: only tear down the graph (engine stopped, observers removed) without deactivating the session")
-    func test_staleConversationEngine_tearsDownGraphWithoutDeactivating() throws {
+    func test_staleConversationEngine_tearsDownGraphWithoutDeactivating() async throws {
         let rig = VPIORig()
         // No real graph is built: the lease is handed to the engine the way the wrapper does it, and the running state is entered through the test hook.
         rig.engine.sessionLease = rig.owner.claim(.conversation)
@@ -166,12 +259,13 @@ extension VoiceAudioSessionOwnerTests {
         #expect(rig.tap.removals == 1)
         rig.postInterruption()
         #expect(rig.delegate.interruptionsBegan == 0)
+        try await rig.coordinator.perform([])
         #expect(rig.deactivations == 0)
         #expect(rig.owner.current == fresh)
     }
 
     @Test("Teardown of the current conversation: the lease is still the current generation, so the session is deactivated once; the graph-only teardown entry does not deactivate")
-    func test_currentConversationTeardown_deactivatesSession() throws {
+    func test_currentConversationTeardown_deactivatesSession() async throws {
         let rig = VPIORig()
         let lease = rig.owner.claim(.conversation)
         rig.engine.sessionLease = lease
@@ -182,7 +276,11 @@ extension VoiceAudioSessionOwnerTests {
         #expect(!rig.engine.isEngineRunningForTesting)
         #expect(rig.engine.observerCountForTesting == 0)
         #expect(rig.tap.removals == 1)
+        // Deactivation goes through the coordinator queue: drain, then check.
+        try await rig.coordinator.perform([])
         #expect(rig.deactivations == 1)
+        #expect(rig.recorder.operations == [.deactivate(notifyOthers: true)])
+        #expect(rig.recorder.anyOnMain == false)
         #expect(rig.owner.current == lease)
 
         // The graph-only teardown entry likewise does not deactivate once the lease has been superseded.
@@ -192,6 +290,7 @@ extension VoiceAudioSessionOwnerTests {
         again.engine.tearDownGraph()
         #expect(again.engine.observerCountForTesting == 0)
         #expect(again.tap.removals == 1)
+        try await again.coordinator.perform([])
         #expect(again.deactivations == 0)
     }
 }
@@ -213,6 +312,28 @@ extension VoiceAudioSessionOwnerTests {
         let appState = AppState(seedDemoData: false, sessionUID: "audio-owner-\(UUID().uuidString)")
         let realtimeAudio = RealtimeVoiceSessionBuilder.production(appState: appState, audioSession: owner).makeAudio()
         #expect(realtimeAudio.sessionOwner === owner)
+    }
+}
+
+extension VoiceAudioSessionOwnerTests {
+    @Test("Conversation activation: the coordinator first configures playAndRecord / voiceChat and enables recording-time haptics and system sounds, then activates")
+    func test_conversationActivation_allowsHapticsDuringRecording() async throws {
+        let recorder = SessionOpRecorder()
+        let engine = VPIOConversationAudioEngine(
+            notificationCenter: NotificationCenter(), coordinator: AudioSessionCoordinator(apply: recorder.apply)
+        )
+
+        try await engine.prepareSession()
+
+        let configure = try #require(recorder.operations.first)
+        guard case .configure(let config) = configure else {
+            Issue.record("first session op is not .configure: \(configure)")
+            return
+        }
+        #expect(config.category == .playAndRecord)
+        #expect(config.mode == .voiceChat)
+        #expect(config.allowHapticsDuringRecording == true)
+        #expect(recorder.operations.dropFirst().first == .activate)
     }
 }
 
@@ -302,7 +423,26 @@ private final class LeaseProbeAudio: ConversationAudioEngine, SessionLeaseAwareA
     func playEarcon(_ earcon: VoiceConversationLogic.Earcon) { earcons.append(earcon) }
 }
 
-/// Releases wait once someone is queued in the waiting queue.
+/// Hands the capture to a GCD thread.
+private nonisolated struct CaptureBox: @unchecked Sendable {
+    let capture: EngineAudioCapture
+}
+
+/// Starts on a GCD background thread and returns the thrown error (nil on success).
+private nonisolated func startOnGCD(_ box: CaptureBox) async -> Error? {
+    await withCheckedContinuation { (continuation: CheckedContinuation<Error?, Never>) in
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                try box.capture.start(handlers: [])
+                continuation.resume(returning: nil)
+            } catch {
+                continuation.resume(returning: error)
+            }
+        }
+    }
+}
+
+/// Releases the wait when someone is queued on it.
 private nonisolated final class QueuedSignal: @unchecked Sendable {
     private let lock = NSLock()
     private var fired = false
@@ -369,14 +509,19 @@ private final class VPIORig {
     let center = NotificationCenter()
     let delegate = InterruptionSpy()
     let tap = CountingInputTap()
-    private(set) var deactivations = 0
+    /// Session operations are recorded by the injected coordinator; deactivation is queued, so drain the coordinator before reading deactivations.
+    let recorder = SessionOpRecorder()
+    let coordinator: AudioSessionCoordinator
+    var deactivations: Int { recorder.operations.filter { if case .deactivate = $0 { true } else { false } }.count }
     private(set) var engine: VPIOConversationAudioEngine!
 
     init() {
+        let coordinator = AudioSessionCoordinator(apply: recorder.apply)
+        self.coordinator = coordinator
         engine = VPIOConversationAudioEngine(
             session: .sharedInstance(), notificationCenter: center, owner: owner,
-            deactivateSession: { [unowned self] _ in deactivations += 1 },
-            inputTap: { [tap] _ in tap }
+            inputTap: { [tap] _ in tap },
+            coordinator: coordinator
         )
         engine.delegate = delegate
     }

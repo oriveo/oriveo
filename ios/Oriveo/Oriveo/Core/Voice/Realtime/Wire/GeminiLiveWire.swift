@@ -44,12 +44,15 @@ nonisolated enum GeminiLiveWire {
     }
 
     /// With a resumption handle: setup.sessionResumption carries the handle and no history is sent. Without a handle but with history: enable historyConfig and send one clientContent afterReady.
+    /// Language = host recognition language (BCP-47) or nil; converted to inputAudioTranscription.languageCodes by RealtimeTranscriptionLanguage.
     static func openingMessages(
         instructions: String,
         history: [GeminiLiveHistoryTurn],
         model: String,
         voice: String,
-        resumeHandle: String?
+        resumeHandle: String?,
+        route: VoiceConversationLogic.Route = .speaker,
+        language: String? = nil
     ) -> OpeningMessages {
         let resuming = (resumeHandle?.isEmpty == false)
         let withHistory = !resuming && !history.isEmpty
@@ -64,10 +67,19 @@ nonisolated enum GeminiLiveWire {
         setup["model"] = "models/\(model)"
         setup["generationConfig"] = generationConfig
         setup["systemInstruction"] = ["parts": [instructionPart]] as [String: Any]
-        setup["inputAudioTranscription"] = empty
+        if let lang = RealtimeTranscriptionLanguage.transcriptionLanguage(transport: .geminiLive, tag: language) {
+            setup["inputAudioTranscription"] = ["languageCodes": [lang]] as [String: Any]
+        } else {
+            setup["inputAudioTranscription"] = empty
+        }
         setup["outputAudioTranscription"] = empty
         setup["sessionResumption"] = resumption
         setup["contextWindowCompression"] = ["slidingWindow": empty] as [String: Any]
+        if route.isSpeaker {
+            // On speaker, lower the start-of-speech sensitivity to reduce false triggers from echo; not written otherwise, so the server default applies.
+            let detection: [String: Any] = ["startOfSpeechSensitivity": "START_SENSITIVITY_LOW"]
+            setup["realtimeInputConfig"] = ["automaticActivityDetection": detection] as [String: Any]
+        }
         if withHistory { setup["historyConfig"] = ["initialHistoryInClientContent": true] as [String: Any] }
         var after: [[String: Any]] = []
         if withHistory {
@@ -79,6 +91,13 @@ nonisolated enum GeminiLiveWire {
             after.append(["clientContent": clientContent])
         }
         return OpeningMessages(beforeReady: [["setup": setup]], afterReady: after)
+    }
+
+    /// One typed user turn: a single user turn in clientContent; turnComplete makes the model reply immediately.
+    static func userTextMessage(_ text: String) -> [String: Any] {
+        let part: [String: Any] = ["text": text]
+        let turn: [String: Any] = ["role": "user", "parts": [part]]
+        return ["clientContent": ["turns": [turn], "turnComplete": true] as [String: Any]]
     }
 
     /// Append a chunk of 16 kHz PCM16 microphone audio.
@@ -122,6 +141,10 @@ nonisolated struct GeminiLiveEventMapper {
     private var speechSinceReply = false
     private var userFinal = false
     private var interrupted = false
+    /// User text already sent as final this turn; a transcript of the same sentence or a prefix of it that arrives with no following ACTIVITY_START is a server resend.
+    private var finalUserText = ""
+    /// Resent transcript held back while it still matches the final text.
+    private var heldUserText = ""
     /// Any transcript / audio / interrupted has arrived this turn and turnComplete has not yet.
     private(set) var midTurn = false
 
@@ -134,11 +157,27 @@ nonisolated struct GeminiLiveEventMapper {
         let activity = (message["voiceActivity"] as? [String: Any])?["type"] as? String
         if activity == "ACTIVITY_START" {
             if assistantStarted { speechSinceReply = true }
+            finalUserText = ""
+            heldUserText = ""
             out.append(.userSpeechStarted(itemId: nil))
         }
         if activity == "ACTIVITY_END" { out.append(.userSpeechStopped(itemId: nil)) }
         if let content = message["serverContent"] as? [String: Any] {
-            if let text = (content["inputTranscription"] as? [String: Any])?["text"] as? String, !text.isEmpty {
+            var inputText = (content["inputTranscription"] as? [String: Any])?["text"] as? String
+            if let chunk = inputText, !chunk.isEmpty, !finalUserText.isEmpty {
+                // The user already finalized this turn and no new speech started after it: a same-sentence or prefix transcript is a server resend, held back and not sent
+                // Once it no longer matches, the held block is attributed as usual and no longer held
+                let held = heldUserText + chunk
+                if Self.normalizeTranscript(finalUserText).hasPrefix(Self.normalizeTranscript(held)) {
+                    heldUserText = held
+                    inputText = nil
+                } else {
+                    inputText = held
+                    finalUserText = ""
+                    heldUserText = ""
+                }
+            }
+            if let text = inputText, !text.isEmpty {
                 midTurn = true
                 if assistantStarted, userFinal || speechSinceReply {
                     // The user already closed this turn, or new speech was detected after the reply started (barge-in / speaker echo): this text belongs to the next turn
@@ -220,10 +259,18 @@ nonisolated struct GeminiLiveEventMapper {
     private mutating func appendUserFinal(_ out: inout [RealtimeSessionEvent]) {
         guard !userFinal, !userText.isEmpty else { return }
         userFinal = true
+        finalUserText = userText
+        heldUserText = ""
         out.append(.userTranscript(itemId: nil, text: userText, final: true))
     }
 
-    /// Kind of the raw server message (top-level keys and serverContent sub-keys; modelTurn records only the audio part count and byte length), never the audio content.
+    /// Transcript comparison key: NFKC unifies full-width and half-width, then trims whitespace and punctuation.
+    private static func normalizeTranscript(_ text: String) -> String {
+        text.precomposedStringWithCompatibilityMapping
+            .trimmingCharacters(in: CharacterSet.whitespacesAndNewlines.union(.punctuationCharacters))
+    }
+
+    /// Kind of the raw server message (top-level keys and serverContent sub-keys; modelTurn records only the audio-part count and byte length), never the audio content.
     private static func logKinds(_ message: [String: Any]) {
         var kinds = message.keys.filter { $0 != "serverContent" }.sorted()
         if let content = message["serverContent"] as? [String: Any] {

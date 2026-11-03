@@ -130,12 +130,17 @@ class GenerationParameterPresetStore(
         private val RUNTIME_PARAMETER_IDS = setOf("context_length", "keep_alive", "speculative_decoding", "prompt_cache", "cache_reuse")
 
         fun from(context: Context): GenerationParameterPresetStore {
-            val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            // Construction does not touch disk: SharedPreferences is fetched on first read or write (synchronous XML load). Take applicationContext first,
+            // because Activity's ContextImpl has its own path cache that calls File.exists again.
+            val appContext = context.applicationContext
+            val prefs by lazy(LazyThreadSafetyMode.PUBLICATION) {
+                appContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            }
             return GenerationParameterPresetStore(
                 readPayload = { prefs.getString(KEY_PAYLOAD, null) },
                 writePayload = { payload -> prefs.edit().putString(KEY_PAYLOAD, payload).apply() },
-                putTombstone = { recordID, revision -> GenerationParameterSyncLedger.from(context).put(recordID, revision) },
-                clearTombstone = { recordID -> GenerationParameterSyncLedger.from(context).clear(recordID) },
+                putTombstone = { recordID, revision -> GenerationParameterSyncLedger.from(appContext).put(recordID, revision) },
+                clearTombstone = { recordID -> GenerationParameterSyncLedger.from(appContext).clear(recordID) },
             )
         }
     }

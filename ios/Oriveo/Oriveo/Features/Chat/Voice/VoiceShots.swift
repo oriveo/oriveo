@@ -8,29 +8,48 @@ import Observation
 /// Usage: `xcrun simctl launch <udid> ai.oriveo.community -AUTO_OPEN_PAGE <page name> -SHOTS_PROBE`; page names are listed in `Shot`.
 /// Launched with one of these page names, the whole process uses an in-memory `AppState` (`OriveoApp.init` goes through `seedDemoData` according to `isRequested`).
 ///
-/// Page names and per-page states are read only from the shared manifest `shared/test-fixtures/shots/voice.v1.json`; when it cannot be read or a field is missing, opening is refused and no hard-coded values are used as a fallback.
-/// No microphone, no sound, no network, no real store writes:
-/// - The conversation comes from the manifest `conversation`, hangs on the demo seed's current model (`activeModel`), and is written to in-memory state only.
-/// - Read aloud playing: the playing state is staged through `ReadAloudController.showSpeakingForShots`, without calling `toggle` and without `-AUTO_READ_ALOUD` (which would make sound).
-/// - Primary button / home page: the draft is empty, and ≋ is decided by the production `VoiceConversationEntry.primaryAction`.
-/// - Home page with text: `homeDraftText` is prefilled into the home input through `HomeDraftInjection`, and ↑ comes from the same decision.
-/// - Voice bar: the state is set through `VoiceConversationDemo.shotsStatus`, and the display state is mapped by `VoiceConversationDemo.displayState(for:)`.
-/// - Dictation: once the conversation is attached, wait for the input to bind this conversation's slot, then stage the manifest state through `DictationController.showStateForShots`
-///   (only the state and engine row are set; capture is not started and nothing is written to RecordingStore); the recording level bars are the static manifest dictationLevels,
-///   and the timer is pinned to the manifest elapsedSec through `ComposerDictationBar.shotsFrozenElapsedSec`.
-/// - Settings: the catalog is decoded by the production decoder from the manifest `catalog` (a repository path), connections come from the manifest `connections` (those already in the demo seed are reused,
-///   the rest become in-memory placeholder-key connections), the dictation engine comes from the manifest `dictationEngine`, and the conversation engine is taken from `realtime` only on realtimeNotice=acknowledged pages, written to a separate UserDefaults
-///   suite; it is handed to the settings page through `VoiceSettingsModel.shotsInjection`, with no network and no reads or writes of real connections or the keychain.
-///   Engine sheet pages open the sheet for the manifest `direction` after the page appears; the conversation engine row page scrolls to the "Voice conversation" group.
-/// - Conversation engine first-use notice: opens the conversation engine direction sheet, then raises the production notice for the manifest
-///   `disclosure` provider (using the manifest `realtime` model) through `VoiceEngineSheetFlow.showDisclosureForShots`; the conversation engine is not preselected and no consent is recorded.
+/// Page names and each page's state are read only from the shared manifest `shared/test-fixtures/shots/voice.v1.json`; when it cannot be read or a field is missing, opening is refused instead of falling back to hard-coded values.
+/// Does not open the mic, make sound, touch the network, or write to the real library:
+/// - The conversation takes the manifest `conversation`, pinned to the sample chat model `chatModelID` (added to the demo seed's Anthropic connection and set as the current model); written to in-memory state only.
+/// - Speaking: shown via `ReadAloudController.showSpeakingForShots`; does not call `toggle` or go through `-AUTO_READ_ALOUD` (which would make sound).
+/// - Main button / home: the draft is empty, and ≋ is decided by the production `VoiceConversationEntry.primaryAction`.
+/// - Home with text: `HomeDraftInjection` prefills `homeDraftText` into the home input; ↑ is given by the same decision.
+/// - Voice bar: state is set via `VoiceConversationDemo.shotsStatus`; the display state is mapped by `VoiceConversationDemo.displayState(for:)`;
+///   the caption and fixed level of the caption page come from the manifest caption / level (`shotsCaption` / `shotsLevel`); the speaking page may give a level, other voice-bar pages have level 0;
+///   the stage animation clock comes from the manifest stageClockMs (`shotsStageClock`, in seconds), and the ball and fog stop at that moment;
+///   the recognition language of the checkLanguage page comes from the manifest recognitionLanguage, is written into the sample-shot UserDefaults suite, and the capsule name is derived by the production display function.
+/// - Dictation: after the conversation is attached, wait for the input to bind the shared dictation controller to this conversation's slot, then stage the manifest state via `DictationController.showStateForShots`
+///   (only sets state and engine rows; does not start capture or write RecordingStore); while recording, the level bar is the static manifest dictationLevels value,
+///   and the timer is fixed to the manifest elapsedSec via `ComposerDictationBar.shotsFrozenElapsedSec`.
+///   The live-segment page then sends the manifest liveFinal + liveVolatile as one system-recognition snapshot into the controller's liveText,
+///   and writes it into the input through the host's production write path (`ComposerSelectionProbe.writeLive`): one finalized segment + one unfinalized segment.
+/// - Settings: the catalog is decoded from the manifest `catalog` (a repo path) by the production decoder; connections come from the manifest `connections` (seed-present ones are reused,
+///   missing ones become in-memory placeholder-key connections); the dictation engine comes from the manifest `dictationEngine` and is written into a separate UserDefaults
+///   suite; handed to the settings page via `VoiceSettingsModel.shotsInjection`, with no network and no reading or writing of real connections or keychain.
+///   After entering the engine-sheet page, open the sheet in the manifest `direction`.
+/// - Engine first-time disclosure: when the engine-sheet page carries the manifest `disclosure`, `VoiceEngineSheetFlow.showDisclosureForShots` shows the production disclosure for that
+///   provider (model taken from the manifest `dictationEngine`); not preselected, and no consent is written.
+/// - Realtime model disclosure: when the composer page carries the manifest `disclosure`, after the conversation page is attached the request goes through `takeRealtimeDisclosure` to
+///   `ChatView.presentRealtimeDisclosure`, which shows the production cloud disclosure for the isDefault realtime[] model in that provider's catalog; no consent is written.
 enum VoiceShots {
     enum Shot: String, CaseIterable {
         case voiceReadAloudIdle, voiceReadAloudSpeaking
         case voiceDictationRecording, voiceDictationTranscribing, voiceDictationFailed, voiceDictationInterrupted
+        case voiceDictationLivePartial
         case voiceSettings, voiceEngineSheet, voiceComposerButton, voiceHome, voiceHomeDraft
-        case voiceBarListening, voiceBarThinking, voiceBarSpeaking, voiceBarMuted, voiceBarAwaitingApproval, voiceBarError
-        case voiceRealtimeRow, voiceRealtimeNotice
+        case voiceBarListening, voiceBarUserSpeaking, voiceBarThinking, voiceBarSpeaking, voiceBarMuted, voiceBarSayAgain
+        case voiceBarAwaitingApproval, voiceBarError, voiceBarCheckLanguage
+        case voiceRealtimeDisclosure
+    }
+
+    /// The realtime model disclosure to show once the conversation page is attached (the conversation the sample names).
+    private static var pendingRealtimeDisclosure: RealtimeModelDisclosureRequest?
+
+    /// Called when ChatView appears: if this is the conversation the sample names, take the realtime disclosure to show (given only once).
+    static func takeRealtimeDisclosure(conversationID: UUID?) -> RealtimeModelDisclosureRequest? {
+        guard let pending = pendingRealtimeDisclosure, pending.conversationID == conversationID else { return nil }
+        pendingRealtimeDisclosure = nil
+        return pending
     }
 
     /// The launch arguments name a page of this family.
@@ -73,6 +92,7 @@ enum VoiceShots {
         }
 
         VoiceConversationDemo.shotsStatus = staged.status
+        applyBarOverrides(staged)
         let conversation: Conversation
         do {
             conversation = try install(staged, into: appState)
@@ -81,7 +101,21 @@ enum VoiceShots {
             return
         }
 
-        // The chat page sits on the home stack: switch back to home first, wait for the home stack to attach, then open the conversation through the production entry (a push at launch would be overwritten by the root view's first-frame stack).
+        pendingRealtimeDisclosure = nil
+        if let disclosure = staged.disclosure {
+            guard let model = staged.realtimeModel,
+                  let provider = appState.providers.first(where: { $0.kind == disclosure })
+            else {
+                report("\(shot.rawValue): the demo seed has no \(disclosure.rawValue) connection, so the realtime disclosure was not shown")
+                return
+            }
+            pendingRealtimeDisclosure = RealtimeModelDisclosureRequest(
+                selection: RealtimeModelSelection(providerID: provider.id, providerKind: disclosure, model: model),
+                conversationID: conversation.id
+            )
+        }
+
+        // The chat page is mounted on the home stack: switch back to home first, then open the conversation through the production entry once the home stack is attached (pushing at launch would be overwritten by the root view's first-frame stack).
         appState.selectedTab = .home
         appState.navigation.reset(to: [])
         guard await waitUntil({ appState.navigation.path.isEmpty && appState.selectedTab == .home }) else { return }
@@ -136,6 +170,31 @@ enum VoiceShots {
             engineInfo: staged.dictationEngineInfo(providers: appState.providers),
             levels: staged.dictationLevels ?? []
         )
+        // Live segment: start a new generation and publish the manifest snapshot; the host subscribes and writes it into the input via ComposerSelectionProbe.writeLive.
+        guard let snapshot = staged.liveSnapshot else { return }
+        let generation = controller.liveText.begin()
+        controller.liveText.publish(snapshot, generation: generation)
+    }
+
+    /// Subtitle / fixed level / stage clock / recognition language of the voice-bar pages: cleared on non-voice-bar pages; voice-bar pages without a level give 0.
+    /// The recognition language is written into a separate suite (cleared first), without touching real preferences.
+    @MainActor
+    static func applyBarOverrides(_ staged: Staged) {
+        let bar = staged.surface == .voiceBar
+        VoiceConversationDemo.shotsCaption = staged.caption
+        VoiceConversationDemo.shotsLevel = bar ? (staged.level ?? 0) : nil
+        VoiceConversationDemo.shotsStageClock = bar ? staged.stageClock : nil
+        guard let language = staged.recognitionLanguage else {
+            VoiceConversationDemo.shotsSettings = nil
+            return
+        }
+        guard let defaults = UserDefaults(suiteName: SettingsStage.defaultsSuite) else {
+            preconditionFailure("the sample-shot preferences suite \(SettingsStage.defaultsSuite) could not be created")
+        }
+        defaults.removePersistentDomain(forName: SettingsStage.defaultsSuite)
+        let settings = VoiceEngineSettings(defaults: defaults)
+        settings.recognitionLanguage = language
+        VoiceConversationDemo.shotsSettings = settings
     }
 
     /// The recording bar timer is pinned to the manifest elapsedSec and does not follow time; non-recording pages clear the override. Must be set before the recording bar appears.
@@ -145,14 +204,35 @@ enum VoiceShots {
     }
 
 
-    /// Attaches the manifest conversation to the demo seed's current model and writes it to in-memory state; refuses when the current model can only generate images (≋ would not appear).
+    /// The sample chat model (same value on both platforms; Android VoiceShotsData.CHAT_MODEL_ID / CHAT_MODEL_NAME): the page header, message metadata and home model capsule all show it.
+    static let chatModelID = "claude-haiku-5-5"
+    static let chatModelName = "Claude Haiku 5.5"
+
+    /// The manifest conversation is pinned to the sample chat model when written into in-memory state: the model is added to the demo seed's Anthropic connection (not duplicated if present),
+    /// and set as the current model so the page header does not drift with the demo seed's default model; rejected when the model can only generate images (≋ will not appear).
     @MainActor
     static func install(_ staged: Staged, into appState: AppState) throws -> Conversation {
-        guard let active = appState.activeModel else { throw ManifestError.invalid("the demo seed has no current model") }
-        guard VoiceConversationEntry.modelProducesText(active.model) else {
-            throw ManifestError.invalid("demo model \(active.model.id) can only generate images")
+        guard let index = appState.providers.firstIndex(where: { $0.kind == .anthropic }) else {
+            throw ManifestError.invalid("demo seed has no Anthropic connection")
         }
-        let conversation = staged.conversation(provider: active.provider, model: active.model)
+        var provider = appState.providers[index]
+        let model = provider.models.first(where: { $0.id == chatModelID })
+            ?? AIModel(
+                id: chatModelID, name: chatModelName, capabilities: [.text], reasoningModeAvailable: false,
+                isAvailable: true, isDefault: false, priceTier: "", summary: nil, groupKey: nil, groupName: nil
+            )
+        if !provider.models.contains(where: { $0.id == chatModelID }) {
+            provider.models.insert(model, at: 0)
+            if !provider.catalogModels.contains(where: { $0.id == chatModelID }) {
+                provider.catalogModels.insert(model, at: 0)
+            }
+            appState.providers[index] = provider
+        }
+        guard VoiceConversationEntry.modelProducesText(model) else {
+            throw ManifestError.invalid("sample model \(model.id) can only generate images")
+        }
+        appState.lastUsedModelRef = LastUsedModelRef(providerID: provider.id, modelID: model.id)
+        let conversation = staged.conversation(provider: provider, model: model)
         appState.upsertConversationProjection(conversation, deletingMessageIDs: Set(conversation.messages.map(\.id)))
         return conversation
     }
@@ -182,37 +262,23 @@ enum VoiceShots {
         case recording, transcribing, failed, interrupted
     }
 
-    /// Manifest realtimeNotice: shown = the one-time notice after selecting a realtime model is visible; acknowledged = the row shows the selected model, no notice.
-    enum RealtimeNotice: String {
-        case acknowledged, shown
-    }
-
-    /// Manifest scrollTo.
-    enum ScrollTarget: String {
-        case realtimeEngine
-    }
-
     /// Manifest direction (engine sheet pages) → production direction.
     static func sheetDirection(_ raw: String) -> VoiceDirection? {
         switch raw {
         case "dictation": .stt
         case "readAloud": .tts
-        case "realtime": .realtime
         default: nil
         }
     }
 
-    /// State of the four settings pages: catalog, connections, the engines of both directions and the in-page landing point.
+    /// State of the two settings pages: catalog, connections, dictation engine and sheet direction.
     struct SettingsStage {
         let catalog: VoiceCatalog
         let connections: [ProviderKind]
         let dictationEngine: DictationEngine
-        let realtime: DictationEngine
-        /// The direction an engine sheet page opens; nil for the other pages.
+        /// The direction the engine-sheet page opens its sheet with; nil for other pages.
         let sheetDirection: VoiceDirection?
-        let scrollTo: ScrollTarget?
-        let realtimeNotice: RealtimeNotice?
-        /// The provider whose notice the disclosure page raises (manifest disclosure); nil for the other pages.
+        /// The provider whose disclosure the disclosure page shows (manifest disclosure); nil for other pages.
         var disclosure: ProviderKind? = nil
 
         /// Sample-shot settings storage: a separate suite, cleared every time an injection is built.
@@ -238,34 +304,27 @@ enum VoiceShots {
             }
             defaults.removePersistentDomain(forName: Self.defaultsSuite)
             let settings = VoiceEngineSettings(defaults: defaults)
-            // Only realtimeNotice == acknowledged pages write the conversation engine selection; the other pages keep the default (follow the current model).
-            let selected: [(VoiceDirection, DictationEngine)] = realtimeNotice == .acknowledged
-                ? [(.stt, dictationEngine), (.realtime, realtime)]
-                : [(.stt, dictationEngine)]
-            for (direction, engine) in selected {
-                guard let provider = providers.first(where: { $0.kind.rawValue == engine.provider }) else { continue }
+            if let provider = providers.first(where: { $0.kind.rawValue == dictationEngine.provider }) {
                 settings.setSelection(.cloud(VoiceCloudEngine(
                     providerKind: provider.kind,
                     connectionID: provider.id.uuidString,
-                    model: engine.model,
+                    model: dictationEngine.model,
                     voice: nil
-                )), for: direction)
+                )), for: .stt)
             }
             return VoiceSettingsModel.ShotsInjection(
                 settings: settings,
                 catalogState: .available(catalog),
                 providers: providers,
                 openEngineSheet: sheetDirection,
-                scrollToRealtimeEngine: scrollTo == .realtimeEngine,
                 disclosure: disclosureEngine(providers: providers)
             )
         }
 
-        /// The engine of the disclosure page: the connection of the manifest disclosure provider + the manifest realtime model (same provider) or the dictationEngine model.
+        /// The engine of the disclosure page: the connection of the manifest disclosure provider + the manifest dictationEngine model.
         func disclosureEngine(providers: [Provider]) -> VoiceCloudEngine? {
             guard let disclosure, let provider = providers.first(where: { $0.kind == disclosure }) else { return nil }
-            let engine = sheetDirection == .realtime ? realtime : dictationEngine
-            return VoiceCloudEngine(providerKind: disclosure, connectionID: provider.id.uuidString, model: engine.model)
+            return VoiceCloudEngine(providerKind: disclosure, connectionID: provider.id.uuidString, model: dictationEngine.model)
         }
     }
 
@@ -311,8 +370,30 @@ enum VoiceShots {
         var dictationEngine: DictationEngine? = nil
         /// Manifest dictationLevels (0…1, oldest → newest); always present on the recording page, with the same values on both platforms.
         var dictationLevels: [Float]? = nil
-        /// The state of the four settings pages; nil for the other pages.
+        /// Settings state of the two settings pages; nil for other pages.
         var settings: SettingsStage? = nil
+        /// Caption of the caption page (manifest caption); nil for other pages.
+        var caption: String? = nil
+        /// Fixed level of the caption page (required) and the speaking page (optional) (manifest level, 0…1); nil for other pages.
+        var level: Double? = nil
+        /// Stage animation clock of voice-bar pages (manifest stageClockMs / 1000, in seconds); nil for other pages.
+        var stageClock: TimeInterval? = nil
+        /// Recognition language of the checkLanguage page (manifest recognitionLanguage, BCP-47); nil for other pages.
+        var recognitionLanguage: String? = nil
+        /// Finalized segment of the live-segment page (manifest liveFinal); nil for other pages.
+        var liveFinal: String? = nil
+        /// Unfinalized segment of the live-segment page (manifest liveVolatile); nil for other pages.
+        var liveVolatile: String? = nil
+        /// Provider whose disclosure the realtime disclosure page shows (manifest disclosure, composer page); nil for other pages. The engine-sheet page's is in settings.disclosure.
+        var disclosure: ProviderKind? = nil
+        /// Model of the realtime disclosure page: the isDefault one in that provider's realtime[] in the manifest catalog; nil for other pages.
+        var realtimeModel: String? = nil
+
+        /// System-recognition snapshot the live-segment page sends to the controller: one finalized segment + one unfinalized segment; nil for other pages.
+        var liveSnapshot: SystemSTTLiveSnapshot? {
+            guard let liveFinal, let liveVolatile else { return nil }
+            return SystemSTTLiveSnapshot(finals: [liveFinal], partial: liveVolatile)
+        }
 
         /// The controller state of dictation pages; for recording, the start time = now − elapsedSec.
         func dictationState(now: Date) -> DictationState? {
@@ -405,9 +486,12 @@ enum VoiceShots {
             let elapsedSec: Int?
             let failure: String?
             let direction: String?
-            let scrollTo: String?
-            let realtimeNotice: String?
             let disclosure: String?
+            let caption: String?
+            let level: Double?
+            let recognitionLanguage: String?
+            let liveFinal: String?
+            let liveVolatile: String?
         }
 
         let schema: String
@@ -415,8 +499,8 @@ enum VoiceShots {
         let catalog: String?
         let connections: [String]?
         let dictationEngine: DictationEngine?
-        let realtime: DictationEngine?
         let dictationLevels: [Float]?
+        let stageClockMs: Double?
         let pages: [Page]
 
         static func load(from data: Data) throws -> Manifest {
@@ -455,6 +539,42 @@ enum VoiceShots {
             }
             status = value
         }
+        var caption: String?
+        var level: Double?
+        if status == .caption {
+            guard let text = page.caption, !text.isEmpty else {
+                throw ManifestError.invalid("\(shot.rawValue) caption is missing or empty")
+            }
+            guard let value = page.level, (0...1).contains(value) else {
+                throw ManifestError.invalid("\(shot.rawValue) level is missing or outside 0…1")
+            }
+            caption = text
+            level = value
+        } else if status == .speaking, let value = page.level {
+            guard (0...1).contains(value) else {
+                throw ManifestError.invalid("\(shot.rawValue) level is outside 0…1")
+            }
+            level = value
+        } else if page.caption != nil || page.level != nil {
+            throw ManifestError.invalid("\(shot.rawValue) is not a caption / speaking page but has caption / level")
+        }
+        var stageClock: TimeInterval?
+        if surface == .voiceBar {
+            // Non-negative integer milliseconds; decimals and negatives are rejected.
+            guard let ms = manifest.stageClockMs, ms.isFinite, ms >= 0, ms.rounded() == ms else {
+                throw ManifestError.invalid("stageClockMs is missing, negative, or not an integer number of milliseconds")
+            }
+            stageClock = ms / 1000
+        }
+        var recognitionLanguage: String?
+        if status == .checkLanguage {
+            guard let code = page.recognitionLanguage, !code.isEmpty else {
+                throw ManifestError.invalid("\(shot.rawValue) recognitionLanguage is missing or empty")
+            }
+            recognitionLanguage = code
+        } else if page.recognitionLanguage != nil {
+            throw ManifestError.invalid("\(shot.rawValue) is not a checkLanguage page but has recognitionLanguage")
+        }
         var dictation: Dictation?
         var elapsedSec: Int?
         var failure: DictationFailure?
@@ -482,6 +602,37 @@ enum VoiceShots {
                 throw ManifestError.invalid("the manifest is missing dictationEngine")
             }
         }
+        var liveFinal: String?
+        var liveVolatile: String?
+        if page.liveFinal != nil || page.liveVolatile != nil {
+            guard dictation == .recording else {
+                throw ManifestError.invalid("\(shot.rawValue) is not a recording page but has liveFinal / liveVolatile")
+            }
+            guard let final = page.liveFinal, !final.isEmpty,
+                  let volatile = page.liveVolatile, !volatile.trimmingCharacters(in: .whitespaces).isEmpty
+            else {
+                throw ManifestError.invalid("\(shot.rawValue) liveFinal / liveVolatile: one is missing or empty")
+            }
+            liveFinal = final
+            liveVolatile = volatile
+        }
+        // disclosure is only allowed on the composer page (realtime disclosure) and the engine-sheet page (engine first-time disclosure).
+        if page.disclosure != nil, surface != .composer, surface != .engineSheet {
+            throw ManifestError.invalid("\(shot.rawValue) has disclosure but is not a composer / engine-sheet page")
+        }
+        var disclosure: ProviderKind?
+        var realtimeModel: String?
+        if surface == .composer, let raw = page.disclosure {
+            guard let kind = ProviderKind(rawValue: raw), manifest.connections?.contains(raw) == true else {
+                throw ManifestError.invalid("\(shot.rawValue) disclosure is unknown or not in connections: \(raw)")
+            }
+            let catalog = try decodeCatalog(manifest: manifest, repositoryFile: repositoryFile)
+            guard let entry = catalog.realtimeEntries(kind).first(where: \.isDefault) else {
+                throw ManifestError.invalid("\(shot.rawValue): \(raw) has no isDefault realtime model in the catalog")
+            }
+            disclosure = kind
+            realtimeModel = entry.model
+        }
         var settings: SettingsStage?
         if surface == .settings || surface == .engineSheet {
             settings = try settingsStage(shot: shot, page: page, surface: surface, manifest: manifest, repositoryFile: repositoryFile)
@@ -503,7 +654,10 @@ enum VoiceShots {
             dictation: dictation, elapsedSec: elapsedSec, failure: failure,
             dictationEngine: surface == .dictation ? manifest.dictationEngine : nil,
             dictationLevels: dictation == .recording ? manifest.dictationLevels : nil,
-            settings: settings
+            settings: settings,
+            caption: caption, level: level, stageClock: stageClock, recognitionLanguage: recognitionLanguage,
+            liveFinal: liveFinal, liveVolatile: liveVolatile,
+            disclosure: disclosure, realtimeModel: realtimeModel
         )
     }
 
@@ -515,11 +669,7 @@ enum VoiceShots {
         manifest: Manifest,
         repositoryFile: (String) throws -> Data
     ) throws -> SettingsStage {
-        guard let catalogPath = manifest.catalog else { throw ManifestError.invalid("the manifest is missing catalog") }
-        let envelope = try JSONSerialization.jsonObject(with: repositoryFile(catalogPath)) as? [String: Any]
-        guard let data = envelope?["data"] else { throw ManifestError.invalid("\(catalogPath) is not a response envelope with data") }
-        let catalog = VoiceCatalogDecoder.decode(data)
-        guard catalog != .empty else { throw ManifestError.invalid("\(catalogPath) cannot be decoded into a catalog") }
+        let catalog = try decodeCatalog(manifest: manifest, repositoryFile: repositoryFile)
         guard let rawConnections = manifest.connections, !rawConnections.isEmpty else {
             throw ManifestError.invalid("the manifest is missing connections")
         }
@@ -528,9 +678,8 @@ enum VoiceShots {
             return kind
         }
         guard let dictationEngine = manifest.dictationEngine else { throw ManifestError.invalid("the manifest is missing dictationEngine") }
-        guard let realtime = manifest.realtime else { throw ManifestError.invalid("the manifest is missing realtime") }
-        for engine in [dictationEngine, realtime] where !rawConnections.contains(engine.provider) {
-            throw ManifestError.invalid("engine provider \(engine.provider) is not in connections")
+        guard rawConnections.contains(dictationEngine.provider) else {
+            throw ManifestError.invalid("engine provider \(dictationEngine.provider) is not in connections")
         }
         var sheetDirection: VoiceDirection?
         if surface == .engineSheet {
@@ -539,36 +688,33 @@ enum VoiceShots {
             }
             sheetDirection = direction
         }
-        var scrollTo: ScrollTarget?
-        if let raw = page.scrollTo {
-            guard let target = ScrollTarget(rawValue: raw) else { throw ManifestError.invalid("the scrollTo of \(shot.rawValue) is not recognized: \(raw)") }
-            scrollTo = target
-        }
-        var realtimeNotice: RealtimeNotice?
-        if let raw = page.realtimeNotice {
-            guard let value = RealtimeNotice(rawValue: raw) else {
-                throw ManifestError.invalid("the realtimeNotice of \(shot.rawValue) is not recognized: \(raw)")
-            }
-            realtimeNotice = value
-        }
         var disclosure: ProviderKind?
         if let raw = page.disclosure {
             guard let kind = ProviderKind(rawValue: raw), connections.contains(kind) else {
                 throw ManifestError.invalid("the disclosure of \(shot.rawValue) is not recognized or not in connections: \(raw)")
             }
-            guard sheetDirection != nil else { throw ManifestError.invalid("\(shot.rawValue) has a disclosure but is not an engine sheet page") }
+            guard surface == .engineSheet else {
+                throw ManifestError.invalid("\(shot.rawValue) has disclosure but is not a composer / engine-sheet page")
+            }
             disclosure = kind
         }
         return SettingsStage(
             catalog: catalog,
             connections: connections,
             dictationEngine: dictationEngine,
-            realtime: realtime,
             sheetDirection: sheetDirection,
-            scrollTo: scrollTo,
-            realtimeNotice: realtimeNotice,
             disclosure: disclosure
         )
+    }
+
+    /// The manifest catalog (a repo path; the data of the response envelope) is decoded by the production decoder; throws if missing or undecodable.
+    private static func decodeCatalog(manifest: Manifest, repositoryFile: (String) throws -> Data) throws -> VoiceCatalog {
+        guard let catalogPath = manifest.catalog else { throw ManifestError.invalid("manifest is missing catalog") }
+        let envelope = try JSONSerialization.jsonObject(with: repositoryFile(catalogPath)) as? [String: Any]
+        guard let data = envelope?["data"] else { throw ManifestError.invalid("\(catalogPath) is not a response envelope with data") }
+        let catalog = VoiceCatalogDecoder.decode(data)
+        guard catalog != .empty else { throw ManifestError.invalid("\(catalogPath) could not be decoded into a catalog") }
+        return catalog
     }
 
     /// Manifest id → stable UUID (the same on every launch, so sample shots can be compared).
@@ -618,6 +764,7 @@ enum VoiceShots {
 
     private static func report(_ message: String) {
         print("[VoiceShots] \(message)")
+        ShotsLayoutProbe.fail(message)
     }
 }
 #endif

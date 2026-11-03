@@ -26,6 +26,7 @@ import ai.oriveo.community.core.context.MemoryOrganizedItem
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
+import ai.oriveo.community.ui.component.oriveoSwitchColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 /** Organize flow phases. */
@@ -159,6 +160,7 @@ private fun OrganizeProposals(
         Switch(
             checked = state.keepOriginal,
             onCheckedChange = onKeepOriginalChange,
+            colors = oriveoSwitchColors(),
             modifier = Modifier,
         )
     }

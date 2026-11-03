@@ -406,6 +406,44 @@ enum ShotsLayoutProbe {
 
     // MARK: - Output
 
+    /// First reason the debug host could not open the requested page; nil = no failure reported.
+    private static var failureReason: String?
+
+    /// Records that the debug host failed to open the requested page (unknown page name, shot staging failure).
+    /// The probe document then carries it as `error`, so the shots tool fails the page instead of recording it.
+    /// Only the first reason is kept.
+    static func fail(_ reason: String) {
+        guard failureReason == nil else { return }
+        failureReason = reason
+    }
+
+    /// Window-independent part of the probe document: page, readiness, wait time, nodes and, when the host
+    /// failed to open the page, a non-empty `error` string.
+    static func document(page: String, nodes: [Node], timedOut: Bool, waited: TimeInterval, failure: String?) -> [String: Any] {
+        var document: [String: Any] = [
+            "end": "ios",
+            "page": page,
+            "units": "pt",
+            "ready": !timedOut,
+            "waitedMs": Int(waited * 1000),
+            "nodes": nodes.map { node -> [String: Any] in
+                var item: [String: Any] = [
+                    "text": node.text,
+                    "role": node.role,
+                    "rect": ["x": node.frame.minX, "y": node.frame.minY, "w": node.frame.width, "h": node.frame.height],
+                    "secure": node.secure,
+                    "editable": node.editable,
+                ]
+                if !node.value.isEmpty { item["value"] = node.value }
+                if let truncated = node.truncated { item["truncated"] = truncated }
+                if let systemBar = node.systemBar { item["systemBar"] = systemBar }
+                return item
+            },
+        ]
+        if let failure, !failure.isEmpty { document["error"] = failure }
+        return document
+    }
+
     private static func write(page: String, nodes: [Node], timedOut: Bool, waited: TimeInterval) {
         let window = keyWindow()
         let insets = window?.safeAreaInsets ?? .zero
@@ -414,12 +452,7 @@ enum ShotsLayoutProbe {
         let windowSize = window?.bounds.size ?? .zero
         let display = window?.windowScene?.screen.bounds.size ?? .zero
         let traits = window?.traitCollection
-        let payload: [String: Any] = [
-            "end": "ios",
-            "page": page,
-            "units": "pt",
-            "ready": !timedOut,
-            "waitedMs": Int(waited * 1000),
+        let environment: [String: Any] = [
             "screen": ["w": windowSize.width, "h": windowSize.height],
             "display": ["w": display.width, "h": display.height],
             "sizeClass": ["h": sizeClassName(traits?.horizontalSizeClass), "v": sizeClassName(traits?.verticalSizeClass)],
@@ -439,20 +472,9 @@ enum ShotsLayoutProbe {
             } ?? NSNull(),
             "supportsMultipleWindows": supportsMultipleWindows.map { $0 as Any } ?? NSNull(),
             "supportsMultipleScenes": UIApplication.shared.supportsMultipleScenes,
-            "nodes": nodes.map { node -> [String: Any] in
-                var item: [String: Any] = [
-                    "text": node.text,
-                    "role": node.role,
-                    "rect": ["x": node.frame.minX, "y": node.frame.minY, "w": node.frame.width, "h": node.frame.height],
-                    "secure": node.secure,
-                    "editable": node.editable,
-                ]
-                if !node.value.isEmpty { item["value"] = node.value }
-                if let truncated = node.truncated { item["truncated"] = truncated }
-                if let systemBar = node.systemBar { item["systemBar"] = systemBar }
-                return item
-            },
         ]
+        let payload = document(page: page, nodes: nodes, timedOut: timedOut, waited: waited, failure: failureReason)
+            .merging(environment) { current, _ in current }
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("shots-probe", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -463,7 +485,7 @@ enum ShotsLayoutProbe {
             try data.write(to: partial, options: .atomic)
             _ = try? FileManager.default.removeItem(at: target)
             try FileManager.default.moveItem(at: partial, to: target)
-            print("[ShotsProbe] \(timedOut ? "timeout" : "ready") \(page) \(nodes.count) nodes")
+            print("[ShotsProbe] \(timedOut ? "timeout" : "ready") \(page) \(nodes.count) nodes\(failureReason.map { " error: \($0)" } ?? "")")
         } catch {
             print("[ShotsProbe] write failed for \(page): \(error)")
         }

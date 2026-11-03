@@ -273,9 +273,9 @@ final class BoundedNoteUITextView: UITextView {
     private var pendingInitialScrollSourceLocation: Int?
     private var pendingInitialSelectionSourceRange: NSRange?
 
-    /// Scrolls `sourceLocation` of the stored text to the top of the viewport on open (Select Text continues from the reading pane's current position).
-    /// Like the focus takeover, it runs only once the width and the text are in place, and lays out just the target stretch (non-contiguous layout), not the whole text.
-    /// `selecting`: also selects that source range (the pressed word when entering by long press on the reading pane); the selection handles can be dragged to extend it.
+    /// On open, scrolls the stored source's `sourceLocation` to the top of the viewport (Select Text continues from where the reading pane currently is).
+    /// Like the focus takeover, it runs only once the width and text are in place; it lays out just the target stretch (non-contiguous layout), not the whole text.
+    /// `selecting`: also selects that source range (the pressed word when entered by long press on the reading pane), so the selection handles can be dragged to extend it.
     func requestInitialScroll(sourceLocation: Int, selecting sourceRange: NSRange? = nil) {
         pendingInitialScrollSourceLocation = sourceLocation
         pendingInitialSelectionSourceRange = sourceRange
@@ -287,38 +287,52 @@ final class BoundedNoteUITextView: UITextView {
               bounds.width > 0, textStorage.length > 0 else { return }
         pendingInitialScrollSourceLocation = nil
         let location = min(displayLocation(forSourceLocation: sourceLocation), textStorage.length - 1)
-        let characterRange = NSRange(location: location, length: 1)
-        layoutManager.ensureLayout(forCharacterRange: characterRange)
-        let glyphRange = layoutManager.glyphRange(forCharacterRange: characterRange, actualCharacterRange: nil)
-        let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
         let top = -adjustedContentInset.top
-        let bottom = max(contentSize.height - bounds.height + adjustedContentInset.bottom, top)
-        setContentOffset(CGPoint(x: contentOffset.x, y: min(max(rect.minY + textContainerInset.top + top, top), bottom)), animated: false)
+        // Target is the first character and the view already rests at the top: nothing to lay out or scroll.
+        if location > 0 || contentOffset.y != top {
+            let characterRange = NSRange(location: location, length: 1)
+            layoutManager.ensureLayout(forCharacterRange: characterRange)
+            let glyphRange = layoutManager.glyphRange(forCharacterRange: characterRange, actualCharacterRange: nil)
+            let rect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+            let bottom = max(contentSize.height - bounds.height + adjustedContentInset.bottom, top)
+            setContentOffset(CGPoint(x: contentOffset.x, y: min(max(rect.minY + textContainerInset.top + top, top), bottom)), animated: false)
+        }
         if let sourceRange = pendingInitialSelectionSourceRange {
             pendingInitialSelectionSourceRange = nil
             let start = displayLocation(forSourceLocation: sourceRange.location)
             let end = max(displayLocation(forSourceLocation: NSMaxRange(sourceRange)), start)
-            // A non-editable text view draws its selection and handles only as first responder (no keyboard appears).
+            // A non-editable text view draws its selection and handles only once it is first responder (no keyboard appears).
             becomeFirstResponder()
             selectedRange = NSRange(location: start, length: end - start)
+            #if DEBUG
+            NotificationCenter.default.post(
+                name: .oriveoDebugNoteInitialSelection,
+                object: (textStorage.string as NSString).substring(with: selectedRange)
+            )
+            #endif
         }
     }
 
-    /// Maps a UTF-16 offset in the stored text to a position in the display string: every soft break
-    /// before it shifts the position by one. An offset that lands exactly on a soft break stays in
-    /// front of it, so the next typed character does not inherit the soft-break marker.
+    /// Maps a UTF-16 offset in the stored source to a position in the display string: every soft break before it shifts the position one further.
+    /// An offset that lands exactly on a soft break stays in front of it, so the next typed character does not inherit the soft-break marker.
     private func displayLocation(forSourceLocation sourceLocation: Int) -> Int {
         var location = max(0, sourceLocation)
+        guard location > 0 else { return 0 }
+        // Without `longestEffectiveRangeNotRequired` the first unmarked run is widened to its longest effective range,
+        // which walks every run of the note even when the walk stops right away (1500 vs 300 sections: 2.1 vs 0.1 ms
+        // on opening "Select text"). Per-run ranges add up to the same marker lengths.
         textStorage.enumerateAttribute(
             NoteSoftParagraphBreaks.markerKey,
-            in: NSRange(location: 0, length: textStorage.length)
+            in: NSRange(location: 0, length: textStorage.length),
+            options: .longestEffectiveRangeNotRequired
         ) { value, range, stop in
-            guard value != nil else { return }
-            if range.location < location {
-                location += range.length
-            } else {
+            // Runs arrive in order and `location` only grows past markers before it, so the first run at or past
+            // `location` ends the walk: the cost follows the target position, not the note length.
+            guard range.location < location else {
                 stop.pointee = true
+                return
             }
+            if value != nil { location += range.length }
         }
         return min(location, textStorage.length)
     }

@@ -117,15 +117,10 @@ fun ProviderDetailBrandHeroCard(
     } else {
         ProviderBadgeColors.usageBreakdown(resolvedLogoKind)
     }
-
-    val subduedBrand = remember(brandColor, resolvedLogoKind) {
-        if (resolvedLogoKind == ProviderKind.Grok) {
-            Color(0xFF2E3036)
-        } else {
-            brandColor.hsbAdjusted(saturation = 0.62f, brightness = 0.88f)
-        }
-    }
-    val pressedBrand = remember(subduedBrand) { subduedBrand.hsbAdjusted(saturation = 0.85f, brightness = 0.55f) }
+    // Grok's brand is black and white: its dark-mode brand color is nearly white, so used as the background of the fixed-white-text hero card it would look washed out.
+    // Use a deep graphite background directly to keep the dark brand-card look (consistent with iOS).
+    val subduedBrand = remember(brandColor, resolvedLogoKind) { heroSubduedBrand(brandColor, resolvedLogoKind) }
+    val pressedBrand = remember(subduedBrand) { heroPressedBrand(subduedBrand) }
 
     val effective = provider.effectiveStatusKind
     val isSyncing = isResyncing || provider.status is ProviderConnectionState.Syncing
@@ -592,6 +587,18 @@ private fun HeroActions(
         }
     }
 }
+
+/** Hero card fill derived from the brand colour; Grok gets a fixed deep graphite (black/white brand). */
+internal fun heroSubduedBrand(brandColor: Color, kind: ProviderKind): Color =
+    if (kind == ProviderKind.Grok) {
+        Color(0xFF2E3036)
+    } else {
+        brandColor.hsbAdjusted(saturation = 0.62f, brightness = 0.88f)
+    }
+
+/** Darker brand shade used for pressed states and as the base of the pill label. */
+internal fun heroPressedBrand(subduedBrand: Color): Color =
+    subduedBrand.hsbAdjusted(saturation = 0.85f, brightness = 0.55f)
 
 @Composable
 private fun HeroPrimaryButton(

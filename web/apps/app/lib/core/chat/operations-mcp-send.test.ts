@@ -30,6 +30,9 @@ const mocks = vi.hoisted(() => ({
   trackEvent: vi.fn(),
   reportSendCompletion: vi.fn(),
   reportUsageAndBudget: vi.fn(),
+  enqueueSkillRetrievalUsageEvents: vi.fn(),
+  /** Set = merged into the production prompt context (knowledge retrievals already run); null = unchanged. */
+  retrieval: { value: null as Record<string, unknown> | null },
   executeLibraryTool: vi.fn(),
   activeUid: { value: 'uid-mcp-send' },
   /** When set, replaces the continuation that continue-answering reads (a previous_id continuation); null = use the real implementation. */
@@ -90,6 +93,24 @@ vi.mock('./cost-fields', async (importOriginal) => ({
 vi.mock('./send-completion', () => ({
   reportSendCompletion: (...args: unknown[]) => mocks.reportSendCompletion(...args),
   reportUsageAndBudget: (...args: unknown[]) => mocks.reportUsageAndBudget(...args),
+  enqueueSkillRetrievalUsageEvents: (...args: unknown[]) => mocks.enqueueSkillRetrievalUsageEvents(...args),
+}));
+vi.mock('./prompt-injection', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./prompt-injection')>();
+  return {
+    ...actual,
+    buildChatContextSources: async (...args: Parameters<typeof actual.buildChatContextSources>) => {
+      const sources = await actual.buildChatContextSources(...args);
+      return mocks.retrieval.value === null
+        ? sources
+        : { ...sources, promptContext: { ...sources.promptContext, ...mocks.retrieval.value } };
+    },
+  };
+});
+vi.mock('../sync', () => ({
+  getSyncAdapter: vi.fn(() => null),
+  deleteAttachments: vi.fn(),
+  flushPendingConversationDeletions: vi.fn(async () => undefined),
 }));
 vi.mock('../telemetry', async () => ({
   trackEvent: (...args: unknown[]) => mocks.trackEvent(...args),
@@ -298,7 +319,7 @@ async function seedServer(input: {
   const uid = input.uid ?? mocks.activeUid.value;
   const id = input.serverId ?? SERVER_ID;
   const addition: McpServerAddition = {
-    id, name: input.name ?? 'Weather', url: `https://${(input.name ?? 'weather').toLowerCase()}.example.com/mcp`, authKind: 'token', localOnly: false,
+    id, name: input.name ?? 'Weather', url: `https://${(input.name ?? 'weather').toLowerCase()}.example.com/mcp`, authKind: 'token',
     iconURL: null, createdAt: 1, snapshots: input.snapshots ?? [snapshot('get_weather'), snapshot('get_time')],
     permissions: input.permissions ?? {},
     connectionState: { serverId: id, status: 'connected', lastSuccessAt: 1, negotiatedVersion: '2026-07-28', generation: 'stateless', sessionId: null },
@@ -497,8 +518,44 @@ describe('StopReasonPersistence', () => {
   });
 });
 
+describe('EmptyReplyOverflow', () => {
+  it('mcp_overflow_after_reasoning_records_context_window_exceeded', async () => {
+    await seedServer({ enabledIn: ['conv-1'] });
+    const metadata = await import('../metadata/metadata-client');
+    const streamOptionsModule = await import('./stream-options');
+    const actualStreamOptions = await vi.importActual<typeof import('./stream-options')>('./stream-options');
+    vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(metadata.DEFAULT_RELAY_RUNTIME_CONFIG);
+    vi.mocked(streamOptionsModule.buildProviderStreamOptions).mockImplementation(actualStreamOptions.buildProviderStreamOptions);
+    try {
+      const claude = model({ id: 'claude-mcp-overflow', relayTransport: 'anthropic_messages', relayTransportSource: 'reachable' });
+      const relay = provider({
+        kind: 'relay', models: [claude], catalogModels: [claude],
+        baseURLText: 'https://relay.example.com/v1', relayKind: 'openai_compatible',
+        relayRequested: { transport: 'auto', authMode: 'bearer' },
+      });
+      // Reasoning streamed, then the window ran out: no visible text, an in-stream overflow stop reason.
+      const overflow = [
+        'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"thinking about it"}}',
+        'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"model_context_window_exceeded"}}',
+        'event: message_stop\ndata: {"type":"message_stop"}',
+      ].map((frame) => `${frame}\n\n`).join('');
+      const chat = scriptChatStream([overflow]);
+      const { handle, assistant } = start({ provider: relay, model: claude });
+      await handle.done;
+
+      expect(mocks.runStreamPipeline).not.toHaveBeenCalled();
+      expect(chat.bodies).toHaveLength(1);
+      expect(assistant()).toMatchObject({ state: 'failed', stopReason: 'context_window_exceeded' });
+      expect(assistant()!.errorKind).not.toBe('emptyResponse');
+    } finally {
+      vi.mocked(streamOptionsModule.buildProviderStreamOptions).mockImplementation(() => ({}));
+      vi.mocked(metadata.getRelayRuntimeConfig).mockReturnValue(undefined as never);
+    }
+  });
+});
+
 describe('cascading deletion of step payloads (local-only data must not accumulate forever)', () => {
-  /** Really runs one reply with tools and waits for the production path to persist the step payload in the local database. */
+  /** Really runs one tool-carrying reply and waits for the production path to write this step's payload into the local database. */
   async function answered(conv: Conversation = conversation()) {
     scriptChatStream([proposalSse([{ id: 'c1', name: WEATHER, args: '{"city":"Berlin"}' }]), textSse('Done.')]);
     const run = start({ conv });
@@ -951,6 +1008,28 @@ describe('failure, cancellation and recovery', () => {
     expect(chat.bodies).toHaveLength(1);
     expect(assistant()).toMatchObject({ state: 'interrupted' });
     expect(assistant()!.toolSteps?.[0]).toMatchObject({ status: 'interrupted', errorCode: 'cancelled' });
+  });
+
+  it('mcp_stop_writes_cost_to_interrupted_message', async () => {
+    // A stop during a tool call: the finished leg's usage and cost land on the message
+    // stop() already marked interrupted, and are reported once.
+    await seedServer({ enabledIn: ['conv-1'] });
+    server = fakeServer(() => ({ hang: true }));
+    __setMcpTransportForTests(server);
+    const proposal = proposalSse([{ id: 'c1', name: WEATHER }]).replace(
+      'data: [DONE]',
+      `data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 40, completion_tokens: 10, total_tokens: 50 } })}\n\ndata: [DONE]`,
+    );
+    scriptChatStream([proposal, textSse('never')]);
+    const { store, handle, assistant } = start();
+    await vi.waitFor(() => expect(server.toolCalls()).toHaveLength(1));
+    const conv = store.getState().conversations[0];
+    store.getState().updateConversation(conv.id, {
+      messages: conv.messages.map((m) => (m.id === handle.msgId ? { ...m, state: 'interrupted' as const, stopReason: 'interrupted' as const } : m)),
+    });
+    handle.abort();
+    await handle.done;
+    expect(assistant()).toMatchObject({ state: 'interrupted', costSource: 'localEstimate' });
   });
 
   it('persists the message as failed when a model leg fails and keeps the steps that already finished', async () => {

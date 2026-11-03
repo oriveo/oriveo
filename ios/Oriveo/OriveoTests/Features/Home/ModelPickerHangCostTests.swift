@@ -72,9 +72,7 @@ struct ModelPickerHangCostTests {
     func chatPickerFirstPresentation() async throws {
         let state = AppState(seedDemoData: false, sessionUID: "picker-hang-cost-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         let providers = makeProviders()
         state.providers = providers

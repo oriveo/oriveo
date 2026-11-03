@@ -57,6 +57,21 @@ nonisolated enum ImageOrphanSweeper {
                     keys.insert(localImageID)
                 }
             }
+            // Studio assets count as references regardless of kept / deletedAt / syncState: version assets
+            // (kept and candidate) and round reference assets. Both the stored value and its uppercase
+            // UUID form are kept, so a key matching either spelling survives (keep more, never delete
+            // wrongly).
+            let studioRows = try String.fetchCursor(db, sql: """
+                SELECT assetId FROM studio_versions WHERE assetId IS NOT NULL
+                UNION SELECT assetId FROM studio_round_refs WHERE assetId IS NOT NULL
+                """)
+            while let assetId = try studioRows.next() {
+                guard !assetId.isEmpty else { continue }
+                keys.insert(assetId)
+                if let normalized = UUID(uuidString: assetId)?.uuidString {
+                    keys.insert(normalized)
+                }
+            }
             return keys
         }
     }

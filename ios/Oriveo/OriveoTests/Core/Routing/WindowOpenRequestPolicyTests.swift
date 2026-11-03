@@ -72,6 +72,77 @@ struct WindowOpenRequestPolicyTests {
         #expect(nav.chatDetail == .empty)
     }
 
+    @Test("Session not ready: the request is kept unconsumed; once ready it is consumed once and cleared")
+    func notConsumedBeforeReady_consumedAfterReady() {
+        let state = makeState()
+        let nav = state.windowNavigation(for: UUID())
+        nav.selectedTab = .providers
+
+        let conversationID = UUID()
+        var request: WindowOpenRequest? = WindowOpenRequest(conversationID: conversationID)
+        WindowOpenRequestPolicy.consume(&request, hasCompletedOnboarding: true, sessionStoreReady: false, navigation: nav)
+
+        #expect(request?.conversationID == conversationID)
+        #expect(nav.selectedTab == .providers)
+        #expect(nav.path.isEmpty)
+        #expect(nav.chatDetail == .empty)
+
+        WindowOpenRequestPolicy.consume(&request, hasCompletedOnboarding: true, sessionStoreReady: true, navigation: nav)
+
+        #expect(request == nil)
+        #expect(nav.selectedTab == .home)
+        #expect(nav.path.last == .chat(conversationID: conversationID))
+
+        // Already consumed: a repeated ready notification (e.g. switching back to the partition) does not reopen it
+        let pathAfter = nav.path
+        WindowOpenRequestPolicy.consume(&request, hasCompletedOnboarding: true, sessionStoreReady: true, navigation: nav)
+        #expect(nav.path == pathAfter)
+    }
+
+    @Test("Partition switched while the request waited for readiness: the request is dropped and not opened in the new partition")
+    func notConsumedAfterPartitionSwitch_requestDropped() {
+        let state = makeState()
+        let nav = state.windowNavigation(for: UUID())
+        nav.selectedTab = .providers
+
+        var request: WindowOpenRequest? = WindowOpenRequest(conversationID: UUID())
+        WindowOpenRequestPolicy.consume(
+            &request,
+            hasCompletedOnboarding: true,
+            sessionStoreReady: true,
+            requestPartitionUID: "partition-a",
+            currentPartitionUID: "partition-b",
+            navigation: nav
+        )
+
+        #expect(request == nil)
+        #expect(nav.selectedTab == .providers)
+        #expect(nav.path.isEmpty)
+        #expect(nav.chatDetail == .empty)
+    }
+
+    @Test("Partition unchanged: consumed as usual")
+    func consumedWhenPartitionUnchanged() {
+        let state = makeState()
+        let nav = state.windowNavigation(for: UUID())
+        nav.selectedTab = .providers
+
+        let conversationID = UUID()
+        var request: WindowOpenRequest? = WindowOpenRequest(conversationID: conversationID)
+        WindowOpenRequestPolicy.consume(
+            &request,
+            hasCompletedOnboarding: true,
+            sessionStoreReady: true,
+            requestPartitionUID: state.sessionPartitionUID,
+            currentPartitionUID: state.sessionPartitionUID,
+            navigation: nav
+        )
+
+        #expect(request == nil)
+        #expect(nav.selectedTab == .home)
+        #expect(nav.path.last == .chat(conversationID: conversationID))
+    }
+
     @Test("No request (the default window the system opens): navigation is untouched")
     func noRequestIsNoOp() {
         let state = makeState()

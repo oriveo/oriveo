@@ -601,7 +601,8 @@ private fun MemoryStarterPrimaryButton(
             .height(50.dp)
             .shadow(8.dp, shape, ambientColor = glow, spotColor = glow)
             .clip(shape)
-            .background(colors.primaryTextSafe)
+            .background(colors.primaryFillText)
+            
             .clickable(enabled = !loading, onClick = onClick),
         horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
         verticalAlignment = Alignment.CenterVertically,
@@ -655,7 +656,7 @@ private fun MemoryInboxEntry(state: MemoryInboxUiState, onClick: () -> Unit, mod
                     modifier = Modifier
                         .heightIn(min = 24.dp)
                         .widthIn(min = 24.dp)
-                        .background(colors.primaryTextSafe, CircleShape)
+                        .background(colors.primaryFillText, CircleShape)
                         .padding(horizontal = 8.dp),
                     contentAlignment = Alignment.Center,
                 ) {

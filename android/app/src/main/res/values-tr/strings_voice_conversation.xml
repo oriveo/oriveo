@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">Bitir</string>
     <string name="voice_conversation_start_failed_toast">Sesli sohbet başlatılamadı. Tekrar deneyin.</string>
     <string name="voice_conversation_background_paused_toast">Oriveo arka plana alındığı için sesli sohbet duraklatıldı.</string>
+    <string name="voice_conversation_status_say_again">Anlaşılamadı, tekrar söyleyin</string>
+    <string name="voice_conversation_status_check_language">Anlaşılamadı</string>
+    <string name="voice_conversation_prompt_say_again">Anlayamadım. Tekrar söyler misiniz?</string>
+    <string name="voice_conversation_prompt_check_language">Yine anlayamadım. Başka bir dilde konuşuyorsanız değiştirmek için “Tanıma dili”ne dokunun.</string>
+    <string name="voice_conversation_prompt_echo_hint">Hoparlör yankı yapıyor. Kulaklıkla daha iyi olur.</string>
+    <string name="voice_conversation_language_chip">Tanıma dili: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">Tanıma dilini değiştirir</string>
 </resources>

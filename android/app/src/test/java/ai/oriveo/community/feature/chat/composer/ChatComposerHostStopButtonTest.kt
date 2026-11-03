@@ -53,18 +53,16 @@ import org.koin.compose.KoinApplication
 import org.koin.dsl.module
 
 /**
- * Rendering behavior of the composer's send / stop button: a real [ChatViewModel], a real
- * [ChatComposerHost] and a real `EnhancedComposer`, asserted against the semantics tree rather
- * than the source text.
+ * Rendering behavior of the send / stop buttons in the input bar: real [ChatViewModel], real [ChatComposerHost], real `EnhancedComposer`,
+ * reads the real semantic tree, not the source code.
  *
- * Why this must be a rendering test: `ChatViewModel.isGenerating` reads `StateFlow.value`, which is
- * not snapshot state. The host is skippable; clearing the input on send recomposes it once before the
- * stream is marked active, it reads `false`, and nothing invalidates it afterwards. The send button
- * then never turns into the stop button. Source-text assertions cannot catch that.
+ * Why this must be a behavior test: `ChatViewModel.isGenerating` reads `StateFlow.value`, not snapshot state.
+ * After 1.2.9 moved it from the root scope into the host, the host (skippable) recomposed once when sending cleared the input and read false;
+ * nothing refreshed it when the stream actually started, so the send key stayed in the "Send" state and the stop button never appeared (Google Play review feedback).
+ * All 611 unit tests were green at the time, because none of them actually rendered the UI.
  *
- * In production the two steps ("input cleared" and, a little later, "streamingMessageId set") land in
- * different frames. Writing both in the same frame under a synchronous dispatcher would hide the bug,
- * so this test separates them with an explicit `waitForIdle`.
+ * The online order is "clear input (token increments) -> streamingMessageId is set later", two events in different frames.
+ * With a synchronous dispatcher, writing both steps in the same frame would smooth the bug over, so `waitForIdle` explicitly splits the frames here.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -86,7 +84,7 @@ class ChatComposerHostStopButtonTest {
     private val globalSnackbarManager = mockk<GlobalSnackbarManager>(relaxed = true)
     private val windowStore = MessageWindowFakeStore()
 
-    /** The conversation's active streaming message id; flipping it is what ChatRepository does. */
+    /** The current streaming message id of this conversation; tests set it directly, equivalent to ChatRepository setting / clearing it. */
     private val streamingMessageId = MutableStateFlow<String?>(null)
 
     private var provider = Provider(
@@ -139,8 +137,7 @@ class ChatComposerHostStopButtonTest {
 
     @After
     fun tearDown() {
-        // KoinApplication starts a process-wide instance; leaving it running fails the next test with
-        // KoinApplicationAlreadyStartedException.
+        // KoinApplication starts a process-wide global instance; without stopping it, the next case throws KoinApplicationAlreadyStartedException.
         org.koin.core.context.stopKoin()
         Dispatchers.resetMain()
     }
@@ -154,14 +151,14 @@ class ChatComposerHostStopButtonTest {
         composeRule.onNodeWithContentDescription(voice).assertExists()
         composeRule.onNodeWithContentDescription(stop).assertDoesNotExist()
 
-        // Frame one: sending clears the input (restore token bumps) and the host recomposes while the
-        // stream has not started yet. This is the recomposition that used to freeze isGenerating=false.
+        // First frame: sending clears the input (token increments), and the host recomposes once before the stream has started --
+        // this is exactly the moment the old implementation read isGenerating as false and stayed stale from then on.
         composeRule.runOnIdle { viewModel.restoreInputText("") }
         composeRule.waitForIdle()
         composeRule.onNodeWithContentDescription(stop).assertDoesNotExist()
 
-        // A later frame: ChatRepository marks the stream active. The host has no other source of
-        // invalidation, so it can only react by subscribing to the change itself.
+        // Next frame: ChatRepository sets streamingMessageId. The host has no other source of invalidation,
+        // so it can only learn about this change by subscribing to it itself.
         composeRule.runOnIdle { streamingMessageId.value = "assistant-1" }
         composeRule.waitForIdle()
 
@@ -263,16 +260,19 @@ class ChatComposerHostStopButtonTest {
         )
         activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         activity.setContent {
-            // EnhancedComposer only reaches Koin for ProviderRepository; hand it the same mock.
-            KoinApplication(application = { modules(module { single<ProviderRepository> { providerRepository } }) }) {
+            // ChatComposerHost / EnhancedComposer take ProviderRepository and AppPreferencesRepository via koinInject, the same mocks injected by the test.
+            KoinApplication(application = { modules(module {
+                single<ProviderRepository> { providerRepository }
+                single<AppPreferencesRepository> { appPreferencesRepository }
+            }) }) {
                 OriveoTheme(darkTheme = false) {
                     ChatComposerHost(
                         viewModel = viewModel,
                         activeProvider = provider,
                         conversationId = CONVERSATION_ID,
-                        conversationSkillId = null,
+                        conversationSkillIds = emptyList(),
+                        hasActiveLibraryConnection = false,
                         sendingBlockedByLoadState = false,
-                        transparentChrome = false,
                         hazeState = HazeState(),
                         trueTransparentBlurEnabled = false,
                         onOverlayHeightChange = {},

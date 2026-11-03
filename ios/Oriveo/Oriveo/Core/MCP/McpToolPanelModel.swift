@@ -12,8 +12,15 @@ nonisolated enum McpToolAvailability: Sendable, Equatable {
     case available
     /// A model or connection known not to support tool calls.
     case modelUnsupported
+    /// A realtime voice model is selected in this session: the realtime path carries no tools (voice_realtime_no_tools), so the panel only shows an explanation card.
+    case realtimeModel
 
     var isAvailable: Bool { self == .available }
+
+    /// Tool panel availability: when a realtime model is selected, always take the realtime branch; otherwise defer to the text model's verdict.
+    static func panel(textModel: McpToolAvailability, realtimeSelected: Bool) -> McpToolAvailability {
+        realtimeSelected ? .realtimeModel : textModel
+    }
 
     static func resolve(provider: Provider, model: AIModel, memory: ToolCallMemoryStore) -> McpToolAvailability {
         McpToolBridge.connectionSupportsTools(provider: provider, model: model, memory: memory)

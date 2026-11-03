@@ -206,15 +206,16 @@ struct UserBubbleLongTextTests {
         #expect(pasteboard.string == source, "copying a selection must give the source text, without U+2029 soft breaks")
     }
 
-    @Test("paragraphs that are not split keep the natural direction, so ordinary messages lay out exactly as before")
-    func shortParagraphsKeepNaturalDirection() throws {
+    @Test("Short paragraphs are pinned per paragraph to their first strong direction")
+    func shortParagraphsPinnedPerParagraph() throws {
         let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: 430, height: 100))
-        configure(cell, makeUserModel(text: "١٢٣ hello\nمرحبا بالعالم"), parent: UIViewController())
+        configure(cell, makeUserModel(text: "\u{0661}\u{0662}\u{0663} hello\n\u{0645}\u{0631}\u{062D}\u{0628}\u{0627}"), parent: UIViewController())
         fitAndLayOut(cell, width: 430)
         let tv = try #require(textView(in: cell))
-        for location in [0, (tv.textStorage.string as NSString).length - 1] {
+        let expected: [(Int, NSWritingDirection)] = [(0, .leftToRight), ((tv.textStorage.string as NSString).length - 1, .rightToLeft)]
+        for (location, direction) in expected {
             let style = tv.textStorage.attribute(.paragraphStyle, at: location, effectiveRange: nil) as? NSParagraphStyle
-            #expect((style?.baseWritingDirection ?? .natural) == .natural, "a short paragraph should not get a pinned direction (location \(location))")
+            #expect(style?.baseWritingDirection == direction, "Wrong paragraph direction at \(location)")
         }
     }
 

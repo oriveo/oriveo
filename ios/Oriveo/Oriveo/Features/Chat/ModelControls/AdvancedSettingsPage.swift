@@ -44,7 +44,7 @@ struct AdvancedPageHeader: View {
                 Button(action: onTrailing) {
                     Text(trailingTitle)
                         .font(.system(size: 15))
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .frame(minWidth: 56, minHeight: 44, alignment: .trailing)
                         .contentShape(Rectangle())
                 }
@@ -299,8 +299,8 @@ struct AdvancedSettingsPage: View {
                 )
             }
         }
-        // The whole chain uses the brand primary color; it must sit at the end of the chain because `.tint` only affects the subtree it wraps.
-        .tint(OriveoTheme.Palette.primary)
+        // The whole chain uses the brand primary color; it must be attached at the end of the chain, since `.tint` only affects the subtree it wraps.
+        .tint(OriveoTheme.Palette.primaryTextOnSurface)
     }
 
     private var headerSubtitle: String {
@@ -411,7 +411,7 @@ struct AdvancedSettingsPage: View {
                 } label: {
                     Text(dormantExpanded ? L10n.tr("Hide") : L10n.tr("View", table: .providers))
                         .font(.subheadline.weight(.medium))
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                 }

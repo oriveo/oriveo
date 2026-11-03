@@ -480,11 +480,13 @@ internal object ModelOptionsRender {
         else -> R.string.model_options_thinks_first_note
     }
 
-    @StringRes fun noticeStatusRes(status: ModelOptionCapabilityShape.NoticeStatus): Int = when (status) {
+    /** null = this row has no separate status sentence; the body text is the status (realtime voice model). */
+    @StringRes fun noticeStatusRes(status: ModelOptionCapabilityShape.NoticeStatus): Int? = when (status) {
         ModelOptionCapabilityShape.NoticeStatus.FollowsModelDefault -> R.string.model_options_uses_model_default
         ModelOptionCapabilityShape.NoticeStatus.NeedsOwnConfiguration -> R.string.model_options_needs_manual_setup
         ModelOptionCapabilityShape.NoticeStatus.NotAvailableYet -> R.string.model_options_not_available_yet
         ModelOptionCapabilityShape.NoticeStatus.AlwaysOn -> R.string.model_options_always_on
+        ModelOptionCapabilityShape.NoticeStatus.RealtimeUnavailable -> null
     }
 
     @StringRes fun noticeBodyRes(body: ModelOptionCapabilityShape.NoticeBody): Int = when (body) {
@@ -495,6 +497,8 @@ internal object ModelOptionsRender {
         -> R.string.model_options_reasoning_no_generic_switch
         ModelOptionCapabilityShape.NoticeBody.WebNoGenericSwitch -> R.string.model_options_web_no_generic_switch
         ModelOptionCapabilityShape.NoticeBody.SubscriptionAlwaysSearches -> R.string.model_options_subscription_always_searches
+        ModelOptionCapabilityShape.NoticeBody.RealtimeNoWebSearch -> R.string.voice_realtime_no_web_search
+        ModelOptionCapabilityShape.NoticeBody.RealtimeNoThinking -> R.string.voice_realtime_no_thinking
     }
 
     @StringRes fun escapeRes(escape: ModelOptionCapabilityShape.Escape): Int = when (escape) {
@@ -676,6 +680,7 @@ internal object ModelOptionsTiles {
     /**
      * The capability cards: the web / thinking order keeps the existing chat-template exception - when thinking is the chat-template switch (blocked included) thinking comes first,
      * otherwise web comes first; after that vision, then file, fixed. Empty when only the callout shows.
+     * [realtime]: when a realtime voice model is selected the vision / file cards do not appear, leaving only the web / thinking rows.
      */
     fun board(
         web: ModelOptionCapabilityShape,
@@ -686,18 +691,28 @@ internal object ModelOptionsTiles {
         /** The reason line inside the card when vision / file is unavailable (`capability_input_disabled_<reason>_<media>`); null = write nothing. */
         @StringRes visionReasonRes: Int? = null,
         @StringRes fileReasonRes: Int? = null,
+        realtime: Boolean = false,
     ): List<Tile> {
         if (showsCalloutOnly(web, reasoning)) return emptyList()
+        val capability = realtimeCapability(realtime)
         val webTile = capabilityTile(ModelOptionCapabilityShape.Capability.Web, web)
         val reasoningTile = capabilityTile(ModelOptionCapabilityShape.Capability.Reasoning, reasoning, reasoningToggleBlockedNoteRes)
         val templateFirst = (reasoning as? ModelOptionCapabilityShape.Toggle)?.kind ==
             ModelOptionCapabilityShape.ToggleKind.ChatTemplateThinking
         return (if (templateFirst) listOf(reasoningTile, webTile) else listOf(webTile, reasoningTile)) +
-            listOf(
-                visionTile(vision, visionReasonRes),
-                fileTile(file, fileReasonRes.takeIf { file == FileDelivery.Text }),
+            listOfNotNull(
+                visionTile(vision, visionReasonRes).takeIf { capability.visionTile != HIDDEN },
+                fileTile(file, fileReasonRes.takeIf { file == FileDelivery.Text }).takeIf { capability.fileTile != HIDDEN },
             )
     }
+
+    private const val HIDDEN = "hidden"
+
+    /** The panel does not distinguish voice stage from typing mode: both project the vision / file cards and the summary identically. */
+    private fun realtimeCapability(realtime: Boolean) = ai.oriveo.community.core.voice.realtime.RealtimeModel.capability(
+        if (realtime) ai.oriveo.community.core.voice.realtime.RealtimeModel.MODEL_KIND_REALTIME else ai.oriveo.community.core.voice.realtime.RealtimeModel.MODEL_KIND_TEXT,
+        ai.oriveo.community.core.voice.realtime.RealtimeModel.MODE_STAGE,
+    )
 
     /** Vision card: when unavailable with a disabled reason, the status line is that reason (`capability_input_disabled_<reason>_image`); with no reason (the old subscription wording) the enum status sentence is kept. */
     fun visionTile(vision: Vision, @StringRes reasonRes: Int? = null): Tile {
@@ -744,8 +759,8 @@ internal object ModelOptionsTiles {
             is ModelOptionCapabilityShape.Notice -> Tile(
                 kind = kind,
                 corner = if (shape.escape != null) Corner.Chevron else Corner.None,
-                statusRes = ModelOptionsRender.noticeStatusRes(shape.status),
-                bodyRes = ModelOptionsRender.noticeBodyRes(shape.body),
+                statusRes = ModelOptionsRender.noticeStatusRes(shape.status) ?: ModelOptionsRender.noticeBodyRes(shape.body),
+                bodyRes = ModelOptionsRender.noticeBodyRes(shape.body).takeIf { ModelOptionsRender.noticeStatusRes(shape.status) != null },
                 tappable = shape.escape != null,
                 searchCard = shape.searchCard,
             )
@@ -802,9 +817,14 @@ internal object ModelOptionsTiles {
 
     /**
      * "This turn actually sends" lists only the choices that rewrite the request right now, in the fixed order web -> thinking: web on; a non-automatic thinking tier that is selected ("off" included);
-     * the thinking switch (chat template included) on. No item at all -> empty, no strip.
+     * the thinking switch (chat template included) on. No item at all -> empty, no strip. A realtime voice model shows no summary.
      */
-    fun summary(web: ModelOptionCapabilityShape, reasoning: ModelOptionCapabilityShape): List<SummaryItem> = buildList {
+    fun summary(
+        web: ModelOptionCapabilityShape,
+        reasoning: ModelOptionCapabilityShape,
+        realtime: Boolean = false,
+    ): List<SummaryItem> = buildList {
+        if (realtimeCapability(realtime).panelSummary == HIDDEN) return@buildList
         if (webIsOn(web)) add(SummaryItem.WebOn)
         when (reasoning) {
             is ModelOptionCapabilityShape.Tiers -> reasoning.selected

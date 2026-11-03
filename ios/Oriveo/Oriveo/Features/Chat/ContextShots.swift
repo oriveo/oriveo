@@ -858,6 +858,7 @@ enum ContextShots {
 
     private static func report(_ message: String) {
         print("[ContextShots] \(message)")
+        ShotsLayoutProbe.fail(message)
     }
 }
 #endif

@@ -1,5 +1,6 @@
 package ai.oriveo.community.ui.component.streaming
 
+import androidx.compose.runtime.derivedStateOf
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -261,5 +262,32 @@ class StreamingTextRevealTest {
         assertEquals(big, s.visibleText)
         assertEquals(0, s.fadingTailCount())
         assertFalse(s.hasWork())
+    }
+
+    // A very short reply ("No.") is committed whole on the first frame and starts fading from alpha 0; the stream ends within 250 ms.
+    // Previously onTarget (non-streaming) went through snap(), which only cleared plain fields, so Compose did not observe the change and the body stayed at alpha 0 / translucent.
+    @Test
+    fun `short reply ending mid fade keeps fading to full alpha and notifies observers`() {
+        val s = StreamingRevealState()
+        // Same form as MarkdownMessageView.renderStreaming: during composition, read "still revealing" from snapshot state
+        val stillRevealing = derivedStateOf { s.visibleText.length < "No.".length || s.isFading }
+        s.onTarget("No.", isStreaming = true)
+        s.onFrame(t0) // Commit the whole text on the first frame; revealTime = t0
+        assertEquals("No.", s.visibleText)
+        assertTrue(s.alphaFromEnd(0) < 0.01f)
+        assertTrue(stillRevealing.value)
+
+        s.onTarget("No.", isStreaming = false) // stream ends inside the fade-in window
+        assertTrue("Stream end must not cut off the fade-in: the frame loop must keep running", s.hasWork())
+
+        var now = t0
+        var guard = 0
+        while (s.hasWork() && guard++ < 100) {
+            now += ms(16)
+            s.onFrame(now)
+        }
+        assertFalse(s.hasWork())
+        for (k in 0 until 3) assertEquals(1f, s.alphaFromEnd(k), 0f)
+        assertFalse("Observers must see the fade-in end, otherwise they stay on the old alpha span", stillRevealing.value)
     }
 }

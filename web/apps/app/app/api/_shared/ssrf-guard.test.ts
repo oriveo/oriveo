@@ -73,6 +73,23 @@ describe("ssrf-guard", () => {
     );
   });
 
+  it("allowHttp accepts a public plain http host in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const result = await assertUrlNotSsrf("http://images.example.com/a.png", { allowHttp: true });
+    expect(result.address.address).toBe("203.0.113.10");
+  });
+
+  it("allowHttp still blocks plain http private addresses, literal or resolved", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    await expect(assertUrlNotSsrf("http://10.0.0.5/x.png", { allowHttp: true })).rejects.toBeInstanceOf(
+      SsrfBlockedError,
+    );
+    mocks.resolve4.mockResolvedValue(["10.0.0.7"]);
+    await expect(
+      assertUrlNotSsrf("http://images.example.com/a.png", { allowHttp: true }),
+    ).rejects.toBeInstanceOf(SsrfBlockedError);
+  });
+
   it("blocks a domain that resolves to a private address (DNS rebinding)", async () => {
     mocks.resolve4.mockResolvedValueOnce(["10.0.0.5"]);
     mocks.resolve6.mockRejectedValueOnce(new Error("ENODATA"));

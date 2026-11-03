@@ -31,6 +31,8 @@ internal object MetadataCatalogAssembly {
          * null = the old cache row has no snapshot. Assembly only uses it when the index is schema 3; a schema 2 index keeps using its own.
          */
         val retiredModels: JsonElement? = null,
+        /** Catalog-level imageModels as raw JSON; assembled into the provider unchanged. */
+        val imageModels: JsonElement? = null,
     )
 
     /** Result of expanding a schema 3 compact catalog: [Expanded.data] is already the schema 2 equivalent (metadataSchema recorded as 2). */
@@ -242,6 +244,7 @@ internal object MetadataCatalogAssembly {
                 models = JsonObject(expanded),
                 generationParameters = generationParameters,
                 retiredModels = data["retiredModels"]?.takeUnless { it is JsonNull },
+                imageModels = data["imageModels"]?.takeUnless { it is JsonNull },
             ),
             droppedRefs = droppedRefs,
         )
@@ -269,6 +272,9 @@ internal object MetadataCatalogAssembly {
             catalogs[key]?.let { catalog ->
                 catalog.resolveMap?.takeUnless { it is JsonNull }?.let { fields["resolveMap"] = it }
                 fields["models"] = catalog.models
+                // The loaded catalog owns imageModels like it owns models.
+                fields.remove("imageModels")
+                catalog.imageModels?.let { fields["imageModels"] = it }
                 if (compactIndex) {
                     fields.remove("retiredModels")
                     catalog.retiredModels?.let { fields["retiredModels"] = it }

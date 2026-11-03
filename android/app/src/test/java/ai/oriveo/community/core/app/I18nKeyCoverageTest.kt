@@ -17,15 +17,32 @@ class I18nKeyCoverageTest {
     private val elementRegex =
         Regex("""<string\s+name="([^"]+)"([^>]*)>(.*?)</string>""", RegexOption.DOT_MATCHES_ALL)
 
-    /** key to text; excludeNonTranslatable only applies to the default locale. */
+    private val pluralsRegex =
+        Regex("""<plurals\s+name="([^"]+)"([^>]*)>(.*?)</plurals>""", RegexOption.DOT_MATCHES_ALL)
+    private val otherItemRegex =
+        Regex("""<item\s+quantity="other"\s*>(.*?)</item>""", RegexOption.DOT_MATCHES_ALL)
+
+    /** key → text; excludeNonTranslatable applies only to the default locale */
     private fun entries(file: File, excludeNonTranslatable: Boolean): Map<String, String> {
-        return elementRegex.findAll(file.readText())
+        val text = file.readText()
+        val strings = elementRegex.findAll(text)
             .filter { !excludeNonTranslatable || !it.groupValues[2].contains("translatable=\"false\"") }
             .associate { it.groupValues[1] to it.groupValues[3] }
+        // Plurals count too: key presence plus the "other" item's placeholders (quantity sets differ by language).
+        val plurals = pluralsRegex.findAll(text)
+            .filter { !excludeNonTranslatable || !it.groupValues[2].contains("translatable=\"false\"") }
+            .associate { m -> "plurals:${m.groupValues[1]}" to (otherItemRegex.find(m.groupValues[3])?.groupValues?.get(1) ?: "") }
+        return strings + plurals
     }
 
-    /** Resource files covered by the check; each is compared only with the same-named file under values/. */
-    private val stringFileNames = listOf("strings.xml", "strings_voice.xml")
+    /** Resource file names taking part in the coverage check; each file is compared only with the same-named file under values/ */
+    // Discover every values/strings*.xml so a new resource file cannot skip the check
+    // (strings_web_search / input_capability / voice_conversation / studio were unlisted).
+    private val stringFileNames: List<String> =
+        File(resDir, "values").listFiles { f -> f.isFile && f.name.matches(Regex("""strings.*\.xml""")) }
+            .orEmpty()
+            .map { it.name }
+            .sorted()
 
     /** Locales are the values-* directories that contain strings.xml; a missing same-named file is reported by the caller. */
     private fun localeStringFiles(fileName: String): List<Pair<String, File>> =

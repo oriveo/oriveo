@@ -275,6 +275,7 @@ nonisolated enum ProviderSelectionSnapshot {
         storedModelID: String?,
         in provider: Provider,
         metadata: MetadataClient = .shared,
+        voiceCatalog: VoiceCatalog? = AppState.realtimeVoiceCatalog(from: ReadAloudCatalogSnapshot.shared.state),
         now: Date = Date()
     ) -> ConversationModelState {
         let trimmed = storedModelID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -311,6 +312,13 @@ nonisolated enum ProviderSelectionSnapshot {
             return .retired(displayName: result.displayName, successorId: result.successorId)
         case .missing:
             if read.servingBundledSnapshot { return .resolved }
+            // Realtime models live only in the voice catalog: only official apiKey connections that can select one check it.
+            if provider.authMode == .apiKey {
+                guard let voiceCatalog else { return .resolved }
+                if voiceCatalog.isRealtimeSelection(kind: provider.kind, authMode: provider.authMode, model: trimmed) {
+                    return .resolved
+                }
+            }
             return .missing(displayName: result.displayName)
         }
     }

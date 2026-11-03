@@ -53,6 +53,8 @@ internal class ChatSendCoordinator(
         ai.oriveo.community.core.memory.MemoryRecallIndexCache(),
     // The connection's remembered tool_call verdict (the propose_memory / MCP tool predicate reads it).
     private val toolCallMemoryVerdict: (Provider, ai.oriveo.community.core.model.AIModel) -> Boolean? = { _, _ -> null },
+    /** Whether the active conversation has enabled MCP servers, i.e. an MCP tool loop may run this turn (P3 contract 11). */
+    private val mcpToolsPossible: () -> Boolean = { false },
     /**
      * Reads this conversation's search source and service on a background thread before every send (cached catalog
      * only); null = external search not wired, the request goes out unchanged (tests etc.).
@@ -63,7 +65,7 @@ internal class ChatSendCoordinator(
 ) {
     /** The skill prompt and raw knowledge files of one send; null when the conversation has no skill attached. */
     private class SkillInputs(
-        val skillPrompt: String,
+        val skillPrompt: String?,
         val knowledgeFiles: List<ContextKnowledgeFile>,
     )
 
@@ -244,6 +246,8 @@ internal class ChatSendCoordinator(
         // the message would be lost.
         applicationScope.launch {
             val externalSearch = externalSearchSend(conversation.id, dispatch, searchSnapshot, attemptKind)
+            // One identity per send: the request carrier and the search_memory tool predicate read the same value.
+            val evidenceIdentity = capabilityEvidenceIdentity(provider, modelId, evidencePartition)
             val skillInputs = resolveSkillInputs(conversation)
             // Every entry (send / retry / regenerate / edit-and-send / continue) hands the raw
             // inputs to the context assembler in ChatRepository; system is written only by the plan's transport input.
@@ -255,8 +259,6 @@ internal class ChatSendCoordinator(
                 text
             }
             val chatContext = chatContextRequest(conversation, memoryItems, skillInputs, attachments, recallQuery, delivery)
-            // One identity per send: the request carrier and the search_memory tool predicate read the same value.
-            val evidenceIdentity = capabilityEvidenceIdentity(provider, modelId, evidencePartition)
             val memorySearch = memorySearchTurn(
                 conversation = conversation,
                 provider = provider,

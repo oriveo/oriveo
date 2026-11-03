@@ -11,21 +11,21 @@ export const CUSTOM_PALETTE_ID = 'custom' as const;
 export type CustomPaletteId = typeof CUSTOM_PALETTE_ID;
 
 /** JSON `custom.defaultSeed` */
-export const DEFAULT_CUSTOM_SEED = '#60A5FA';
+export const DEFAULT_CUSTOM_SEED = '#60A5FA'; // capability-ui-lint: allow user-pickable custom theme seed swatch, not a capability colour
 
 /** JSON `custom.presets` (the 12 preset colors of the color picker, in display order) */
 export const CUSTOM_PRESETS: readonly string[] = [
   '#FF8A65',
   '#FB923C',
-  '#FBBF24',
+  '#FBBF24', // capability-ui-lint: allow user-pickable custom theme seed swatch, not a capability colour
   '#A3E635',
   '#4ADE80',
   '#2DD4BF',
   '#22D3EE',
-  '#60A5FA',
+  '#60A5FA', // capability-ui-lint: allow user-pickable custom theme seed swatch, not a capability colour
   '#818CF8',
   '#C084FC',
-  '#F472B6',
+  '#F472B6', // capability-ui-lint: allow user-pickable custom theme seed swatch, not a capability colour
   '#FB7185',
 ];
 
@@ -150,7 +150,8 @@ function luminance(rgb: Rgb): number {
   return 0.2126 * channel(rgb[0]) + 0.7152 * channel(rgb[1]) + 0.0722 * channel(rgb[2]);
 }
 
-function contrast(a: string, b: string): number {
+/** WCAG contrast ratio between two #RRGGBB colours. */
+export function contrast(a: string, b: string): number {
   const la = luminance(parseHex(a));
   const lb = luminance(parseHex(b));
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
@@ -214,11 +215,22 @@ export const USER_BUBBLE_STOP_COUNT = 7;
 export const USER_BUBBLE_STOPS_CSS_VAR = '--o-user-bubble-stops';
 
 /**
- * Interpolates between the two end colors in OKLCH (L and C linear, hue along the short arc) to take n stops, top to bottom;
- * when one end is near-gray (C < 0.02) the other end's hue is reused. The platform gradient interpolates in sRGB between adjacent stops.
+ * The top color keeps only the raw color's lightness and chroma, with the hue taken from the bottom color (ported from sameHueTop): the gradient changes depth only, not hue,
+ * so a cross-hue palette no longer shows two colors of bubbles in the same conversation. When the bottom is near-gray (C < 0.02) the raw top color is kept.
+ */
+export function sameHueTop(topHex: string, bottomHex: string): string {
+  const t = oklch(topHex);
+  const b = oklch(bottomHex);
+  if (b[1] < 0.02) return topHex;
+  return fromOklch(t[0], t[1], b[2]);
+}
+
+/**
+ * The top first goes through sameHueTop, then is interpolated with the bottom in OKLCH (L and C linear, hue along the short arc) to get n stops, top → bottom;
+ * when one end is near-gray (C < 0.02) the other end's hue is used. Platform gradients interpolate between adjacent stops in sRGB.
  */
 export function bubbleStops(topHex: string, bottomHex: string, n: number = USER_BUBBLE_STOP_COUNT): string[] {
-  const a = oklch(topHex);
+  const a = oklch(sameHueTop(topHex, bottomHex));
   const b = oklch(bottomHex);
   let ha = a[2];
   let hb = b[2];

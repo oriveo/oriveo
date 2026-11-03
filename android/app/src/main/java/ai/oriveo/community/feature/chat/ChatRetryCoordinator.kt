@@ -53,6 +53,13 @@ internal fun interface ChatSendLauncher {
     )
 }
 
+/**
+ * Rewrite target of a voice interjection: the id of the user message this turn's send stored (null = not stored
+ * even at the timeout) and the original text it sent. If the id is no longer in the conversation (rolled back by
+ * the confirm gate, or never stored), the interjection becomes a new send of joinAmend(original, interjection).
+ */
+data class VoiceAmendTarget(val userMessageId: String?, val originalText: String)
+
 /** A local way out does not depend on the rejection cache: the whole section is omitted, not a field the upstream named. */
 internal fun localFieldsResendMarker(failureCode: String?): String? =
     failureCode?.takeIf { it.startsWith(ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX) }
@@ -116,6 +123,17 @@ internal class ChatRetryCoordinator(
         { provider, model -> ModelControlRuntimeIdentityResolver.resolve(provider, model) },
     /** Stops read-aloud when that message is being read (production: ReadAloudController.stopIfSpeaking(id, NAVIGATED)); read-aloud is not wired by default. */
     private val stopReadAloudIfSpeaking: (String) -> Unit = {},
+    /**
+     * Fallback new send of a voice interjection (production: ChatVoiceCoordinator.send, the same gates as the voice turn,
+     * delivery = VOICE, input box untouched). Attachments and quote come from the rolled-back user message; the last
+     * parameter is the exit taken when the send is blocked on the async path after returning true.
+     */
+    private val sendVoiceTurn: (String, List<Attachment>?, QuoteContext?, () -> Unit) -> Boolean = { _, _, _, _ -> false },
+    /** Voice catalog cache snapshot (realtime check), same default as ChatSendCommandCoordinator; no Koin (unit tests) = realtime models are not recognized. */
+    private val voiceCatalog: () -> ai.oriveo.community.core.voice.VoiceCatalog? = {
+        val client = org.koin.mp.KoinPlatform.getKoinOrNull()?.getOrNull<ai.oriveo.community.core.voice.VoiceCatalogClient>()
+        (client?.state?.value as? ai.oriveo.community.core.voice.VoiceCatalogState.Available)?.catalog
+    },
 ) {
     /** The relay session model has been removed: retry / continue / regenerate never send a request or touch messages. */
     private fun selectionRemoved(): Boolean {
@@ -123,8 +141,16 @@ internal class ChatRetryCoordinator(
         val providerId = activeProviderId()
         val modelId = activeModelId()
         val provider = providerId?.let { id -> providerList.firstOrNull { it.id == id } }
-        val retired = ProviderSelectionSnapshot.modelRetirement(provider, modelId)?.sendBlocked == true
-        return retired || ai.oriveo.community.core.provider.RelayModelFallback.isSelectionRemoved(providerList, providerId, modelId)
+        // Realtime model (not in the text catalog): skip the retirement check, so a leftover retry entry is not reported as no_model.
+        // Voice catalog not ready: on an official apiKey connection an id missing from the text catalog may be a realtime model, so do not judge missing yet.
+        val catalog = voiceCatalog()
+        val realtime = ai.oriveo.community.core.voice.realtime.RealtimeSelection.isRealtime(provider, modelId, catalog)
+        val retired = !realtime &&
+            ProviderSelectionSnapshot.modelRetirement(provider, modelId, voiceCatalogPending = catalog == null)?.sendBlocked == true
+        if (!retired && !ai.oriveo.community.core.provider.RelayModelFallback.isSelectionRemoved(providerList, providerId, modelId)) {
+            return false
+        }
+        return true
     }
 
     /**
@@ -224,6 +250,91 @@ internal class ChatRetryCoordinator(
                 attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.REGENERATE,
             )
         }
+    }
+
+    /**
+     * Voice conversation "interject while thinking": joins [text] to the end of this turn's user message with joinAmend
+     * and rewrites it in place (same id, same bubble), then regenerates through the same send path as [regenerateMessage].
+     * [text] empty = regenerate as is. This turn is still a voice turn (delivery = VOICE).
+     * The user message is looked up by [target]'s id (null = the last user message). If the id is no longer in the
+     * conversation after the stream stops (rolled back by the confirm gate, or never stored), the interjection becomes a
+     * new send of joinAmend(original text, [text]) on the voice turn path, without refilling or clearing the input box.
+     * No conversation, no user message to rewrite (and no [target]), or a block by the provider gate returns false, no throw.
+     * After returning true, if the send turns out impossible once the stream stops (user message gone, fallback send
+     * blocked, no model), [onFailed] is called: an interjection ends as attached, fallen back, or failed, never with no event.
+     */
+    fun amendLastUserMessage(text: String, target: VoiceAmendTarget? = null, onFailed: () -> Unit = {}): Boolean {
+        if (selectionRemoved()) return false
+        val conv = currentConversation() ?: return false
+        if (target == null && conv.messages.none { it.role == ChatRole.User }) return false
+        // Provider is checked before returning (same basis and prompt as regenerate): when blocked, return false, so the voice side
+        // knows the interjection was not sent and the user message stays untouched.
+        val providerId = activeProviderId() ?: return false
+        val provider = providers().firstOrNull { it.id == providerId } ?: run {
+            providerMissing()
+            return false
+        }
+
+        viewModelScope.launch {
+            // While generating, stop first and wait for finalize to persist, then rewrite the user message and hand it to the send path
+            // (the reply after it is deleted only after the reject check).
+            chatStreamingManager.stopStreamAndJoin(conv.id)
+
+            // The rewrite target is read after the stream stops: a turn still waiting at the confirm gate is rolled back when the stream
+            // stops, and an id that is no longer found falls back to a new send.
+            val settled = currentConversation()?.takeIf { it.id == conv.id } ?: conv
+            val lastUser = if (target == null) {
+                settled.messages.lastOrNull { it.role == ChatRole.User } ?: return@launch onFailed()
+            } else {
+                settled.messages.firstOrNull { it.id == target.userMessageId && it.role == ChatRole.User } ?: run {
+                    // The rolled-back message from the pre-stop snapshot: the fallback send carries its attachments and quote.
+                    val rolledBack = target.userMessageId?.let { id -> conv.messages.firstOrNull { it.id == id } }
+                    val sent = sendVoiceTurn(
+                        ai.oriveo.community.core.voice.conversation.joinAmend(target.originalText, text),
+                        rolledBack?.attachments,
+                        rolledBack?.quoteContext,
+                        onFailed,
+                    )
+                    if (!sent) onFailed()
+                    return@launch
+                }
+            }
+            val userIndex = settled.messages.indexOf(lastUser)
+            val amendedText = ai.oriveo.community.core.voice.conversation.joinAmend(lastUser.text, text)
+            val amended = if (amendedText == lastUser.text) lastUser else lastUser.copy(text = amendedText)
+
+            val modelId = activeModelId() ?: return@launch onFailed()
+            val runtimeModelId = ProviderSelectionSnapshot.runtimeModelId(provider, modelId) ?: modelId
+
+            if (amended !== lastUser) conversationRepository.updateMessage(conv.id, amended)
+            requestPin()
+
+            val fullHistory = fetchFullConversationHistory(conv.id)
+            val lastUserIndex = fullHistory.indexOfFirst { it.id == lastUser.id }
+            val historyThroughLastUser = (
+                if (lastUserIndex >= 0) fullHistory.take(lastUserIndex + 1) else settled.messages.take(userIndex + 1)
+                ).map { if (it.id == lastUser.id) amended else it }
+            launchSend.launch(
+                conversation = conv,
+                provider = provider,
+                modelId = runtimeModelId,
+                text = amended.text,
+                existingMessages = historyThroughLastUser,
+                attachments = amended.attachments,
+                quoteContext = amended.quoteContext,
+                persistUserMessage = false,
+                appendToAssistant = null,
+                userMessageAlreadyInHistory = true,
+                attemptKind = ai.oriveo.community.feature.chat.ContextConfirmAttempt.REGENERATE,
+                delivery = ai.oriveo.community.core.context.ContextDelivery.VOICE,
+            )
+        }
+        return true
+    }
+
+    /** Provider not found: show the visible hint. */
+    private fun providerMissing() {
+        onProviderSelectionError()
     }
 
     fun retryMessage(messageId: String) {

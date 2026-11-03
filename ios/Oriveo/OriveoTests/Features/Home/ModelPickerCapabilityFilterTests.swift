@@ -132,7 +132,120 @@ struct ModelPickerCapabilityFilterTests {
         await MetadataClient.shared.resetForTesting()
     }
 
-    // MARK: - Image / file / video badges read the projection's visible flag
+    // MARK: - Realtime voice chip
+
+    @Test("Realtime chip count = sum of realtime rows across groups = sum of group header counts after selecting the realtime chip")
+    func realtimeChipCountIsRealtimeRowTotal() async throws {
+        try await Self.loadFixture()
+        let first = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let second = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let third = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let sections = [
+            ModelPickerSection(
+                provider: first, models: Self.fixtureModels,
+                realtimeModels: ["gpt-realtime", "gpt-realtime-mini"]
+            ),
+            ModelPickerSection(provider: second, models: Self.fixtureModels, realtimeModels: ["gpt-realtime"]),
+            ModelPickerSection(provider: third, models: Self.fixtureModels),
+        ]
+        let chipCount = ModelPickerCapabilityFilter.counts(sections: sections)[.realtime]
+        #expect(chipCount == 3)
+        let filtered = ModelPickerCapabilityFilter.apply(sections: sections, active: [.realtime])
+        #expect(filtered.map(\.id) == [first.id, second.id])
+        #expect(ModelPickerSection.visibleRowTotal(filtered) == chipCount)
+    }
+
+    @Test("Realtime chip screen-reader label = the voice_realtime_filter_count string formatted with the count = total realtime rows; web-search / thinking chips are not overridden")
+    func realtimeChipAccessibilityLabelUsesFilterCountCopy() async throws {
+        try await Self.loadFixture()
+        let first = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let second = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let sections = [
+            ModelPickerSection(
+                provider: first, models: Self.fixtureModels,
+                realtimeModels: ["gpt-realtime", "gpt-realtime-mini"]
+            ),
+            ModelPickerSection(provider: second, models: Self.fixtureModels, realtimeModels: ["gpt-realtime"]),
+        ]
+        let counts = ModelPickerCapabilityFilter.counts(sections: sections)
+        let realtimeCount = try #require(counts[.realtime])
+        #expect(realtimeCount == 3)
+
+        let label = ModelPickerCapabilityFilter.Capability.realtime
+            .modelPickerChipAccessibilityLabel(count: realtimeCount)
+        let format = L10n.tr("Realtime Voice %1$d", table: .voice)
+        #expect(format.contains("%1$d"), "Voice.xcstrings is missing voice_realtime_filter_count or the placeholder was lost")
+        #expect(label == String(format: format, realtimeCount))
+        #expect(label?.contains("3") == true)
+        #expect(label?.contains("%") == false, "The placeholder was not replaced by the number")
+        #expect(ModelPickerCapabilityFilter.Capability.realtime.modelPickerChipAccessibilityLabel(count: nil) == nil)
+        #expect(ModelPickerCapabilityFilter.Capability.web.modelPickerChipAccessibilityLabel(count: counts[.web]) == nil)
+        #expect(
+            ModelPickerCapabilityFilter.Capability.reasoning
+                .modelPickerChipAccessibilityLabel(count: counts[.reasoning]) == nil
+        )
+
+        let sheet = try Self.source([
+            "ios", "Oriveo", "Oriveo", "Features", "Home", "HomeModelPickerSheet.swift",
+        ])
+        #expect(
+            sheet.contains(".modelPickerChipAccessibilityLabel(capability.modelPickerChipAccessibilityLabel(count: count))"),
+            "The chip has no screen-reader label attached"
+        )
+    }
+
+    @Test("The realtime chip keeps only realtime rows; selected together with web-search / thinking the intersection is empty and the whole section is removed; web-search / thinking filter out realtime rows; the realtime chip is ignored when there are no realtime rows")
+    func realtimeChipIntersectsWithCapabilityChips() async throws {
+        try await Self.loadFixture()
+        let official = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let other = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let sections = [
+            ModelPickerSection(
+                provider: official, models: Self.fixtureModels,
+                realtimeModels: ["gpt-realtime", "gpt-realtime-mini"]
+            ),
+            ModelPickerSection(provider: other, models: Self.fixtureModels),
+        ]
+        func apply(_ sections: [ModelPickerSection], _ active: Set<ModelPickerCapabilityFilter.Capability>) -> [ModelPickerSection] {
+            ModelPickerCapabilityFilter.apply(sections: sections, active: active)
+        }
+
+        #expect(ModelPickerCapabilityFilter.showsRealtimeFilter(sections: sections))
+        #expect(ModelPickerCapabilityFilter.counts(sections: sections)[.realtime] == 2)
+        // Text rows never light the realtime badge: the chip count comes only from realtime rows
+        #expect(Self.fixtureModels.allSatisfy {
+            !ModelPickerCapabilityFilter.intentCapabilities(model: $0, provider: official).contains(.realtime)
+        })
+
+        // No chip selected: realtime rows are kept as-is in the group after the text rows
+        #expect(apply(sections, []).first?.realtimeModels == ["gpt-realtime", "gpt-realtime-mini"])
+
+        let realtimeOnly = apply(sections, [.realtime])
+        #expect(realtimeOnly.map(\.id) == [official.id], "Groups without realtime rows are removed entirely")
+        #expect(realtimeOnly.first?.models.isEmpty == true, "Under the realtime chip, all text rows are filtered out")
+        #expect(realtimeOnly.first?.realtimeModels == ["gpt-realtime", "gpt-realtime-mini"])
+
+        // Realtime rows do not carry web-search / thinking, so selecting them together gives an empty intersection
+        #expect(apply(sections, [.realtime, .web]).isEmpty)
+        #expect(apply(sections, [.realtime, .reasoning]).isEmpty)
+        #expect(apply(sections, [.realtime, .web, .reasoning]).isEmpty)
+
+        let webOnly = apply(sections, [.web])
+        #expect(webOnly.map(\.id) == [official.id, other.id])
+        #expect(webOnly.allSatisfy { $0.realtimeModels.isEmpty }, "Under the web-search chip, realtime rows are not kept")
+        #expect(webOnly.first?.models.map(\.id).sorted() == ["m-both", "m-crowded", "m-web"])
+
+        // No realtime rows in this context: no chip is shown and an incoming realtime filter is ignored
+        let textOnly = [ModelPickerSection(provider: other, models: Self.fixtureModels)]
+        #expect(!ModelPickerCapabilityFilter.showsRealtimeFilter(sections: textOnly))
+        #expect(apply(textOnly, [.realtime]).flatMap(\.models).count == Self.fixtureModels.count)
+        #expect(
+            apply(textOnly, [.realtime, .web]).flatMap(\.models).map(\.id).sorted() == ["m-both", "m-crowded", "m-web"]
+        )
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    // MARK: - Image / file / video badges read the visible projection
 
     @Test("an official model with unknown vision shows no badge; only auto + a wire family implemented here does; an unimplemented family does not")
     func imageBadgeFollowsInputProjection() async throws {

@@ -13,6 +13,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   flushAllStreamsForLifecycle: vi.fn(),
   backupAllStreamsToSessionStorage: vi.fn(),
+  flushPendingConversationWrites: vi.fn(),
+}));
+
+vi.mock('../../store/persistence-subscribers', () => ({
+  flushPendingConversationWrites: mocks.flushPendingConversationWrites,
 }));
 
 vi.mock('../active-streams', () => ({
@@ -29,6 +34,7 @@ beforeEach(() => {
   __resetStreamLifecycleListenersForTests();
   mocks.flushAllStreamsForLifecycle.mockReset();
   mocks.backupAllStreamsToSessionStorage.mockReset();
+  mocks.flushPendingConversationWrites.mockReset();
 });
 
 afterEach(() => {
@@ -65,6 +71,10 @@ describe('installStreamLifecycleListeners', () => {
 
     expect(mocks.flushAllStreamsForLifecycle).toHaveBeenCalledTimes(1);
     expect(mocks.backupAllStreamsToSessionStorage).not.toHaveBeenCalled();
+    // Pending conversation writes are flushed after the stream sync changed the store.
+    expect(mocks.flushPendingConversationWrites).toHaveBeenCalledTimes(1);
+    expect(mocks.flushAllStreamsForLifecycle.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.flushPendingConversationWrites.mock.invocationCallOrder[0]);
   });
 
   it('visibilitychange=visible does NOT trigger flush', () => {
@@ -77,6 +87,7 @@ describe('installStreamLifecycleListeners', () => {
     document.dispatchEvent(new Event('visibilitychange'));
 
     expect(mocks.flushAllStreamsForLifecycle).not.toHaveBeenCalled();
+    expect(mocks.flushPendingConversationWrites).not.toHaveBeenCalled();
   });
 
   it('pagehide triggers flushAllStreamsForLifecycle + backupAllStreamsToSessionStorage', () => {
@@ -86,6 +97,16 @@ describe('installStreamLifecycleListeners', () => {
 
     expect(mocks.flushAllStreamsForLifecycle).toHaveBeenCalledTimes(1);
     expect(mocks.backupAllStreamsToSessionStorage).toHaveBeenCalledTimes(1);
+  });
+
+  it('pagehide flushes pending conversation writes after syncing streams into the store', () => {
+    installStreamLifecycleListeners();
+
+    window.dispatchEvent(new Event('pagehide'));
+
+    expect(mocks.flushPendingConversationWrites).toHaveBeenCalledTimes(1);
+    const flushOrder = mocks.flushPendingConversationWrites.mock.invocationCallOrder[0];
+    expect(mocks.flushAllStreamsForLifecycle.mock.invocationCallOrder[0]).toBeLessThan(flushOrder);
   });
 
   it('idempotent: multiple installs only register once', () => {

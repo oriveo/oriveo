@@ -18,6 +18,9 @@ nonisolated struct ChatRequestBuildResult: Sendable {
     var compactionRequired: Bool = false
     /// Raw material for the compaction snapshot: only present when compactionRequired.
     var compactionInputs: ChatCompactionInputs? = nil
+    /// rhoHi this request was assembled with; a stop estimates the stopped leg with it
+    ///.
+    var rhoHi: Double? = nil
 }
 
 /// Raw material for the coordinator snapshot: the history is the full history assembled this time (without the current message); budget and estimation parameters come from this plan.
@@ -107,7 +110,8 @@ nonisolated enum ChatRequestBuilder {
                     input.input, plan: base, sources: input.sources, window: assembly.window,
                     fallbackB: assembly.overflowFallbackB, stopsAtMedia: assembly.compactionStopsAtMedia
                 )
-                : nil
+                : nil,
+            rhoHi: assembly.rhoHi
         )
     }
 

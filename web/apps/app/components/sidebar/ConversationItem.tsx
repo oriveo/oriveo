@@ -220,7 +220,7 @@ export const ConversationItem = memo(function ConversationItem({
         <div className={styles.content}>
           {/* Title row: pin / skill icon / title / streaming dot */}
           <div className={styles.titleRow}>
-            <span className={styles.titleText}>
+            <span className={styles.titleText} dir="auto">
               {isPinned && <svg className={styles.pinIcon} width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M16 12V4h1V2H7v2h1v8l-2 2v2h5.2v6h1.6v-6H18v-2l-2-2z"/></svg>}
               {skillIcon && <span className={styles.skillIcon}>{skillIcon}</span>}
               {title}
@@ -230,7 +230,7 @@ export const ConversationItem = memo(function ConversationItem({
 
           {/* Two-line preview */}
           {previewText && (
-            <div className={styles.previewLine}>{previewText}</div>
+            <div className={styles.previewLine} dir="auto">{previewText}</div>
           )}
 
           {/* Bottom meta row: model name on the left, message count and time on the right */}

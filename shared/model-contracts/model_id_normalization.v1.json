@@ -1,0 +1,68 @@
+{
+  "$comment": "Client-side mechanical model id normalization (方案 §4.4): trim → lowercase → drop everything up to the last \"/\" → drop one trailing date suffix (-YYYY-MM-DD or -YYYYMMDD). Nothing else: -preview / -latest / -all / -hd and community names (nano-banana-2) are resolved by the Server alias table image_model_aliases, never by clients. The normalized id is only a lookup key; the wire always sends the id exactly as the connection lists it. Executable reference: scripts/lib/studio-image-reference.mjs normalizeModelId.",
+  "contractId": "model_id_normalization.v1",
+  "version": 1,
+  "steps": [
+    "trim",
+    "lowercase",
+    "strip_through_last_slash",
+    "strip_trailing_date"
+  ],
+  "cases": [
+    {
+      "caseId": "lowercase",
+      "input": "GPT-Image-2",
+      "expect": "gpt-image-2"
+    },
+    {
+      "caseId": "strip_vendor_prefix",
+      "input": "openai/gpt-image-2",
+      "expect": "gpt-image-2"
+    },
+    {
+      "caseId": "strip_nested_prefix",
+      "input": "google/vertex/gemini-3-pro-image",
+      "expect": "gemini-3-pro-image"
+    },
+    {
+      "caseId": "strip_iso_date",
+      "input": "gpt-image-2-2026-04-21",
+      "expect": "gpt-image-2"
+    },
+    {
+      "caseId": "strip_compact_date",
+      "input": "gemini-3.1-flash-image-20261001",
+      "expect": "gemini-3.1-flash-image"
+    },
+    {
+      "caseId": "prefix_case_and_date_together",
+      "input": "  OpenAI/GPT-Image-2-2026-04-21 ",
+      "expect": "gpt-image-2"
+    },
+    {
+      "caseId": "keep_preview_suffix_for_server_alias",
+      "input": "gemini-3.1-flash-image-preview",
+      "expect": "gemini-3.1-flash-image-preview"
+    },
+    {
+      "caseId": "keep_all_suffix_for_server_alias",
+      "input": "gpt-image-2-all",
+      "expect": "gpt-image-2-all"
+    },
+    {
+      "caseId": "keep_community_name_for_server_alias",
+      "input": "nano-banana-2",
+      "expect": "nano-banana-2"
+    },
+    {
+      "caseId": "keep_version_number_not_date",
+      "input": "qwen-image-2.0",
+      "expect": "qwen-image-2.0"
+    },
+    {
+      "caseId": "keep_short_numeric_tail",
+      "input": "image-01",
+      "expect": "image-01"
+    }
+  ]
+}

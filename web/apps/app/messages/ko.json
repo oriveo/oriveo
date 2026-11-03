@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "지우기",
     "generationParameterDormantRestored": "매개변수 {count}개를 복원했습니다",
     "generationPresetName": "프리셋 이름",
-    "capabilityControlFixedByConnection": "이 연결에서 설정됨",
     "capabilityControlReasonPending": "자동 구성이 아직 준비되지 않았습니다",
     "capabilityControlReasonUnsupported": "이 모델은 이 요청을 지원하지 않습니다",
     "capabilityControlReasonExternalConnector": "별도의 외부 서비스에서 제공되며 이 채팅 요청에는 포함되지 않습니다",
@@ -166,7 +165,7 @@
     "currentConversation": "현재 대화",
     "restoreModelBehavior": "기본값 복원",
     "restoreModelBehaviorConfirm": "이 모델에 설정한 모든 값을 지웁니다. 되돌릴 수 없습니다.",
-    "modelBehaviorScopeHint": "이 대화에서 현재 모델을 사용할 때만 적용됩니다. 모델을 바꿔도 값은 복사되지 않으며, 다시 돌아오면 복원됩니다.",
+    "modelBehaviorScopeHint": "이 대화에서 이 모델을 사용하는 동안에만 적용됩니다. 모델을 바꿔도 값이 복사되지 않으며, 되돌리면 복원됩니다.",
     "controlledByReasoningShortcut": "‘사고’ 바로가기에서 제어",
     "customRequestFieldsCustom": "사용자 지정 요청 필드",
     "customRequestFieldsReasonSyntax": "중복 키가 없는 유효한 JSON 객체인지 확인하세요.",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "가장 어려운 문제, 시간 제한 없이.",
     "capabilityControlReasoningFixedLevel": "이 모델의 사고 수준은 고정되어 조절할 수 없습니다.",
     "capabilityControlCannotAdjustYet": "아직 조절 불가",
+    "capabilityControlGoToParameters": "매개변수로 이동",
     "customRequestFieldsNotAllowed": "이 필드는 허용되지 않습니다. 이 모델이 허용하는 필드: {fields}",
     "customRequestFieldsFooter": "필드는 작성한 그대로 요청에 추가됩니다. 제공업체가 공식 선언한 필드만 지원하며, 오류는 요청 실패로 이어질 수 있습니다. 초안은 이 기기에만 저장됩니다.",
     "customRequestFieldsScopeConnectionModel": "적용 범위: 이 연결의 이 모델. 해당 대화의 기본값으로 사용됩니다.",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "추가",
     "advancedStopSequenceRemove": "{sequence} 삭제",
     "advancedMore": "더보기",
-    "add": "추가",
-    "capabilityControlGoToParameters": "매개변수로 이동"
+    "add": "추가"
   },
   "pages": {
     "welcome": {
       "title": "Oriveo에 오신 것을 환영합니다",
       "tagline": "모든 모델, 하나의 앱.",
-      "slogan": "당신의 키, 당신의 비용, 당신의 데이터.",
       "description": "첫 AI 제공업체를 설정하고 멀티모델 대화를 시작하세요.",
       "addProvider": "제공업체 추가",
       "enterHome": "앱으로 이동"
@@ -502,7 +500,6 @@
       "stop": "생성 중지",
       "generating": "생성 중",
       "activityWebSearch": "웹 검색 중",
-      "activityMcpTool": "{server} · {tool} 사용 중",
       "aiAnswering": "AI가 답변 중…",
       "export": "내보내기",
       "continueAnswering": "계속 답변",
@@ -586,7 +583,9 @@
         "cacheRead": "캐시 읽기",
         "cacheWrite": "캐시 쓰기",
         "total": "합계",
-        "unavailable": "데이터 없음"
+        "unavailable": "데이터 없음",
+        "cost": "비용",
+        "estimated": "예상"
       },
       "attachedNotesTitle": "이 대화에 가져온 노트",
       "removeNoteContext": "컨텍스트 제거: {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "Ollama Cloud 경유",
       "modelRemovedBanner": "이 대화에서 쓰던 모델이 더 이상 {connection}에 없어요.",
       "modelRemovedChoose": "모델 선택",
+      "connectionRemovedBanner": "이 대화에서 쓰던 연결이 삭제됐어요.",
+      "modelRetiredBanner": "{model} 모델은 지원이 종료됐어요.",
+      "modelRetiredSwitchTo": "{model}(으)로 전환",
+      "lastUsedModelRetiredHint": "지난번에 쓰던 모델의 지원이 종료되어 이제 {model}을(를) 사용해요.",
       "copyFailed": "복사하지 못했습니다",
+      "activityMcpTool": "{server} · {tool} 사용 중",
       "contextCompaction": {
         "summaryLine1": "{count, plural, other {이전 메시지 {count}개를 정리했어요 · {before} → {after} 토큰}}",
         "summaryLine2": "{model}(으)로 정리 · 요약 보기",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "{model}의 {line} 할증 기준선도 넘어서, 요청 전체에 긴 컨텍스트 요금이 적용돼요.",
         "confirmDontAsk": "이 대화에서는 다시 묻지 않기",
         "confirmSend": "그래도 보내기"
-      },
-      "connectionRemovedBanner": "이 대화에서 쓰던 연결이 삭제됐어요.",
-      "modelRetiredBanner": "{model} 모델은 지원이 종료됐어요.",
-      "modelRetiredSwitchTo": "{model}(으)로 전환",
-      "lastUsedModelRetiredHint": "지난번에 쓰던 모델의 지원이 종료되어 이제 {model}을(를) 사용해요."
+      }
     },
     "providerSetup": {
       "title": "제공업체 추가",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "API 키로 전환",
         "disabledFallback": "ChatGPT 구독 로그인은 현재 사용할 수 없습니다. API 키로 전환하거나 이 연결을 삭제할 수 있습니다."
       },
-      "subscription": "구독",
-      "tokenPrices": {
-        "input": "입력 {count}",
-        "cacheRead": "캐시 읽기 {count}",
-        "cacheWrite": "캐시 쓰기 {count}",
-        "output": "출력 {count}",
-        "unit": "토큰"
-      }
+      "subscription": "구독"
     },
     "providers": {
       "title": "제공업체",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "개인정보 처리방침",
-      "sourceCode": "소스 코드",
       "aiSection": "AI",
       "skills": "스킬",
       "backupImportExport": "백업 및 가져오기/내보내기",
-      "reportIssue": "문제 신고",
-      "documentation": "문서",
       "aboutTagline": "모든 모델, 하나의 앱.",
       "context": {
         "title": "컨텍스트",
@@ -1781,7 +1771,7 @@
       "editorCategory": "카테고리",
       "editorTooLong": "최대 2,000자",
       "deleteConfirmTitle": "이 메모리를 삭제할까요?",
-      "deleteConfirmBody": "이 기기에서 영구적으로 삭제돼요.",
+      "deleteConfirmBody": "모든 기기에서 삭제돼요.",
       "actionOrganize": "항목으로 나누기",
       "rawView": "일반 텍스트",
       "rawViewHint": "항목 사이에 ---만 있는 줄을 넣어 구분하세요.",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "제공업체 오류",
       "message": "제공업체가 이 요청에 대해 오류를 반환했습니다. 다시 시도하거나 모델을 변경하세요."
+    },
+    "emptyReply": {
+      "title": "제공업체 응답 없음",
+      "message": "제공업체가 이 메시지에 대한 어시스턴트 콘텐츠를 반환하지 않았습니다."
     },
     "moderationBlocked": {
       "title": "콘텐츠가 차단됨",
@@ -2060,24 +2054,21 @@
     "title": "스킬",
     "mySkills": "내 스킬",
     "builtinSkills": "기본 스킬",
-    "pinned": "고정됨",
     "newSkill": "새 스킬",
     "editSkill": "스킬 편집",
     "deleteSkill": "스킬 삭제",
     "forkSkill": "내 스킬로 복사",
-    "useSkill": "사용",
-    "pinToHome": "홈에 고정",
-    "unpinFromHome": "고정 해제",
+    "useSkill": "이 스킬 사용",
     "instructions": "프롬프트",
     "instructionsPlaceholder": "예: 당신은 시니어 코드 리뷰어입니다. 보안, 성능, 가독성 관점에서 코드를 리뷰하세요. 사용자의 언어로 답변하세요.",
     "starterMessages": "대화 시작 메시지",
-    "useMemory": "선호 설정 기억",
-    "useMemoryHint": "대화에 개인 선호 설정을 포함합니다",
+    "useMemory": "환경설정 기억",
+    "useMemoryHint": "대화에 개인 환경설정 포함",
     "referenceFiles": "참고 자료",
     "tipInstructions": "AI의 행동을 정의합니다 — 성격, 전문 분야, 응답 스타일 등. AI만 볼 수 있으며 사용자에게는 표시되지 않습니다.",
     "knowledgeSectionTitle": "지식",
-    "tipReferenceFiles": "AI는 답변할 때마다 이 파일들을 전부 읽습니다 — 책상 위에 항상 펼쳐놓은 메모와 같습니다. 짧고 중요한 문서(스타일 가이드, 용어집, 핵심 규칙)에 적합합니다. 파일이 클수록 응답 비용이 증가합니다.",
-    "noReferenceFiles": "아직 참고 자료가 없습니다",
+    "tipReferenceFiles": "AI는 답변할 때마다 이 파일들을 전체 읽습니다 — 책상 위에 항상 펼쳐놓은 메모와 같습니다. 짧고 핵심적인 문서(스타일 가이드, 용어집, 주요 규칙)에 적합합니다. 파일이 클수록 응답 비용이 증가합니다.",
+    "noReferenceFiles": "참고 자료 없음",
     "addFile": "파일 추가",
     "filesQuota": "{count} / {max}",
     "icon": "아이콘",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "기술 자료에는 공식 OpenAI API 키가 필요합니다.",
     "openai_endpoint_not_official": "기술 자료는 공식 OpenAI 엔드포인트에서만 작동합니다.",
     "retrieval_model_not_enabled": "먼저 OpenAI 제공업체에서 {model} 모델을 추가하고 활성화하세요.",
-    "knowledge_service_unavailable": "기술 자료를 일시적으로 사용할 수 없습니다. 이 스킬을 계속 편집하고 저장할 수 있습니다.",
+    "knowledge_service_unavailable": "지금은 지식 베이스를 사용할 수 없습니다.",
     "unsupported_file_type": "이 파일 형식은 기술 자료에서 지원되지 않습니다.",
     "reference_file_too_large": "참조 파일은 3MB 이하여야 합니다.",
     "knowledge_file_too_large": "기술 자료 파일은 20MB 이하여야 합니다.",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "이 스킬을 사용하려면 제공업체를 추가하세요",
     "providerRequiredMessage": "이 스킬로 대화를 시작하려면 사용 가능한 AI 제공업체가 필요합니다.",
     "providerRequiredAction": "제공업체 추가",
-    "promptCancel": "나중에"
+    "promptCancel": "나중에",
+    "home": {
+      "autoCount": "자동 · {count}",
+      "slashHint": "/를 입력해 사용하세요",
+      "empty": "원하는 방식을 저장해 보세요",
+      "notesRecent": "최근 편집"
+    },
+    "list": {
+      "subtitle": "원하는 작업 방식을 저장해 두면 AI가 적절할 때 사용합니다."
+    },
+    "create": {
+      "describePlaceholder": "원하는 방식을 설명하면 AI가 스킬로 만들어 드립니다",
+      "fromChat": "채팅에서 만들기",
+      "manual": "직접 만들기"
+    },
+    "segment": {
+      "mine": "내 스킬",
+      "templates": "템플릿"
+    },
+    "group": {
+      "auto": "자동 사용",
+      "manual": "수동 전용"
+    },
+    "card": {
+      "usageCount": "사용 횟수: {count}"
+    },
+    "row": {
+      "slashHint": "{slash} 입력 시 사용"
+    },
+    "auto": {
+      "needWhenTitle": "먼저 언제 사용할지 적어 주세요",
+      "suggest": "AI 추천",
+      "limitReached": "자동 사용이 한도({count})에 도달했습니다. 먼저 하나를 꺼 주세요."
+    },
+    "search": {
+      "placeholder": "스킬 검색"
+    },
+    "empty": {
+      "title": "아직 스킬이 없습니다",
+      "body": "자주 쓰는 방식을 저장해 두면 매번 설명하지 않아도 됩니다.",
+      "browseTemplates": "템플릿 둘러보기"
+    },
+    "migrate": {
+      "banner": "‘사용 시점’이 없는 스킬: {count}. 한 줄만 추가하면 자동으로 사용할 수 있습니다.",
+      "review": "하나씩 채우기"
+    },
+    "templates": {
+      "note": "템플릿은 ‘내 스킬’에 추가한 뒤에만 자동으로 사용됩니다.",
+      "featured": "추천",
+      "addToMine": "내 스킬에 추가",
+      "add": "추가",
+      "added": "추가됨",
+      "tryOnce": "한 번 써 보기"
+    },
+    "detail": {
+      "useInNewChat": "새 채팅에서 사용",
+      "orSlash": "또는 입력창에 {slash} 입력",
+      "usage": "사용 횟수: {count} · 마지막 사용 {time}",
+      "neverUsed": "아직 사용하지 않음",
+      "autoInvoke": "자동으로 사용",
+      "whenToUse": "사용 시점",
+      "whenToUseNote": "AI가 이 내용으로 사용 여부를 판단합니다",
+      "instructions": "지침",
+      "showAll": "모두 보기",
+      "references": "참고 자료",
+      "starters": "대화 시작 문구",
+      "recentChats": "이 스킬을 쓴 최근 채팅",
+      "try": "써 보기"
+    },
+    "edit": {
+      "changeIcon": "아이콘 변경",
+      "name": "이름",
+      "whenBadge": "자동 사용 여부 결정",
+      "whenPlaceholder": "예: 메모를 주간 보고서로 정리해 달라고 할 때. 일일 보고에는 사용하지 않음.",
+      "keywordsCaption": "이 단어에 반응합니다 · 상황만 적어도 충분합니다",
+      "whenTip": "무엇을 하는지, 언제 쓰는지, 평소 어떻게 요청하는지 적어 주세요. ‘…에는 사용하지 않음’을 덧붙이면 잘못 쓰이는 일을 줄일 수 있습니다. 따옴표로 묶은 단어는 강조 표시됩니다.",
+      "polish": "AI로 다듬기",
+      "addStarter": "시작 문구 추가",
+      "modelAndFeatures": "모델 및 기능",
+      "followChat": "채팅 설정 따름",
+      "needWhenForAuto": "‘사용 시점’을 입력하거나 자동 사용을 꺼 주세요."
+    },
+    "draft": {
+      "askScenarios": "이 스킬을 쓸 만한 상황을 한두 가지 알려 주세요",
+      "askQuality": "어떤 결과가 좋은 결과인가요?",
+      "skip": "건너뛰기",
+      "generating": "초안 작성 중…",
+      "title": "초안",
+      "editFirst": "먼저 편집",
+      "suggestedIcon": "추천 아이콘",
+      "failed": "초안을 끝까지 만들지 못했습니다. 사용할 수 있는 부분은 채워 두었습니다."
+    },
+    "fromChat": {
+      "menuConversation": "스킬로 저장",
+      "menuMessage": "이 방식을 스킬로 저장",
+      "messages": "메시지: {count}",
+      "extracting": "정리하는 중…"
+    },
+    "limit": {
+      "upgrade": "업그레이드하고 더 만들기",
+      "draftKept": "초안은 이 기기에 보관되어 있습니다."
+    },
+    "composer": {
+      "placeholder": "/를 입력해 스킬 사용"
+    },
+    "picker": {
+      "title": "내 스킬",
+      "multi": "여러 개 선택 가능",
+      "auto": "자동",
+      "manual": "수동",
+      "manage": "스킬 관리",
+      "maxReached": "한 번에 최대 {count}개"
+    },
+    "chip": {
+      "deleted": "삭제됨"
+    },
+    "message": {
+      "attached": "{names} 사용"
+    },
+    "used": {
+      "chip": "사용: {names}",
+      "loading": "{names} 사용 중…",
+      "byChoice": "직접 선택해서 사용됨",
+      "why": "사용된 이유",
+      "disableHere": "이 채팅에서는 자동으로 사용 안 함",
+      "view": "스킬 보기"
+    },
+    "settings": {
+      "autoToggle": "스킬 자동 사용",
+      "autoToggleFooter": "끄면 모델이 스스로 스킬을 고르지 않습니다. /를 입력하면 직접 사용할 수 있습니다."
+    },
+    "try": {
+      "banner": "체험 중 · 기록에 저장되지 않음",
+      "saveToSkill": "스킬에 반영",
+      "adjust": "지침 수정",
+      "saved": "‘{name}’에 반영했습니다",
+      "savedToDraft": "편집 화면에 반영했습니다. 저장해야 적용됩니다."
+    },
+    "improve": {
+      "prompt": "이 요청을 ‘{name}’에 추가하시겠습니까?",
+      "review": "변경 사항 보기",
+      "accept": "스킬에 추가",
+      "dismiss": "나중에",
+      "addedLine": "추가됨",
+      "removedLine": "삭제됨",
+      "saved": "‘{name}’에 추가했습니다"
+    },
+    "usage": {
+      "manifestRow": "스킬 목록 오버헤드"
+    },
+    "glyph": {
+      "writing": "글쓰기",
+      "report": "보고서",
+      "code": "코드",
+      "study": "공부",
+      "travel": "여행",
+      "health": "건강",
+      "meeting": "회의",
+      "idea": "아이디어",
+      "translate": "번역",
+      "email": "이메일",
+      "data": "데이터",
+      "design": "디자인",
+      "legal": "법률",
+      "finance": "재무",
+      "marketing": "마케팅",
+      "support": "고객 지원",
+      "teaching": "교육",
+      "research": "연구",
+      "life": "일상",
+      "food": "음식",
+      "music": "음악",
+      "photo": "사진",
+      "product": "제품",
+      "general": "일반"
+    },
+    "capability": {
+      "title": "모델 선호",
+      "any": "모두",
+      "reasoning": "추론",
+      "vision": "비전",
+      "fast": "빠름",
+      "largeContext": "대용량 컨텍스트"
+    },
+    "saveFailed": "변경 사항을 저장할 수 없습니다. 다시 시도해 주세요."
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2636,8 +2811,7 @@
       "stepLimit": "이번에 선택한 문서가 너무 많거나 깁니다. 선택을 줄인 뒤 다시 시도하세요.",
       "notConnected": "조사를 시작하기 전에 라이브러리 소스를 연결하세요.",
       "sourceForbidden": "권한 또는 정책 제한으로 인해 소스가 액세스를 거부했습니다. 다시 연결해도 해결되지 않습니다 — 소스 자체의 공유 또는 규정 준수 설정을 확인하세요.",
-      "unavailable": "라이브러리를 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요.",
-      "retry": "다시 시도"
+      "unavailable": "라이브러리를 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요."
     }
   },
   "notes": {

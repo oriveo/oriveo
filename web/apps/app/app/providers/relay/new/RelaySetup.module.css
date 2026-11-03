@@ -89,7 +89,7 @@
 }
 
 .field label > svg {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .labelRow {
@@ -243,7 +243,7 @@
 
 .iconButton:hover,
 .iconButton:focus-visible {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   outline: none;
 }
 
@@ -704,7 +704,7 @@
 }
 
 .detectionProgress {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
 }
@@ -1100,7 +1100,7 @@
 }
 
 .checkboxIcon[data-checked='true'] {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .modelRow .visuallyHiddenCheckbox:focus-visible + .checkboxIcon {

@@ -20,6 +20,36 @@ struct RealtimeConversationDriverTests {
         private var stopWaiters: [CheckedContinuation<Void, Never>] = []
         var stopCount: Int { log.filter { $0 == "stopRealtime" }.count }
         var startCount: Int { log.filter { $0 == "startRealtime" }.count }
+        /// Order of session preparation and start, kept apart from log so existing log assertions stay unchanged.
+        var sessionCalls: [String] = []
+        var prepareError: Error?
+
+        /// When true, prepareSession suspends until releasePrepare().
+        var holdPrepare = false
+        private var prepareRelease: CheckedContinuation<Void, Never>?
+        private var prepareEnteredWaiters: [CheckedContinuation<Void, Never>] = []
+
+        func prepareSession() async throws {
+            sessionCalls.append("prepareSession")
+            if holdPrepare {
+                await withCheckedContinuation { continuation in
+                    prepareRelease = continuation
+                    let waiters = prepareEnteredWaiters
+                    prepareEnteredWaiters = []
+                    waiters.forEach { $0.resume() }
+                }
+            }
+            if let prepareError { throw prepareError }
+        }
+        func waitPrepareEntered() async {
+            if prepareRelease != nil { return }
+            await withCheckedContinuation { prepareEnteredWaiters.append($0) }
+        }
+        func releasePrepare() {
+            let release = prepareRelease
+            prepareRelease = nil
+            release?.resume()
+        }
 
         /// Like the real audio: startRealtime after stopRealtime throws (single-use semantics).
         struct StartAfterStop: Error {}
@@ -30,9 +60,19 @@ struct RealtimeConversationDriverTests {
             onInterruption: @escaping () -> Void
         ) throws {
             log.append("startRealtime")
+            sessionCalls.append("startRealtime")
             if stopCount > 0 { throw StartAfterStop() }
             self.onFrame = onFrame
             self.onInterruption = onInterruption
+        }
+        func startRealtimePlayback(onInterruption: @escaping () -> Void) throws {
+            log.append("startRealtimePlayback")
+            sessionCalls.append("startRealtimePlayback")
+            self.onInterruption = onInterruption
+        }
+        func startRealtimeCapture(uplinkSampleRate: Double, onFrame: @escaping (Data) -> Void) throws {
+            log.append("startRealtimeCapture")
+            self.onFrame = onFrame
         }
         func enqueue(pcm16: Data, itemId: String) {
             log.append("enqueue:\(itemId)")
@@ -75,6 +115,7 @@ struct RealtimeConversationDriverTests {
             events
         }
         func sendAudio(_ pcm16: Data) {}
+        func sendText(_ text: String) {}
         func truncate(itemId: String?, contentIndex: Int, playedMs: Double) {
             truncates.append((itemId, playedMs))
         }
@@ -102,12 +143,13 @@ struct RealtimeConversationDriverTests {
     }
 
     private static func make(
-        _ kind: RealtimeTransportKind = .openaiRealtime
+        _ kind: RealtimeTransportKind = .openaiRealtime, captureOnReady: Bool = true
     ) throws -> (RealtimeConversationDriver, GARealtimeTransport, SocketBox, FakeAudio) {
         let box = SocketBox()
         let connection = try #require(GARealtimeTransport(kind: kind, endpoint: endpoint, makeSocket: box.make))
         let audio = FakeAudio()
-        return (RealtimeConversationDriver(connection: connection, audio: audio), connection, box, audio)
+        let driver = RealtimeConversationDriver(connection: connection, audio: audio, captureOnReady: captureOnReady)
+        return (driver, connection, box, audio)
     }
 
     private static func fixtureMessages(_ id: String) throws -> [[String: Any]] {
@@ -239,6 +281,108 @@ struct RealtimeConversationDriverTests {
         let truncates = box.socket.sent.filter { $0["type"] as? String == "conversation.item.truncate" }
         #expect(truncates.count == 1)
         #expect(truncates.first?["item_id"] as? String == "msg_010")
+    }
+
+    /// After ready, the session is prepared in the background first, then the engine starts; each happens once.
+    @Test func ready_prepares_session_before_start() async throws {
+        let connection = FakeConnection()
+        let audio = FakeAudio()
+        let driver = RealtimeConversationDriver(connection: connection, audio: audio)
+        var iterator = driver.run(plan: try Self.plan()).makeAsyncIterator()
+        connection.continuation.yield(.ready)
+        connection.continuation.yield(.ready)
+        #expect(try await iterator.next() == .ready)
+        #expect(try await iterator.next() == .ready)
+        #expect(audio.sessionCalls == ["prepareSession", "startRealtime"])
+        connection.close()
+        #expect(try await iterator.next() == nil)
+    }
+
+    /// The driver retired while the session was being prepared: on return it neither starts the engine nor opens the mic, and a retired run does not touch shared audio.
+    @Test func retired_during_prepare_skips_start() async throws {
+        let connection = FakeConnection()
+        let audio = FakeAudio()
+        audio.holdPrepare = true
+        let driver = RealtimeConversationDriver(connection: connection, audio: audio)
+        var iterator = driver.run(plan: try Self.plan()).makeAsyncIterator()
+        connection.continuation.yield(.ready)
+        await audio.waitPrepareEntered()
+        driver.retire()
+        audio.releasePrepare()
+        #expect(try await iterator.next() == .ready)
+        #expect(audio.startCount == 0)
+        #expect(audio.stopCount == 0)
+        #expect(audio.sessionCalls == ["prepareSession"])
+        connection.close()
+        #expect(try await iterator.next() == nil)
+    }
+
+    /// A failed session preparation does not start the engine; the error propagates along the same path as a failed start.
+    @Test func prepare_failure_skips_start_and_throws() async throws {
+        struct PrepareFailed: Error {}
+        let connection = FakeConnection()
+        let audio = FakeAudio()
+        audio.prepareError = PrepareFailed()
+        let driver = RealtimeConversationDriver(connection: connection, audio: audio)
+        var iterator = driver.run(plan: try Self.plan()).makeAsyncIterator()
+        connection.continuation.yield(.ready)
+        await #expect(throws: PrepareFailed.self) { _ = try await iterator.next() }
+        #expect(audio.sessionCalls == ["prepareSession"])
+        #expect(audio.startCount == 0)
+        #expect(audio.stopCount == 1)
+    }
+
+    /// Typed mode starts playback only: after ready it starts playback, does not call capture, and has no uplink callback.
+    @Test func playback_only_ready_skips_capture() async throws {
+        let connection = FakeConnection()
+        let audio = FakeAudio()
+        let driver = RealtimeConversationDriver(connection: connection, audio: audio, captureOnReady: false)
+        var iterator = driver.run(plan: try Self.plan()).makeAsyncIterator()
+        connection.continuation.yield(.ready)
+        #expect(try await iterator.next() == .ready)
+        #expect(audio.sessionCalls == ["prepareSession", "startRealtimePlayback"])
+        #expect(audio.log == ["startRealtimePlayback"])
+        #expect(audio.onFrame == nil)
+        connection.close()
+        #expect(try await iterator.next() == nil)
+    }
+
+    /// Starting capture after a playback-only start: uplink begins on the same connection, and a reply still playing is first truncated as interrupted; a repeated start does not call again.
+    @Test func start_capture_after_playback_only_starts_uplink() async throws {
+        let (driver, connection, box, audio) = try Self.make(captureOnReady: false)
+        audio.played = 700
+        var iterator = driver.run(plan: try Self.plan()).makeAsyncIterator()
+        try box.socket.push(["type": "session.created"])
+        #expect(try await iterator.next() == .ready)
+        let pcm = Data(repeating: 0, count: 480).base64EncodedString()
+        try box.socket.push([
+            "type": "response.output_audio.delta", "response_id": "resp_1", "item_id": "msg_020",
+            "output_index": 0, "content_index": 0, "delta": pcm,
+        ])
+        #expect(try await iterator.next() != nil)
+        #expect(audio.enqueued.map(\.1) == ["msg_020"])
+        #expect(audio.onFrame == nil)
+
+        driver.startCapture()
+        driver.startCapture()
+        #expect(audio.log.filter { $0 == "startRealtimeCapture" }.count == 1)
+        #expect(!audio.log.contains("startRealtime"))
+        let truncates = box.socket.sent.filter { $0["type"] as? String == "conversation.item.truncate" }
+        #expect(truncates.first?["item_id"] as? String == "msg_020")
+        #expect((truncates.first?["audio_end_ms"] as? NSNumber)?.intValue == 700)
+
+        let frame = Data(repeating: 1, count: 960)
+        let before = box.socket.sent.count
+        let onFrame = try #require(audio.onFrame)
+        onFrame(frame)
+        let after = Array(box.socket.sent.dropFirst(before))
+        #expect(after.first?["type"] as? String == "input_audio_buffer.append")
+        #expect(after.first?["audio"] as? String == frame.base64EncodedString())
+        #expect(box.requests.count == 1)
+
+        connection.close()
+        while try await iterator.next() != nil {}
+        #expect(audio.stopCount >= 1)
     }
 
     @Test func ready_twice_starts_audio_once() async throws {

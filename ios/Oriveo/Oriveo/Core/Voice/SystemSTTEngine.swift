@@ -27,13 +27,49 @@ nonisolated protocol SystemSTTSegment: AnyObject, Sendable {
     func cancel()
 }
 
+/// Recognizer result: isFinal = finalized; otherwise the current non-final text (volatile / partial), where a later result overrides the earlier one.
+nonisolated struct SystemSTTResult: Sendable, Hashable {
+    let text: String
+    let isFinal: Bool
+}
+
+/// Live snapshot: finals = the finalized results received so far (accumulated in order across segments), partial = the current non-final text (trimmed), cleared when a final arrives.
+nonisolated struct SystemSTTLiveSnapshot: Sendable, Hashable {
+    var finals: [String] = []
+    var partial: String = ""
+
+    /// Applies one recognition result in arrival order; returns whether the state changed. The live snapshot and each segment's contribution to the session result share this one rule.
+    mutating func apply(_ result: SystemSTTResult) -> Bool {
+        // Trim with the DictationRules whitespace set; an empty partial does not change state, and an empty final promotes the current non-empty partial to this segment's final
+        let trimmed = DictationRules.trim(result.text)
+        if result.isFinal {
+            if trimmed.isEmpty {
+                guard !partial.isEmpty else { return false }
+                finals.append(partial)
+            } else {
+                finals.append(result.text)
+            }
+            partial = ""
+        } else {
+            guard !trimmed.isEmpty else { return false }
+            guard trimmed != partial else { return false }
+            partial = trimmed
+        }
+        return true
+    }
+}
+
 nonisolated protocol SystemSTTBackend: Sendable {
     var kind: SystemSTTBackendKind { get }
     /// A single recognition task has a duration cap (about 1 minute for SFSpeechRecognizer), so it must be restarted on a rolling basis.
     var requiresRolling: Bool { get }
     func supports(_ locale: Locale) async -> Bool
-    /// format is the format of the buffers fed in (the microphone inputFormat or the slot file's processingFormat).
-    func startSegment(locale: Locale, format: AVAudioFormat) async throws -> any SystemSTTSegment
+    /// format is the format of the buffers fed in (the first buffer's format); onResult receives this segment's partials / finals on the recognizer thread.
+    func startSegment(
+        locale: Locale,
+        format: AVAudioFormat,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
+    ) async throws -> any SystemSTTSegment
 }
 
 /// Speech recognition authorization (SFSpeechRecognizer.requestAuthorization).
@@ -113,10 +149,11 @@ nonisolated final class SystemSTTEngine: STTEngine {
         )
     }
 
-    /// Starts one live recognition: hand session.bufferHandler to AudioCapture.start, then await finish() after recording stops.
-    func startLive(language: String?, format: AVAudioFormat) -> SystemSTTSession {
-        SystemSTTSession { [self] stream in
-            try await run(stream, language: language, format: format)
+    /// Starts one live recognition: hands session.bufferHandler to AudioCapture.start and reads session.snapshots while recording,
+    /// then awaits finish() after recording stops. The backend is chosen and the segment started only when the first buffer arrives; the format is that buffer's format.
+    func startLive(language: String?) -> SystemSTTSession {
+        SystemSTTSession { [self] stream, onResult in
+            try await run(stream, language: language, onResult: onResult)
         }
     }
 
@@ -132,7 +169,7 @@ nonisolated final class SystemSTTEngine: STTEngine {
             throw STTError(action: .retry, failure: nil, audioUnreadable: true)
         }
         let format = file.processingFormat
-        let session = startLive(language: language, format: format)
+        let session = startLive(language: language)
         do {
             while file.framePosition < file.length {
                 try Task.checkCancellation()
@@ -167,21 +204,32 @@ nonisolated final class SystemSTTEngine: STTEngine {
         return await defaultLocale()
     }
 
-    /// When rolling over, first await the old segment to finish and get its text, then open the new one:
-    /// running two system recognitions in parallel makes the old one return empty text.
-    /// Buffers arriving while it finishes stay in the stream (unbounded buffering) and are fed in order
-    /// after the new segment opens, so no frames are lost.
-    private func run(_ stream: AsyncStream<PCMChunk>, language: String?, format: AVAudioFormat) async throws -> String {
+    /// The first segment is opened only when the first buffer arrives (format from that buffer); with no buffer at all, no segment is started and empty text is returned.
+    /// On rolling rollover, first await the old segment finishing to get its text, then open the new one: running two system recognitions in parallel makes the old one return empty text.
+    /// Buffers arriving while it finishes stay in the stream (unbounded buffering) and are fed in order after the new segment opens, so no frames are dropped.
+    private func run(
+        _ stream: AsyncStream<PCMChunk>,
+        language: String?,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
+    ) async throws -> String {
         var texts: [String] = []
         var current: (any SystemSTTSegment)?
         do {
-            let locale = await resolveLocale(language)
-            let (backend, first) = try await openFirstSegment(locale: locale, format: format)
-            current = first
-            var meter = RollingMeter(sampleRate: format.sampleRate, enabled: backend.requiresRolling)
+            var opened: (backend: any SystemSTTBackend, locale: Locale, format: AVAudioFormat)?
+            var meter = RollingMeter(sampleRate: 1, enabled: false)
             for await chunk in stream {
                 try Task.checkCancellation()
                 let buffer = chunk.buffer
+                if opened == nil {
+                    let locale = await resolveLocale(language)
+                    let format = buffer.format
+                    let (backend, first) = try await openFirstSegment(locale: locale, format: format, onResult: onResult)
+                    current = first
+                    opened = (backend, locale, format)
+                    meter = RollingMeter(sampleRate: format.sampleRate, enabled: backend.requiresRolling)
+                }
+                guard let opened else { continue }
+                let (backend, locale, format) = opened
                 let total = Int(buffer.frameLength)
                 var start = 0
                 for cut in meter.consume(buffer) {
@@ -191,7 +239,7 @@ nonisolated final class SystemSTTEngine: STTEngine {
                         current = nil
                         texts.append(try await Self.finishSegment(old))
                     }
-                    current = try await startNextSegment(backend, locale: locale, format: format)
+                    current = try await startNextSegment(backend, locale: locale, format: format, onResult: onResult)
                 }
                 if let piece = PCMBufferTools.slice(buffer, from: start, to: total) { current?.append(piece) }
             }
@@ -203,9 +251,14 @@ nonisolated final class SystemSTTEngine: STTEngine {
             return DictationRules.join(texts)
         } catch {
             current?.cancel()
-            if error is CancellationError || Task.isCancelled { throw CancellationError() }
+            if Task.isCancelled { throw CancellationError() }
+            // The session was not cancelled but got a cancellation: the system cancelled recognition (SFSpeech segment kLSR 301), so it is silently handled per the cancelled condition
+            if error is CancellationError { throw STTError(action: .retry, failure: nil, systemFailure: .condition(.cancelled)) }
             if let error = error as? STTError { throw error }
-            throw STTError(action: .retry, failure: nil)
+            if error is SystemSTTBackendError { throw STTError(action: .retry, failure: nil) }
+            // Error reported by the recognizer itself: carries the underlying NSError's domain / code
+            let nsError = error as NSError
+            throw STTError(action: .retry, failure: nil, systemFailure: .error(domain: nsError.domain, code: nsError.code))
         }
     }
 
@@ -217,46 +270,61 @@ nonisolated final class SystemSTTEngine: STTEngine {
         }
     }
 
+    /// Authorization denied: classified as permission via kAFAssistantErrorDomain 1700 (goes through the existing permission card).
+    static let notAuthorizedFailure = SystemRecognizerFailure.error(domain: "kAFAssistantErrorDomain", code: 1700)
+
     /// Picks a backend and opens the first segment: unsupported, asset not found or unavailable move on to the next; an authorization error requests authorization once and retries the same backend once.
+    /// If none can open: all backends reject the language → language_unsupported, otherwise no_service.
     private func openFirstSegment(
         locale: Locale,
-        format: AVAudioFormat
+        format: AVAudioFormat,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
     ) async throws -> (any SystemSTTBackend, any SystemSTTSegment) {
         var authorizationRequested = false
         if !analyzerAvailable {
             authorizationRequested = true
             if !authorizer.isAuthorized {
-                guard await authorizer.requestAuthorization() else { throw STTError(action: .retry, failure: nil) }
+                guard await authorizer.requestAuthorization() else {
+                    throw STTError(action: .retry, failure: nil, systemFailure: Self.notAuthorizedFailure)
+                }
             }
         }
+        var languageUnsupported = true
         backends: for backend in candidates {
             guard await backend.supports(locale) else { continue }
             while true {
                 do {
-                    return (backend, try await backend.startSegment(locale: locale, format: format))
+                    return (backend, try await backend.startSegment(locale: locale, format: format, onResult: onResult))
                 } catch let error as SystemSTTBackendError {
                     switch error {
-                    case .unsupportedLocale, .assetNotFound, .unavailable:
+                    case .unsupportedLocale:
+                        continue backends
+                    case .assetNotFound, .unavailable:
+                        languageUnsupported = false
                         continue backends
                     case .notAuthorized where !authorizationRequested:
                         authorizationRequested = true
                         _ = await authorizer.requestAuthorization()
-                    default:
+                    case .notAuthorized:
+                        throw STTError(action: .retry, failure: nil, systemFailure: Self.notAuthorizedFailure)
+                    case .failed:
                         throw STTError(action: .retry, failure: nil)
                     }
                 }
             }
         }
-        throw STTError(action: .retry, failure: nil)
+        throw STTError(action: .retry, failure: nil,
+                       systemFailure: .condition(languageUnsupported ? .languageUnsupported : .noService))
     }
 
     private func startNextSegment(
         _ backend: any SystemSTTBackend,
         locale: Locale,
-        format: AVAudioFormat
+        format: AVAudioFormat,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
     ) async throws -> any SystemSTTSegment {
         do {
-            return try await backend.startSegment(locale: locale, format: format)
+            return try await backend.startSegment(locale: locale, format: format, onResult: onResult)
         } catch is SystemSTTBackendError {
             throw STTError(action: .retry, failure: nil)
         }
@@ -270,16 +338,24 @@ nonisolated struct PCMChunk: @unchecked Sendable {
     let buffer: AVAudioPCMBuffer
 }
 
-/// One recognition session. On the audio thread bufferHandler only copies the buffer and enqueues it, without blocking; recognition runs serially in a background task.
+/// One recognition session. bufferHandler only copies the buffer and enqueues it on the audio thread, without blocking; recognition runs serially in a background task.
+/// snapshots emits a full snapshot whenever a final or partial changes, and ends when recognition ends (success, failure or cancellation).
 nonisolated final class SystemSTTSession: Sendable {
 
     private let continuation: AsyncStream<PCMChunk>.Continuation
     private let task: Task<String, Error>
+    let snapshots: AsyncStream<SystemSTTLiveSnapshot>
 
-    init(run: @escaping @Sendable (AsyncStream<PCMChunk>) async throws -> String) {
+    init(run: @escaping @Sendable (AsyncStream<PCMChunk>, @escaping @Sendable (SystemSTTResult) -> Void) async throws -> String) {
         let (stream, continuation) = AsyncStream.makeStream(of: PCMChunk.self)
+        let (snapshots, snapshotContinuation) = AsyncStream.makeStream(of: SystemSTTLiveSnapshot.self)
+        let tracker = SystemSTTSnapshotTracker(output: snapshotContinuation)
+        self.snapshots = snapshots
         self.continuation = continuation
-        self.task = Task { try await run(stream) }
+        self.task = Task {
+            defer { tracker.close() }
+            return try await run(stream) { tracker.receive($0) }
+        }
     }
 
     /// The consumer handed to AudioCapture.start; the tap reuses its buffers, so copy first.
@@ -305,6 +381,33 @@ nonisolated final class SystemSTTSession: Sendable {
     func cancel() {
         continuation.finish()
         task.cancel()
+    }
+}
+
+/// Accumulates the segments' recognition results into snapshots; called on the recognizer thread, serialized by a lock, emitted in arrival order.
+nonisolated final class SystemSTTSnapshotTracker: @unchecked Sendable {
+
+    private let lock = NSLock()
+    private let output: AsyncStream<SystemSTTLiveSnapshot>.Continuation
+    private var snapshot = SystemSTTLiveSnapshot()
+    private var closed = false
+
+    init(output: AsyncStream<SystemSTTLiveSnapshot>.Continuation) {
+        self.output = output
+    }
+
+    func receive(_ result: SystemSTTResult) {
+        lock.withLock {
+            guard !closed, snapshot.apply(result) else { return }
+            output.yield(snapshot)
+        }
+    }
+
+    func close() {
+        lock.withLock {
+            closed = true
+            output.finish()
+        }
     }
 }
 
@@ -431,11 +534,15 @@ nonisolated struct SFSpeechRecognizerBackend: SystemSTTBackend {
         SFSpeechRecognizer(locale: locale) != nil
     }
 
-    func startSegment(locale: Locale, format: AVAudioFormat) async throws -> any SystemSTTSegment {
+    func startSegment(
+        locale: Locale,
+        format: AVAudioFormat,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
+    ) async throws -> any SystemSTTSegment {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else { throw SystemSTTBackendError.notAuthorized }
         guard let recognizer = SFSpeechRecognizer(locale: locale) else { throw SystemSTTBackendError.unsupportedLocale }
         guard recognizer.isAvailable else { throw SystemSTTBackendError.unavailable }
-        return SFSpeechRecognizerSegment(recognizer: recognizer)
+        return SFSpeechRecognizerSegment(recognizer: recognizer, onResult: onResult)
     }
 }
 
@@ -444,15 +551,22 @@ nonisolated final class SFSpeechRecognizerSegment: SystemSTTSegment, @unchecked 
     /// kAFAssistantErrorDomain 1110: no speech heard in this segment, treated as empty text (common after a rolling restart on a silent stretch).
     static let noSpeechDomain = "kAFAssistantErrorDomain"
     static let noSpeechCode = 1110
+    /// kLSRErrorDomain 301: the recognition request was cancelled, handled as a cancellation.
+    static let cancelledDomain = "kLSRErrorDomain"
+    static let cancelledCode = 301
 
     private let request = SFSpeechAudioBufferRecognitionRequest()
+    private let onResult: @Sendable (SystemSTTResult) -> Void
     private let lock = NSLock()
     private var task: SFSpeechRecognitionTask?
     private var outcome: Result<String, Error>?
     private var waiter: CheckedContinuation<String, Error>?
+    /// This segment's live state: when the final is empty, the last non-empty partial is used as this segment's text.
+    private var live = SystemSTTLiveSnapshot()
 
-    init(recognizer: SFSpeechRecognizer) {
-        request.shouldReportPartialResults = false
+    init(recognizer: SFSpeechRecognizer, onResult: @escaping @Sendable (SystemSTTResult) -> Void) {
+        self.onResult = onResult
+        request.shouldReportPartialResults = true
         request.taskHint = .dictation
         request.addsPunctuation = true
         if recognizer.supportsOnDeviceRecognition { request.requiresOnDeviceRecognition = true }
@@ -495,16 +609,31 @@ nonisolated final class SFSpeechRecognizerSegment: SystemSTTSegment, @unchecked 
     }
 
     private func handle(result: SFSpeechRecognitionResult?, error: Error?) {
-        if let result, result.isFinal {
-            resolve(.success(result.bestTranscription.formattedString))
-        } else if let error {
-            let nsError = error as NSError
-            if nsError.domain == Self.noSpeechDomain, nsError.code == Self.noSpeechCode {
-                resolve(.success(""))
-            } else {
-                resolve(.failure(SystemSTTBackendError.failed))
+        if let result {
+            let text = result.bestTranscription.formattedString
+            // Results arriving after this segment already has an outcome (finish / cancel) are not reported
+            let item = SystemSTTResult(text: text, isFinal: result.isFinal)
+            let finals: [String]? = lock.withLock {
+                guard outcome == nil else { return nil }
+                _ = live.apply(item)
+                return live.finals
+            }
+            guard let finals else { return }
+            onResult(item)
+            if result.isFinal {
+                resolve(.success(DictationRules.join(finals)))
+                return
             }
         }
+        if let error { resolve(Self.outcome(for: error)) }
+    }
+
+    /// This segment's outcome when the recognition task errors: kAF 1110 = empty text, kLSR 301 = cancellation, others keep the NSError as is.
+    static func outcome(for error: Error) -> Result<String, Error> {
+        let nsError = error as NSError
+        if nsError.domain == noSpeechDomain, nsError.code == noSpeechCode { return .success("") }
+        if nsError.domain == cancelledDomain, nsError.code == cancelledCode { return .failure(CancellationError()) }
+        return .failure(nsError)
     }
 
     private func resolve(_ value: Result<String, Error>) {
@@ -539,37 +668,55 @@ nonisolated struct SpeechAnalyzerBackend: SystemSTTBackend {
         await supportedLocale(locale) != nil
     }
 
-    func startSegment(locale: Locale, format: AVAudioFormat) async throws -> any SystemSTTSegment {
+    func startSegment(
+        locale: Locale,
+        format: AVAudioFormat,
+        onResult: @escaping @Sendable (SystemSTTResult) -> Void
+    ) async throws -> any SystemSTTSegment {
         guard let resolved = await supportedLocale(locale) else { throw SystemSTTBackendError.unsupportedLocale }
-        do {
-            try await assets.prepare(assetModule, locale: resolved)
-        } catch is CancellationError {
-            throw CancellationError()
-        } catch {
-            throw SystemSTTBackendError.assetNotFound
-        }
+        // Only checks what is installed, does not install: a missing model falls through to the next backend; installation is handled separately by the controller
+        guard await assets.isInstalled(assetModule, locale: resolved) else { throw SystemSTTBackendError.assetNotFound }
         let module: any SpeechModule
         let results: Task<String, Error>
         switch kind {
         case .dictationTranscriber:
-            let transcriber = DictationTranscriber(locale: resolved, preset: .longDictation)
+            let preset = DictationTranscriber.Preset.longDictation
+            let transcriber = DictationTranscriber(
+                locale: resolved,
+                contentHints: preset.contentHints,
+                transcriptionOptions: preset.transcriptionOptions,
+                reportingOptions: preset.reportingOptions.union([.volatileResults]),
+                attributeOptions: preset.attributeOptions
+            )
             module = transcriber
             results = Task {
-                var parts: [String] = []
-                for try await result in transcriber.results where result.isFinal {
-                    parts.append(String(result.text.characters))
+                // Same rule as the live snapshot: an empty final uses this segment's last non-empty partial
+                var live = SystemSTTLiveSnapshot()
+                for try await result in transcriber.results {
+                    let item = SystemSTTResult(text: String(result.text.characters), isFinal: result.isFinal)
+                    onResult(item)
+                    _ = live.apply(item)
                 }
-                return DictationRules.join(parts)
+                return DictationRules.join(live.finals)
             }
         default:
-            let transcriber = SpeechTranscriber(locale: resolved, preset: .transcription)
+            let preset = SpeechTranscriber.Preset.transcription
+            let transcriber = SpeechTranscriber(
+                locale: resolved,
+                transcriptionOptions: preset.transcriptionOptions,
+                reportingOptions: preset.reportingOptions.union([.volatileResults]),
+                attributeOptions: preset.attributeOptions
+            )
             module = transcriber
             results = Task {
-                var parts: [String] = []
-                for try await result in transcriber.results where result.isFinal {
-                    parts.append(String(result.text.characters))
+                // Same rule as the live snapshot: an empty final uses this segment's last non-empty partial
+                var live = SystemSTTLiveSnapshot()
+                for try await result in transcriber.results {
+                    let item = SystemSTTResult(text: String(result.text.characters), isFinal: result.isFinal)
+                    onResult(item)
+                    _ = live.apply(item)
                 }
-                return DictationRules.join(parts)
+                return DictationRules.join(live.finals)
             }
         }
         guard let analyzerFormat = await SpeechAnalyzer.bestAvailableAudioFormat(
@@ -585,7 +732,10 @@ nonisolated struct SpeechAnalyzerBackend: SystemSTTBackend {
         } catch {
             continuation.finish()
             results.cancel()
-            throw Self.classify(error)
+            let classified = Self.classify(error)
+            // Errors that cannot be handled by switching backend or requesting authorization are rethrown as is; the engine surfaces their domain / code
+            if classified == .failed { throw error }
+            throw classified
         }
         return SpeechAnalyzerSegment(analyzer: analyzer, input: continuation, results: results, converter: converter)
     }

@@ -12,6 +12,7 @@ import ai.oriveo.community.ui.component.ProviderListTrailingAmount
 import ai.oriveo.community.ui.component.formatProviderBalanceAmount
 import ai.oriveo.community.ui.component.providerListTrailingAmount
 import java.io.File
+import java.util.Locale
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -32,6 +33,7 @@ class ProvidersScreenFunctionsTest {
                 "$42.00",
                 isMonthlyCostZero = false,
                 providerBalance = siliconFlowBalance,
+                locale = Locale.SIMPLIFIED_CHINESE,
             ),
         )
         assertEquals(
@@ -41,6 +43,7 @@ class ProvidersScreenFunctionsTest {
                 "$42.00",
                 isMonthlyCostZero = false,
                 providerBalance = null,
+                locale = Locale.US,
             ),
         )
         assertEquals(
@@ -50,9 +53,26 @@ class ProvidersScreenFunctionsTest {
                 "$2.50",
                 isMonthlyCostZero = false,
                 providerBalance = null,
+                locale = Locale.US,
             ),
         )
-        assertEquals("¥88.88", formatProviderBalanceAmount(siliconFlowBalance))
+        assertEquals("¥88.88", formatProviderBalanceAmount(siliconFlowBalance, Locale.SIMPLIFIED_CHINESE))
+    }
+
+    @Test
+    fun `third party balance follows the UI locale`() {
+        val usd = ProviderBalance(currency = "USD", total = 5.0, fetchedAt = java.time.Instant.now())
+        val cny = ProviderBalance(currency = "CNY", total = 3.5, fetchedAt = java.time.Instant.now())
+        val de = formatProviderBalanceAmount(usd, Locale.GERMANY).replace('\u00A0', ' ').replace('\u202F', ' ')
+        assertEquals("5,00 $", de)
+        assertEquals("CN\u00A53.50", formatProviderBalanceAmount(cny, Locale.US))
+        assertEquals("-$5.00", formatProviderBalanceAmount(usd.copy(total = -5.0), Locale.US))
+    }
+
+    @Test
+    fun `CNY balance rounds half away from zero`() {
+        val cny = ProviderBalance(currency = "CNY", total = 0.125, fetchedAt = java.time.Instant.now())
+        assertEquals("\u00A50.13", formatProviderBalanceAmount(cny, Locale.SIMPLIFIED_CHINESE))
     }
 
     /**
@@ -69,6 +89,7 @@ class ProvidersScreenFunctionsTest {
                 "$31.20",
                 isMonthlyCostZero = false,
                 providerBalance = null,
+                locale = Locale.US,
             ),
         )
         assertEquals(
@@ -78,6 +99,7 @@ class ProvidersScreenFunctionsTest {
                 "$0",
                 isMonthlyCostZero = true,
                 providerBalance = null,
+                locale = Locale.US,
             ),
         )
     }
@@ -148,6 +170,12 @@ class ProvidersScreenFunctionsTest {
 
         assertEquals(5, total)
         assertEquals(0, ProviderCatalogResolver.debugResolveCallCount)
+    }
+
+    @Test
+    fun `CNY balance rounds half away from zero`() {
+        val cny = ProviderBalance(currency = "CNY", total = 0.125, fetchedAt = java.time.Instant.now())
+        assertEquals("\u00A50.13", formatProviderBalanceAmount(cny, Locale.SIMPLIFIED_CHINESE))
     }
 
     /**

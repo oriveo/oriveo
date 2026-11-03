@@ -11,6 +11,8 @@ import {
   fetchMoonshotBalance,
   fetchOpenRouterBalance,
   fetchSiliconFlowBalance,
+  formatProviderBalanceAmount,
+  formatProviderBalanceValue,
   getProviderBalanceCached,
   isBalanceCapable,
 } from '../balance';
@@ -293,5 +295,25 @@ describe('getProviderBalanceCached', () => {
     expect(chinaBalance.currency).toBe('CNY');
     expect(switchedBackBalance.total).toBe(20);
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(4);
+  });
+});
+
+describe('formatProviderBalanceAmount', () => {
+  const normalize = (text: string) => text.replace(/[\u200e\u200f\u061c]/g, '').replace(/[\u00a0\u202f]/g, ' ');
+
+  it('formats USD with the app-locale currency format and the "$" symbol', () => {
+    expect(normalize(formatProviderBalanceAmount({ currency: 'USD', total: 1234.5 }, 'de'))).toBe('1.234,50 $');
+    expect(formatProviderBalanceAmount({ currency: 'USD', total: 1234.5 }, 'en-US')).toBe('$1,234.50');
+  });
+
+  it('provider_balance_half_rounds_away', () => {
+    expect(formatProviderBalanceValue('USD', 0.125, 'en-US', 2)).toBe('$0.13');
+    expect(formatProviderBalanceValue('CNY', 0.125, 'en-US', 2)).toBe('CN¥0.13');
+  });
+
+  it('formats CNY with the platform currency format of the app locale', () => {
+    const expected = new Intl.NumberFormat('de', { style: 'currency', currency: 'CNY', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(12.3);
+    expect(formatProviderBalanceAmount({ currency: 'CNY', total: 12.3 }, 'de')).toBe(expected);
+    expect(normalize(expected)).toBe('12,30 CN\u00a5');
   });
 });

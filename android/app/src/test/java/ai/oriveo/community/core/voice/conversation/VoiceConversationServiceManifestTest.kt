@@ -17,7 +17,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
-/** The merged manifest: the voice conversation declares only the microphone foreground service and three permissions; plus the visibility / permission gate on the start entry point. */
+/** Merged manifest: the voice conversation declares the microphone|mediaPlayback foreground service and its permissions; visibility and authorization gate on the start entry point. */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class VoiceConversationServiceManifestTest {
@@ -32,14 +32,18 @@ class VoiceConversationServiceManifestTest {
         assertTrue(Manifest.permission.FOREGROUND_SERVICE_MICROPHONE in requested)
         assertTrue(Manifest.permission.POST_NOTIFICATIONS in requested)
         assertTrue(Manifest.permission.RECORD_AUDIO in requested)
-        assertFalse(Manifest.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK in requested)
+        // The typed-start, playback-only realtime session starts the mediaPlayback foreground service.
+        assertTrue(Manifest.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK in requested)
 
         val service = context.packageManager.getServiceInfo(
             ComponentName(context, VoiceConversationService::class.java),
             0,
         )
         assertFalse(service.exported)
-        assertEquals(ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE, service.foregroundServiceType)
+        assertEquals(
+            ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
+            service.foregroundServiceType,
+        )
     }
 
     @Test

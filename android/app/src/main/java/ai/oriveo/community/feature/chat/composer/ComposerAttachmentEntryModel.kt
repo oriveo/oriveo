@@ -14,6 +14,7 @@ import ai.oriveo.community.core.provider.AttachmentInputGate
 import ai.oriveo.community.core.provider.CapabilityEvidenceFacade.InputCapabilityDisabledReason
 import ai.oriveo.community.core.provider.CapabilityEvidenceFacade.InputCapabilityHint
 import ai.oriveo.community.core.provider.CapabilityEvidenceFacade.InputCapabilityProjection
+import ai.oriveo.community.core.voice.realtime.RealtimeModel
 
 /** Media item of the attachment menu; `key` is the media suffix of the reason / hint string keys. */
 internal enum class ComposerAttachmentMedia(val key: String) {
@@ -98,12 +99,39 @@ internal data class ComposerAttachmentEntryModel(
     companion object {
         val NONE = from(projections = null, gate = AttachmentInputGate.NONE)
 
-        fun from(projections: InputCapabilityProjections?, gate: AttachmentInputGate): ComposerAttachmentEntryModel =
-            ComposerAttachmentEntryModel(
+        /**
+         * [realtime] = the current model is a realtime voice model (typing state): all three [RealtimeModel.capability] items stay present and are all disabled,
+         * with the reason uniformly set to "realtime voice models do not accept attachments"; text models still read the projection and gate as before.
+         */
+        fun from(
+            projections: InputCapabilityProjections?,
+            gate: AttachmentInputGate,
+            realtime: Boolean = false,
+        ): ComposerAttachmentEntryModel {
+            val capability = RealtimeModel.capability(
+                if (realtime) RealtimeModel.MODEL_KIND_REALTIME else RealtimeModel.MODEL_KIND_TEXT,
+                RealtimeModel.MODE_TYPING,
+            )
+            if (capability.attachments == "disabledWithReason") {
+                val reasonKey = capability.attachmentsReasonKey
+                fun blocked(media: ComposerAttachmentMedia) = ComposerAttachmentMenuItem(
+                    media = media,
+                    shown = true,
+                    enabled = false,
+                    disabledReasonKey = reasonKey,
+                )
+                return ComposerAttachmentEntryModel(
+                    image = blocked(ComposerAttachmentMedia.Image),
+                    file = blocked(ComposerAttachmentMedia.File),
+                    video = blocked(ComposerAttachmentMedia.Video),
+                )
+            }
+            return ComposerAttachmentEntryModel(
                 image = menuItem(ComposerAttachmentMedia.Image, projections?.vision, gate.image),
                 file = menuItem(ComposerAttachmentMedia.File, projections?.file, gate.file),
                 video = menuItem(ComposerAttachmentMedia.Video, projections?.video, gate.video),
             )
+        }
 
         private fun menuItem(
             media: ComposerAttachmentMedia,
@@ -166,5 +194,6 @@ private fun inputCapabilityStringRes(key: String): Int? = when (key) {
     "capability_input_hint_first_attach_image" -> R.string.capability_input_hint_first_attach_image
     "capability_input_hint_first_attach_file" -> R.string.capability_input_hint_first_attach_file
     "capability_input_hint_first_attach_video" -> R.string.capability_input_hint_first_attach_video
+    RealtimeModel.COPY_NO_ATTACHMENTS -> R.string.voice_realtime_no_attachments
     else -> null
 }

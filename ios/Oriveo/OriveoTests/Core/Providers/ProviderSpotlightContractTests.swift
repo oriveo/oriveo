@@ -127,13 +127,15 @@ struct ProviderSpotlightContractTests {
 /// Temporary database (migrated to the latest schema) that uses the production `ConversationStore` writes and the monthly aggregation SQL.
 private struct SpotlightDatabase {
     let rootURL: URL
+    // Kept so cleanup can close the pool handed to the store.
+    let pool: DatabasePool
     let store: ConversationStore
 
     init() throws {
         rootURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("oriveo-db-spotlight-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        let pool = try DatabasePool(
+        pool = try DatabasePool(
             path: rootURL.appendingPathComponent(DatabaseSchema.fileName).path,
             configuration: DatabaseSchema.makeConfiguration()
         )
@@ -143,6 +145,9 @@ private struct SpotlightDatabase {
     }
 
     func cleanup() {
+        // Close the pool before deleting the directory so SQLite/WAL descriptors are not
+        // left pointing at unlinked vnodes in tmp.
+        try? pool.close()
         try? FileManager.default.removeItem(at: rootURL)
     }
 }

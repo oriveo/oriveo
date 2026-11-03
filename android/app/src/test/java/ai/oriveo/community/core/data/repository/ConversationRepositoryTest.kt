@@ -4,6 +4,7 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.MessageDao
+import ai.oriveo.community.core.data.dao.StudioWorkDao
 import ai.oriveo.community.core.data.dao.MessageContinuationDao
 import android.content.Context
 import ai.oriveo.community.core.data.attachment.AttachmentOrphanSweeper
@@ -172,6 +173,7 @@ class ConversationRepositoryTest {
         conversationDao, messageDao,
         attachmentSweeper = AttachmentOrphanSweeper(
             messageDao = messageDao,
+            studioWorkDao = mockk<StudioWorkDao> { coEvery { referencedAssetIds() } returns emptyList() },
             attachmentStore = store,
             ioDispatcher = StandardTestDispatcher(testScheduler),
         ),

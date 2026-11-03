@@ -7,6 +7,7 @@
  */
 
 import type { ProviderKind } from '@oriveo/shared';
+import { formatUsd } from '../../utils/currency-format';
 
 export type BalanceCurrency = 'USD' | 'CNY';
 
@@ -28,14 +29,40 @@ export function formatProviderBalanceAmount(
   balance: Pick<ProviderBalance, 'currency' | 'total'>,
   locale: string,
 ): string {
-  const symbol = balance.currency === 'CNY' ? '¥' : '$';
-  const sign = balance.total < 0 ? '-' : '';
-  const amount = new Intl.NumberFormat(locale, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-    useGrouping: true,
-  }).format(Math.abs(balance.total));
-  return `${symbol}${sign}${amount}`;
+  return formatProviderBalanceValue(balance.currency, balance.total, locale, 2);
+}
+
+const balanceCurrencyFormatters = new Map<string, Intl.NumberFormat>();
+
+/**
+ * One balance amount: USD goes through the shared formatUsd ("$" forced), other currencies use the
+ * platform currency format of the app locale. Fraction digits are chosen by the caller.
+ */
+export function formatProviderBalanceValue(
+  currency: ProviderBalance['currency'],
+  value: number,
+  locale: string,
+  fractionDigits: number,
+): string {
+  if (currency === 'USD') {
+    return formatUsd(value, locale, {
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    });
+  }
+  const key = `${locale}|${currency}|${fractionDigits}`;
+  let formatter = balanceCurrencyFormatters.get(key);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      currencyDisplay: 'symbol',
+      minimumFractionDigits: fractionDigits,
+      maximumFractionDigits: fractionDigits,
+    });
+    balanceCurrencyFormatters.set(key, formatter);
+  }
+  return formatter.format(value);
 }
 
 /**

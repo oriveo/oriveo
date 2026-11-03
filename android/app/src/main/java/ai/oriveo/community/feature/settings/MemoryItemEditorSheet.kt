@@ -415,9 +415,9 @@ private fun MemoryEpisodicEditorFields(
         )
         val pickerColors = DatePickerDefaults.colors(
             containerColor = memoryCardFill(),
-            selectedDayContainerColor = colors.primaryTextSafe,
+            selectedDayContainerColor = colors.primaryFillText,
             selectedDayContentColor = colors.onPrimary,
-            selectedYearContainerColor = colors.primaryTextSafe,
+            selectedYearContainerColor = colors.primaryFillText,
             selectedYearContentColor = colors.onPrimary,
             todayDateBorderColor = colors.primary,
             todayContentColor = colors.primaryTextSafe,

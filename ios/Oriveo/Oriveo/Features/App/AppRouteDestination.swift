@@ -91,6 +91,7 @@ struct AppRouteDestination: View {
         case let .noteDetail(noteID):
             NoteDetailView(noteID: noteID)
                 .oriveoNavigationChrome()
+                .oriveoNavigationChrome()
         }
     }
 }

@@ -10,6 +10,7 @@ import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors
 import { useIsDarkTheme } from '../../lib/hooks/useIsDarkTheme';
 import { useLightBrandColors } from '../../lib/hooks/useLightBrandColors';
 import { COST_EPSILON } from '../../lib/utils/format-utils';
+import { formatUsd } from '../../lib/utils/currency-format';
 import {
   formatCostTotals,
   hasNonUsdCostTotals,
@@ -237,35 +238,37 @@ export function ProviderHeroCard({
           </span>
 
           <div className={styles.right}>
-            <div className={styles.costStack}>
-              <span className={styles.costLabel}>{t('metricsThisMonth')}</span>
-              <span className={styles.costValue} data-zero={isZeroCost ? 'true' : undefined} suppressHydrationWarning>
-                {formatCostTotals(monthlyCost, monthlyNonUsdTotals, locale) || '$0'}
-              </span>
-            </div>
-
-            {hasWeeklySignal && (
-              <div className={styles.weeklyChart} suppressHydrationWarning>
-                <div className={styles.bars}>
-                  {resolvedWeekly.map((v, i) => {
-                    const ratio = v / maxValue;
-                    const isLast = i === resolvedWeekly.length - 1;
-                    return (
-                      <span
-                        key={i}
-                        className={styles.bar}
-                        data-last={isLast ? 'true' : undefined}
-                        style={{ height: `${Math.max(3, 24 * ratio)}px` }}
-                      />
-                    );
-                  })}
-                </div>
-                <div className={styles.todayRow}>
-                  <span className={styles.todayLabel}>{t('today')}</span>
-                  <span className={styles.todayValue}>{formatCostTotals(todayCost, todayNonUsdTotals, locale) || '$0'}</span>
-                </div>
+            <>
+              <div className={styles.costStack}>
+                <span className={styles.costLabel}>{t('metricsThisMonth')}</span>
+                <span className={styles.costValue} data-zero={isZeroCost ? 'true' : undefined} suppressHydrationWarning>
+                  {formatCostTotals(monthlyCost, monthlyNonUsdTotals, locale) || formatUsd(0, locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
               </div>
-            )}
+
+              {hasWeeklySignal && (
+                <div className={styles.weeklyChart} suppressHydrationWarning>
+                  <div className={styles.bars}>
+                    {resolvedWeekly.map((v, i) => {
+                      const ratio = v / maxValue;
+                      const isLast = i === resolvedWeekly.length - 1;
+                      return (
+                        <span
+                          key={i}
+                          className={styles.bar}
+                          data-last={isLast ? 'true' : undefined}
+                          style={{ height: `${Math.max(3, 24 * ratio)}px` }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className={styles.todayRow}>
+                    <span className={styles.todayLabel}>{t('today')}</span>
+                    <span className={styles.todayValue}>{formatCostTotals(todayCost, todayNonUsdTotals, locale) || formatUsd(0, locale, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</span>
+                  </div>
+                </div>
+              )}
+            </>
           </div>
         </div>
       </div>

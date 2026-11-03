@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "ล้าง",
     "generationParameterDormantRestored": "กู้คืนพารามิเตอร์แล้ว {count} รายการ",
     "generationPresetName": "ชื่อพรีเซ็ต",
-    "capabilityControlFixedByConnection": "กำหนดโดยการเชื่อมต่อนี้",
     "capabilityControlReasonPending": "การตั้งค่าอัตโนมัติยังไม่พร้อม",
     "capabilityControlReasonUnsupported": "โมเดลนี้ไม่รองรับคำขอนี้",
     "capabilityControlReasonExternalConnector": "ให้บริการโดยบริการภายนอกแยกต่างหาก ซึ่งไม่อยู่ในคำขอแชทนี้",
@@ -166,7 +165,7 @@
     "currentConversation": "บทสนทนาปัจจุบัน",
     "restoreModelBehavior": "คืนค่าเริ่มต้น",
     "restoreModelBehaviorConfirm": "การทำเช่นนี้จะล้างค่าทั้งหมดที่คุณตั้งไว้สำหรับโมเดลนี้ ย้อนกลับไม่ได้",
-    "modelBehaviorScopeHint": "มีผลเฉพาะเมื่อใช้โมเดลนี้ในบทสนทนานี้ ค่าจะไม่ถูกคัดลอกเมื่อเปลี่ยนโมเดล และจะกลับมาเมื่อเปลี่ยนกลับ",
+    "modelBehaviorScopeHint": "ใช้ได้เฉพาะขณะที่ใช้โมเดลนี้ในการสนทนานี้ การสลับโมเดลจะไม่คัดลอกค่า และเมื่อสลับกลับค่าจะถูกกู้คืน",
     "controlledByReasoningShortcut": "ควบคุมด้วยทางลัด “การคิด”",
     "customRequestFieldsCustom": "ฟิลด์คำขอแบบกำหนดเอง",
     "customRequestFieldsReasonSyntax": "ตรวจสอบว่าส่วนย่อยเป็นออบเจ็กต์ JSON ที่ถูกต้องและไม่มีคีย์ซ้ำ",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "ปัญหายากที่สุด ใช้เวลานานแค่ไหนก็ได้",
     "capabilityControlReasoningFixedLevel": "โมเดลนี้ใช้ระดับการคิดคงที่ ปรับไม่ได้",
     "capabilityControlCannotAdjustYet": "ยังปรับไม่ได้",
+    "capabilityControlGoToParameters": "ไปที่พารามิเตอร์",
     "customRequestFieldsNotAllowed": "ฟิลด์นี้ใช้ไม่ได้ ฟิลด์ที่โมเดลนี้รองรับ: {fields}",
     "customRequestFieldsFooter": "ฟิลด์จะถูกเพิ่มเข้าไปในคำขอตามที่เขียนทุกประการ รองรับเฉพาะฟิลด์ที่ผู้ให้บริการประกาศอย่างเป็นทางการ ผิดพลาดอาจทำให้คำขอล้มเหลว ฉบับร่างเก็บไว้ในเครื่องนี้เท่านั้น",
     "customRequestFieldsScopeConnectionModel": "ขอบเขต: โมเดลนี้บนการเชื่อมต่อนี้ ใช้เป็นค่าเริ่มต้นของการสนทนา",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "เพิ่ม",
     "advancedStopSequenceRemove": "ลบ {sequence}",
     "advancedMore": "เพิ่มเติม",
-    "add": "เพิ่ม",
-    "capabilityControlGoToParameters": "ไปที่พารามิเตอร์"
+    "add": "เพิ่ม"
   },
   "pages": {
     "welcome": {
       "title": "ยินดีต้อนรับสู่ Oriveo",
       "tagline": "โมเดลทั้งหมดของคุณในแอปเดียว",
-      "slogan": "คีย์ของคุณ ค่าใช้จ่ายของคุณ ข้อมูลของคุณ",
       "description": "ตั้งค่าผู้ให้บริการ AI รายแรกของคุณเพื่อเริ่มต้นการสนทนาหลายรูปแบบ",
       "addProvider": "เพิ่มผู้ให้บริการ",
       "enterHome": "เข้าแอป"
@@ -502,7 +500,6 @@
       "stop": "หยุดสร้าง",
       "generating": "กำลังสร้าง",
       "activityWebSearch": "กำลังค้นหาบนเว็บ",
-      "activityMcpTool": "กำลังใช้ {server} · {tool}",
       "aiAnswering": "AI กำลังตอบ…",
       "export": "ส่งออก",
       "continueAnswering": "ตอบต่อ",
@@ -586,7 +583,9 @@
         "cacheRead": "อ่านแคช",
         "cacheWrite": "เขียนแคช",
         "total": "รวม",
-        "unavailable": "ไม่มีข้อมูล"
+        "unavailable": "ไม่มีข้อมูล",
+        "cost": "ค่าใช้จ่าย",
+        "estimated": "โดยประมาณ"
       },
       "attachedNotesTitle": "โน้ตที่นำเข้าแชทนี้แล้ว",
       "removeNoteContext": "ลบบริบท: {title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "ผ่าน Ollama Cloud",
       "modelRemovedBanner": "โมเดลของแชตนี้ไม่มีใน {connection} แล้ว",
       "modelRemovedChoose": "เลือกโมเดล",
+      "connectionRemovedBanner": "การเชื่อมต่อที่แชทนี้ใช้ถูกลบแล้ว",
+      "modelRetiredBanner": "{model} ยุติการให้บริการแล้ว",
+      "modelRetiredSwitchTo": "เปลี่ยนเป็น {model}",
+      "lastUsedModelRetiredHint": "โมเดลที่ใช้ล่าสุดยุติการให้บริการแล้ว ตอนนี้ใช้ {model}",
       "copyFailed": "คัดลอกไม่สำเร็จ",
+      "activityMcpTool": "กำลังใช้ {server} · {tool}",
       "contextCompaction": {
         "summaryLine1": "{count, plural, other {ย่อข้อความก่อนหน้า {count} ข้อความแล้ว · {before} → {after} โทเค็น}}",
         "summaryLine2": "โดย {model} · ดูสรุป",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "คำขอนี้ยังเกินเกณฑ์ขึ้นราคา {line} ของ {model} ด้วย จึงคิดราคาบริบทยาวกับทั้งคำขอ",
         "confirmDontAsk": "ไม่ต้องถามอีกในแชทนี้",
         "confirmSend": "ส่งเลย"
-      },
-      "connectionRemovedBanner": "การเชื่อมต่อที่แชทนี้ใช้ถูกลบแล้ว",
-      "modelRetiredBanner": "{model} ยุติการให้บริการแล้ว",
-      "modelRetiredSwitchTo": "เปลี่ยนเป็น {model}",
-      "lastUsedModelRetiredHint": "โมเดลที่ใช้ล่าสุดยุติการให้บริการแล้ว ตอนนี้ใช้ {model}"
+      }
     },
     "providerSetup": {
       "title": "เพิ่มผู้ให้บริการ",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "เปลี่ยนไปใช้คีย์ API",
         "disabledFallback": "การเข้าสู่ระบบด้วยการสมัครสมาชิก ChatGPT ใช้ไม่ได้ในขณะนี้ คุณสามารถเปลี่ยนไปใช้คีย์ API หรือลบการเชื่อมต่อนี้ได้"
       },
-      "subscription": "การสมัครสมาชิก",
-      "tokenPrices": {
-        "input": "อินพุต {count}",
-        "cacheRead": "อ่านแคช {count}",
-        "cacheWrite": "เขียนแคช {count}",
-        "output": "เอาต์พุต {count}",
-        "unit": "โทเคน"
-      }
+      "subscription": "การสมัครสมาชิก"
     },
     "providers": {
       "title": "ผู้ให้บริการ",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "เข้า",
       "privacyPolicy": "นโยบายความเป็นส่วนตัว",
-      "sourceCode": "ซอร์สโค้ด",
       "aiSection": "AI",
       "skills": "ทักษะ",
       "backupImportExport": "สำรองข้อมูลและนำเข้า/ส่งออก",
-      "reportIssue": "รายงานปัญหา",
-      "documentation": "เอกสาร",
       "aboutTagline": "ทุกรุ่นของคุณ แอปเดียว",
       "context": {
         "title": "บริบท",
@@ -1781,7 +1771,7 @@
       "editorCategory": "หมวดหมู่",
       "editorTooLong": "สูงสุด 2,000 ตัวอักษร",
       "deleteConfirmTitle": "ลบความจำนี้ไหม",
-      "deleteConfirmBody": "จะถูกลบออกจากเครื่องนี้อย่างถาวร",
+      "deleteConfirmBody": "จะถูกลบออกจากทุกเครื่องของคุณ",
       "actionOrganize": "แยกเป็นรายการ",
       "rawView": "ข้อความธรรมดา",
       "rawViewHint": "คั่นแต่ละรายการด้วยบรรทัดที่มีแค่ ---",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "ข้อผิดพลาดของผู้ให้บริการ",
       "message": "ผู้ให้บริการส่งคืนข้อผิดพลาดสำหรับคำขอนี้ โปรดลองอีกครั้งหรือเปลี่ยนรุ่น"
+    },
+    "emptyReply": {
+      "title": "การตอบกลับของผู้ให้บริการว่างเปล่า",
+      "message": "ผู้ให้บริการไม่ได้ส่งคืนเนื้อหาผู้ช่วยสำหรับข้อความนี้"
     },
     "moderationBlocked": {
       "title": "เนื้อหาถูกบล็อก",
@@ -2060,14 +2054,11 @@
     "title": "ทักษะ",
     "mySkills": "ทักษะของฉัน",
     "builtinSkills": "ทักษะในตัว",
-    "pinned": "ปักหมุดแล้ว",
     "newSkill": "ทักษะใหม่",
     "editSkill": "แก้ไขทักษะ",
     "deleteSkill": "ลบทักษะ",
     "forkSkill": "คัดลอกเป็นทักษะของฉัน",
-    "useSkill": "ใช้",
-    "pinToHome": "ปักหมุดไปที่หน้าแรก",
-    "unpinFromHome": "เลิกปักหมุดจากหน้าแรก",
+    "useSkill": "ใช้ทักษะนี้",
     "instructions": "พรอมต์",
     "instructionsPlaceholder": "เช่น คุณเป็นผู้ตรวจสอบโค้ดอาวุโส ตรวจสอบโค้ดเพื่อความปลอดภัย ประสิทธิภาพ และความสามารถในการอ่าน ตอบกลับเป็นภาษาของผู้ใช้",
     "starterMessages": "ผู้เริ่มการสนทนา",
@@ -2076,7 +2067,7 @@
     "referenceFiles": "เอกสารอ้างอิง",
     "tipInstructions": "เขียนคำแนะนำที่กำหนดลักษณะการทำงานของ AI เช่น บุคลิกภาพ ความเชี่ยวชาญ และรูปแบบการตอบสนอง มีเพียง AI เท่านั้นที่เห็นสิ่งนี้ ผู้ใช้จะไม่เห็น",
     "knowledgeSectionTitle": "ความรู้",
-    "tipReferenceFiles": "AI จะอ่านไฟล์เหล่านี้ทั้งหมดทุกครั้งที่ตอบ — เหมือนโน้ตที่เปิดทิ้งไว้บนโต๊ะตลอดเวลา เหมาะสำหรับเอกสารสั้นและสำคัญ (คู่มือสไตล์ อภิธานศัพท์ กฎหลัก) ไฟล์ที่ใหญ่ขึ้นจะเพิ่มค่าใช้จ่ายต่อการตอบแต่ละครั้ง",
+    "tipReferenceFiles": "AI จะอ่านไฟล์เหล่านี้ทั้งหมดทุกครั้งที่ตอบ เหมือนบันทึกที่เปิดไว้บนโต๊ะเสมอ เหมาะสำหรับเอกสารสั้นที่สำคัญ (คู่มือสไตล์ อภิธานศัพท์ กฎหลัก) ไฟล์ขนาดใหญ่จะเพิ่มต้นทุนการตอบ",
     "noReferenceFiles": "ยังไม่มีเอกสารอ้างอิง",
     "addFile": "เพิ่มไฟล์",
     "filesQuota": "{count} / {max}",
@@ -2103,7 +2094,7 @@
     "fileReadError": "ไม่สามารถอ่านไฟล์ได้",
     "knowledgeBaseFiles": "ไฟล์ฐานความรู้",
     "tipKnowledgeBaseFiles": "AI จะค้นหาในไฟล์เหล่านี้และอ่านเฉพาะส่วนที่เกี่ยวข้องกับคำถามของคุณ — เหมือนการเปิดหาข้อมูลในหนังสือแทนที่จะอ่านทั้งเล่ม เหมาะสำหรับเอกสารยาวหรือหลายไฟล์ ต้องใช้ OpenAI API Key",
-    "knowledgeReadyHint": "ไฟล์ที่เพิ่งอัปโหลดอาจใช้เวลาสักครู่ในการจัดทำดัชนีก่อนจึงจะนำไปใช้ในการสนทนาได้ เนื้อหาที่จัดทำดัชนีแล้วจะถูกแทรกเฉพาะเมื่อเกี่ยวข้องกับข้อความปัจจุบันเท่านั้น",
+    "knowledgeReadyHint": "ไฟล์ที่เพิ่งอัปโหลดอาจใช้เวลาสองสามนาทีในการทำดัชนีก่อนใช้ในการสนทนาได้ เนื้อหาที่ทำดัชนีแล้วจะถูกแทรกเฉพาะเมื่อเกี่ยวข้องกับข้อความปัจจุบัน",
     "knowledgeCtaOpenAIRequired": "ฐานความรู้ทักษะต้องใช้คีย์ OpenAI อย่างเป็นทางการ คุณยังคงสามารถบันทึกทักษะได้ แต่คุณไม่สามารถเพิ่มไฟล์ฐานความรู้ได้",
     "knowledgeCtaOpenRouterOnly": "เราตรวจพบว่าคุณกำลังใช้ OpenRouter Skill Knowledge Base รองรับเฉพาะ OpenAI API อย่างเป็นทางการเท่านั้น ไม่ใช่ OpenRouter",
     "knowledgeCtaEndpointNotOfficial": "การกำหนดค่า OpenAI ของคุณไม่ได้ใช้ตำแหน่งข้อมูลอย่างเป็นทางการ ดังนั้นจึงไม่มีฐานความรู้ด้านทักษะ โปรดเปลี่ยนไปใช้ตำแหน่งข้อมูล OpenAI อย่างเป็นทางการ",
@@ -2117,7 +2108,7 @@
     "knowledgeCtaSecondaryLater": "ไม่ใช่ตอนนี้",
     "knowledgeCtaSecondaryContinue": "แก้ไขทักษะต่อไป",
     "knowledgeEmptyHint": "ยังไม่มีไฟล์ฐานความรู้",
-    "knowledgeRetryUnavailable": "การลองอีกครั้งใช้ได้กับไฟล์ที่เพิ่มในเซสชันการแก้ไขนี้เท่านั้น",
+    "knowledgeRetryUnavailable": "ไม่สามารถลองใหม่สำหรับไฟล์นี้บนอุปกรณ์นี้",
     "replaceKnowledgeFile": "แทนที่",
     "retryKnowledgeFile": "ลองอีกครั้ง",
     "deleteKnowledgeFile": "ลบ",
@@ -2125,7 +2116,7 @@
     "referenceFileChars": "{count} อักขระ",
     "knowledgeStatusExtracting": "กำลังแยกข้อความ",
     "knowledgeStatusUploading": "กำลังอัปโหลด",
-    "knowledgeStatusIndexing": "กำลังจัดทำดัชนี",
+    "knowledgeStatusIndexing": "กำลังทำดัชนี",
     "knowledgeStatusReady": "ใช้งานได้",
     "knowledgeStatusFailed": "ล้มเหลว",
     "knowledgeStatusReplacing": "กำลังแทนที่",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "ฐานความรู้ต้องการคีย์ OpenAI API อย่างเป็นทางการ",
     "openai_endpoint_not_official": "ฐานความรู้ใช้งานได้กับตำแหน่งข้อมูล OpenAI อย่างเป็นทางการเท่านั้น",
     "retrieval_model_not_enabled": "เพิ่มและเปิดใช้งาน {model} ในผู้ให้บริการ OpenAI ของคุณก่อน",
-    "knowledge_service_unavailable": "Knowledge Base is temporarily unavailable. คุณยังคงสามารถแก้ไขและบันทึกทักษะนี้ได้",
+    "knowledge_service_unavailable": "ฐานความรู้ไม่พร้อมใช้งานในขณะนี้",
     "unsupported_file_type": "ไฟล์ประเภทนี้ไม่รองรับฐานความรู้",
     "reference_file_too_large": "ไฟล์อ้างอิงต้องมีขนาด 3 MB หรือเล็กกว่า",
     "knowledge_file_too_large": "ไฟล์ฐานความรู้ต้องมีขนาด 20 MB หรือเล็กกว่า",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "เพิ่มผู้ให้บริการเพื่อใช้ทักษะนี้",
     "providerRequiredMessage": "ทักษะนี้ต้องมีผู้ให้บริการ AI ที่พร้อมใช้งานก่อนเริ่มการสนทนา",
     "providerRequiredAction": "เพิ่มผู้ให้บริการ",
-    "promptCancel": "ไว้ภายหลัง"
+    "promptCancel": "ไว้ภายหลัง",
+    "home": {
+      "autoCount": "อัตโนมัติ · {count}",
+      "slashHint": "พิมพ์ / เพื่อใช้",
+      "empty": "บันทึกวิธีทำแบบที่คุณชอบ",
+      "notesRecent": "แก้ไขล่าสุด"
+    },
+    "list": {
+      "subtitle": "บันทึกวิธีทำงานที่คุณชอบไว้ แล้ว AI จะนำไปใช้เมื่อเหมาะสม"
+    },
+    "create": {
+      "describePlaceholder": "อธิบายวิธีทำ แล้ว AI จะเขียนเป็นทักษะให้",
+      "fromChat": "จากแชท",
+      "manual": "สร้างเอง"
+    },
+    "segment": {
+      "mine": "ของฉัน",
+      "templates": "เทมเพลต"
+    },
+    "group": {
+      "auto": "อัตโนมัติ",
+      "manual": "เรียกใช้เองเท่านั้น"
+    },
+    "card": {
+      "usageCount": "ใช้แล้ว: {count}"
+    },
+    "row": {
+      "slashHint": "ใช้เมื่อคุณพิมพ์ {slash}"
+    },
+    "auto": {
+      "needWhenTitle": "บอกก่อนว่าจะใช้เมื่อใด",
+      "suggest": "ให้ AI แนะนำ",
+      "limitReached": "การใช้อัตโนมัติถึงขีดจำกัดแล้ว ({count}) ปิดสักหนึ่งทักษะก่อน"
+    },
+    "search": {
+      "placeholder": "ค้นหาทักษะ"
+    },
+    "empty": {
+      "title": "ยังไม่มีทักษะ",
+      "body": "บันทึกวิธีทำที่ใช้บ่อยไว้ จะได้ไม่ต้องอธิบายใหม่ทุกครั้ง",
+      "browseTemplates": "ดูเทมเพลต"
+    },
+    "migrate": {
+      "banner": "ทักษะที่ยังไม่มี “ใช้เมื่อใด”: {count} เพิ่มอีกหนึ่งประโยคเพื่อให้ใช้อัตโนมัติได้",
+      "review": "เติมทีละรายการ"
+    },
+    "templates": {
+      "note": "เทมเพลตจะถูกใช้อัตโนมัติก็ต่อเมื่อเพิ่มไปที่ “ของฉัน” แล้ว",
+      "featured": "แนะนำ",
+      "addToMine": "เพิ่มไปที่ของฉัน",
+      "add": "เพิ่ม",
+      "added": "เพิ่มแล้ว",
+      "tryOnce": "ลองใช้ครั้งเดียว"
+    },
+    "detail": {
+      "useInNewChat": "ใช้ในแชทใหม่",
+      "orSlash": "หรือพิมพ์ {slash} ในช่องข้อความ",
+      "usage": "ใช้แล้ว: {count} · ใช้ล่าสุด {time}",
+      "neverUsed": "ยังไม่เคยใช้",
+      "autoInvoke": "ใช้อัตโนมัติ",
+      "whenToUse": "ใช้เมื่อใด",
+      "whenToUseNote": "AI ใช้ข้อนี้ในการตัดสินใจ",
+      "instructions": "วิธีทำ",
+      "showAll": "แสดงทั้งหมด",
+      "references": "เอกสารอ้างอิง",
+      "starters": "ข้อความเริ่มต้น",
+      "recentChats": "แชทล่าสุด",
+      "try": "ลองใช้"
+    },
+    "edit": {
+      "changeIcon": "เปลี่ยนไอคอน",
+      "name": "ชื่อ",
+      "whenBadge": "มีผลต่อการใช้อัตโนมัติ",
+      "whenPlaceholder": "เช่น เมื่อฉันขอให้สรุปโน้ตเป็นรายงานประจำสัปดาห์ ไม่ใช้กับรายงานประจำวัน",
+      "keywordsCaption": "เรียกใช้เมื่อเจอคำเหล่านี้ · แค่อธิบายสถานการณ์ก็พอ",
+      "whenTip": "เขียนให้ชัดว่าทำอะไร ใช้เมื่อไร และปกติคุณพูดว่าอย่างไร เพิ่ม “ไม่ใช้กับ …” เพื่อลดการเรียกใช้ผิด คำในเครื่องหมายคำพูดจะถูกไฮไลต์",
+      "polish": "ให้ AI ขัดเกลา",
+      "addStarter": "เพิ่มข้อความเริ่มต้น",
+      "modelAndFeatures": "โมเดลและฟีเจอร์",
+      "followChat": "ตามแชท",
+      "needWhenForAuto": "กรอก “ใช้เมื่อใด” หรือปิดการใช้อัตโนมัติ"
+    },
+    "draft": {
+      "askScenarios": "ยกตัวอย่างสถานการณ์ที่คุณจะใช้สักหนึ่งหรือสองอย่าง",
+      "askQuality": "ผลลัพธ์แบบไหนถือว่าดี",
+      "skip": "ข้าม",
+      "generating": "กำลังเขียนฉบับร่าง…",
+      "title": "ฉบับร่าง",
+      "editFirst": "แก้ไขก่อน",
+      "suggestedIcon": "ไอคอนที่แนะนำ",
+      "failed": "สร้างฉบับร่างไม่เสร็จ เราเติมส่วนที่ใช้ได้ไว้ให้แล้ว"
+    },
+    "fromChat": {
+      "menuConversation": "บันทึกเป็นทักษะ",
+      "menuMessage": "บันทึกวิธีนี้เป็นทักษะ",
+      "messages": "ข้อความ: {count}",
+      "extracting": "กำลังสรุป…"
+    },
+    "limit": {
+      "upgrade": "อัปเกรดเพื่อสร้างเพิ่ม",
+      "draftKept": "ฉบับร่างยังเก็บไว้ในเครื่องนี้"
+    },
+    "composer": {
+      "placeholder": "พิมพ์ / เพื่อใช้ทักษะ"
+    },
+    "picker": {
+      "title": "ทักษะของฉัน",
+      "multi": "เลือกได้หลายรายการ",
+      "auto": "อัตโนมัติ",
+      "manual": "เรียกใช้เอง",
+      "manage": "จัดการทักษะ",
+      "maxReached": "ใช้พร้อมกันได้สูงสุด {count} ทักษะ"
+    },
+    "chip": {
+      "deleted": "ถูกลบแล้ว"
+    },
+    "message": {
+      "attached": "ใช้ {names}"
+    },
+    "used": {
+      "chip": "ใช้: {names}",
+      "loading": "กำลังใช้ {names}…",
+      "byChoice": "ใช้เพราะคุณเลือกไว้",
+      "why": "เหตุผลที่ใช้",
+      "disableHere": "ไม่ใช้อัตโนมัติในแชทนี้",
+      "view": "ดูทักษะ"
+    },
+    "settings": {
+      "autoToggle": "ใช้ทักษะอัตโนมัติ",
+      "autoToggleFooter": "เมื่อปิด โมเดลจะไม่เลือกทักษะเอง แต่คุณยังพิมพ์ / เพื่อเลือกใช้ได้"
+    },
+    "try": {
+      "banner": "กำลังทดลอง · ไม่บันทึกในประวัติ",
+      "saveToSkill": "บันทึกลงในทักษะ",
+      "adjust": "ปรับวิธีทำ",
+      "saved": "บันทึกลงใน “{name}” แล้ว",
+      "savedToDraft": "คัดลอกไปที่หน้าแก้ไขแล้ว บันทึกที่นั่นเพื่อเก็บไว้"
+    },
+    "improve": {
+      "prompt": "เพิ่มข้อนี้ลงใน “{name}” ไหม",
+      "review": "ดูการเปลี่ยนแปลง",
+      "accept": "เพิ่มลงในทักษะ",
+      "dismiss": "ไว้ทีหลัง",
+      "addedLine": "เพิ่มใหม่",
+      "removedLine": "ลบออก",
+      "saved": "เพิ่มลงใน “{name}” แล้ว"
+    },
+    "usage": {
+      "manifestRow": "โทเค็นส่วนเพิ่มจากรายการทักษะ"
+    },
+    "glyph": {
+      "writing": "การเขียน",
+      "report": "รายงาน",
+      "code": "โค้ด",
+      "study": "การเรียน",
+      "travel": "การเดินทาง",
+      "health": "สุขภาพ",
+      "meeting": "การประชุม",
+      "idea": "ไอเดีย",
+      "translate": "การแปล",
+      "email": "อีเมล",
+      "data": "ข้อมูล",
+      "design": "การออกแบบ",
+      "legal": "กฎหมาย",
+      "finance": "การเงิน",
+      "marketing": "การตลาด",
+      "support": "บริการลูกค้า",
+      "teaching": "การสอน",
+      "research": "การวิจัย",
+      "life": "ชีวิตประจำวัน",
+      "food": "อาหาร",
+      "music": "ดนตรี",
+      "photo": "การถ่ายภาพ",
+      "product": "ผลิตภัณฑ์",
+      "general": "ทั่วไป"
+    },
+    "capability": {
+      "title": "การตั้งค่าโมเดล",
+      "any": "ใดๆ",
+      "reasoning": "การใช้เหตุผล",
+      "vision": "วิสัยทัศน์",
+      "fast": "เร็ว",
+      "largeContext": "บริบทขนาดใหญ่"
+    },
+    "saveFailed": "ไม่สามารถบันทึกการเปลี่ยนแปลงได้ โปรดลองอีกครั้ง"
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2636,8 +2811,7 @@
       "stepLimit": "เอกสารที่เลือกมีจำนวนมากเกินไปหรือยาวเกินไปสำหรับการค้นคว้าครั้งเดียว โปรดยกเลิกการเลือกบางรายการแล้วลองอีกครั้ง",
       "notConnected": "เชื่อมต่อแหล่งคลังข้อมูลก่อนเริ่มค้นคว้า",
       "sourceForbidden": "แหล่งข้อมูลปฏิเสธการเข้าถึงเนื่องจากข้อจำกัดด้านสิทธิ์หรือนโยบาย การเชื่อมต่อใหม่จะไม่ช่วยแก้ปัญหานี้ โปรดตรวจสอบการตั้งค่าการแชร์หรือการปฏิบัติตามข้อกำหนดที่ต้นทาง",
-      "unavailable": "คลังข้อมูลไม่พร้อมใช้งานชั่วคราว โปรดลองภายหลัง",
-      "retry": "ลองอีกครั้ง"
+      "unavailable": "คลังข้อมูลไม่พร้อมใช้งานชั่วคราว โปรดลองภายหลัง"
     }
   },
   "notes": {

@@ -30,6 +30,12 @@ class SkillEntityMapperTest {
             icon = "\uD83D\uDCBB",
             color = "#4A90D9",
             systemPrompt = "You are a code reviewer.",
+            whenToUse = "When I paste a diff",
+            autoInvoke = true,
+            iconKey = "glyph:code",
+            whenToUseTranslations = mapOf("en" to "When I paste a diff"),
+            previewUser = mapOf("en" to "Review this"),
+            previewAssistant = mapOf("en" to "Looks good"),
             suggestedProviderId = "provider-1",
             suggestedModelId = "claude-sonnet",
             modelCapabilityHint = "reasoning",
@@ -93,6 +99,12 @@ class SkillEntityMapperTest {
         assertEquals(original.icon, restored.icon)
         assertEquals(original.color, restored.color)
         assertEquals(original.systemPrompt, restored.systemPrompt)
+        assertEquals(original.whenToUse, restored.whenToUse)
+        assertEquals(original.autoInvoke, restored.autoInvoke)
+        assertEquals(original.iconKey, restored.iconKey)
+        assertEquals(original.whenToUseTranslations, restored.whenToUseTranslations)
+        assertEquals(original.previewUser, restored.previewUser)
+        assertEquals(original.previewAssistant, restored.previewAssistant)
         assertEquals(original.suggestedProviderId, restored.suggestedProviderId)
         assertEquals(original.suggestedModelId, restored.suggestedModelId)
         assertEquals(original.modelCapabilityHint, restored.modelCapabilityHint)

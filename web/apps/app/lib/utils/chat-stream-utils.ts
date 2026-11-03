@@ -309,6 +309,10 @@ export async function readStream(
           ...(event.streamErrorFrame ? { streamErrorFrame: true } : {}),
           ...(event.errorFields ? { errorFields: event.errorFields } : {}),
           ...(event.relayGuidance ? { relayGuidance: true } : {}),
+          ...(event.upstreamErrorType ? { upstreamErrorType: event.upstreamErrorType } : {}),
+          ...(event.networkDetail ? { networkDetail: event.networkDetail } : {}),
+          ...(event.relayGuidanceKey ? { relayGuidanceKey: event.relayGuidanceKey } : {}),
+          ...(event.relayGuidance ? { relayGuidance: true } : {}),
           ...(event.finish ? { finish: event.finish } : {}),
           ...(event.httpStatus !== undefined ? { httpStatus: event.httpStatus } : {}),
         } as ProviderError, providerErrorRawBodyOf(event));
@@ -370,6 +374,10 @@ export function mapErrorKindKey(kind: string | undefined): string {
     return k;
   }
   if (k === 'moderation') return 'moderationBlocked';
+  // Chat empty reply: errors.emptyResponse is model-catalog copy, so it gets its own key (same copy as iOS/Android "Empty Provider Response").
+  if (k === 'emptyResponse') return 'emptyReply';
+  // Free model temporarily unavailable (in-stream terminal frame / 42910 / code-less 429): reuses the title and body of "Free Model Unavailable".
+  if (k === 'freeModelBusy') return 'freeModelUnavailable';
   return 'upstream';
 }
 

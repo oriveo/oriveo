@@ -66,36 +66,13 @@ nonisolated enum SoftParagraphBreaks {
         return result
     }
 
-    /// Pins the first-strong direction (`ParagraphWritingDirection`) only on paragraphs that are about to be split,
-    /// so every chunk keeps the direction of the original paragraph instead of re-resolving it from its own first
-    /// character. Paragraphs that are not split stay `.natural`: TextKit's natural direction is the full UAX#9 P2/P3
-    /// (including skipping isolates), which is more accurate than a first-strong scan, so text of ordinary length
-    /// lays out exactly as it did before soft breaks existed.
-    static func pinDirectionOfOverlongParagraphs(
-        in string: NSMutableAttributedString,
-        maxParagraphUTF16: Int = maxParagraphUTF16
-    ) {
-        let text = string.string as NSString
-        guard text.length > maxParagraphUTF16 else { return }
-        var location = 0
-        while location < text.length {
-            var start = 0
-            var end = 0
-            var contentsEnd = 0
-            text.getParagraphStart(&start, end: &end, contentsEnd: &contentsEnd, for: NSRange(location: location, length: 0))
-            location = max(end, location + 1)
-            // Same measure as `NoteSoftParagraphBreaks.breakOffsets`: paragraph contents only, without the terminator.
-            guard contentsEnd - start > maxParagraphUTF16 else { continue }
-            let paragraph = NSRange(location: start, length: end - start)
-            guard let direction = ParagraphWritingDirection.firstStrongDirection(in: text.substring(with: paragraph)) else { continue }
-            string.enumerateAttribute(.paragraphStyle, in: paragraph, options: []) { value, range, _ in
-                let base = (value as? NSParagraphStyle) ?? .default
-                guard base.baseWritingDirection != direction,
-                      let mutable = base.mutableCopy() as? NSMutableParagraphStyle else { return }
-                mutable.baseWritingDirection = direction
-                string.addAttribute(.paragraphStyle, value: mutable, range: range)
-            }
-        }
+    /// Pins every paragraph's base writing direction to its first strong character (`ParagraphWritingDirection`),
+    /// so user content follows its own direction instead of the UI's (an English paragraph stays left-to-right
+    /// in an RTL interface). Run before `insertingBreaks`: the soft-broken chunks copy the attributes of the
+    /// paragraph they came from, so overlong paragraphs keep one direction instead of being re-judged per chunk.
+    /// Paragraphs without a strong character stay `.natural`. Linear: the scan stops at the first strong character.
+    static func pinParagraphDirections(in string: NSMutableAttributedString) {
+        ParagraphWritingDirection.applyParagraphDirections(to: string)
     }
 
     /// Display string → source.

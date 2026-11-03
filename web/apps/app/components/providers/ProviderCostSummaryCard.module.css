@@ -219,10 +219,10 @@
   height: 22px;
   flex-shrink: 0;
   border-radius: 7px;
-  /* No faux ring here: the plate stands out from the card through the surface-raised fill
-     difference alone. */
-  background: var(--o-surface-raised);
-  color: var(--o-primary);
+  /* Previously a ring faked with a transparent border plus a border-box gradient layer; the whole
+     setup is removed. The plate stands out from the card through its fill difference alone. */
+  background: var(--o-fill-muted);
+  color: var(--o-primary-text-on-surface);
   box-shadow: 0 0.5px 1px rgba(15, 23, 42, 0.04);
 }
 

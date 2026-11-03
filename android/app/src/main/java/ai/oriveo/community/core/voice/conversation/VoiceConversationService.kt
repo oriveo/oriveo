@@ -29,9 +29,11 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * Microphone-only foreground service for the voice conversation . It only holds the process in the
- * foreground; the conversation itself lives in [VoiceConversationController]. The notification's End action is
- * reported through [endRequests].
+ * Foreground service for the voice conversation (E-110). It only holds the process in the foreground; the
+ * conversation itself lives in [VoiceConversationController] / the realtime engine. A conversation with the
+ * microphone runs it as [Kind.Microphone]; a realtime session opened from typing (playback only) runs it as
+ * [Kind.MediaPlayback] and switches the same service to [Kind.Microphone] once capture is added. The notification's
+ * End action is reported through [endRequests].
  */
 class VoiceConversationService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
@@ -42,15 +44,12 @@ class VoiceConversationService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        val kind = intent?.getStringExtra(EXTRA_KIND)?.let { raw -> Kind.entries.firstOrNull { it.name == raw } }
+            ?: Kind.Microphone
         try {
             VoiceConversationNotifications.ensureChannel(this)
-            val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            } else {
-                0
-            }
-            ServiceCompat.startForeground(this, NOTIFICATION_ID, VoiceConversationNotifications.build(this), type)
-            stateFlow.value = State.Running
+            ServiceCompat.startForeground(this, NOTIFICATION_ID, VoiceConversationNotifications.build(this), kind.serviceType())
+            stateFlow.value = State.Running(kind)
         } catch (error: Exception) {
             // SecurityException (microphone type without while-in-use access) or
             // ForegroundServiceStartNotAllowedException: never enter the conversation.
@@ -61,19 +60,36 @@ class VoiceConversationService : Service() {
     }
 
     override fun onDestroy() {
-        if (stateFlow.value == State.Running) stateFlow.value = State.Stopped
+        if (stateFlow.value is State.Running) stateFlow.value = State.Stopped
         super.onDestroy()
+    }
+
+    /** What the foreground service is declared for: the conversation's microphone, or realtime playback only. */
+    enum class Kind {
+        Microphone,
+        MediaPlayback,
+        ;
+
+        internal fun serviceType(): Int = when (this) {
+            Microphone -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0
+            MediaPlayback -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+            } else {
+                0
+            }
+        }
     }
 
     sealed interface State {
         data object Stopped : State
-        data object Running : State
+        data class Running(val kind: Kind) : State
         data class Failed(val error: Exception) : State
     }
 
     companion object {
         const val ACTION_END = "ai.oriveo.community.action.END_VOICE_CONVERSATION"
         const val NOTIFICATION_ID = 0x766f6963
+        internal const val EXTRA_KIND = "ai.oriveo.community.extra.VOICE_SERVICE_KIND"
 
         private val stateFlow = MutableStateFlow<State>(State.Stopped)
         private val endRequestsFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -81,15 +97,18 @@ class VoiceConversationService : Service() {
         val state: StateFlow<State> = stateFlow.asStateFlow()
         val endRequests: Flow<Unit> = endRequestsFlow.asSharedFlow()
 
-        val isRunning: Boolean get() = stateFlow.value == State.Running
+        val isRunning: Boolean get() = stateFlow.value is State.Running
 
         fun stop(context: Context) {
             context.stopService(Intent(context, VoiceConversationService::class.java))
         }
 
-        /** Marks a new start attempt so a stale Failed / Running value from an earlier session isn't read. */
-        internal fun resetForStart() {
-            if (stateFlow.value !is State.Running) stateFlow.value = State.Stopped
+        /**
+         * Marks a new start attempt as [kind] so a stale Failed / Running value isn't read: a service already running
+         * as [kind] stays Running; one running as the other kind (playback → microphone) waits for the switch.
+         */
+        internal fun resetForStart(kind: Kind) {
+            if (stateFlow.value != State.Running(kind)) stateFlow.value = State.Stopped
         }
     }
 }
@@ -133,7 +152,10 @@ object VoiceConversationNotifications {
     }
 }
 
-/** Starts [VoiceConversationService] only while an Activity is visible and RECORD_AUDIO is granted . */
+/**
+ * Starts [VoiceConversationService] as a [VoiceConversationService.Kind] only while an Activity is visible (E-110);
+ * the microphone kind also needs RECORD_AUDIO. Starting the running service as the other kind switches its type.
+ */
 object VoiceConversationServiceStarter {
     sealed interface Result {
         data object Started : Result
@@ -144,23 +166,27 @@ object VoiceConversationServiceStarter {
         data class Rejected(val error: Exception) : Result
     }
 
-    fun start(activity: Activity): Result {
+    fun start(activity: Activity, kind: VoiceConversationService.Kind = VoiceConversationService.Kind.Microphone): Result {
         val visible = (activity as? LifecycleOwner)?.lifecycle?.currentState?.isAtLeast(Lifecycle.State.STARTED)
             ?: !activity.isFinishing
         if (!visible) return Result.NotVisible
-        if (ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) !=
+        if (kind == VoiceConversationService.Kind.Microphone &&
+            ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) !=
             PackageManager.PERMISSION_GRANTED
         ) {
             return Result.MissingPermission
         }
-        return launch(activity)
+        return launch(activity, kind)
     }
 
     /** The raw start, without the visibility gate (instrumentation exercises the background rejection with it). */
-    internal fun launch(context: Context): Result {
-        VoiceConversationService.resetForStart()
+    internal fun launch(context: Context, kind: VoiceConversationService.Kind = VoiceConversationService.Kind.Microphone): Result {
+        VoiceConversationService.resetForStart(kind)
         return try {
-            ContextCompat.startForegroundService(context, Intent(context, VoiceConversationService::class.java))
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, VoiceConversationService::class.java).putExtra(VoiceConversationService.EXTRA_KIND, kind.name),
+            )
             Result.Started
         } catch (error: SecurityException) {
             Result.Rejected(error)
@@ -176,6 +202,9 @@ interface VoiceConversationForeground {
     /** Suspends until the service runs in the foreground (true) or failed / timed out (false). */
     suspend fun awaitStarted(): Boolean
 
+    /** Same, for the service started as [kind] (a switch of kind waits for the new type); defaults to [awaitStarted]. */
+    suspend fun awaitStarted(kind: VoiceConversationService.Kind): Boolean = awaitStarted()
+
     /** Notification End taps. */
     val endRequests: Flow<Unit>
 
@@ -188,7 +217,14 @@ class ServiceConversationForeground(context: Context) : VoiceConversationForegro
     override suspend fun awaitStarted(): Boolean =
         withTimeoutOrNull(START_TIMEOUT_MS) {
             VoiceConversationService.state.first { it != VoiceConversationService.State.Stopped }
-        } == VoiceConversationService.State.Running
+        } is VoiceConversationService.State.Running
+
+    override suspend fun awaitStarted(kind: VoiceConversationService.Kind): Boolean =
+        withTimeoutOrNull(START_TIMEOUT_MS) {
+            VoiceConversationService.state.first {
+                it is VoiceConversationService.State.Failed || it == VoiceConversationService.State.Running(kind)
+            }
+        } == VoiceConversationService.State.Running(kind)
 
     override val endRequests: Flow<Unit> = VoiceConversationService.endRequests
 

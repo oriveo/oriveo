@@ -12,7 +12,13 @@ struct HomeVoiceBarDetachTests {
         for _ in 0..<30 { await Task.yield() }
     }
 
-    /// 200 ms of silence + 400 ms of speech + 600 ms of silence -> one complete utterance.
+    /// Passes the reply audio gate: from the decision point (silence start + vadEndSilenceMs) to silence start + replyAudioGateMs; replies queued before the gate are sent when it is reached.
+    private func passReplyGate(_ probe: SessionProbe) async {
+        probe.clock.advance(VoiceConversationLogic.Constants.replyAudioGateMs - VoiceConversationLogic.Constants.vadEndSilenceMs)
+        await settle()
+    }
+
+    /// 200 ms silence + 400 ms speech + 600 ms silence → one complete utterance.
     private func utterance(_ controller: VoiceConversationController) {
         var frame = 0
         for db in Array(repeating: -60.0, count: 10) + Array(repeating: -30.0, count: 20) + Array(repeating: -60.0, count: 30) {
@@ -62,6 +68,7 @@ struct HomeVoiceBarDetachTests {
         host.streaming[created] = "First sentence. Second"
         host.textSubject.send()
         await settle()
+        await passReplyGate(probe)
         #expect(controller.displayState == .speaking)
 
         // The still-mounted home bar: its state is frozen at the pre-handoff home state, and controller changes are no longer forwarded.
@@ -124,6 +131,7 @@ struct HomeVoiceBarDetachTests {
         host.streaming[created] = "First sentence. Second"
         host.textSubject.send()
         await settle()
+        await passReplyGate(probe)
         #expect(controller.displayState == .speaking)
 
         // The reply is written and played out, back to listening.

@@ -113,7 +113,7 @@ describe('ProviderListCard rendering', () => {
       fetchedAt: new Date(),
     }, 'en-US')).toEqual({
       label: 'balanceLabel',
-      text: '¥88.88',
+      text: 'CN¥88.88',
       isZero: false,
     });
     expect(resolveProviderListTrailingAmount('deepseek', 42, null, 'en-US')).toEqual({
@@ -154,6 +154,14 @@ describe('ProviderListCard rendering', () => {
     expect(resolveProviderListTrailingAmount('anthropic', 0, null, 'en-US')).toEqual({
       label: 'usageLabel',
       text: '$0',
+      isZero: true,
+    });
+  });
+
+  it('zero-value fallbacks follow the locale currency format (de shows 0 $, not $0)', () => {
+    expect(resolveProviderListTrailingAmount('anthropic', 0, null, 'de')).toEqual({
+      label: 'usageLabel',
+      text: '0\u00a0$',
       isZero: true,
     });
   });

@@ -14,6 +14,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -94,7 +98,10 @@ internal class RepositoryRealtimeTranscriptSink(
     private val writes = Channel<suspend () -> Unit>(Channel.UNLIMITED)
 
     // Ids of every message this sink queued, recorded before the write so a reader never sees one it misses.
-    private val written = LinkedHashSet<String>()
+    private val written = MutableStateFlow<Set<String>>(emptySet())
+
+    /** Ids of this session's own messages (each recorded before its write): the chat list's live-bubble handover. */
+    val callMessageIds: StateFlow<Set<String>> = written.asStateFlow()
 
     // Writes whose target lookup threw; only the write loop touches it.
     private val held = ArrayList<suspend (String) -> Unit>()
@@ -162,7 +169,7 @@ internal class RepositoryRealtimeTranscriptSink(
     }
 
     /** Ids of the messages queued so far (realtime-session.v1: the open session's own transcripts on a replan). */
-    fun writtenIds(): Set<String> = synchronized(written) { written.toSet() }
+    fun writtenIds(): Set<String> = written.value
 
     override fun appendUser(text: String) {
         val message = message(ChatRole.User, text)
@@ -257,7 +264,7 @@ internal class RepositoryRealtimeTranscriptSink(
         val createdAt = maxOf(now(), lastCreatedAt + 1)
         lastCreatedAt = createdAt
         val id = newId()
-        synchronized(written) { written += id }
+        written.update { it + id }
         return ChatMessage(
             id = id,
             role = role,

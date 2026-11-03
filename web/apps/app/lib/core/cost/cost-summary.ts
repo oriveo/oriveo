@@ -149,7 +149,12 @@ export function buildMonthlyCostSummary(
   };
 }
 
-/** Apply epsilon to a provider entry's totals: USD <= COST_EPSILON counts as 0, non-USD keeps only currencies > COST_EPSILON; null when neither part remains. */
+/** Provider entries whose USD part is 0 and that only have non-USD totals. */
+function isNonUsdOnlyEntry(entry: MonthlyCostProviderEntry): boolean {
+  return entry.cost <= COST_EPSILON && hasNonUsdCostTotals(entry.nonUsdTotals);
+}
+
+/** Epsilon check for provider entry totals: USD ≤ COST_EPSILON counts as 0, non-USD keeps only currencies > COST_EPSILON; null when neither part remains. */
 function settleProviderEntry(entry: MonthlyCostProviderEntry): MonthlyCostProviderEntry | null {
   const cost = entry.cost > COST_EPSILON ? entry.cost : 0;
   const nonUsdTotals = settleNonUsdCostTotals(entry.nonUsdTotals);
@@ -198,7 +203,8 @@ export function buildMonthlyCostByProvider(
  */
 export function isBilledMessage(message: ChatMessage): boolean {
   const usdSource = message.costSource ?? 'localEstimate';
-  const usdBilled = (usdSource === 'upstream' || usdSource === 'localEstimate')
+  // Hosted (managed) messages count only when they carry an amount above epsilon
+  const usdBilled = (usdSource === 'upstream' || usdSource === 'localEstimate' || usdSource === 'managed')
     && Number.isFinite(message.estimatedCost)
     && message.estimatedCost > COST_EPSILON;
   if (usdBilled) return true;

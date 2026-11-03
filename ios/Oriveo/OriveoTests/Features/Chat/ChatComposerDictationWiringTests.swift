@@ -40,9 +40,15 @@ struct ChatComposerDictationWiringTests {
         )
         #expect(hostType.contains("content.dictationHost("))
 
-        let wrapped = try #require(
+        let barWrapped = try #require(
             DictationHostSourceScan.wrappedSource(source, type: "ChatComposerBar", hostMarker: ".modifier(ChatComposerDictationHost(")
         )
+        // The input row is its own view struct; it is under the host only because the wrapped root instantiates it.
+        #expect(barWrapped.contains("ChatComposerInputRow("))
+        let inputRow = try #require(
+            DictationHostSourceScan.typeBody(source, type: "ChatComposerInputRow", keyword: "private struct")
+        )
+        let wrapped = barWrapped + String(inputRow)
         for target in ["DictationMicButton(", "DictationInputSwitcher(", "DictationPromptSlot("] {
             #expect(wrapped.contains(target), "the host does not wrap \(target)")
         }
@@ -58,7 +64,7 @@ struct ChatComposerDictationWiringTests {
     func promptSlotAboveCapabilityStrip() throws {
         let source = try composerBarSource()
         let slot = try #require(source.range(of: "DictationPromptSlot("))
-        let strip = try #require(source.range(of: "capabilityStrip\n                        .padding(.bottom, -4)"))
+        let strip = try #require(source.range(of: "ChatComposerCapabilityStrip("))
         #expect(slot.lowerBound < strip.lowerBound)
     }
 
@@ -70,11 +76,19 @@ struct ChatComposerDictationWiringTests {
     }
 
     @Test("the send key and the dictation host's onSend go through the same private send function")
+    func openVoiceSettingsRoute() throws {
+        let source = try composerBarSource()
+        #expect(source.contains("onOpenVoiceSettings: openDictationVoiceSettings"))
+        #expect(source.contains("private func openDictationVoiceSettings() {\n        navigation.attemptNavigate(to: .voiceSettings)"))
+    }
+
+    @Test("the send key and the dictation host's onSend go through the same private send function")
     func sendButtonAndDictationShareSubmit() throws {
         let source = try composerBarSource()
-        #expect(source.contains("private func submitComposer(text: String) {\n        onSend(text, pendingAttachments)"))
+        // The realtime typing state is routed to the realtime session first; everything else still goes through the same onSend
+        #expect(source.contains("private func submitComposer(text: String) {\n        if isRealtimeTyping {\n            submitRealtimeTyped(text: text)\n            return\n        }\n        onSend(text, pendingAttachments, pendingLibraryDocuments)"))
 
-        let sendButton = try #require(source.range(of: "systemImage: isVoice ? \"waveform\" : \"arrow.up\""))
+        let sendButton = try #require(source.range(of: ": (isVoice ? \"chat_voice_conversation_button\" : \"chat_send_button\")"))
         let buttonTail = source[sendButton.upperBound...]
         let buttonEnd = try #require(buttonTail.range(of: ".disabled(!isLit)"))
         #expect(buttonTail[..<buttonEnd.lowerBound].contains("submitComposer(text: composerText)"))
@@ -83,6 +97,46 @@ struct ChatComposerDictationWiringTests {
         let hostTail = source[host.upperBound...]
         let hostEnd = try #require(hostTail.range(of: "\n        ))"))
         #expect(hostTail[..<hostEnd.lowerBound].contains("onSend: { text in submitComposer(text: text) }"))
+    }
+
+    @Test("Live text: the host hands the selection exit and draft binding to the dictation host")
+    func liveTextWiredThroughProbe() throws {
+        let source = try composerBarSource()
+        let host = try #require(source.range(of: ".modifier(ChatComposerDictationHost("))
+        let hostTail = source[host.upperBound...]
+        let hostEnd = try #require(hostTail.range(of: "\n        ))"))
+        #expect(hostTail[..<hostEnd.lowerBound].contains("live: .probe(dictationProbe, text: $composerText)"))
+
+        let hostType = try #require(
+            DictationHostSourceScan.typeBody(source, type: "ChatComposerDictationHost", keyword: "private struct")
+        )
+        #expect(hostType.contains("live: live"))
+    }
+
+    @Test("While the voice stage is shown the managed quota row is absent from the view tree: both buttons sit 20 + safe area from the bottom, same as Android")
+    func managedQuotaFooterHiddenDuringVoiceStage() throws {
+        let source = try composerBarSource()
+        let declaration = try #require(source.range(of: "private var managedQuotaFooter: some View {"))
+        let tail = source[declaration.upperBound...]
+        let end = try #require(tail.range(of: "\n    }\n"))
+        let body = tail[..<end.lowerBound]
+        #expect(body.contains("!showsVoiceStage"))
+        #expect(source.contains("var showsVoiceStage: Bool"))
+    }
+
+    @Test("While recording or transcribing, the input field does not show the attachment \"+\"; in the normal state the attachment entry is shown")
+    func attachmentEntryHiddenWhileDictating() throws {
+        #expect(ChatComposerBar.showsAttachmentEntry(supportsEntry: true, phase: .normal))
+        #expect(!ChatComposerBar.showsAttachmentEntry(supportsEntry: true, phase: .recording))
+        #expect(!ChatComposerBar.showsAttachmentEntry(supportsEntry: true, phase: .busy))
+        #expect(!ChatComposerBar.showsAttachmentEntry(supportsEntry: false, phase: .normal))
+
+        let source = try composerBarSource()
+        let shell = try #require(source.range(of: "private func composerTextInputShell(phase: DictationInputPhase) -> some View {"))
+        let tail = source[shell.upperBound...]
+        let end = try #require(tail.range(of: "ComposerTextView("))
+        #expect(tail[..<end.lowerBound].contains("if showsAttachmentEntry {\n                attachmentEntryButton"))
+        #expect(tail[..<end.lowerBound].contains("let showsAttachmentEntry = ChatComposerBar.showsAttachmentEntry(supportsEntry: supportsAttachmentEntry, phase: phase)"))
     }
 
     private func composerBarSource() throws -> String {

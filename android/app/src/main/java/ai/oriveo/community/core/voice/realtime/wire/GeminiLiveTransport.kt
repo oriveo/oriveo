@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.voice.realtime.wire
 
 import ai.oriveo.community.core.data.repository.RealtimeTransportInput
+import ai.oriveo.community.core.voice.conversation.ConversationRoute
 import ai.oriveo.community.core.voice.realtime.RealtimeSessionEvent
 import ai.oriveo.community.core.voice.realtime.RealtimeTransportKind
 import java.io.IOException
@@ -36,8 +37,10 @@ internal data class GeminiLiveConfig(
     val model: String,
     val voice: String,
     val apiKey: String,
+    val language: String? = null,
 ) {
-    override fun toString(): String = "GeminiLiveConfig(host=$host, path=$path, model=$model, voice=$voice, apiKey=***)"
+    override fun toString(): String =
+        "GeminiLiveConfig(host=$host, path=$path, model=$model, voice=$voice, language=$language, apiKey=***)"
 }
 
 /** Minimal text socket; [receive] returning null or throwing means the connection is closed. */
@@ -71,9 +74,20 @@ internal fun interface GeminiLiveSocketFactory {
  * Opts out of coroutine stack-trace recovery, which would otherwise wrap a copy around it as cause.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-internal class GeminiLiveClosedException(message: String) :
+internal class GeminiLiveClosedException(
+    message: String,
+    override val httpStatus: Int? = null,
+    override val connectFailed: Boolean = false,
+    override val uplinkBacklogMs: Double? = null,
+) :
     IOException(message),
+    RealtimeFailureDetail,
     CopyableThrowable<GeminiLiveClosedException> {
+    /** Set by the transport when every handle reconnect after this error failed; the session then ends with it. */
+    @Volatile
+    override var reconnectsExhausted: Boolean = false
+        internal set
+
     override fun createCopy(): GeminiLiveClosedException? = null
 }
 
@@ -176,7 +190,7 @@ private class OkHttpGeminiLiveSocket : GeminiLiveSocket {
 
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
             // No cause and no URL: the URL carries the API key as ?key=.
-            opened.completeExceptionally(IOException("Gemini Live socket failed (${t::class.java.simpleName})"))
+            opened.completeExceptionally(RealtimeHandshakeException(response?.code, t::class.java.simpleName))
             incoming.close()
         }
     }
@@ -193,6 +207,8 @@ internal class GeminiLiveTransport(
     private val resumeHandle: String? = null,
     internal val socketFactory: GeminiLiveSocketFactory = OkHttpGeminiLiveSocketFactory,
     private val wait: suspend (Long) -> Unit = { delay(it) },
+    /** Target output route, sampled on every connect (first open, switch, reconnect). */
+    private val route: () -> ConversationRoute = { ConversationRoute.SPEAKER },
 ) : RealtimeTransport {
 
     override val kind: RealtimeTransportKind = RealtimeTransportKind.GeminiLive
@@ -212,6 +228,12 @@ internal class GeminiLiveTransport(
 
     /** Audio waiting for a ready connection (before the first ready and while switching), newest kept. */
     private val pending = PendingAudio()
+
+    /** Typed messages waiting for a ready connection (also before collection starts), in call order. */
+    private val pendingText = PendingText()
+
+    /** Latest route reported by [updateOutputRoute]; null = sample [route]. Read on the next connect only. */
+    @Volatile private var latestRoute: ConversationRoute? = null
 
     override fun openRealtimeSession(transport: RealtimeTransportInput): Flow<RealtimeSessionEvent> = channelFlow {
         if (closed) return@channelFlow
@@ -240,11 +262,33 @@ internal class GeminiLiveTransport(
         if (signals == null || !signals.trySend(Signal.Audio(base64)).isSuccess) pending.add(base64)
     }
 
+    /** A typed user message as one complete clientContent turn; held until a connection is ready. */
+    fun sendUserText(text: String) {
+        if (closed) return
+        val signals = current.get()
+        if (signals == null || !signals.trySend(Signal.Text(text)).isSuccess) pendingText.add(text)
+    }
+
+    /** Recorded only: setup is sent once per connection, so the next connect (switch / reconnect) uses [route]. */
+    fun updateOutputRoute(route: ConversationRoute) {
+        latestRoute = route
+    }
+
     /** Sticky: closes the socket and completes the flow normally without emitting an event; later opens end at once. */
     fun close() {
         closed = true
         hostClosed.complete(Unit)
         current.get()?.trySend(Signal.HostClose)
+    }
+
+    private class PendingText {
+        private val texts = ArrayDeque<String>()
+
+        fun add(text: String) = synchronized(this) { texts.addLast(text) }
+
+        fun prepend(items: List<String>) = synchronized(this) { items.asReversed().forEach(texts::addFirst) }
+
+        fun drain(): List<String> = synchronized(this) { texts.toList().also { texts.clear() } }
     }
 
     /** Ordered base64 chunks capped at [MAX_PENDING_AUDIO_CHARS] total characters, dropping the oldest. */
@@ -286,6 +330,8 @@ internal class GeminiLiveTransport(
         class Deadline(val connection: Connection) : Signal
 
         class Audio(val base64: String) : Signal
+
+        class Text(val text: String) : Signal
 
         data object HostClose : Signal
     }
@@ -333,6 +379,7 @@ internal class GeminiLiveTransport(
                         is Signal.Closed -> signal.connection === connection && onClosed(signal.error, signal.code)
                         is Signal.Deadline -> signal.connection === connection && goAwayPending && switchNow()
                         is Signal.Audio -> onAudio(signal.base64)
+                        is Signal.Text -> onText(signal.text)
                         Signal.HostClose -> true
                     }
                     if (finished) return
@@ -345,13 +392,20 @@ internal class GeminiLiveTransport(
 
         private suspend fun connect(handle: String?, isSwitch: Boolean): Connection {
             val url = GeminiLiveWire.authenticatedUrl(config.host, config.path, config.apiKey)
-            val opening = GeminiLiveWire.openingMessages(input.instructions, input.history, config.model, config.voice, handle)
+            val opening = GeminiLiveWire.openingMessages(
+                input.instructions, input.history, config.model, config.voice, handle, latestRoute ?: route(),
+                language = config.language,
+            )
             val socket = try {
                 socketFactory.connect(url)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                throw GeminiLiveClosedException(failure(if (isSwitch) "resumed connection failed to open" else "connection failed to open", e))
+                throw GeminiLiveClosedException(
+                    failure(if (isSwitch) "resumed connection failed to open" else "connection failed to open", e),
+                    httpStatus = (e as? RealtimeHandshakeException)?.httpStatus,
+                    connectFailed = true,
+                )
             }
             val opened = Connection(socket, isSwitch, opening.afterReady)
             try {
@@ -426,6 +480,17 @@ internal class GeminiLiveTransport(
                                 return reconnect()
                             }
                         }
+                        val texts = pendingText.drain()
+                        for ((index, text) in texts.withIndex()) {
+                            try {
+                                send(target, GeminiLiveWire.userTextMessage(text).toString())
+                            } catch (e: GeminiLiveClosedException) {
+                                if (lastResumeHandle == null) throw flushedBeforeEnd(e)
+                                pendingText.prepend(texts.subList(index, texts.size))
+                                reconnectError = e
+                                return reconnect()
+                            }
+                        }
                     }
                     is RealtimeSessionEvent.Resumable -> {
                         lastResumeHandle = event.handle
@@ -487,7 +552,10 @@ internal class GeminiLiveTransport(
         private suspend fun reconnect(): Boolean {
             val original = checkNotNull(reconnectError)
             val handle = lastResumeHandle ?: throw original
-            if (reconnectAttempts >= RECONNECT_BACKOFF_MS.size) throw original
+            if (reconnectAttempts >= RECONNECT_BACKOFF_MS.size) {
+                original.reconnectsExhausted = true
+                throw original
+            }
             val backoff = RECONNECT_BACKOFF_MS[reconnectAttempts]
             reconnectAttempts++
             flushPendingUser()
@@ -594,11 +662,11 @@ internal class GeminiLiveTransport(
                 return reconnect()
             }
             target.recentAudio.add(base64)
-            if (!uplinkStalled(target, base64.length, message.length)) return false
+            val backlogMs = uplinkStalled(target, base64.length, message.length) ?: return false
             // Contract E: a backlog over 8 s of audio means the connection is stuck; treat it as an unexpected
             // close. Queued frames die with the socket, so the newest ~5 s handed to it (the pending cap) are kept for the resume.
             target.stalled = true
-            val stalled = GeminiLiveClosedException(failure("uplink stalled", null))
+            val stalled = GeminiLiveClosedException(failure("uplink stalled", null), uplinkBacklogMs = backlogMs)
             if (endOnClose) return endGoAway()
             // Without a handle it ends with the error; run() then drops the socket.
             if (lastResumeHandle == null) throw flushedBeforeEnd(stalled)
@@ -607,15 +675,35 @@ internal class GeminiLiveTransport(
             return reconnect()
         }
 
+        /** Same send-failure rule as [onAudio]: with a handle the text waits for the resumed connection. */
+        private suspend fun onText(text: String): Boolean {
+            if (buffering) {
+                pendingText.add(text)
+                return false
+            }
+            try {
+                send(connection, GeminiLiveWire.userTextMessage(text).toString())
+            } catch (e: GeminiLiveClosedException) {
+                if (endOnClose) return endGoAway()
+                if (lastResumeHandle == null) throw flushedBeforeEnd(e)
+                pendingText.add(text)
+                reconnectError = e
+                return reconnect()
+            }
+            return false
+        }
+
         /**
          * Estimates the audio bytes still queued on [target] from its byte backlog, scaled by this frame's
-         * base64-to-message ratio (base64 is 4/3 of the PCM bytes); true when it exceeds [STALL_AUDIO_BYTES].
+         * base64-to-message ratio (base64 is 4/3 of the PCM bytes); its duration in ms when it exceeds
+         * [STALL_AUDIO_BYTES], null otherwise.
          */
-        private fun uplinkStalled(target: Connection, base64Chars: Int, messageChars: Int): Boolean {
+        private fun uplinkStalled(target: Connection, base64Chars: Int, messageChars: Int): Double? {
             val queued = target.socket.queueSize
-            if (queued <= 0L || messageChars <= 0) return false
+            if (queued <= 0L || messageChars <= 0) return null
             val audioBytes = queued * base64Chars / messageChars * 3 / 4
-            return audioBytes > STALL_AUDIO_BYTES
+            if (audioBytes <= STALL_AUDIO_BYTES) return null
+            return audioBytes * 1000.0 / (GeminiLiveWire.INPUT_SAMPLE_RATE_HZ * 2L)
         }
     }
 

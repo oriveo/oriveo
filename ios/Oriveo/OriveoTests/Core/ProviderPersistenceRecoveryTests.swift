@@ -7,15 +7,10 @@ struct ProviderPersistenceRecoveryTests {
 
     @Test("loadSession clears leftover persisted syncing provider state")
     @MainActor
-    func loadSessionRecoversPersistedSyncingProvider() {
+    func loadSessionRecoversPersistedSyncingProvider() async {
         let previousUID = AppSessionStore.activeUID
         let uid = "provider-persist-recovery-\(UUID().uuidString)"
 
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
 
         DatabaseManager.shared.close()
 
@@ -33,6 +28,10 @@ struct ProviderPersistenceRecoveryTests {
         DatabaseManager.shared.close()
 
         let recovered = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
 
         #expect(recovered.providers.count == 1)
         #expect(recovered.providers[0].status == .connected)

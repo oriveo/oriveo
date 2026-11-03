@@ -1,7 +1,9 @@
 package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RelayConnectionSecurityMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
@@ -33,6 +35,23 @@ data class RelayEndpointCandidate(
     val transport: RelayTransport,
     val evidence: RelayEndpointCandidateEvidence,
 )
+
+/**
+ * Carries the connection's Relay options (requested config, image config, effective route) on a one-shot
+ * side request (skill drafts, judge, memory drafts, compaction summary), so LocalHttp relays are honored.
+ * Non-Relay providers pass through unchanged.
+ */
+internal fun ChatRequestOptions.withRelayRoute(provider: Provider, model: AIModel?): ChatRequestOptions =
+    if (provider.kind != ProviderKind.Relay) {
+        this
+    } else {
+        copy(
+            relayRequested = provider.relayRequested,
+            relayImage = provider.relayImage,
+            relayRouteTransport = RelayEndpointResolver.effectiveTransport(provider, model),
+            relayRouteAPIRoot = RelayEndpointResolver.effectiveAPIRoot(provider, model),
+        )
+    }
 
 /** Structured Relay URL parsing shared by discovery and runtime routing. */
 object RelayEndpointResolver {

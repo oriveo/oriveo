@@ -111,6 +111,8 @@ sealed interface ModelOptionCapabilityShape {
         NeedsOwnConfiguration,
         NotAvailableYet,
         AlwaysOn,
+        /** The selected model is a realtime voice model: the row is a single "no web search / no thinking" line (the body is the status), no switch drawn. */
+        RealtimeUnavailable,
     }
     enum class NoticeBody {
         ReasoningNotCatalogued,
@@ -119,6 +121,8 @@ sealed interface ModelOptionCapabilityShape {
         WebNoGenericSwitch,
         CustomThinkingUseAdditionalBody,
         SubscriptionAlwaysSearches,
+        RealtimeNoWebSearch,
+        RealtimeNoThinking,
     }
     enum class Escape { SupportedModels, AdditionalBody, PickSearchSource, OneTapEnableSearch, AddSearchService }
 
@@ -169,6 +173,8 @@ sealed interface ModelOptionCapabilityShape {
         val relayWeb: RelayWeb? = null,
         /** The combined web card result (resolveWebSearchState); null means external search is not wired in and the shape is unchanged. */
         val webSearch: WebSearchState? = null,
+        /** The current model is a realtime voice model (RealtimeSelection.isRealtime): web search and thinking collapse into one unavailable line plus switch-model. */
+        val realtime: Boolean = false,
     )
 
     /**
@@ -191,6 +197,11 @@ sealed interface ModelOptionCapabilityShape {
         val TIER_ORDER: List<String> = listOf("low", "balanced", "deep", "max")
 
         fun resolve(input: Input): ModelOptionCapabilityShape {
+            // Realtime voice models neither search the web nor think: no greyed-out switch, only one explanatory line plus a switch-model exit.
+            if (input.realtime) {
+                val body = if (input.capability == Capability.Web) NoticeBody.RealtimeNoWebSearch else NoticeBody.RealtimeNoThinking
+                return Notice(NoticeStatus.RealtimeUnavailable, body, Escape.SupportedModels)
+            }
             val existing = resolveExisting(input)
             if (input.capability != Capability.Web) return existing
             val state = input.webSearch ?: return existing

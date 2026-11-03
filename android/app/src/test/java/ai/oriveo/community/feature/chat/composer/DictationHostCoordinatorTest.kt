@@ -7,7 +7,11 @@ import ai.oriveo.community.core.voice.DictationEngineInfo
 import ai.oriveo.community.core.voice.DictationEvent
 import ai.oriveo.community.core.voice.DictationState
 import ai.oriveo.community.core.voice.DictationSubmit
+import ai.oriveo.community.core.voice.LiveDictationRules
+import ai.oriveo.community.core.voice.LiveTranscript
 import ai.oriveo.community.core.voice.VoiceFallbackReason
+import androidx.compose.ui.text.TextRange
+import ai.oriveo.community.ui.component.ComposerSelectionProbe
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
@@ -15,6 +19,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.Locale
 
 /** Host coordinator event routing and card actions. */
 class DictationHostCoordinatorTest {
@@ -65,6 +70,10 @@ class DictationHostCoordinatorTest {
 
         override fun detach(slotKey: String, owner: Any) {
             calls += "detach:$slotKey"
+        }
+
+        override fun downloadLanguagePack(language: String) {
+            calls += "downloadLanguagePack:$language"
         }
     }
 
@@ -147,7 +156,6 @@ class DictationHostCoordinatorTest {
             DictationEvent.NoSpeech(host),
             DictationEvent.EngineFallback(host, VoiceFallbackReason.KeyMissing),
             DictationEvent.SystemUnavailable(host),
-            DictationEvent.SystemRecognizerFailed(host),
             DictationEvent.RecordingUnavailable(host),
         ).forEach(coordinator::onEvent)
         assertEquals(
@@ -161,13 +169,12 @@ class DictationHostCoordinatorTest {
                     actionLabel = R.string.voice_settings_action,
                     action = DictationToastAction.OpenVoiceSettings,
                 ),
-                DictationToastSpec(R.string.voice_dictation_recognizer_failed, GlobalToastStyle.Warning, 3_000L),
                 DictationToastSpec(R.string.voice_dictation_recording_unavailable, GlobalToastStyle.Error, 3_000L),
             ),
             actions.toasts.map { it.first },
         )
         // Only the system-unavailable toast carries a button callback.
-        assertEquals(listOf(false, false, true, false, false), actions.toasts.map { it.second != null })
+        assertEquals(listOf(false, false, true, false), actions.toasts.map { it.second != null })
         assertEquals(emptyList<String>(), actions.calls)
     }
 
@@ -182,6 +189,47 @@ class DictationHostCoordinatorTest {
         onAction!!.invoke()
         assertEquals(listOf("openVoiceSettings"), actions.calls)
         assertEquals(emptyList<String>(), commands.calls)
+    }
+
+    @Test
+    fun `language pack offer shows the prompt with a download button`() {
+        val coordinator = DictationHostCoordinator(host, commands, actions, uiLocale = { Locale.ENGLISH })
+        coordinator.onEvent(DictationEvent.LanguagePackOffer("fr-FR"))
+        val (spec, onAction) = actions.toasts.single()
+        assertEquals(
+            DictationToastSpec(
+                message = R.string.voice_language_pack_prompt,
+                style = GlobalToastStyle.Info,
+                durationMillis = 6_000L,
+                actionLabel = R.string.voice_language_pack_download,
+                action = DictationToastAction.DownloadLanguagePack,
+                messageArgs = listOf("French (France)"),
+            ),
+            spec,
+        )
+        assertNotNull(onAction)
+        assertEquals(emptyList<String>(), commands.calls)
+        assertEquals(emptyList<String>(), actions.calls)
+    }
+
+    @Test
+    fun `language pack download calls the controller and says it is downloading`() {
+        val coordinator = DictationHostCoordinator(host, commands, actions, uiLocale = { Locale.ENGLISH })
+        coordinator.onEvent(DictationEvent.LanguagePackOffer("fr-FR"))
+        actions.toasts.single().second!!.invoke()
+        assertEquals(listOf("downloadLanguagePack:fr-FR"), commands.calls)
+        assertEquals(2, actions.toasts.size)
+        val (spec, onAction) = actions.toasts[1]
+        assertEquals(
+            DictationToastSpec(
+                message = R.string.voice_language_pack_downloading,
+                style = GlobalToastStyle.Info,
+                durationMillis = 6_000L,
+                messageArgs = listOf("French (France)"),
+            ),
+            spec,
+        )
+        assertNull(onAction)
     }
 
     @Test
@@ -229,6 +277,17 @@ class DictationHostCoordinatorTest {
     }
 
     @Test
+    fun `change language opens the in-page picker and switch engine opens voice settings`() {
+        // Changing the recognition language opens a form on the current page; only switching the engine goes to settings
+        coordinator.onCardAction(DictationCardAction.ChangeLanguage)
+        assertTrue(coordinator.languagePickerOpen.value)
+        assertEquals(emptyList<String>(), actions.calls)
+        coordinator.onCardAction(DictationCardAction.SwitchEngine)
+        assertEquals(listOf("openVoiceSettings"), actions.calls)
+        assertEquals(emptyList<String>(), commands.calls)
+    }
+
+    @Test
     fun `check connection opens provider detail when engine has a provider id`() {
         commands.engineInfo.value = DictationEngineInfo(displayName = "Whisper", providerId = "prov-1", isCloud = true)
         coordinator.onCardAction(DictationCardAction.CheckConnection)
@@ -256,5 +315,107 @@ class DictationHostCoordinatorTest {
         commands.boundOwner.value = coordinator.owner
         coordinator.onMicTap()
         assertEquals(listOf("start:$host"), commands.calls)
+    }
+
+    // ── Live dictation range: the host writes into the input via ComposerSelectionProbe ──
+
+    /** Host that holds the input text with a real probe, wired the same way as ChatComposerHost / HomeScreen. */
+    private class LiveActions(var text: String, caret: Int) : DictationHostActions {
+        val probe = ComposerSelectionProbe().apply { record(TextRange(caret)) }
+        val calls = mutableListOf<String>()
+
+        override fun insert(text: String) {
+            this.text = probe.insert(text, this.text)
+        }
+
+        override fun canSend(): Boolean = true
+
+        override fun send() {
+            calls += "send:$text"
+        }
+
+        override fun showToast(spec: DictationToastSpec, onUndo: (() -> Unit)?) {
+            calls += "toast"
+        }
+
+        override fun openAppSettings() = Unit
+
+        override fun openProviderDetail(providerId: String) = Unit
+
+        override fun openProviderSetup() = Unit
+
+        override fun openVoiceSettings() = Unit
+
+        override fun beginLive() = probe.beginLive(text)
+
+        override fun updateLive(finals: List<String>, partial: String) {
+            text = probe.updateLive(finals, partial, text)
+        }
+
+        override fun retractLive() {
+            text = probe.retractLive(text)
+        }
+    }
+
+    private val live = LiveActions("hello world", caret = 5)
+    private val liveCoordinator = DictationHostCoordinator(host, commands, live)
+
+    @Test
+    fun `live partial is written at the caret where dictation started`() {
+        commands.state.value = DictationState.Recording(host, 0L)
+
+        liveCoordinator.onLivePartial(LiveTranscript())
+        assertEquals("hello world", live.text)
+        liveCoordinator.onLivePartial(LiveTranscript(listOf("there"), "yo"))
+        assertEquals(LiveDictationRules.liveInsert("hello world", 5, 5, listOf("there"), "yo").text, live.text)
+        liveCoordinator.onLivePartial(LiveTranscript(listOf("there"), "you"))
+        assertEquals("hello there you world", live.text)
+    }
+
+    @Test
+    fun `insert replaces the live region and send sends after it`() {
+        liveCoordinator.onLivePartial(LiveTranscript(listOf("thee"), "yu"))
+        liveCoordinator.onLivePartial(null)
+
+        liveCoordinator.onEvent(DictationEvent.Insert(host, "there you"))
+        assertEquals("hello there you world", live.text)
+
+        // The next dictation segment reopens the range on the new text; Send replaces first, then sends.
+        liveCoordinator.onLivePartial(LiveTranscript(listOf("ok"), ""))
+        liveCoordinator.onEvent(DictationEvent.Send(host, "okay"))
+        assertEquals(LiveDictationRules.liveInsert("hello there you world", 15, 15, listOf("okay"), "").text, live.text)
+        assertEquals(listOf("send:${live.text}"), live.calls)
+    }
+
+    @Test
+    fun `live retract deletes the region and restores the original text`() {
+        liveCoordinator.onLivePartial(LiveTranscript(listOf("there"), ""))
+        assertEquals("hello there world", live.text)
+
+        liveCoordinator.onEvent(DictationEvent.LiveRetract(other))
+        assertEquals("hello there world", live.text)
+        liveCoordinator.onEvent(DictationEvent.LiveRetract(host))
+        assertEquals("hello world", live.text)
+        assertEquals(TextRange(5), live.probe.selection)
+        assertTrue(live.calls.isEmpty())
+    }
+
+    @Test
+    fun `live partial while another slot records is ignored`() {
+        commands.state.value = DictationState.Recording(other, 0L)
+
+        liveCoordinator.onLivePartial(LiveTranscript(listOf("there"), ""))
+
+        assertEquals("hello world", live.text)
+    }
+
+    @Test
+    fun `host detached with a live region restores the original text`() {
+        liveCoordinator.onLivePartial(LiveTranscript(listOf("there"), "you"))
+        assertEquals("hello there you world", live.text)
+
+        liveCoordinator.onLiveDetached()
+
+        assertEquals("hello world", live.text)
     }
 }

@@ -13,9 +13,25 @@ data class OriveoColors(
     val primaryPressed: Color,
     val primarySoft: Color,
     val primaryGlow: Color,
-
+    /** Faint primary wash behind selected rows and chips: light primary @ 8%, dark primary @ 15%. */
+    val primarySubtle: Color,
+    /**
+     * `primary` used **as text** on light surfaces (links, chip labels, text buttons, icon tints).
+     * Light: the palette's `textSafe`; dark: points back to `primary`, which already passes there.
+     * Do not use it as a fill under `onPrimary` text: with bright custom seeds the light text-safe
+     * shade is tuned for contrast against white page backgrounds, not against `onPrimary`.
+     * Fills that carry `onPrimary` text use [primaryFillText].
+     *
+     * **`primary` itself is unchanged**: fills without text, icons and strokes keep the vivid value.
+     */
     val primaryTextSafe: Color,
-    /** Primary pressed (active) state; the dark palettes are in primaryActive of `shared/theme-contracts/dark-palettes.v1.json`. */
+    /**
+     * Fill that carries `onPrimary` text or glyphs (primary buttons, count badges, selected pills).
+     * Light: the palette's `fillText`, so `onPrimary` on it stays >= 4.5:1 even for bright seeds;
+     * dark: `primary` (see [linkDarkPaletteFields]). Mirrors iOS `primaryTextSafe`.
+     */
+    val primaryFillText: Color,
+    /** Pressed (active) state of the primary color; per-palette dark values are in `shared/theme-contracts/dark-palettes.v1.json` as primaryActive. */
     val primaryActive: Color,
     /** Brand secondary color: the second color of gradients / the user bubble. */
     val accent: Color,
@@ -30,21 +46,42 @@ data class OriveoColors(
     val surfaceElevated: Color,
     val surfaceInset: Color,
     val surfaceChrome: Color,
+    /** Neutral translucent fill for secondary capsule buttons (iOS tertiarySystemFill); palette-independent. */
+    val neutralFill: Color,
 
     // ── Text ──
     val textPrimary: Color,
     val textSecondary: Color,
     val textTertiary: Color,
-
+    /**
+     * **Neutral color for disabled text inside controls** (the segmented unavailable tier and greyed-out options). Same name and value on all three platforms.
+     *
+     * Why it cannot keep using `textTertiary`: on the segmented track it is only 2.34:1 in light and 5.40:1 in dark,
+     * far below AA 4.5 in the light tier. In this design, "disabled" is **not** expressed by lowering contrast;
+     * what expresses disabled is "no response to taps + not bold + a persistent reason next to the control" (visual spec §6 item 6).
+     * Lowering contrast is just another form of the `alpha(0.5)` prohibition.
+     *
+     * Measured (track = `backgroundSecondary` over the sheet): light 4.70:1 / dark 6.50:1.
+     * `textTertiary` itself is unchanged: uses that are **not information-bearing**, such as chevrons, keep using it (non-text 3:1).
+     */
     val textDisabledOnControl: Color,
+    /** The unfinalized segment of dictation live text (colored inside the input box). Same name and value on all three platforms. */
+    val dictationVolatile: Color,
     val textInverse: Color,
 
     // ── Borders ──
     val border: Color,
     val borderStrong: Color,
     val cardHighlight: Color,
+    // cardSheen — the card-surface gradient overlay (skipped on surfaceElevated fills), split from
+    // the decorative cardHighlight, matching iOS.
+    val cardSheen: Color,
     val hairline: Color,
-
+    // borderSubtle - quiet card stroke that stays visible on light surfaces (light black 4% / dark white 6%).
+    val borderSubtle: Color,
+    // glassHighlight - white glass highlight decoration across themes (the gloss line at the top of cards and capsules).
+    // Unlike cardSheen (the card-surface gradient overlay, skipped on surfaceElevated fills),
+    // glassHighlight is a decorative white sheen line on cards / capsules.
     val glassHighlight: Color,
 
     val onPrimary: Color,
@@ -57,6 +94,8 @@ data class OriveoColors(
     // ── Status ──
     val success: Color,
     val successSoft: Color,
+    /** Success color for text on light surfaces (iOS `Palette.successText`); dark: equals `success`. */
+    val successText: Color,
     val warning: Color,
     val warningSoft: Color,
 
@@ -65,11 +104,15 @@ data class OriveoColors(
     val warningLine: Color,
     val danger: Color,
     val dangerSoft: Color,
-
+    /** Danger color for text on light surfaces (iOS `Palette.dangerText`); dark: equals `danger`. */
+    val dangerText: Color,
+    // Keep the error / errorSoft aliases for easier Material3 integration
     val error: Color,
     val errorSoft: Color,
     val info: Color,
     val infoSoft: Color,
+    /** Info color for text on light surfaces (iOS `Palette.infoText`); dark: equals `info`. */
+    val infoText: Color,
 
     // ── Code block ──
     val codeBlockBg: Color,
@@ -123,32 +166,40 @@ val LightOriveoColors = OriveoColors(
     primaryPressed = Color(0xFF7B3DEF),
     primarySoft = Color(0xFFEDE9FE),
     primaryGlow = Color(0x1A8C5FF8),          // 10%
+    primarySubtle = Color(0xFF8C5FF8).copy(alpha = 0.08f), // light-roles contract: primary @ 8%
     primaryTextSafe = Color(0xFF6D28D9),      // accent fill that carries text; aligned with iOS / Web
-    primaryActive = Color(0xFF7B3DEF),        // light has no separate active tier, so primaryPressed is reused
-    accent = Color(0xFF8C5FF8),               // light has no separate secondary color; it equals primary
+    primaryFillText = Color(0xFF6D28D9),      // fill under onPrimary text; same as textSafe on default palette
+    primaryActive = Color(0xFF7B3DEF),        // light has no separate active step; reuses primaryPressed
+    accent = Color(0xFF8C5FF8),               // light has no separate secondary color; equals primary
     glowK = 1f,
 
     // Backgrounds
-    backgroundBase = Color(0xFFFFFFFF),
-    background = Color(0xFFF8FAFC),
-    backgroundSecondary = Color(0xB8EEF2FF),  // 72%
-    surface = Color(0xF0FFFFFF),              // 94%
-    surfaceElevated = Color(0xFAFFFFFF),      // 98%
+    backgroundBase = Color(0xFFFAFAFA),       // contract bg
+    background = Color(0xFFF4F4F5),           // contract bgSubtle
+    backgroundSecondary = Color(0xFFF0F0F2),  // neutral inset, = contract bg-inset light
+    surface = Color(0xFFFFFFFF),              // opaque card surface (contract surface)
+    surfaceElevated = Color(0xFFFFFFFF),      // opaque raised surface (contract surfaceRaised)
     surfaceInset = Color(0xFFF8FAFC),
     surfaceChrome = Color(0xF5FFFFFF),        // 96%
+    neutralFill = Color(0x1F767680),          // rgba(118,118,128,0.12)
 
     // Text
-    textPrimary = Color(0xFF111827),
-    textSecondary = Color(0xFF6B7280),
-    textTertiary = Color(0xFF9CA3AF),
-    textDisabledOnControl = Color(0xFF6A6A73),
+    textPrimary = Color(0xFF18181B),
+    textSecondary = Color(0xFF52525B),
+    textTertiary = Color(0xFF71717A),         // same as iOS light; 4.83:1 on white (was #9CA3AF, 2.5:1)
+    textDisabledOnControl = Color(0xFF6A6A73), // disabled text inside controls; aligned with iOS / Web
+    dictationVolatile = Color(0xFF71717A),     // unfinalized segment of dictation
     textInverse = Color(0xFFFFFFFF),
 
-    border = Color(0x14000000),
-    borderStrong = Color(0x29000000),
-    cardHighlight = Color(0x00FFFFFF),
+    // Borders - aligned with iOS border (light black @8%) / borderStrong (light black @16%): translucent black rather than a fixed grey,
+    // so the edge deepens adaptively on any card background (the old fixed grey #E5E7EB looked cold and faint on non-white backgrounds); the stroke-width difference is compensated by OriveoBorderWidth 0.5dp
+    border = Color(0x14000000),               // black @8%
+    borderStrong = Color(0x29000000),           // black @16%
+    cardHighlight = Color(0x8CFFFFFF),        // white 55%, matches iOS light card highlight
+    cardSheen = Color(0x8CFFFFFF),            // white 55%, matches iOS light card sheen
     hairline = Color(0xB3FFFFFF),             // 70%
-    glassHighlight = Color(0x57FFFFFF),
+    borderSubtle = Color(0x0A000000),         // black 4%
+    glassHighlight = Color(0x57FFFFFF),       // 34% white - light mode; white decorative highlight on light surfaces
 
     // On-* foreground
     onPrimary = Color(0xFFFFFFFF),
@@ -160,17 +211,20 @@ val LightOriveoColors = OriveoColors(
 
     // Status
     success = Color(0xFF10B981),
-    successSoft = Color(0xFFECFDF5),
+    successSoft = Color(0x1A10B981),          // 10%
+    successText = Color(0xFF065F46),
     warning = Color(0xFFF59E0B),
-    warningSoft = Color(0xFFFFFBEB),
+    warningSoft = Color(0x1AF59E0B),          // 10%
     warningText = Color(0xFF92400E),
     warningLine = Color(0x66F59E0B),          // 40%
     danger = Color(0xFFEF4444),
-    dangerSoft = Color(0xFFFEF2F2),
+    dangerSoft = Color(0x1AEF4444),           // 10%
+    dangerText = Color(0xFFB91C1C),
     error = Color(0xFFEF4444),
-    errorSoft = Color(0xFFFEF2F2),
+    errorSoft = Color(0x1AEF4444),            // 10%
     info = Color(0xFF3B82F6),
     infoSoft = Color(0x1A3B82F6),             // 10%
+    infoText = Color(0xFF1D4ED8),
 
     // Code block: in light the code block is also dark (the current MarkdownTheme value)
     codeBlockBg = Color(0xFF0B1220),
@@ -260,7 +314,12 @@ internal object DefaultLightBrandTuned {
 // Each palette writes only the 15 color fields of the JSON plus glowK; derived fields that change with the palette (textInverse, assistantBubble,
 // surfaceChrome, ...) are recomputed from the current palette by [linkDarkPaletteFields] and are written as Unspecified placeholders at construction.
 
-/** Default dark (JSON `dark`). */
+// Dark status colors shared by the fill and the text token, so `*Text` cannot drift from the status color.
+private val DarkStatusSuccess = Color(0xFF6EE7A1)
+private val DarkStatusDanger = Color(0xFFF8978F)
+private val DarkStatusInfo = Color(0xFF8DB6FF)
+
+/** Default dark palette (JSON `dark`). */
 val DarkOriveoColors = OriveoColors(
     // Brand
     primary = Color(0xFFA78BFA),
@@ -270,7 +329,9 @@ val DarkOriveoColors = OriveoColors(
     glowK = 0.4f,
     primarySoft = Color.Unspecified,          // = primary @12%, see linkDarkPaletteFields
     primaryGlow = Color.Unspecified,          // = primary @35% (derived.primaryGlow)
-    primaryTextSafe = Color.Unspecified,      // = primary: the dark tier already passes contrast
+    primarySubtle = Color.Unspecified,        // = primary @ 15% (derived.primarySubtle), see linkDarkPaletteFields
+    primaryTextSafe = Color.Unspecified,      // = primary: the dark tier already passes
+    primaryFillText = Color.Unspecified,      // = primary, see linkDarkPaletteFields
 
     // Backgrounds: 4 layers
     backgroundBase = Color(0xFF111113),
@@ -280,19 +341,23 @@ val DarkOriveoColors = OriveoColors(
     surfaceElevated = Color(0xFF27272B),
     surfaceInset = Color(0xFF19191C),
     surfaceChrome = Color.Unspecified,        // = background @92%
+    neutralFill = Color(0x3D767680),          // rgba(118,118,128,0.24)
 
     // Text
     textPrimary = Color(0xFFEDEDEF),
     textSecondary = Color(0xFFB3B3BA),
     textTertiary = Color(0xFF8E8E96),
     textDisabledOnControl = Color(0xFF9AA0AC), // disabled text inside controls; aligned with iOS / Web
+    dictationVolatile = Color(0xFF8E8E96),     // unfinalized segment of dictation
     textInverse = Color.Unspecified,          // = backgroundBase
 
     border = Color(0x1AFFFFFF),               // 10%
     borderStrong = Color(0x2EFFFFFF),         // 18%
-    cardHighlight = Color(0x14FFFFFF),         // 8%
+    cardHighlight = Color(0x14FFFFFF),        // white 8% decorative, matches iOS dark card highlight
+    cardSheen = Color(0x07FFFFFF),            // white 7/255, matches iOS dark card sheen
     hairline = Color(0x0FFFFFFF),             // 6%
-    glassHighlight = Color(0x14FFFFFF),
+    borderSubtle = Color(0x0FFFFFFF),         // white 6%
+    glassHighlight = Color(0x14FFFFFF),       // white 8% (dark)
 
     // On-* foreground: the dark status colors are brightened, so white text lacks contrast and dark text is used
     onPrimary = Color(0xFF160B2E),
@@ -302,19 +367,22 @@ val DarkOriveoColors = OriveoColors(
     onInfo = Color(0xFF0A1A3D),
     switchThumb = Color(0xFFFFFFFF),
 
-    // Status: shared by all dark palettes (JSON shared.status)
-    success = Color(0xFF6EE7A1),
+    // Status - shared by all dark palettes (JSON shared.status)
+    success = DarkStatusSuccess,
     successSoft = Color(0x246EE7A1),          // 14%
+    successText = DarkStatusSuccess,
     warning = Color(0xFFFCD34D),
     warningSoft = Color(0x24FCD34D),          // 14%
     warningText = Color(0xFFFCD34D),
     warningLine = Color(0x52FCD34D),          // 32%
-    danger = Color(0xFFF8978F),
+    danger = DarkStatusDanger,
     dangerSoft = Color(0x24F8978F),           // 14%
-    error = Color(0xFFF8978F),
+    dangerText = DarkStatusDanger,
+    error = DarkStatusDanger,
     errorSoft = Color(0x24F8978F),            // 14%
-    info = Color(0xFF8DB6FF),
+    info = DarkStatusInfo,
     infoSoft = Color(0x248DB6FF),             // 14%
+    infoText = DarkStatusInfo,
 
     // Code block
     codeBlockBg = Color(0xFF0B0B0D),
@@ -486,7 +554,9 @@ val DarkSunsetOriveoColors = DarkOriveoColors.copy(
 internal fun OriveoColors.linkDarkPaletteFields(): OriveoColors = copy(
     primarySoft = primary.copy(alpha = 0.12f),
     primaryGlow = primary.copy(alpha = 0.35f),
+    primarySubtle = primary.copy(alpha = 0.15f),
     primaryTextSafe = primary,
+    primaryFillText = primary,
     backgroundSecondary = surfaceInset,
     surfaceChrome = background.copy(alpha = 0.92f),
     textInverse = backgroundBase,
@@ -497,7 +567,6 @@ internal fun OriveoColors.linkDarkPaletteFields(): OriveoColors = copy(
 
 // ── Derived tokens, aligned with JSON `derived` (alpha replaces the source alpha: the JSON source colors are all opaque) ──
 
-val OriveoColors.primarySubtle: Color get() = primary.copy(alpha = 0.15f)
 val OriveoColors.accentSubtle: Color get() = accent.copy(alpha = 0.14f)
 val OriveoColors.focusRing: Color get() = primary.copy(alpha = 0.5f)
 val OriveoColors.composerBorder: Color get() = primary.copy(alpha = 0.22f)

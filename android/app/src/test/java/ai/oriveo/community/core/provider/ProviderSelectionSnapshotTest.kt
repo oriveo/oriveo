@@ -4,6 +4,11 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.voice.VoiceCatalog
+import ai.oriveo.community.core.voice.VoiceOption
+import ai.oriveo.community.core.voice.VoiceProviderCatalog
+import ai.oriveo.community.core.voice.VoiceRealtimeEntry
+import ai.oriveo.community.core.voice.VoiceTransport
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -258,6 +263,43 @@ class ProviderSelectionSnapshotTest {
         // The conversation tier judged it retired: do not fall back to the default model.
         assertNull(ProviderSelectionSnapshot.currentModel(provider, "gpt-legacy"))
         assertNull(ProviderSelectionSnapshot.currentModel(provider, "gpt-vanished"))
+    }
+
+    @Test
+    fun `realtime_model_resolves_without_retirement`() {
+        MetadataTestFixtures.applyRaw(OPENAI_CATALOG)
+        val provider = Provider(
+            id = "provider-openai",
+            kind = ProviderKind.OpenAI,
+            apiKey = "sk-test",
+            models = listOf(AIModel(id = "gpt-next", name = "GPT Next", isDefault = true)),
+        )
+        val voiceCatalog = VoiceCatalog(
+            schemaVersion = 2,
+            providers = mapOf(
+                ProviderKind.OpenAI to VoiceProviderCatalog(
+                    realtime = listOf(
+                        VoiceRealtimeEntry(
+                            model = "gpt-realtime",
+                            transport = VoiceTransport.OpenAIRealtime,
+                            path = "/v1/realtime",
+                            contextWindow = 32_000,
+                            voices = listOf(VoiceOption("marin", isDefault = true)),
+                            inputTranscriptionModel = "gpt-4o-mini-transcribe",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        // Text catalog loaded and the realtime id is absent: without a voice catalog it is judged missing and sends are blocked; the session record does not fall back.
+        assertTrue(ProviderSelectionSnapshot.modelRetirement(provider, "gpt-realtime")?.sendBlocked == true)
+        assertNull(ProviderSelectionSnapshot.currentModel(provider, "gpt-realtime"))
+        // With a voice catalog: resolves to a synthetic realtime model, is not judged retired, and is not swapped for the default gpt-next.
+        assertEquals("gpt-realtime", ProviderSelectionSnapshot.selectedModel(provider, "gpt-realtime", voiceCatalog = voiceCatalog)?.id)
+        assertEquals("gpt-realtime", ProviderSelectionSnapshot.currentModel(provider, "gpt-realtime", voiceCatalog = voiceCatalog)?.id)
+        // An enabled text model still takes precedence.
+        assertEquals("gpt-next", ProviderSelectionSnapshot.selectedModel(provider, "gpt-next", voiceCatalog = voiceCatalog)?.id)
     }
 
     private companion object {

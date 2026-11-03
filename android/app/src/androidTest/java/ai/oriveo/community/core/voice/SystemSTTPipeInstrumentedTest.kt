@@ -15,9 +15,14 @@ import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
@@ -63,6 +68,7 @@ class SystemSTTPipeInstrumentedTest {
         val engine = SystemSTTEngine(sessionBackend, routeFor = router::route)
         val session = withTimeoutOrNull(CALLBACK_TIMEOUT_MS) { engine.startPipeSession(route) }
             ?: throw AssertionError("startListening did not return within ${CALLBACK_TIMEOUT_MS}ms (route=$route)")
+        val watch = LivePartialWatch(this, session.live)
 
         val wav = instrumentation.context.assets.open(ASSET).use { it.readBytes() }
         val source = WavPcmSource(wav, trailingSilenceMs = TRAILING_SILENCE_MS)
@@ -83,7 +89,8 @@ class SystemSTTPipeInstrumentedTest {
         slot.finish()
         val result = withTimeoutOrNull(RESULT_TIMEOUT_MS) { session.await() }
         if (result == null) session.end(STTResult.Success(""))
-        val diagnosis = "route=$route consumed=${sessionBackend.written.get()}B result=$result; ${backend.log}"
+        watch.close()
+        val diagnosis = "route=$route consumed=${sessionBackend.written.get()}B result=$result ${watch.summary}; ${backend.log}"
         Log.i(TAG, diagnosis)
 
         assertTrue("source not drained", drained)
@@ -104,6 +111,7 @@ class SystemSTTPipeInstrumentedTest {
         if (text == null) Log.w(TAG, "known gap: no recognized text; $diagnosis")
         assumeTrue("known gap: no recognized text; $diagnosis", text != null)
         assertTrue("recognized text lacks 'hello': $diagnosis", text!!.contains("hello", ignoreCase = true))
+        assertTrue("no non-empty partial before the final: $diagnosis", watch.partialBeforeFinal)
     }
 
     /** One production model download attempt, then the production route if en-US got installed, else Pipe(DEFAULT). */
@@ -239,4 +247,48 @@ class SystemSTTPipeInstrumentedTest {
         const val EVENT_TIMEOUT_MS = 10_000L
         val RECOGNITION_PACKAGES = listOf("com.google.android.as", "com.google.android.tts")
     }
+}
+
+/**
+ * Watches a session's live transcript as the recognizer reports it (nothing injected): when the first non-empty
+ * partial arrived, how many distinct non-empty partials there were, and when the first final segment (or, without
+ * one, the end of the session) arrived. Times are ms since the watch started.
+ */
+internal class LivePartialWatch(scope: CoroutineScope, live: StateFlow<LiveTranscript>) {
+    private val startedAt = SystemClock.uptimeMillis()
+
+    @Volatile var firstPartialMs = -1L
+        private set
+
+    @Volatile var partials = 0
+        private set
+
+    @Volatile var firstFinalMs = -1L
+        private set
+
+    @Volatile var lastPartial = ""
+        private set
+
+    private val job: Job = scope.launch(Dispatchers.Default, start = CoroutineStart.UNDISPATCHED) {
+        live.collect { transcript ->
+            val at = SystemClock.uptimeMillis() - startedAt
+            if (transcript.partial.isNotEmpty() && transcript.partial != lastPartial) {
+                if (firstPartialMs < 0) firstPartialMs = at
+                partials++
+                lastPartial = transcript.partial
+            }
+            if (transcript.finals.isNotEmpty() && firstFinalMs < 0) firstFinalMs = at
+        }
+    }
+
+    /** Stops watching; a session that ended without a final segment counts its end as the final. */
+    fun close() {
+        if (firstFinalMs < 0) firstFinalMs = SystemClock.uptimeMillis() - startedAt
+        job.cancel()
+    }
+
+    /** At least one non-empty partial, strictly earlier than the final. */
+    val partialBeforeFinal: Boolean get() = firstPartialMs >= 0 && firstPartialMs < firstFinalMs
+
+    val summary: String get() = "firstPartialMs=$firstPartialMs partials=$partials firstFinalMs=$firstFinalMs"
 }

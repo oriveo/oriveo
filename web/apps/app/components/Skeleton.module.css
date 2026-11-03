@@ -16,7 +16,7 @@
 
 /* ── Shimmer base ── */
 .block {
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   border-radius: var(--o-radius-md);
   position: relative;
   overflow: hidden;

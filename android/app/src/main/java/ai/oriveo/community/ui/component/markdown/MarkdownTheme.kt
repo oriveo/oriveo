@@ -163,7 +163,7 @@ internal object OriveoCodeColors {
         val codeHeaderBg = Color(0xFFE4E4E7)
         val headerText = Color(0xFF52525B)
         val text = Color(0xFF18181B)
-        val keyword = Color(0xFF7C3AED)
+        val keyword = Color(0xFF7C3AED) // capability-ui-lint: allow syntax highlight / markdown link brand violet, not a capability colour
         val string = Color(0xFF13773A)
         val number = Color(0xFFB5400C)
         val function = Color(0xFF1D4ED8)

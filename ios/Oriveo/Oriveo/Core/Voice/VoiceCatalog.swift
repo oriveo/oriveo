@@ -114,6 +114,17 @@ nonisolated struct VoiceCatalog: Sendable, Hashable {
         providers[kind]?.realtime ?? []
     }
 
+    /// The only test for "the selected model is a realtime model": an official apiKey connection (not Relay or a hosted provider,
+    /// nor a subscription login) AND the catalog's realtime[kind] lists this model. Never guessed from the model-id text.
+    func isRealtimeSelection(kind: ProviderKind, authMode: ProviderAuthMode, model: String) -> Bool {
+        let target = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty, authMode == .apiKey else { return false }
+        switch kind {
+        case .relay: return false
+        default: return realtimeEntries(kind).contains { $0.model == target }
+        }
+    }
+
     /// (model, isDefault) pairs for a direction, in catalog order.
     func models(_ kind: ProviderKind, direction: VoiceDirection) -> [(model: String, isDefault: Bool)] {
         switch direction {

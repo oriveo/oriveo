@@ -3,7 +3,7 @@
  */
 
 import type { StoreApi } from 'zustand';
-import type { Conversation } from '@oriveo/shared';
+import { conversationSkillFields, conversationSkillIds, type Conversation } from '@oriveo/shared';
 import type { AppStore } from './store/app-store';
 import { normalizeConversationInstructions } from '@oriveo/core/context/conversation-instructions';
 import { parseBudgetCap, type BudgetCapOption } from '@oriveo/core/context/budget';
@@ -19,6 +19,22 @@ import { countNotesReferencingConversation } from './notes/source-link';
 import { removeGenerationParameterScopes } from './chat/generation-parameter-settings';
 import { removeAdditionalBodyScopes } from './chat/additional-body-settings';
 import { deleteLocalConversationContinuation } from './chat/continuation-lifecycle';
+
+// Skill id list caps; local copy of the Unicode-whitespace trim used by the skill id list normalizer.
+const SKILL_IDS_MAX = 3;
+const DISABLED_AUTO_SKILL_IDS_MAX = 30;
+const SKILL_EDGE_WS_RE = /^[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+|[\u0009-\u000D\u0020\u0085\u00A0\u1680\u2000-\u200A\u2028\u2029\u202F\u205F\u3000]+$/gu;
+
+/** Skill id list: string items only, trimmed + normalizeUUID, deduplicated in order, first `max`. */
+function normalizeSkillIdList(value: unknown, max: number): string[] {
+  const out: string[] = [];
+  for (const raw of Array.isArray(value) ? value : []) {
+    if (typeof raw !== 'string') continue;
+    const id = normalizeUUID(raw.replace(SKILL_EDGE_WS_RE, ''));
+    if (id && !out.includes(id)) out.push(id);
+  }
+  return out.slice(0, max);
+}
 
 function computeConversationAgeHours(conv: Conversation | undefined): number {
   if (!conv?.createdAt) return 0;
@@ -184,6 +200,36 @@ export function pinNoteToConversation(store: StoreApi<AppStore>, convId: string,
   ].slice(-3);
   store.getState().updateConversation(convId, { pinnedNoteIds: next });
   getSyncAdapter()?.didUpdateConversationPinnedNotes(convId, next);
+  return true;
+}
+
+/**
+ * Turn a skill off for automatic use in this conversation: appended once to disabledAutoSkillIds
+ * (oldest dropped beyond the cap), then single-key merge to the cloud like pinnedNoteIds.
+ */
+export function disableAutoSkill(store: StoreApi<AppStore>, convId: string, skillId: string): boolean {
+  const conv = store.getState().conversations.find((candidate) => sameNormalizedID(candidate.id, convId));
+  if (!conv) return false;
+  const [normalizedSkillId] = normalizeSkillIdList([skillId], 1);
+  if (!normalizedSkillId) return false;
+  const current = normalizeSkillIdList(conv.disabledAutoSkillIds, Number.MAX_SAFE_INTEGER);
+  if (current.includes(normalizedSkillId)) return false;
+  const next = [...current, normalizedSkillId].slice(-DISABLED_AUTO_SKILL_IDS_MAX);
+  store.getState().updateConversation(convId, { disabledAutoSkillIds: next });
+  return true;
+}
+
+/**
+ * Replace the conversation's attached skills (composer chips): normalized, at most SKILL_IDS_MAX, dual-written
+ * with the legacy skillId through conversationSkillFields, then single-key merge to the cloud. No-op when unchanged.
+ */
+export function setConversationSkillIds(store: StoreApi<AppStore>, convId: string, skillIds: readonly string[]): boolean {
+  const conv = store.getState().conversations.find((candidate) => sameNormalizedID(candidate.id, convId));
+  if (!conv) return false;
+  const next = normalizeSkillIdList(skillIds, SKILL_IDS_MAX);
+  const current = normalizeSkillIdList(conversationSkillIds(conv), SKILL_IDS_MAX);
+  if (next.length === current.length && next.every((id, index) => id === current[index])) return false;
+  store.getState().updateConversation(conv.id, conversationSkillFields(next));
   return true;
 }
 

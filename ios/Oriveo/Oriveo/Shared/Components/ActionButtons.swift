@@ -45,7 +45,7 @@ struct OriveoSecondaryButtonStyle: ButtonStyle {
             .lineLimit(1)
             .minimumScaleFactor(0.75)
             .font(OriveoTheme.Typography.title3)
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .frame(maxWidth: .infinity)
             .frame(height: 48)
             .oriveoRoundedSurface(
@@ -64,7 +64,7 @@ struct OriveoTextButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(OriveoTheme.Typography.caption)
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .opacity(configuration.isPressed ? 0.7 : 1)
             // A text button has no backing, so the hover highlight wraps the text in a capsule
             .contentShape(.hoverEffect, Capsule(style: .continuous))

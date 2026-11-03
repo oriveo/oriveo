@@ -128,14 +128,14 @@
 
 @media (hover: hover) {
   .newChatInFolder:hover {
-    color: var(--o-primary);
+    color: var(--o-primary-text-on-surface);
     background: color-mix(in srgb, var(--o-surface) 70%, transparent);
   }
 }
 
 @media (hover: none) {
   .newChatInFolder:active {
-    color: var(--o-primary);
+    color: var(--o-primary-text-on-surface);
     background: color-mix(in srgb, var(--o-surface) 60%, transparent);
   }
 }

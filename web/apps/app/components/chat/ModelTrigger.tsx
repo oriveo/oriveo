@@ -16,12 +16,14 @@ interface ModelTriggerProps {
   /** The relay connection of the current conversation: its avatar is resolved from the display name and address. */
   relayProvider?: Provider;
   onModelClick?: () => void;
+  /** Extra class on the trigger button, appended after the shared TopBar class. */
+  className?: string;
 }
 
 /**
  * Top bar model trigger: provider icon, model name with the free suffix stripped, a Free badge and a chevron.
  */
-export function ModelTrigger({ modelName, providerKind, relayKind, relayProvider, onModelClick }: ModelTriggerProps) {
+export function ModelTrigger({ modelName, providerKind, relayKind, relayProvider, onModelClick, className }: ModelTriggerProps) {
   const t = useTranslations('pages.modelSwitcher');
   // Free model names usually carry a "(free)" suffix; the UI already shows a Free chip, so the
   // suffix is dropped to avoid repeating it.
@@ -31,7 +33,7 @@ export function ModelTrigger({ modelName, providerKind, relayKind, relayProvider
   return (
     <button
       type="button"
-      className={styles.modelTrigger}
+      className={className ? `${styles.modelTrigger} ${className}` : styles.modelTrigger}
       onClick={onModelClick}
       aria-label={t('switchModel')}
       title={t('switchModel')}
@@ -49,7 +51,10 @@ export function ModelTrigger({ modelName, providerKind, relayKind, relayProvider
           <ProviderIcon kind="relay" relayKind={relayKind} size={18} bare {...relayIconSource(relayProvider)} />
         </span>
       )}
-      <span className={styles.modelName}>{cleanModelName ?? t('selectModel')}</span>
+      <span className={styles.modelName}>
+        {/* Model ids are LTR strings; isolate them so RTL layouts neither reorder nor clip their start. */}
+        {cleanModelName === undefined ? t('selectModel') : <bdi dir="ltr">{cleanModelName}</bdi>}
+      </span>
       {isFreeProvider && (
         <span className={styles.freeTag} aria-label={t('freeModelBadge')}>
           FREE

@@ -36,6 +36,8 @@ export interface NonUsdCost {
 export interface MessageCostParts {
   estimatedCost: number;
   nonUsdCost?: NonUsdCost;
+  /** Source of the USD part; optional so parts without a source still merge */
+  costSource?: CostSource;
 }
 
 /**
@@ -70,7 +72,23 @@ export function addMessageCost(
   next: MessageCostParts,
 ): MessageCostParts {
   const estimatedCost = (base?.estimatedCost ?? 0) + next.estimatedCost;
-  return { estimatedCost, nonUsdCost: mergeNonUsdCost(base?.nonUsdCost, next.nonUsdCost) };
+  const nonUsdCost = mergeNonUsdCost(base?.nonUsdCost, next.nonUsdCost);
+  const costSource = mergeMessageCostSource(base?.costSource, next.costSource);
+  return costSource === undefined ? { estimatedCost, nonUsdCost } : { estimatedCost, nonUsdCost, costSource };
+}
+
+/**
+ * Merged USD source of one message: `managed` yields to any other known USD source on either side,
+ * regardless of order; otherwise the latest round's source wins
+ */
+function mergeMessageCostSource(
+  held: CostSource | null | undefined,
+  next: CostSource | undefined,
+): CostSource | undefined {
+  if (next === 'managed' && held != null && held !== 'managed' && held !== 'unknown') return held;
+  // An unknown or missing round is not a known source: a hosted message stays managed.
+  if (held === 'managed' && (next == null || next === 'unknown')) return held;
+  return next;
 }
 
 /** Intl.NumberFormat is expensive to construct: cache by locale|currency|digits so every list row reuses one instance. */
@@ -117,7 +135,7 @@ export function formatCostParts(
 
 /** An amount in a single currency (USD uses formatCost's '$' style, others use Intl currency format); empty string when hidden. */
 export function formatCostAmount(amount: number, currencyCode: string, locale: string): string {
-  return currencyCode === 'USD' ? formatCost(amount) : formatNonUsdAmount(amount, currencyCode, locale);
+  return currencyCode === 'USD' ? formatCost(amount, locale) : formatNonUsdAmount(amount, currencyCode, locale);
 }
 
 /**
@@ -197,7 +215,7 @@ export function formatCostTotals(
   locale: string,
 ): string {
   const parts: string[] = [];
-  const usdText = formatCost(usd);
+  const usdText = formatCost(usd, locale);
   if (usdText) parts.push(usdText);
   if (nonUsdTotals) {
     for (const code of Object.keys(nonUsdTotals).sort()) {

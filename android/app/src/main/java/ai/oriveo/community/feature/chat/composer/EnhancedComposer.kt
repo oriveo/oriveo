@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.text.BasicTextField
+import ai.oriveo.community.ui.util.userContentTextStyle
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,11 +25,9 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -47,7 +46,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Language
-import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Tune
@@ -61,6 +59,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -71,24 +70,20 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.SoftwareKeyboardController
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -186,8 +181,12 @@ internal fun EnhancedComposer(
     generationParameterProvider: Provider?,
     generationParameterConversationId: String,
     isExistingConversation: Boolean,
-
-    conversationSkillId: String?,
+    /**
+     * Skill ids of the shown conversation (skill_sync_fields.v1). The first one is the legacy skillId that
+     * the skill_agent capability scope resolves against (`ChatSendCoordinator.launchSend`); hard-coding null
+     * would hide that scope's web / reasoning preference while the request still sends it.
+     */
+    skillIds: List<String>,
     /** Exact transport that the selected official model will use; null intentionally fails closed. */
     modelControlsFinalTransport: String?,
     /** Attachment menu model: media items that cannot be used are visibly disabled with a reason. */
@@ -230,8 +229,11 @@ internal fun EnhancedComposer(
     /** The selected model answers in text, so an empty draft offers the waveform key instead of a grey up arrow. */
     voiceConversationAvailable: Boolean = false,
     onStartVoiceConversation: () -> Unit = {},
-
-    transparentChrome: Boolean,
+    /** Realtime voice model in typing mode: the ≋ slot returns to the voice stage instead. */
+    voiceBackToStage: Boolean = false,
+    onBackToVoiceStage: () -> Unit = {},
+    /** Voice catalog not ready and the session model may be realtime: the main key shows a spinner. */
+    isAwaitingVoiceCatalog: Boolean = false,
     hazeState: HazeState,
     trueTransparentBlurEnabled: Boolean,
 
@@ -251,17 +253,18 @@ internal fun EnhancedComposer(
     /** Availability of the recording bar's send action; null falls back to the send button's own gate. */
     canSendDictation: (() -> Boolean)? = null,
 ) {
-    val colors = OriveoTheme.colors
-    val isDarkTheme = OriveoTheme.isDark
-    val hapticFeedback = LocalHapticFeedback.current
+    val conversationSkillId = skillIds.firstOrNull()
     val keyboardController = LocalSoftwareKeyboardController.current
     val composerFocusRequester = remember { FocusRequester() }
-    LaunchedEffect(pendingQuoteContext?.sourceMessageId, pendingQuoteContext?.selectedText) {
-        if (pendingQuoteContext?.isValid == true && !isReadOnly && !isGenerating) {
-            composerFocusRequester.requestFocus()
-            keyboardController?.show()
-        }
-    }
+    // The quote focus effect lives in its own small function: the composer has more than 256 dex registers,
+    // and the D8 bundled with AGP 9.4.1 (9.4.24) compiles the null check on pendingQuoteContext?.x into the
+    // wrong register, so getSourceMessageId throws an NPE with no quote and the chat page crashes on open.
+    ComposerQuoteFocusEffect(
+        quote = pendingQuoteContext,
+        enabled = !isReadOnly && !isGenerating,
+        focusRequester = composerFocusRequester,
+        keyboardController = keyboardController,
+    )
     val controlsEnabled = !isGenerating && !isReadOnly
     val context = LocalContext.current
     val generationSettingsStore = remember(context) { GenerationParameterSettingsStore.from(context) }
@@ -345,14 +348,21 @@ internal fun EnhancedComposer(
     }
 
     var modelBehaviorRevision by remember { mutableIntStateOf(0) }
-    var selectedControlWeb by remember(generationParameterProvider?.id, currentModel?.id, generationParameterConversationId) {
+    // The provider id is read once through a small function: the composer has over 300 dex registers, and
+    // a `?.id` written inline gets compiled by D8 9.4.24 to test one register and call another.
+    val generationParameterProviderId = composerProviderId(generationParameterProvider)
+    var selectedControlWeb by remember(generationParameterProviderId, currentModel?.id, generationParameterConversationId) {
         mutableStateOf(CapabilityWebPreference.Off)
     }
-    var selectedControlReasoning by remember(generationParameterProvider?.id, currentModel?.id, generationParameterConversationId) {
+    var selectedControlReasoning by remember(generationParameterProviderId, currentModel?.id, generationParameterConversationId) {
         mutableStateOf<String?>(null)
     }
-
-    var developerCustomOwners by remember(generationParameterProvider?.id, currentModel?.id, generationParameterConversationId) {
+    /**
+     * "These owners are now in Custom mode." The criterion must come from the same source as the outbound side:
+     * the request sends every owner in [LocalCapabilityCustomFragmentStore.fragmentsByOwner], so if the UI shows
+     * even one owner fewer, the user sees custom as off while the request still carries it.
+     */
+    var developerCustomOwners by remember(generationParameterProviderId, currentModel?.id, generationParameterConversationId) {
         mutableStateOf<Set<String>>(emptySet())
     }
 
@@ -488,7 +498,7 @@ internal fun EnhancedComposer(
     }
 
     LaunchedEffect(
-        generationParameterProvider?.id,
+        generationParameterProviderId,
         currentModel?.id,
         generationParameterConversationId,
         isExistingConversation,
@@ -527,7 +537,7 @@ internal fun EnhancedComposer(
         selectedControlReasoning = values.reasoningIntent
     }
     var composerGenerationOverrides by remember(
-        generationParameterProvider?.id,
+        generationParameterProviderId,
         currentModel?.id,
         generationParameterConversationId,
     ) { mutableStateOf(GenerationParameterOverrides()) }
@@ -578,7 +588,7 @@ internal fun EnhancedComposer(
     }
 
     var modelBehaviorOverrideCount by remember(
-        generationParameterProvider?.id,
+        generationParameterProviderId,
         currentModel?.id,
         generationParameterConversationId,
     ) { mutableStateOf(0) }
@@ -612,7 +622,7 @@ internal fun EnhancedComposer(
     val composerResumed = androidx.lifecycle.compose.LocalLifecycleOwner.current.lifecycle.currentStateFlow
         .collectAsState().value.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)
     val webSearchReturn by ai.oriveo.community.core.search.WebSearchChatReturn.changes.collectAsState()
-    LaunchedEffect(composerResumed, webSearchReturn, generationParameterConversationId, generationParameterProvider?.id, currentModel?.id) {
+    LaunchedEffect(composerResumed, webSearchReturn, generationParameterConversationId, generationParameterProviderId, currentModel?.id) {
         if (!composerResumed) return@LaunchedEffect
         val provider = generationParameterProvider ?: return@LaunchedEffect
         val model = currentModel ?: return@LaunchedEffect
@@ -629,7 +639,7 @@ internal fun EnhancedComposer(
     // Composer web search chip preview: the same background read as sending (read-only) + resolveWebSearchState;
     // recomputed when the source, the service list (revision), the model or the conversation changes.
     val webSearchChipSnapshot by androidx.compose.runtime.produceState<ai.oriveo.community.feature.chat.modelcontrols.WebSearchPanelSnapshot?>(
-        null, modelControlsWebSearch, generationParameterProvider?.id, currentModel?.id, generationParameterConversationId,
+        null, modelControlsWebSearch, generationParameterProviderId, currentModel?.id, generationParameterConversationId,
         showModelControls, webSearchStoreRevision,
     ) {
         val provider = generationParameterProvider
@@ -642,19 +652,19 @@ internal fun EnhancedComposer(
         }
     }
     if (showModelControls) {
-        ModelControlsEntrySheet(
-            provider = generationParameterProvider,
-            model = currentModel,
-            conversationId = generationParameterConversationId,
-            finalTransport = modelControlsFinalTransport,
+        ComposerModelControlsSheetHost(
+            generationParameterProvider = generationParameterProvider,
+            currentModel = currentModel,
+            generationParameterConversationId = generationParameterConversationId,
+            modelControlsFinalTransport = modelControlsFinalTransport,
             metadataRevision = metadataRevision,
             capabilityObservationRevision = capabilityObservationRevision,
-            runtimeIsReadOnly = !controlsEnabled,
-            runtimeReadOnlyReasonRes = modelControlReadOnlyReasonRes,
-            web = selectedControlWeb,
-            reasoningIntent = selectedControlReasoning,
-            customOwners = developerCustomOwners,
-            generationOverrideCount = modelBehaviorOverrideCount,
+            controlsEnabled = controlsEnabled,
+            modelControlReadOnlyReasonRes = modelControlReadOnlyReasonRes,
+            selectedControlWeb = selectedControlWeb,
+            selectedControlReasoning = selectedControlReasoning,
+            developerCustomOwners = developerCustomOwners,
+            modelBehaviorOverrideCount = modelBehaviorOverrideCount,
             attachmentEntry = attachmentEntry,
             outboundHistoryHasVideo = outboundHistoryHasVideo,
             // The panel also publishes whether the web preference reaches the wire; the composer
@@ -668,29 +678,15 @@ internal fun EnhancedComposer(
             onPersist = ::persistCapabilityPreferences,
             onPromoteToModelDefault = ::promoteCapabilityPreferencesToModelDefault,
             onAdvancedSettingsClosed = { modelBehaviorRevision += 1 },
-            onChooseAnotherModel = onOpenModelSwitcher,
-
-            onOpenConnectionSettings = {
-                generationParameterProvider?.id?.let(onNavigateToProviderDetail)
-            },
-            onOpenConnectionWebSearch = {
-                generationParameterProvider?.id?.let(onNavigateToConnectionWebSearch)
-            },
-            onOpenRelayModelAdvanced = { modelId ->
-                generationParameterProvider?.id?.let { onNavigateToRelayModelAdvanced(it, modelId) }
-            },
-            webSearch = modelControlsWebSearch,
-            webSearchDraft = !isExistingConversation,
-            opensSearchMethod = modelControlsOpensSearchMethod,
-            // arms = whether passing writes web search for this conversation (not when the panel cannot persist): without it no conversation id is passed.
-            onOpenWebSearchFromChat = { oneTap, arms, serviceIdsBefore ->
-                ai.oriveo.community.core.search.WebSearchChatReturn.leave(
-                    ai.oriveo.community.core.search.WebSearchChatReturn.Pending(
-                        generationParameterConversationId, oneTap != null, arms, serviceIdsBefore,
-                    ),
-                )
-                onNavigateToWebSearchFromChat(generationParameterConversationId.takeIf { arms }, oneTap)
-            },
+            onOpenModelSwitcher = onOpenModelSwitcher,
+            generationParameterProviderId = generationParameterProviderId,
+            onNavigateToProviderDetail = onNavigateToProviderDetail,
+            onNavigateToConnectionWebSearch = onNavigateToConnectionWebSearch,
+            onNavigateToRelayModelAdvanced = onNavigateToRelayModelAdvanced,
+            modelControlsWebSearch = modelControlsWebSearch,
+            isExistingConversation = isExistingConversation,
+            modelControlsOpensSearchMethod = modelControlsOpensSearchMethod,
+            onNavigateToWebSearchFromChat = onNavigateToWebSearchFromChat,
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onSelectModel = onSelectModel,
             onDismiss = {
@@ -789,7 +785,6 @@ internal fun EnhancedComposer(
     val attachmentAccent = composerAttachmentAccent()
 
     val attachmentUploadBlocked = false
-    val attachmentSyncBannerText: String? = null
     val modeHighlightAccent = when {
         hasReasoningHighlight -> composerAccent(ModelCapability.Reasoning)
         hasWebHighlight -> composerAccent(ModelCapability.Web)
@@ -845,13 +840,138 @@ internal fun EnhancedComposer(
         launchExternalActivity { cameraLauncher.launch(uri) }
     }
 
-    if (showAttachmentPickerUnavailableDialog) {
+    ComposerAttachmentDialogs(
+        showPickerUnavailable = showAttachmentPickerUnavailableDialog,
+        onDismissPickerUnavailable = { showAttachmentPickerUnavailableDialog = false },
+        showAttachmentSizeLimitDialog = showAttachmentSizeLimitDialog,
+        onDismissAttachmentSizeLimitDialog = onDismissAttachmentSizeLimitDialog,
+    )
+
+    // The input bar surface paints no background: the earlier transparent-to-solid scrim sat over the list and
+    // bled under the navigation bar, which looked like a floating rectangle. The message list now fades itself
+    // out with a mask (ChatListEdgeFade), so the page background runs continuously to the bottom of the screen.
+    val composerSurfaceModifier = Modifier.fillMaxWidth()
+    Box(modifier = composerSurfaceModifier) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = OriveoTheme.spacing.lg)
+                .padding(top = 12.dp, bottom = OriveoTheme.spacing.sm + 2.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            NoteContextSection(
+                attachedNotes = attachedNotes,
+                relatedNotes = relatedNotes,
+                onAttach = onAttachNote,
+                onDismissRelated = onDismissRelatedNote,
+                onDetach = onDetachNote,
+                onPreview = onPreviewNote,
+            )
+
+            AnimatedVisibility(
+                visible = showsModeControls,
+                enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
+            ) {
+                ComposerModeControlsRow(
+                    modelControlsEmphasized = outboundCapabilityDecision.hasActiveCapabilitySelection || hasModelBehaviorOverride,
+                    activeCapabilityIcons = activeCapabilityIcons,
+                    modelControlAccessibilityState = modelControlAccessibilityState,
+                    onOpenModelControls = {
+                        val restored = restoredCapabilityPreferences()
+                        selectedControlWeb = restored.web
+                        selectedControlReasoning = restored.reasoningIntent
+                        showModelControls = true
+                    },
+                    controlsEnabled = controlsEnabled,
+                    isReadOnly = isReadOnly,
+                    mcpEntryVisible = mcpEntryVisible,
+                    mcpToolsAvailable = mcpToolsAvailable,
+                    mcpEnabledServerCount = mcpEnabledServerCount,
+                    onOpenMcpTools = onOpenMcpTools,
+                    contextUsage = contextUsage,
+                    onOpenContextUsage = onOpenContextUsage,
+                )
+            }
+
+            AnimatedVisibility(
+                visible = pendingAttachments.isNotEmpty(),
+                enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
+            ) {
+                ComposerAttachmentTray(
+                    pendingAttachments = pendingAttachments,
+                    restoredImageStates = restoredImageStates,
+                    attachmentAccent = attachmentAccent,
+                    onAttachmentRemove = onAttachmentRemove,
+                    onNavigateToSkillEdit = onNavigateToSkillEdit,
+                )
+            }
+
+            ComposerInputRow(
+                inputTextProvider = inputTextProvider,
+                onInputChange = onInputChange,
+                hasComposerContent = hasComposerContent,
+                hasDraftHighlight = hasDraftHighlight,
+                composerFocused = composerFocused,
+                onComposerFocusedChange = { composerFocused = it },
+                onComposerFocused = onComposerFocused,
+                composerFocusRequester = composerFocusRequester,
+                keyboardController = keyboardController,
+                composerContext = composerContext,
+                pendingQuoteContext = pendingQuoteContext,
+                onRemoveQuote = onRemoveQuote,
+                controlsEnabled = controlsEnabled,
+                isGenerating = isGenerating,
+                isReadOnly = isReadOnly,
+                isSendBlocked = isSendBlocked,
+                supportsAttachmentEntry = supportsAttachmentEntry,
+                attachmentEntry = attachmentEntry,
+                attachmentEntryBlocked = attachmentUploadBlocked,
+                deviceHasCamera = deviceHasCamera,
+                attachmentButtonIcon = attachmentButtonIcon,
+                attachmentAccent = attachmentAccent,
+                attachmentButtonCount = attachmentButtonCount,
+                showAttachmentPicker = showAttachmentPicker,
+                onShowAttachmentPickerChange = { showAttachmentPicker = it },
+                launchExternalActivity = launchExternalActivity,
+                imagePicker = imagePicker,
+                filePicker = filePicker,
+                launchCamera = launchCamera,
+                dictation = dictation,
+                selectionProbe = selectionProbe,
+                canSendDictation = canSendDictation,
+                voiceConversationAvailable = voiceConversationAvailable,
+                onStartVoiceConversation = onStartVoiceConversation,
+                voiceBackToStage = voiceBackToStage,
+                onBackToVoiceStage = onBackToVoiceStage,
+                isAwaitingVoiceCatalog = isAwaitingVoiceCatalog,
+                onStopGeneration = onStopGeneration,
+                onSendClick = onSendClick,
+            )
+
+        }
+    }
+}
+
+// The bodies below were moved out of EnhancedComposer verbatim: ART's verifier rejected EnhancedComposerKt
+// (VerifyError "copy-reference v11<-v253 type=Boolean") once the single method neared the 256-register limit.
+// State stays in EnhancedComposer; these only receive values and callbacks. Guarded by EnhancedComposerSizeGuardTest.
+
+@Composable
+private fun ComposerAttachmentDialogs(
+    showPickerUnavailable: Boolean,
+    onDismissPickerUnavailable: () -> Unit,
+    showAttachmentSizeLimitDialog: Boolean,
+    onDismissAttachmentSizeLimitDialog: () -> Unit,
+) {
+    if (showPickerUnavailable) {
         AlertDialog(
-            onDismissRequest = { showAttachmentPickerUnavailableDialog = false },
+            onDismissRequest = onDismissPickerUnavailable,
             title = { Text(stringResource(R.string.attachment_picker_unavailable_title)) },
             text = { Text(stringResource(R.string.attachment_picker_unavailable_message)) },
             confirmButton = {
-                TextButton(onClick = { showAttachmentPickerUnavailableDialog = false }) {
+                TextButton(onClick = onDismissPickerUnavailable) {
                     Text(stringResource(R.string.ok))
                 }
             },
@@ -878,317 +998,362 @@ internal fun EnhancedComposer(
         )
     }
 
-    val scrimBleedPx = with(LocalDensity.current) {
-        WindowInsets.navigationBars.getBottom(this).toFloat()
-    }
-    val composerSurfaceModifier = if (transparentChrome) {
-        Modifier.fillMaxWidth()
-    } else {
-        Modifier
-            .fillMaxWidth()
-            .drawBehind {
+}
 
-                val scrimHeight = size.height + scrimBleedPx
-                drawRect(
-                    brush = Brush.verticalGradient(
-                        colorStops = arrayOf(
-                            0f to colors.background.copy(alpha = 0f),
-                            0.42f to colors.background,
-                            1f to colors.background,
-                        ),
-                        startY = 0f,
-                        endY = scrimHeight,
-                    ),
-                    size = Size(size.width, scrimHeight),
-                )
-            }
-    }
-    Box(modifier = composerSurfaceModifier) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = OriveoTheme.spacing.lg)
-                .padding(top = 12.dp, bottom = OriveoTheme.spacing.sm + 2.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+/** Model controls sheet; the panel's own navigation exits are wired here, state writes come in as callbacks. */
+@Composable
+private fun ComposerModelControlsSheetHost(
+    generationParameterProvider: Provider?,
+    currentModel: AIModel?,
+    generationParameterConversationId: String,
+    modelControlsFinalTransport: String?,
+    metadataRevision: String?,
+    capabilityObservationRevision: Long,
+    controlsEnabled: Boolean,
+    @StringRes modelControlReadOnlyReasonRes: Int?,
+    selectedControlWeb: CapabilityWebPreference,
+    selectedControlReasoning: String?,
+    developerCustomOwners: Set<String>,
+    modelBehaviorOverrideCount: Int,
+    attachmentEntry: ComposerAttachmentEntryModel,
+    outboundHistoryHasVideo: Boolean,
+    onSelectionChange: (CapabilityWebPreference, String?, Boolean) -> Unit,
+    onPersist: (CapabilityPreferenceValues) -> Unit,
+    onPromoteToModelDefault: (CapabilityPreferenceValues) -> Unit,
+    onAdvancedSettingsClosed: () -> Unit,
+    onOpenModelSwitcher: () -> Unit,
+    generationParameterProviderId: String?,
+    onNavigateToProviderDetail: (providerId: String) -> Unit,
+    onNavigateToConnectionWebSearch: (providerId: String) -> Unit,
+    onNavigateToRelayModelAdvanced: (providerId: String, modelId: String) -> Unit,
+    modelControlsWebSearch: ai.oriveo.community.feature.chat.modelcontrols.ModelControlsWebSearch?,
+    isExistingConversation: Boolean,
+    modelControlsOpensSearchMethod: Boolean,
+    onNavigateToWebSearchFromChat: (conversationId: String?, oneTap: ai.oriveo.community.core.search.OneTapReuseTarget?) -> Unit,
+    onNavigateToProviderSetup: () -> Unit,
+    onSelectModel: (providerId: String, modelId: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModelControlsEntrySheet(
+        provider = generationParameterProvider,
+        model = currentModel,
+        conversationId = generationParameterConversationId,
+        finalTransport = modelControlsFinalTransport,
+        metadataRevision = metadataRevision,
+        capabilityObservationRevision = capabilityObservationRevision,
+        runtimeIsReadOnly = !controlsEnabled,
+        runtimeReadOnlyReasonRes = modelControlReadOnlyReasonRes,
+        web = selectedControlWeb,
+        reasoningIntent = selectedControlReasoning,
+        customOwners = developerCustomOwners,
+        generationOverrideCount = modelBehaviorOverrideCount,
+        attachmentEntry = attachmentEntry,
+        outboundHistoryHasVideo = outboundHistoryHasVideo,
+        onSelectionChange = onSelectionChange,
+        onPersist = onPersist,
+        onPromoteToModelDefault = onPromoteToModelDefault,
+        onAdvancedSettingsClosed = onAdvancedSettingsClosed,
+        onChooseAnotherModel = onOpenModelSwitcher,
+        // This exit must land on this connection's own detail page (the relay protocol is edited there).
+        // The missing-model panel's "choose connection" still goes to ProviderSetup: there is no "this connection" then.
+        onOpenConnectionSettings = {
+            generationParameterProviderId?.let(onNavigateToProviderDetail)
+        },
+        onOpenConnectionWebSearch = {
+            generationParameterProviderId?.let(onNavigateToConnectionWebSearch)
+        },
+        onOpenRelayModelAdvanced = { modelId ->
+            generationParameterProviderId?.let { onNavigateToRelayModelAdvanced(it, modelId) }
+        },
+        webSearch = modelControlsWebSearch,
+        webSearchDraft = !isExistingConversation,
+        opensSearchMethod = modelControlsOpensSearchMethod,
+        // Second argument = whether passing writes this conversation's web search (not when the panel cannot persist); no write, no conversation id.
+        onOpenWebSearchFromChat = { oneTap, arms, serviceIdsBefore ->
+            ai.oriveo.community.core.search.WebSearchChatReturn.leave(
+                ai.oriveo.community.core.search.WebSearchChatReturn.Pending(
+                    generationParameterConversationId, oneTap != null, arms, serviceIdsBefore,
+                ),
+            )
+            onNavigateToWebSearchFromChat(generationParameterConversationId.takeIf { arms }, oneTap)
+        },
+        onNavigateToProviderSetup = onNavigateToProviderSetup,
+        onSelectModel = onSelectModel,
+        onDismiss = onDismiss,
+    )
+}
+
+/** Mode chips row (model controls / MCP) with the context usage ring pinned at the end. */
+@Composable
+private fun ComposerModeControlsRow(
+    modelControlsEmphasized: Boolean,
+    activeCapabilityIcons: List<ImageVector>,
+    modelControlAccessibilityState: String?,
+    onOpenModelControls: () -> Unit,
+    controlsEnabled: Boolean,
+    isReadOnly: Boolean,
+    mcpEntryVisible: Boolean,
+    mcpToolsAvailable: Boolean,
+    mcpEnabledServerCount: Int,
+    onOpenMcpTools: () -> Unit,
+    contextUsage: ai.oriveo.community.feature.chat.ContextUsageSummary?,
+    onOpenContextUsage: () -> Unit,
+) {
+    val hapticFeedback = LocalHapticFeedback.current
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset(y = 4.dp),
+    ) {
+        // Chips scroll; the usage ring stays pinned at the trailing end .
+        Row(
+            modifier = Modifier.widthIn(max = maxWidth).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            NoteContextSection(
-                attachedNotes = attachedNotes,
-                relatedNotes = relatedNotes,
-                onAttach = onAttachNote,
-                onDismissRelated = onDismissRelatedNote,
-                onDetach = onDetachNote,
-                onPreview = onPreviewNote,
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .wrapContentWidth(Alignment.Start)
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 2.dp, vertical = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ComposerControlChip(
+                title = stringResource(R.string.model_controls),
+                icon = Icons.Outlined.Tune,
+                accent = composerModelBehaviorAccent(),
+                emphasized = modelControlsEmphasized,
+                disabled = false,
+                badgeText = null,
+                accessory = ComposerControlChipAccessory.Chevron,
+                capabilityIcons = activeCapabilityIcons,
+                accessibilityState = modelControlAccessibilityState,
+                onClick = onOpenModelControls,
             )
 
-            AnimatedVisibility(
-                visible = attachmentSyncBannerText != null,
-                enter = slideInVertically(initialOffsetY = { -it / 2 }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { -it / 2 }) + fadeOut(),
-            ) {
-                attachmentSyncBannerText?.let { text ->
-                    Unit
-                }
+            // Remote MCP entry. The caller hides it when no server is added; discovery lives in Settings > MCP.
+            // It opens while answering too: the toggles affect only the next send, never the running turn.
+            if (mcpEntryVisible) {
+                val mcpOn = mcpToolsAvailable && mcpEnabledServerCount > 0
+                ComposerControlChip(
+                    title = stringResource(R.string.mcp_tools_chip),
+                    icon = Icons.Outlined.Build,
+                    accent = composerModelBehaviorAccent(),
+                    emphasized = mcpOn,
+                    disabled = isReadOnly,
+                    badgeText = mcpEnabledServerCount.takeIf { mcpOn }?.toString(),
+                    accessory = ComposerControlChipAccessory.None,
+                    accessibilityState = when {
+                        !mcpToolsAvailable -> stringResource(R.string.mcp_tools_chip_state_unavailable)
+                        mcpOn -> stringResource(R.string.mcp_tools_chip_state_on, mcpEnabledServerCount)
+                        else -> stringResource(R.string.mcp_tools_chip_state_off)
+                    },
+                    dimmed = !mcpToolsAvailable,
+                    onClick = {
+                        hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onOpenMcpTools()
+                    },
+                )
             }
+        }
+        ai.oriveo.community.feature.chat.ContextUsageRing(
+            summary = contextUsage,
+            onClick = onOpenContextUsage,
+            modifier = Modifier.padding(start = 4.dp, end = 2.dp),
+        )
+        }
+    }
+}
 
-            AnimatedVisibility(
-                visible = showsModeControls,
-                enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
-            ) {
-                BoxWithConstraints(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(y = 4.dp),
-                ) {
-                    // Chips scroll; the usage ring stays pinned at the trailing end.
-                    Row(
-                        modifier = Modifier.widthIn(max = maxWidth).fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                    Row(
-                        modifier = Modifier
-                            .weight(1f)
-                            .wrapContentWidth(Alignment.Start)
-                            .horizontalScroll(rememberScrollState())
-                            .padding(horizontal = 2.dp, vertical = 2.dp),
-                        horizontalArrangement = Arrangement.spacedBy(7.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        ComposerControlChip(
-                            title = stringResource(R.string.model_controls),
-                            icon = Icons.Outlined.Tune,
-                            accent = composerModelBehaviorAccent(),
-                            emphasized = outboundCapabilityDecision.hasActiveCapabilitySelection || hasModelBehaviorOverride,
-                            disabled = false,
-                            badgeText = null,
-                            accessory = ComposerControlChipAccessory.Chevron,
-                            capabilityIcons = activeCapabilityIcons,
-                            accessibilityState = modelControlAccessibilityState,
-                            onClick = {
-                                val restored = restoredCapabilityPreferences()
-                                selectedControlWeb = restored.web
-                                selectedControlReasoning = restored.reasoningIntent
-                                showModelControls = true
-                            },
-                        )
+/** Pending attachment thumbnails tray. */
+@Composable
+private fun ComposerAttachmentTray(
+    pendingAttachments: List<Attachment>,
+    restoredImageStates: Map<String, RestoredImageState>,
+    attachmentAccent: ComposerCapabilityAccent,
+    onAttachmentRemove: (String) -> Unit,
+    onNavigateToSkillEdit: () -> Unit,
+) {
+    val colors = OriveoTheme.colors
+    val isDarkTheme = OriveoTheme.isDark
+    val trayShape = RoundedCornerShape(20.dp)
 
-                        // The entry to remote MCP tools. The caller hides it until at least one server is added; the
-                        // discovery entry lives in Settings > MCP. It can be opened while an answer is running, because the
-                        // switches only affect the next send, not the run in progress.
-                        if (mcpEntryVisible) {
-                            val mcpOn = mcpToolsAvailable && mcpEnabledServerCount > 0
-                            ComposerControlChip(
-                                title = stringResource(R.string.mcp_tools_chip),
-                                icon = Icons.Outlined.Build,
-                                accent = composerModelBehaviorAccent(),
-                                emphasized = mcpOn,
-                                disabled = isReadOnly,
-                                badgeText = mcpEnabledServerCount.takeIf { mcpOn }?.toString(),
-                                accessory = ComposerControlChipAccessory.None,
-                                accessibilityState = when {
-                                    !mcpToolsAvailable -> stringResource(R.string.mcp_tools_chip_state_unavailable)
-                                    mcpOn -> stringResource(R.string.mcp_tools_chip_state_on, mcpEnabledServerCount)
-                                    else -> stringResource(R.string.mcp_tools_chip_state_off)
-                                },
-                                dimmed = !mcpToolsAvailable,
-                                onClick = {
-                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                                    onOpenMcpTools()
-                                },
-                            )
-                        }
-                    }
-                    ai.oriveo.community.feature.chat.ContextUsageRing(
-                        summary = contextUsage,
-                        onClick = onOpenContextUsage,
-                        modifier = Modifier.padding(start = 4.dp, end = 2.dp),
-                    )
-                    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(78.dp)
+            .shadow(
+                elevation = 7.dp,
+                shape = trayShape,
+                ambientColor = colors.shadow.opacity(if (isDarkTheme) 0.12f else 0.035f),
+                spotColor = colors.shadow.opacity(if (isDarkTheme) 0.12f else 0.035f),
+            )
+            .clip(trayShape)
+            .background(
+                color = composerDynamicColor(
+                    light = 0xF8FAFC,
+                    dark = 0x111A2C,
+                    lightAlpha = 0.66f,
+                    darkAlpha = 0.58f,
+                ),
+                shape = trayShape,
+            )
+            .drawWithCache {
+                val tint = attachmentAccent.softFill.copy(alpha = if (isDarkTheme) 0.05f else 0.08f)
+                onDrawWithContent {
+                    drawContent()
+                    val cr = CornerRadius(20.dp.toPx(), 20.dp.toPx())
+                    drawRoundRect(color = tint, cornerRadius = cr)
                 }
+            },
+    ) {
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
+        ) {
+            items(pendingAttachments, key = { it.id }) { attachment ->
+                ComposerAttachmentThumbnail(
+                    attachment = attachment,
+                    restoredState = restoredImageStates[attachment.id],
+                    onRemove = { onAttachmentRemove(attachment.id) },
+                )
             }
+        }
+    }
+}
 
-            AnimatedVisibility(
-                visible = pendingAttachments.isNotEmpty(),
-                enter = slideInVertically(initialOffsetY = { it / 2 }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { it / 2 }) + fadeOut(),
-            ) {
-                val trayShape = RoundedCornerShape(20.dp)
+/** Input shell (quote chip, attachment entry, text field, dictation) plus the send / voice action cluster. */
+@Composable
+private fun ComposerInputRow(
+    inputTextProvider: () -> String,
+    onInputChange: (String) -> Unit,
+    hasComposerContent: Boolean,
+    hasDraftHighlight: Boolean,
+    composerFocused: Boolean,
+    onComposerFocusedChange: (Boolean) -> Unit,
+    onComposerFocused: () -> Unit,
+    composerFocusRequester: FocusRequester,
+    keyboardController: SoftwareKeyboardController?,
+    composerContext: android.content.Context,
+    pendingQuoteContext: QuoteContext?,
+    onRemoveQuote: () -> Unit,
+    controlsEnabled: Boolean,
+    isGenerating: Boolean,
+    isReadOnly: Boolean,
+    isSendBlocked: Boolean,
+    supportsAttachmentEntry: Boolean,
+    attachmentEntry: ComposerAttachmentEntryModel,
+    attachmentEntryBlocked: Boolean,
+    deviceHasCamera: Boolean,
+    attachmentButtonIcon: ImageVector,
+    attachmentAccent: ComposerCapabilityAccent,
+    attachmentButtonCount: Int,
+    showAttachmentPicker: Boolean,
+    onShowAttachmentPickerChange: (Boolean) -> Unit,
+    launchExternalActivity: (() -> Unit) -> Unit,
+    imagePicker: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest>,
+    filePicker: androidx.activity.result.ActivityResultLauncher<Array<String>>,
+    launchCamera: () -> Unit,
+    dictation: DictationHostCoordinator?,
+    selectionProbe: ComposerSelectionProbe?,
+    canSendDictation: (() -> Boolean)?,
+    voiceConversationAvailable: Boolean,
+    onStartVoiceConversation: () -> Unit,
+    voiceBackToStage: Boolean,
+    onBackToVoiceStage: () -> Unit,
+    isAwaitingVoiceCatalog: Boolean,
+    onStopGeneration: () -> Unit,
+    onSendClick: () -> Unit,
+) {
+    val colors = OriveoTheme.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom,
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+    ) {
+        val composerShape = RoundedCornerShape(24.dp)
+        val composerShellFill = composerShellFillColor(
+            isDark = OriveoTheme.isDark,
+            focused = composerFocused,
+            draftHighlight = hasDraftHighlight,
+            colors = colors,
+        )
+        val composerShellBorder = when {
+            // Focused: the solid stroke gives way to the gradient border (ComposerAnimatedAiBorder)
+            composerFocused -> Color.Transparent
+            hasDraftHighlight -> colors.primary.copy(alpha = 0.25f)
+            // Unfocused: a soft lavender stroke instead of neutral grey, in the aurora / brand family
+            else -> colors.primary.copy(alpha = 0.16f)
+        }
+        val composerShellSurfaceModifier = Modifier.background(composerShellFill, composerShape)
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(78.dp)
-                        .shadow(
-                            elevation = 7.dp,
-                            shape = trayShape,
-                            ambientColor = colors.shadow.opacity(if (isDarkTheme) 0.12f else 0.035f),
-                            spotColor = colors.shadow.opacity(if (isDarkTheme) 0.12f else 0.035f),
-                        )
-                        .clip(trayShape)
-                        .background(
-                            color = composerDynamicColor(
-                                light = 0xF8FAFC,
-                                dark = 0x111A2C,
-                                lightAlpha = 0.66f,
-                                darkAlpha = 0.58f,
-                            ),
-                            shape = trayShape,
-                        )
-                        .drawWithCache {
-                            val tint = attachmentAccent.softFill.copy(alpha = if (isDarkTheme) 0.05f else 0.08f)
-                            onDrawWithContent {
-                                drawContent()
-                                val cr = CornerRadius(20.dp.toPx(), 20.dp.toPx())
-                                drawRoundRect(color = tint, cornerRadius = cr)
-                            }
-                        },
-                ) {
-                    LazyRow(
-                        modifier = Modifier.fillMaxWidth(),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
-                    ) {
-                        items(pendingAttachments, key = { it.id }) { attachment ->
-                            ComposerAttachmentThumbnail(
-                                attachment = attachment,
-                                restoredState = restoredImageStates[attachment.id],
-                                onRemove = { onAttachmentRemove(attachment.id) },
-                            )
-                        }
-                    }
-                }
+        Column(
+            modifier = Modifier
+                .weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            pendingQuoteContext?.takeIf { it.isValid }?.let { quote ->
+                QuoteContextChip(
+                    quote = quote,
+                    presentation = QuoteContextChipPresentation.Composer,
+                    onRemove = onRemoveQuote,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
-
-            Row(
+            DictationInputSwitcher(
+                handle = dictation,
+                // Same gate as the send button, treating the transcript as composer content.
+                canSend = canSendDictation ?: { !isReadOnly && !isSendBlocked && !isGenerating },
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(7.dp),
+                // Like iOS DictationInputRow: the border wraps only the input row; the recording bar /
+                // busy row is its own row 8 dp below, outside the border (the main key steps aside).
+                spacing = 8.dp,
+                input = { dictationRow ->
+            Box(
+                modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 50.dp, max = 156.dp)
+                // No Modifier.shadow(elevation): the shell fill is translucent glass (the aurora shows through) and the
+                // native elevation shadow, drawn behind the element, would show as a dark ring inside the rounded edge
+                // (ambient/spotColor only work on API 28+, pure black on minSdk 26). Depth comes from border + focus border.
+                .clip(composerShape)
+                .then(composerShellSurfaceModifier)
+                .border(OriveoBorderWidth.standard, composerShellBorder, composerShape),
             ) {
-                val composerShape = RoundedCornerShape(22.dp)
-                val composerShellFill = when {
-                    composerFocused -> composerDynamicColor(light = 0xFFFFFF, dark = 0x101113, lightAlpha = 0.26f, darkAlpha = 0.46f)
-                    hasDraftHighlight -> composerDynamicColor(light = 0xFBF9FF, dark = 0x0B0C0E, lightAlpha = 0.19f, darkAlpha = 0.42f)
-                    else -> composerDynamicColor(light = 0xFFFFFF, dark = 0x07080A, lightAlpha = 0.11f, darkAlpha = 0.38f)
-                }
-                val composerShellBorder = when {
-
-                    composerFocused -> Color.Transparent
-                    hasDraftHighlight -> colors.primary.copy(alpha = 0.25f)
-
-                    else -> colors.primary.copy(alpha = 0.16f)
-                }
-                val composerShellSurfaceModifier = Modifier.background(composerShellFill, composerShape)
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    pendingQuoteContext?.takeIf { it.isValid }?.let { quote ->
-                        QuoteContextChip(
-                            quote = quote,
-                            presentation = QuoteContextChipPresentation.Composer,
-                            onRemove = onRemoveQuote,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 50.dp, max = 156.dp)
-
-                        .clip(composerShape)
-                        .then(composerShellSurfaceModifier)
-                        .border(OriveoBorderWidth.standard, composerShellBorder, composerShape),
-                    ) {
-
-                    if (hasDraftHighlight) {
-
-                        val draftGlowBrush = remember(colors.primaryGlow) {
-                            Brush.radialGradient(
-                                colors = listOf(
-                                    colors.primaryGlow.copy(alpha = 0.22f),
-                                    Color.Transparent,
-                                ),
-                            )
-                        }
-                        Box(
-                            modifier = Modifier.matchParentSize(),
-                            contentAlignment = Alignment.CenterEnd,
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .offset(x = 12.dp)
-                                    .size(74.dp)
-                                    .graphicsLayer {
-
-                                        alpha = DRAFT_GLOW_ALPHA_RATIO
-                                    }
-                                    .background(brush = draftGlowBrush, shape = androidx.compose.foundation.shape.CircleShape),
-                            )
-                        }
-                    }
-
-                    DictationInputSwitcher(
-                        handle = dictation,
-                        // Same gate as the send button, treating the transcript as composer content.
-                        canSend = canSendDictation ?: { !isReadOnly && !isSendBlocked && !isGenerating },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(
-                                start = if (supportsAttachmentEntry) 6.dp else 14.dp,
-                                top = 5.dp,
-                                end = 14.dp,
-                                bottom = 5.dp,
-                            ),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        if (supportsAttachmentEntry) {
-
-                            val attachmentEntryDisabled = !controlsEnabled || attachmentUploadBlocked
-                            // Vision-model case: the image entry is split into "camera" + "photo library", consistent with iOS / ChatGPT / Claude.
-                            // The camera shows only when the device has one (avoids showing it on ChromeOS / foldable / tablet devices without a camera).
-                            val cameraItem = attachmentEntry.camera(deviceHasCamera)
-                            val totalAttachmentOptions = (listOf(cameraItem) + attachmentEntry.items).count { it.shown }
-                            ComposerAttachmentEntryButton(
-                                icon = attachmentButtonIcon,
-                                accent = attachmentAccent,
-                                count = attachmentButtonCount,
-                                emphasized = attachmentButtonCount > 0,
-                                disabled = attachmentEntryDisabled,
-                                showMenu = showAttachmentPicker,
-                                onDismissMenu = { showAttachmentPicker = false },
-                                onClick = {
-                                    if (attachmentEntryDisabled) return@ComposerAttachmentEntryButton
-                                    when {
-                                        totalAttachmentOptions > 1 -> showAttachmentPicker = true
-                                        attachmentEntry.image.enabled -> {
-                                            launchExternalActivity {
-                                                imagePicker.launch(
-                                                    androidx.activity.result.PickVisualMediaRequest(
-                                                        ActivityResultContracts.PickVisualMedia.ImageOnly,
-                                                    ),
-                                                )
-                                            }
-                                        }
-                                        attachmentEntry.video.enabled -> launchExternalActivity {
-                                            filePicker.launch(AttachmentImportPolicy.videoPickerMimeTypes)
-                                        }
-                                        attachmentEntry.file.enabled -> launchExternalActivity {
-                                            filePicker.launch(AttachmentImportPolicy.pickerMimeTypes)
-                                        }
-                                    }
-                                },
-                                onPickCamera = {
-                                    showAttachmentPicker = false
-                                    launchCamera()
-                                },
-                                onPickImage = {
-                                    showAttachmentPicker = false
+            val dictationIdle = dictationRow == DictationInputRow.Normal
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        start = if (supportsAttachmentEntry && dictationIdle) 6.dp else 14.dp,
+                        top = 5.dp,
+                        end = 14.dp,
+                        bottom = 5.dp,
+                    ),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (supportsAttachmentEntry && dictationIdle) {
+                    val attachmentEntryDisabled = !controlsEnabled || attachmentEntryBlocked
+                    // Vision models: the image entry splits into camera + library, matching iOS / ChatGPT / Claude.
+                    // Camera shows only when the device has one (some ChromeOS / foldable / tablet devices do not).
+                    val cameraItem = attachmentEntry.camera(deviceHasCamera)
+                    val totalAttachmentOptions = (listOf(cameraItem) + attachmentEntry.items).count { it.shown }
+                    ComposerAttachmentEntryButton(
+                        icon = attachmentButtonIcon,
+                        accent = attachmentAccent,
+                        count = attachmentButtonCount,
+                        emphasized = attachmentButtonCount > 0,
+                        disabled = attachmentEntryDisabled,
+                        showMenu = showAttachmentPicker,
+                        onDismissMenu = { onShowAttachmentPickerChange(false) },
+                        onClick = {
+                            if (attachmentEntryDisabled) return@ComposerAttachmentEntryButton
+                            when {
+                                totalAttachmentOptions > 1 -> onShowAttachmentPickerChange(true)
+                                attachmentEntry.image.enabled -> {
                                     launchExternalActivity {
                                         imagePicker.launch(
                                             androidx.activity.result.PickVisualMediaRequest(
@@ -1196,97 +1361,138 @@ internal fun EnhancedComposer(
                                             ),
                                         )
                                     }
-                                },
-                                onPickVideo = {
-                                    showAttachmentPicker = false
-                                    launchExternalActivity {
-                                        filePicker.launch(AttachmentImportPolicy.videoPickerMimeTypes)
-                                    }
-                                },
-                                onPickFile = {
-                                    showAttachmentPicker = false
-                                    launchExternalActivity {
-                                        filePicker.launch(AttachmentImportPolicy.pickerMimeTypes)
-                                    }
-                                },
-                                cameraItem = cameraItem,
-                                imageItem = attachmentEntry.image,
-                                videoItem = attachmentEntry.video,
-                                fileItem = attachmentEntry.file,
-                            )
-                        }
-
-                        ComposerTextField(
-                            textProvider = inputTextProvider,
-                            onValueChange = onInputChange,
-                            enabled = controlsEnabled,
-                            placeholderRes = when {
-                                isGenerating -> R.string.ai_is_answering
-                                isReadOnly -> R.string.chat_read_only_placeholder
-                                else -> R.string.type_a_message
-                            },
-                            focusRequester = composerFocusRequester,
-                            onFocusChanged = { focused ->
-                                composerFocused = focused
-                                if (focused) onComposerFocused()
-                            },
-                            selectionProbe = selectionProbe,
-                            modifier = Modifier.weight(1f),
-                        )
-
-                        if (dictation != null) {
-                            DictationMicButton(
-                                onClick = dictation::onMicTap,
-                                enabled = controlsEnabled,
-                            )
-                        }
-                    }
-                    }
-
-                    if (composerFocused) {
-                        ComposerAnimatedAiBorder(
-                            cornerRadius = 22.dp,
-                            modifier = Modifier.matchParentSize(),
-                        )
-                    }
-                    }
+                                }
+                                attachmentEntry.video.enabled -> launchExternalActivity {
+                                    filePicker.launch(AttachmentImportPolicy.videoPickerMimeTypes)
+                                }
+                                attachmentEntry.file.enabled -> launchExternalActivity {
+                                    filePicker.launch(AttachmentImportPolicy.pickerMimeTypes)
+                                }
+                            }
+                        },
+                        onPickCamera = {
+                            onShowAttachmentPickerChange(false)
+                            launchCamera()
+                        },
+                        onPickImage = {
+                            onShowAttachmentPickerChange(false)
+                            launchExternalActivity {
+                                imagePicker.launch(
+                                    androidx.activity.result.PickVisualMediaRequest(
+                                        ActivityResultContracts.PickVisualMedia.ImageOnly,
+                                    ),
+                                )
+                            }
+                        },
+                        onPickVideo = {
+                            onShowAttachmentPickerChange(false)
+                            launchExternalActivity {
+                                filePicker.launch(AttachmentImportPolicy.videoPickerMimeTypes)
+                            }
+                        },
+                        onPickFile = {
+                            onShowAttachmentPickerChange(false)
+                            launchExternalActivity {
+                                filePicker.launch(AttachmentImportPolicy.pickerMimeTypes)
+                            }
+                        },
+                        cameraItem = cameraItem,
+                        imageItem = attachmentEntry.image,
+                        videoItem = attachmentEntry.video,
+                        fileItem = attachmentEntry.file,
+                    )
                 }
 
-                val voiceEntryAvailable = voiceConversationAvailable && !isReadOnly && !isSendBlocked
-                // Recording / transcribing replaces the input row with the dictation bar; the main key steps aside.
-                DictationMainKeySlot(handle = dictation) {
-                ComposerActionCluster(
-                    isGenerating = isGenerating,
-                    isPrimed = hasComposerContent && !isGenerating && !isSendBlocked,
-                    enabled = isGenerating ||
-                        (!isReadOnly && !isSendBlocked && (hasComposerContent || voiceEntryAvailable)),
-                    // Raised 7dp so the 40dp circle is vertically centered with the input (matches iOS .padding(.bottom, 7))
-                    modifier = Modifier.padding(bottom = 7.dp),
-                    voiceAvailable = voiceEntryAvailable,
-                    onStartVoice = {
-                        keyboardController?.hide()
-                        composerFocused = false
-                        onStartVoiceConversation()
+                ComposerTextField(
+                    textProvider = inputTextProvider,
+                    onValueChange = onInputChange,
+                    enabled = controlsEnabled,
+                    placeholderRes = when {
+                        isGenerating -> R.string.ai_is_answering
+                        isReadOnly -> R.string.chat_read_only_placeholder
+                        else -> R.string.type_a_message
                     },
-                ) {
-                    @Suppress("DEPRECATION")
-                    val vibrator = composerContext.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                    focusRequester = composerFocusRequester,
+                    onFocusChanged = { focused ->
+                        onComposerFocusedChange(focused)
+                        if (focused) onComposerFocused()
+                    },
+                    selectionProbe = selectionProbe,
+                    listening = dictationRow is DictationInputRow.Recording,
+                    modifier = Modifier.weight(1f),
+                )
 
-                    if (isGenerating) {
-                        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(40, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                        onStopGeneration()
-                    } else if (!isReadOnly && !isSendBlocked && hasComposerContent) {
-                        keyboardController?.hide()
-                        composerFocused = false
-                        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                        onSendClick()
+                if (dictationIdle) {
+                    if (dictation != null) {
+                        DictationMicButton(
+                            onClick = dictation::onMicTap,
+                            enabled = controlsEnabled,
+                        )
                     }
-                }
                 }
             }
+
+            // Dictation recording: slow rotating glow; otherwise the gradient AI border shows only while focused (unmounted on blur)
+            ComposerDictationGlowSlot(
+                handle = dictation,
+                cornerRadius = 24.dp,
+                modifier = Modifier.matchParentSize(),
+            ) {
+                if (composerFocused) {
+                    ComposerAnimatedAiBorder(
+                        cornerRadius = 24.dp,
+                        modifier = Modifier.matchParentSize(),
+                    )
+                }
+            }
+            }
+            },
+            ) {}
+        }
+
+        val voiceEntryAvailable = voiceConversationAvailable && !isReadOnly && !isSendBlocked
+        // Recording / transcribing replaces the input row with the dictation bar; the main key steps aside.
+        DictationMainKeySlot(handle = dictation) {
+        ComposerActionCluster(
+            isGenerating = isGenerating,
+            isPrimed = hasComposerContent && !isGenerating && !isSendBlocked,
+            enabled = isGenerating ||
+                (!isReadOnly && !isSendBlocked && (hasComposerContent || voiceEntryAvailable)),
+            // Lifted 7 dp so the 40 dp circle centers on the field vertically (matches iOS .padding(.bottom, 7))
+            modifier = Modifier.padding(bottom = 7.dp),
+            voiceAvailable = voiceEntryAvailable,
+            onStartVoice = {
+                keyboardController?.hide()
+                onComposerFocusedChange(false)
+                onStartVoiceConversation()
+            },
+            backToStage = voiceBackToStage,
+            awaitingCatalog = isAwaitingVoiceCatalog,
+            onBackToStage = {
+                keyboardController?.hide()
+                onComposerFocusedChange(false)
+                onBackToVoiceStage()
+            },
+        ) {
+            @Suppress("DEPRECATION")
+            val vibrator = composerContext.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+
+            if (isGenerating) {
+                vibrator?.vibrate(android.os.VibrationEffect.createOneShot(40, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                onStopGeneration()
+            } else if (!isReadOnly && !isSendBlocked && hasComposerContent) {
+                keyboardController?.hide()
+                onComposerFocusedChange(false)
+                vibrator?.vibrate(android.os.VibrationEffect.createOneShot(20, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                onSendClick()
+            }
+        }
         }
     }
 }
+
+/** The single entry point for reading the provider id in [EnhancedComposer]; a separate function avoids a D8 null-check miscompile in the very large method. */
+private fun composerProviderId(provider: Provider?): String? = provider?.id
 
 /**
  * The text field itself. **The only composable that recomposes per keystroke.**
@@ -1298,6 +1504,22 @@ internal fun EnhancedComposer(
  * `ChatScreenContent`, and not `ChatMessagesList`. Taking `value: String` as a parameter here would
  * void that protection entirely (a changed parameter makes the caller non skippable).
  */
+/** Hands focus and keyboard to the input when a valid quote appears or changes (the quote card's "Ask about this"). */
+@Composable
+private fun ComposerQuoteFocusEffect(
+    quote: QuoteContext?,
+    enabled: Boolean,
+    focusRequester: FocusRequester,
+    keyboardController: SoftwareKeyboardController?,
+) {
+    LaunchedEffect(quote?.sourceMessageId, quote?.selectedText) {
+        if (quote?.isValid == true && enabled) {
+            focusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+}
+
 @Composable
 private fun ComposerTextField(
     textProvider: () -> String,
@@ -1307,6 +1529,8 @@ private fun ComposerTextField(
     focusRequester: FocusRequester,
     onFocusChanged: (Boolean) -> Unit,
     selectionProbe: ComposerSelectionProbe? = null,
+    /** Dictation is recording into this field: an empty field shows the listening placeholder. */
+    listening: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val colors = OriveoTheme.colors
@@ -1318,6 +1542,7 @@ private fun ComposerTextField(
     BasicTextField(
         value = field.value,
         onValueChange = field.onValueChange,
+        visualTransformation = field.visualTransformation,
         modifier = modifier
             // UI tests locate the field by resource-id rather than by coordinates, which break as
             // soon as the screen resolution changes.
@@ -1329,7 +1554,7 @@ private fun ComposerTextField(
         maxLines = 5,
         textStyle = OriveoTheme.typography.body.copy(
             color = if (enabled) colors.textPrimary else colors.textTertiary,
-        ),
+        ).merge(userContentTextStyle),
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
         cursorBrush = SolidColor(colors.primary),
         decorationBox = { innerTextField ->
@@ -1342,18 +1567,19 @@ private fun ComposerTextField(
             ) {
                 if (text.isBlank()) {
                     Text(
-                        text = stringResource(placeholderRes),
+                        text = stringResource(if (listening) R.string.voice_dictation_listening_placeholder else placeholderRes),
                         style = OriveoTheme.typography.body,
                         color = if (enabled) colors.textSecondary else colors.textTertiary,
                     )
                 }
-                innerTextField()
+                // Full-width host so the field lays out by content direction ("/we" sits left under RTL).
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    innerTextField()
+                }
             }
         },
     )
 }
-
-private const val DRAFT_GLOW_ALPHA_RATIO = 0.705f
 
 /**
  * Identity loading must restart when the resolved Relay route can change, without retaining an

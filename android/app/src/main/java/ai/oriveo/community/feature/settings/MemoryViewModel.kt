@@ -38,6 +38,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.provider.ProviderCredentialResolver
+import ai.oriveo.community.core.provider.withRelayRoute
 import ai.oriveo.community.core.util.generateUuidString
 import ai.oriveo.community.core.util.graphemeCount
 import ai.oriveo.community.core.util.takeGraphemes
@@ -507,7 +508,7 @@ class MemoryViewModel(
                 val model = disclosure.model
                 val service = providerRepository.serviceFor(provider, model)
                 val transport = draftProjection(disclosure.excerpts, provider, model)
-                    .transportInput(ChatRequestOptions())
+                    .transportInput(ChatRequestOptions().withRelayRoute(provider, model))
                 val response = service.sendMessage(
                     apiKey = ProviderCredentialResolver.apiKey(provider, model.id),
                     modelID = model.id,

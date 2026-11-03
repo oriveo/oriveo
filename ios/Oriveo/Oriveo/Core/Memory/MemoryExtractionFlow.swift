@@ -49,9 +49,10 @@ final class MemoryExtractionFlow {
     /// The disclosure currently to show; nil = no request is awaiting confirmation.
     private(set) var disclosure: MemoryExtractionDisclosure?
     @ObservationIgnored private var pending: Pending?
-    @ObservationIgnored private let send: Send
+    /// Injected stand-in; nil = live send on the session handed to `confirm(session:)`.
+    @ObservationIgnored private let send: Send?
 
-    init(send: @escaping Send = MemoryExtractionFlow.liveSend) {
+    init(send: Send? = nil) {
         self.send = send
     }
 
@@ -107,14 +108,16 @@ final class MemoryExtractionFlow {
 
     // MARK: Confirm / cancel
 
-    /// Sends the one request awaiting confirmation; returns nil when no request is awaiting confirmation.
-    func confirm() async -> Outcome? {
+    /// Emits the single pending request awaiting confirmation; returns nil when there is none.
+    /// `session` is the app's provider session (`AppState.providerSession`); unused when a stand-in send is injected.
+    func confirm(session: URLSession) async -> Outcome? {
         guard let job = pending else { return nil }
         pending = nil
         disclosure = nil
         switch job {
         case let .draft(candidate, request):
             do {
+                let send = self.send ?? Self.liveSend(session: session)
                 let text = try await send(candidate.provider, candidate.model, request)
                 let draft = String(text.prefix(2000)).trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !draft.isEmpty else { return Self.draftFailure(ProviderServiceError.emptyResponse) }
@@ -179,10 +182,24 @@ final class MemoryExtractionFlow {
 
     // MARK: Real request
 
-    /// The same entry point as chat sending: picks the service by (provider, model).
-    static func liveSend(provider: Provider, model: AIModel, request: PlannedChatRequest) async throws -> String {
+    /// Same entry point as chat send: picks the service by (provider, model).
+    /// `session` must be the app's provider session: relay traffic on `.shared` is moved to a private ephemeral
+    /// session, which would skip whatever the app installed on its own session.
+    static func liveSend(session: URLSession) -> Send {
+        let send: Send = { provider, model, request in
+            try await sendOnce(provider: provider, model: model, request: request, session: session)
+        }
+        return send
+    }
+
+    private static func sendOnce(
+        provider: Provider,
+        model: AIModel,
+        request: PlannedChatRequest,
+        session: URLSession
+    ) async throws -> String {
         let transport = request.transportInput(ChatRequestOptions())
-        guard let result = try await ProviderServiceRouter.Services().sendMessage(
+        guard let result = try await ProviderServiceRouter.Services(session: session).sendMessage(
             provider: provider,
             model: model,
             transport: transport

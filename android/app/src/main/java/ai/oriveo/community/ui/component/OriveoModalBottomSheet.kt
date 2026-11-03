@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
@@ -30,6 +31,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.ui.theme.OriveoColors
+import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlin.math.roundToInt
 
 /**
@@ -58,6 +61,7 @@ fun OriveoModalBottomSheet(
     properties: ModalBottomSheetProperties = ModalBottomSheetProperties(),
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val colors = OriveoTheme.colors
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         modifier = modifier,
@@ -65,7 +69,7 @@ fun OriveoModalBottomSheet(
         sheetMaxWidth = sheetMaxWidth,
         sheetGesturesEnabled = sheetGesturesEnabled,
         shape = shape,
-        containerColor = containerColor,
+        containerColor = resolveSheetContainerColor(containerColor, colors),
         contentColor = contentColor,
         tonalElevation = tonalElevation,
         scrimColor = scrimColor,
@@ -76,6 +80,28 @@ fun OriveoModalBottomSheet(
         SheetToastLayer { content() }
     }
 }
+
+/**
+ * The light palette's `surface` is translucent (94% alpha), so a sheet painted with it lets the
+ * text underneath show through. When the caller passes exactly `colors.surface`, flatten it onto
+ * `backgroundBase` to get an opaque panel; any other explicit color (Transparent, paywall tints,
+ * black backdrops) is kept as-is. The dark `surface` is already opaque, so it is unchanged.
+ */
+internal fun resolveSheetContainerColor(containerColor: Color, colors: OriveoColors): Color =
+    if (containerColor == colors.surface) {
+        colors.surface.compositeOver(colors.backgroundBase)
+    } else {
+        containerColor
+    }
+
+/**
+ * Light-mode containers that float over scrolling content (composer shell, tab bar fallback,
+ * popups, dropdown menus) must not let the text underneath show through. Flatten the original
+ * color onto `backgroundBase`: same hue over empty space, but fully opaque. Dark mode keeps the
+ * original color untouched.
+ */
+internal fun lightOpaqueContainerColor(color: Color, isDark: Boolean, colors: OriveoColors): Color =
+    if (isDark) color else color.compositeOver(colors.backgroundBase)
 
 /**
  * Sheet content plus a toast host layered on top of it.

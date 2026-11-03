@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">Tất cả mẫu máy của bạn, một ứng dụng</string>
-    <string name="provider_disclosure_ack_failed">Không thể xác nhận thông báo của nhà cung cấp. Vui lòng kiểm tra kết nối và thử lại.</string>
     <string name="tab_home">Trang chủ</string>
     <string name="tab_providers">Nhà cung cấp</string>
     <string name="tab_settings">Cài đặt</string>
@@ -21,7 +20,6 @@
     <string name="copy">Sao chép</string>
     <string name="copied">Đã sao chép</string>
     <string name="share">Chia sẻ</string>
-    <string name="legal_consent_notice">Bằng cách tiếp tục, bạn đồng ý với các điều khoản pháp lý bên dưới.</string>
     <string name="get_started">Bắt đầu</string>
     <string name="api_key">Khóa API</string>
     <string name="validating">Đang xác thực…</string>
@@ -60,6 +58,7 @@
     <string name="new_chat">Trò chuyện mới</string>
     <string name="send">Gửi</string>
     <string name="stop">Dừng lại</string>
+    <string name="generation_parameter_name_stop">Chuỗi dừng</string>
     <string name="type_a_message">Nhập tin nhắn…</string>
     <string name="ai_is_answering">AI đang trả lời…</string>
     <string name="regenerate">Tạo lại</string>
@@ -101,6 +100,7 @@
     <string name="chat_model_removed_choose">Chọn mô hình</string>
     <string name="chat_model_retired_banner">%1$s đã ngừng cung cấp.</string>
     <string name="chat_model_retired_switch_to">Chuyển sang %1$s</string>
+    <string name="chat_last_used_model_retired_hint">Mô hình bạn dùng lần trước đã ngừng cung cấp. Hiện đang dùng %1$s.</string>
     <string name="conversations">Cuộc trò chuyện</string>
     <string name="no_conversations">Chưa có cuộc trò chuyện nào</string>
     <string name="search_conversation_titles_or_content">Tìm kiếm tiêu đề hoặc nội dung cuộc trò chuyện</string>
@@ -150,6 +150,7 @@
     <string name="provider_detail_add_model_finish_setup">Thêm ID mẫu máy để hoàn tất quá trình thiết lập</string>
     <string name="provider_detail_add_model_manually">+ Thêm ID mẫu theo cách thủ công</string>
     <string name="provider_detail_available_models">Các mẫu có sẵn %d</string>
+    <string name="default_model_short">Mặc định</string>
     <string name="provider_detail_relay_empty_description">Chưa có mô hình nào được thêm vào. Sử dụng nút bên dưới để thêm ID mẫu.</string>
     <string name="provider_detail_badge_recent">Gần đây</string>
     <string name="provider_detail_removed_model">Đã xóa %s</string>
@@ -164,7 +165,6 @@
     <string name="theme_light">Sáng</string>
     <string name="theme_dark">Tối</string>
     <string name="theme_section_palettes">Bảng màu</string>
-    <string name="default_model_short">Mặc định</string>
     <string name="theme_palette_purple">Tím</string>
     <string name="theme_palette_graphite">Than chì</string>
     <string name="theme_palette_black">Đen</string>
@@ -201,8 +201,6 @@
     <string name="backup_and_export">Sao lưu &amp; Xuất</string>
     <string name="privacy_policy">Chính sách bảo mật</string>
     <string name="terms_of_service">Điều khoản dịch vụ</string>
-    <string name="settings_source_code">Mã nguồn</string>
-    <string name="settings_report_issue">Báo cáo sự cố</string>
     <string name="snackbar_provider_ready">Nhà cung cấp đã sẵn sàng. Bạn có thể bắt đầu trò chuyện ngay bây giờ.</string>
     <string name="snackbar_model_added">Đã thêm %1$s</string>
     <string name="snackbar_model_enable_failed">Không thể bật mô hình này. Vui lòng thử lại.</string>
@@ -390,7 +388,7 @@
     <string name="share_failed">Không thể chia sẻ hình ảnh</string>
     <string name="file">Tài liệu</string>
     <string name="file_unavailable">Chỉ khả dụng trên thiết bị gốc</string>
-        <string name="error_generic_title">Đã xảy ra lỗi</string>
+    <string name="error_generic_title">Đã xảy ra lỗi</string>
     <string name="error_generic_message">Đã xảy ra lỗi không mong muốn.</string>
     <string name="hide_details">Ẩn chi tiết</string>
     <string name="manual_model_save_failed_title">Lưu không thành công</string>
@@ -459,11 +457,9 @@
     <string name="skills_newSkill">Kỹ năng mới</string>
     <string name="skills_editSkill">Chỉnh sửa kỹ năng</string>
     <string name="skills_useSkill">Sử dụng kỹ năng này</string>
-    <string name="skills_pinToHome">Ghim vào Trang chủ</string>
     <string name="pin_conversation">Ghim</string>
     <string name="unpin_conversation">Bỏ ghim</string>
     <string name="pinned_section">Đã ghim</string>
-    <string name="skills_unpin">Bỏ ghim khỏi Trang chủ</string>
     <string name="skills_instructions">Lời nhắc</string>
     <string name="skills_knowledgeFiles">Tài liệu tham khảo</string>
     <string name="skills_advancedSettings">Cài đặt nâng cao</string>
@@ -486,13 +482,13 @@
     <string name="skills_addFile">Thêm tập tin</string>
     <string name="skills_noKnowledgeFiles">Chưa có tài liệu tham khảo</string>
     <string name="skills_useMemoryDescription">Đưa sở thích cá nhân của bạn vào cuộc trò chuyện</string>
-    <string name="skills_tipInstructions">Viết hướng dẫn xác định cách AI hoạt động - tính cách, chuyên môn và phong cách phản ứng của nó. Chỉ AI mới thấy điều này, người dùng sẽ không.</string>
-    <string name="skills_tipKnowledgeFiles">AI đọc toàn bộ các tệp này mỗi khi trả lời — như ghi chú luôn mở trên bàn làm việc. Phù hợp cho tài liệu ngắn, quan trọng (hướng dẫn phong cách, bảng thuật ngữ, quy tắc chính). Tệp lớn hơn sẽ tăng chi phí phản hồi.</string>
+    <string name="skills_tipInstructions">Viết hướng dẫn xác định cách AI hoạt động - tính cách, chuyên môn và phong cách phản ứng của nó. Chỉ AI mới thấy điều này, người dùng thì không.</string>
+    <string name="skills_tipKnowledgeFiles">AI đọc toàn bộ các tệp này mỗi lần trả lời — như ghi chú luôn mở trên bàn làm việc. Phù hợp nhất cho tài liệu ngắn, quan trọng (hướng dẫn phong cách, bảng thuật ngữ, quy tắc chính). Tệp lớn hơn sẽ tăng chi phí phản hồi.</string>
     <string name="skills_tipAdvanced">Định cấu hình tùy chọn mô hình và chèn bộ nhớ.</string>
     <string name="skills_filesQuota">%1$d / %2$d</string>
     <string name="skills_fileTooLarge">Nội dung tệp vượt quá giới hạn 8.000 ký tự</string>
     <string name="skills_emojiIcon">Biểu tượng cảm xúc</string>
-    <string name="skills_nChars">ký tự %d</string>
+    <string name="skills_nChars">%1$d ký tự</string>
     <string name="skills_skillName">Tên kỹ năng</string>
     <string name="skills_briefDescription">Mô tả ngắn gọn</string>
     <string name="skills_discardMessage">Bạn có những thay đổi chưa được lưu. Bạn có chắc chắn muốn loại bỏ chúng không?</string>
@@ -705,18 +701,24 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">Query khóa tham số</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">Bạn sắp sử dụng %1$s</string>
     <string name="provider_disclosure_body_default">Tin nhắn của bạn sẽ được gửi đến %1$s để tạo phản hồi. Oriveo không lưu trữ tin nhắn hoặc khóa API của bạn trên máy chủ của chúng tôi.</string>
     <string name="provider_disclosure_body_relay">Tin nhắn của bạn sẽ được gửi đến dịch vụ mô hình đã cấu hình. Oriveo không thể xác minh chính sách quyền riêng tư của dịch vụ đó.</string>
     <string name="provider_disclosure_view_policy">Xem chính sách quyền riêng tư của %1$s</string>
     <string name="provider_disclosure_continue">Tiếp tục</string>
     <string name="provider_disclosure_cancel">Hủy bỏ</string>
+    <string name="provider_disclosure_ack_failed">Không thể xác nhận thông báo của nhà cung cấp. Vui lòng kiểm tra kết nối và thử lại.</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">Hỗ trợ tìm kiếm web</string>
     <string name="relay_advanced_web_search_profile">Hồ sơ tìm kiếm web</string>
     <string name="relay_profile_auto">Tự động</string>
     <string name="relay_test_connection">Kiểm tra kết nối</string>
     <string name="relay_test_connection_missing_fields">Dùng URL yêu cầu và khóa API của riêng bạn</string>
     <string name="relay_value_label">Giá trị</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">Nhập URL yêu cầu HTTPS hợp lệ.</string>
     <string name="greeting_morning">Chào buổi sáng</string>
     <string name="greeting_afternoon">Chào buổi chiều</string>
@@ -726,22 +728,22 @@
     <string name="greeting_afternoon_with_name">Chào buổi chiều, %1$s</string>
     <string name="greeting_evening_with_name">Chào buổi tối, %1$s</string>
     <string name="greeting_still_up_with_name">%1$s ơi, chưa ngủ à?</string>
-<string name="greeting_morning_2">Chào ngày mới</string>
-<string name="greeting_morning_3">Xin chào</string>
-<string name="greeting_morning_4">Chào bạn</string>
-<string name="greeting_morning_5">Mừng bạn ghé chơi</string>
-<string name="greeting_afternoon_2">Chiều vui vẻ</string>
-<string name="greeting_afternoon_3">Chào bạn</string>
-<string name="greeting_afternoon_4">Mừng bạn ghé chơi</string>
-<string name="greeting_afternoon_5">Xin chào</string>
-<string name="greeting_evening_2">Hôm nay thế nào?</string>
-<string name="greeting_evening_3">Mừng bạn ghé chơi</string>
-<string name="greeting_evening_4">Xin chào</string>
-<string name="greeting_evening_5">Chào bạn</string>
-<string name="greeting_night_2">Khuya rồi nhỉ</string>
-<string name="greeting_night_3">Chào bạn</string>
-<string name="greeting_night_4">Mừng bạn ghé chơi</string>
-<string name="greeting_night_5">Xin chào</string>
+    <string name="greeting_morning_2">Chào ngày mới</string>
+    <string name="greeting_morning_3">Xin chào</string>
+    <string name="greeting_morning_4">Chào bạn</string>
+    <string name="greeting_morning_5">Mừng bạn ghé chơi</string>
+    <string name="greeting_afternoon_2">Chiều vui vẻ</string>
+    <string name="greeting_afternoon_3">Chào bạn</string>
+    <string name="greeting_afternoon_4">Mừng bạn ghé chơi</string>
+    <string name="greeting_afternoon_5">Xin chào</string>
+    <string name="greeting_evening_2">Hôm nay thế nào?</string>
+    <string name="greeting_evening_3">Mừng bạn ghé chơi</string>
+    <string name="greeting_evening_4">Xin chào</string>
+    <string name="greeting_evening_5">Chào bạn</string>
+    <string name="greeting_night_2">Khuya rồi nhỉ</string>
+    <string name="greeting_night_3">Chào bạn</string>
+    <string name="greeting_night_4">Mừng bạn ghé chơi</string>
+    <string name="greeting_night_5">Xin chào</string>
     <string name="tagline_morning_1">Cứ thong thả nhé.</string>
     <string name="tagline_morning_2">Hôm nay theo nhịp của bạn.</string>
     <string name="tagline_morning_3">Câu hỏi nhỏ mấy cũng được.</string>
@@ -758,23 +760,25 @@
     <string name="tagline_night_2">Khó ngủ thì mình trò chuyện nhé.</string>
     <string name="tagline_night_3">Mọi thứ đã lặng yên hơn.</string>
     <string name="tagline_night_4">Cứ từ từ suy nghĩ.</string>
-<string name="tagline_morning_5">Hôm nay hợp để thử điều mới.</string>
-<string name="tagline_morning_6">Cứ vừa nghĩ vừa nói ở đây.</string>
-<string name="tagline_morning_7">Từng việc một thôi.</string>
-<string name="tagline_morning_8">Sắp xếp lại suy nghĩ nào.</string>
-<string name="tagline_afternoon_5">Tiếp tục từ chỗ dang dở.</string>
-<string name="tagline_afternoon_6">Sẵn sàng thì cứ hỏi.</string>
-<string name="tagline_afternoon_7">Thử nhìn từ góc khác xem.</string>
-<string name="tagline_afternoon_8">Không cần hoàn hảo đâu.</string>
-<string name="tagline_evening_5">Phần còn lại để mai tính.</string>
-<string name="tagline_evening_6">Tán gẫu thôi cũng được.</string>
-<string name="tagline_evening_7">Tối yên tĩnh, hợp để suy ngẫm.</string>
-<string name="tagline_evening_8">Khép lại một ngày nhẹ nhàng.</string>
-<string name="tagline_night_5">Viết ra điều bạn đang nghĩ.</string>
-<string name="tagline_night_6">Nhớ nghỉ ngơi nhé.</string>
-<string name="tagline_night_7">Đêm tĩnh, suy nghĩ rõ ràng.</string>
-<string name="tagline_night_8">Đêm nay chẳng cần vội.</string>
+    <string name="tagline_morning_5">Hôm nay hợp để thử điều mới.</string>
+    <string name="tagline_morning_6">Cứ vừa nghĩ vừa nói ở đây.</string>
+    <string name="tagline_morning_7">Từng việc một thôi.</string>
+    <string name="tagline_morning_8">Sắp xếp lại suy nghĩ nào.</string>
+    <string name="tagline_afternoon_5">Tiếp tục từ chỗ dang dở.</string>
+    <string name="tagline_afternoon_6">Sẵn sàng thì cứ hỏi.</string>
+    <string name="tagline_afternoon_7">Thử nhìn từ góc khác xem.</string>
+    <string name="tagline_afternoon_8">Không cần hoàn hảo đâu.</string>
+    <string name="tagline_evening_5">Phần còn lại để mai tính.</string>
+    <string name="tagline_evening_6">Tán gẫu thôi cũng được.</string>
+    <string name="tagline_evening_7">Tối yên tĩnh, hợp để suy ngẫm.</string>
+    <string name="tagline_evening_8">Khép lại một ngày nhẹ nhàng.</string>
+    <string name="tagline_night_5">Viết ra điều bạn đang nghĩ.</string>
+    <string name="tagline_night_6">Nhớ nghỉ ngơi nhé.</string>
+    <string name="tagline_night_7">Đêm tĩnh, suy nghĩ rõ ràng.</string>
+    <string name="tagline_night_8">Đêm nay chẳng cần vội.</string>
     <string name="aurora_placeholder_what_can_i_help">Mình giúp gì được cho bạn?</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">tự động / để trống</string>
     <string name="relay_disable_response_storage_footnote">Chỉ OpenAI Responses · đặt store: false</string>
     <string name="relay_disable_response_storage_short">Không lưu phản hồi trên đám mây</string>
@@ -830,10 +834,16 @@
     <string name="relay_security_mode_option_unknown_disabled">Nhập địa chỉ cục bộ, LAN hoặc VPN riêng trước khi chọn loại kết nối này.</string>
     <string name="relay_connection_no_key_required_cleartext">Kết nối này không cần khóa · Kết nối không mã hóa không bao giờ gửi thông tin xác thực.</string>
     <string name="relay_remove_api_key">Gỡ khóa</string>
-<string name="streaming_pulse_a11y">Đang tạo</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">Đang tạo</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">Hoạt động tháng này</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">Hoạt động tháng này</string>
     <string name="providers_all_providers">Tất cả nhà cung cấp</string>
     <string name="providers_today">Hôm nay</string>
     <string name="providers_all_synced">Đã đồng bộ tất cả</string>
@@ -842,6 +852,8 @@
     <string name="providers_delete_this_question">Xóa nhà cung cấp này?</string>
     <string name="providers_delete_this_message">Việc xóa nhà cung cấp này cũng sẽ xóa các cuộc trò chuyện liên quan và cấu hình mô hình mặc định của nó.</string>
     <string name="manual_model_clear">Xoá</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">Cần khóa API</string>
     <string name="tap_to_view">Chạm để xem</string>
     <string name="tap_to_set">Chạm để đặt</string>
@@ -857,6 +869,8 @@
     <string name="code_block_expand">Mở rộng</string>
     <string name="chat_show_full_message">Xem tin nhắn đầy đủ</string>
     <string name="code_block_lines">%d dòng</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">Không có kết nối internet</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -866,6 +880,7 @@
     <string name="reasoning_hide">Ẩn suy nghĩ</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">Không thể trích xuất văn bản từ %1$s (có vẻ là PDF đã quét).</string>
@@ -877,7 +892,6 @@
     <string name="file_extraction_error_generic">Không thể xử lý %1$s. Thử lại hoặc chọn tệp khác.</string>
     <string name="file_extraction_truncated_notice">%1$s khá dài nên chỉ thêm %2$d dòng đầu trong tổng số %3$d dòng.</string>
     <string name="file_extraction_send_blocked_text_budget">Chưa gửi: khi tính cả %1$s, phần văn bản đính kèm vượt giới hạn của mô hình này. Hãy bỏ bớt tệp hoặc đổi mô hình.</string>
-    <string name="error_attachment_not_accepted_title">Tệp đính kèm không được chấp nhận</string>
     <string name="file_extraction_text_budget_exceeded">%1$s chưa được thêm: nếu thêm, phần văn bản đính kèm tin nhắn này sẽ vượt giới hạn.</string>
     <string name="file_extraction_chip_extracted_lines">Đã trích xuất %1$d dòng</string>
     <string name="file_attachment_count_limit_reached">Bạn có thể đính kèm tối đa %1$d tệp cho mô hình này.</string>
@@ -887,6 +901,8 @@
     <string name="empty_greeting_mind">Bạn đang nghĩ gì thế?</string>
     <string name="empty_greeting_together">Có gì cần cùng gỡ rối?</string>
     <string name="empty_chat_ask_anything">Hỏi gì cũng được, hoặc cứ gõ luôn.</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">Mô hình GPT hàng đầu</string>
     <string name="provider_tagline_anthropic">Mô hình Claude</string>
     <string name="provider_tagline_gemini">Văn bản, hình ảnh &amp; video</string>
@@ -902,6 +918,8 @@
     <string name="provider_tagline_groq">Suy luận siêu nhanh</string>
     <string name="provider_tagline_together">Mô hình nguồn mở</string>
     <string name="provider_tagline_fireworks">Nhanh &amp; tiết kiệm</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">Kết nối nhà cung cấp</string>
     <string name="provider_setup_hero_subtitle">Chọn nhà cung cấp AI của bạn, rồi nhập khóa API</string>
     <string name="provider_category_all">Tất cả</string>
@@ -914,12 +932,13 @@
     <string name="provider_already_connected_subtitle">Quản lý kết nối hiện có hoặc thêm tài khoản khác bằng khóa API khác.</string>
     <string name="provider_manage_existing">Quản lý hiện có</string>
     <string name="provider_add_another_account">Thêm tài khoản khác</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="capability_video">Video</string>
     <string name="citations_section_title">Nguồn</string>
     <string name="citations_view_all">Xem tất cả %1$d nguồn</string>
     <string name="citations_collapse">Thu gọn</string>
     <string name="api_endpoint">Điểm cuối API</string>
-    <string name="api_endpoint_not_configured">Chưa cấu hình</string>
     <string name="relay_guidance_codex_identity_switch_type">Kết nối này yêu cầu danh tính ứng dụng khách Codex. Mở Nhà cung cấp → kết nối này → Thư viện mô hình → mô hình này → Nâng cao, đặt giao thức thành OpenAI Responses rồi thử lại.</string>
     <string name="relay_guidance_codex_identity_still_rejected">Kết nối này vẫn từ chối danh tính ứng dụng khách Codex của Oriveo. Mở Nhà cung cấp → kết nối này → Sửa kết nối → Header và tham số truy vấn, đặt User-Agent hoặc header tùy chỉnh, hoặc chuyển sang kết nối khác.</string>
     <string name="relay_guidance_responses_only_endpoint">Kết nối này chỉ cung cấp /v1/responses và từ chối /chat/completions. Mở Nhà cung cấp → kết nối này → Thư viện mô hình → mô hình này → Nâng cao, đặt giao thức thành OpenAI Responses rồi thử lại.</string>
@@ -953,7 +972,7 @@
     <string name="video">Video</string>
     <string name="skills_knowledgeImportEmpty">Tệp trống</string>
     <string name="skills_knowledgeImportFailed">Không thể nhập tệp</string>
-    <string name="skills_knowledgeErrorUnsupportedType">Loại tệp này không được hỗ trợ cho Cơ sở tri thức.</string>
+    <string name="skills_knowledgeErrorUnsupportedType">Loại tệp này không được hỗ trợ cho cơ sở tri thức.</string>
     <string name="provider_balance_title">Số dư tài khoản</string>
     <string name="provider_balance_refresh">Làm mới</string>
     <string name="provider_balance_granted_label">Được cấp</string>
@@ -970,10 +989,16 @@
     <string name="outline_nav_label">Dàn ý cuộc trò chuyện</string>
     <string name="outline_jump_to">Chuyển đến: %1$s</string>
     <string name="outline_attachment_only">(Tệp đính kèm)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">Ghi chú</string>
     <string name="notes_subtitle">Lưu nội dung trò chuyện thành ghi chú</string>
     <string name="notes_untitled">Ghi chú chưa đặt tên</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="other">%1$d ghi chú</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">Ghi chú</string>
     <string name="notes_tab_trash">Thùng rác</string>
     <!-- Actions -->
@@ -1036,7 +1061,7 @@
     <string name="notes_toast_export_failed">Xuất thất bại</string>
     <string name="notes_toast_folder_created">Đã tạo thư mục \"%1$s\"</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">Lưu thành ghi chú</string>
     <string name="notes_chat_replace_current_note">Cập nhật ghi chú bằng phần chọn</string>
     <string name="notes_chat_return_to_note">Quay lại ghi chú</string>
@@ -1068,13 +1093,19 @@
     <string name="notes_detail_delete_this">Xóa ghi chú này</string>
     <string name="notes_nothing_written">Chưa có nội dung.</string>
     <!-- Kiểm tra bản cập nhật (chỉ Android · Play In-App Updates) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">Giá không rõ</string>
     <string name="pricing_non_standard">Thanh toán không chuẩn</string>
     <string name="pricing_free">Miễn phí</string>
     <string name="enabled_models_help">Các mô hình đã thêm sẽ xuất hiện trong bộ chọn mô hình trên màn hình Chính.</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">Không tải được cuộc trò chuyện này</string>
     <string name="chat_load_stalled_message">Tin nhắn của cuộc trò chuyện này chưa có trên thiết bị. Hãy thử lại để lấy về từ đám mây.</string>
     <string name="chat_bootstrap_in_progress">Đang tải cuộc trò chuyện…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">Mọi mô hình của bạn, {một ứng dụng}</string>
     <string name="onboarding_title_models">Mỗi câu hỏi, {đúng mô hình}</string>
     <string name="onboarding_title_byok">Key của bạn, {hóa đơn của bạn}</string>
@@ -1091,6 +1122,8 @@
     <string name="onboarding_legal">Khi tiếp tục, bạn đồng ý với [Điều khoản dịch vụ](oriveo://terms) và [Chính sách bảo mật](oriveo://privacy).</string>
     <string name="developer_options">Tùy chọn nhà phát triển</string>
     <string name="replay_onboarding">Xem lại phần giới thiệu</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">Thiết lập nhanh</string>
     <string name="relay_quick_subtitle">Nhập URL yêu cầu và khóa API. Oriveo sẽ phát hiện các cài đặt kết nối cho bạn.</string>
     <string name="relay_models_found">Đã tìm thấy (các) mẫu %1$d trong danh mục.</string>
@@ -1158,9 +1191,8 @@
     <string name="generation_empty_not_verified">Chưa có tham số nào có thể điều chỉnh cho mô hình này</string>
     <string name="generation_empty_not_verified_detail">Chúng tôi chỉ mở điều chỉnh sau khi xác nhận tham số thực sự có tác dụng, và chúng tôi chưa kiểm thử mô hình này trên kết nối này. Khả năng suy luận của nó không bị ảnh hưởng.</string>
     <string name="generation_empty_catalog_managed">Các tham số của mô hình này hiện do danh mục chính thức quản lý và không thể tùy chỉnh tại đây.</string>
-    <string name="generation_empty_runtime_locked">Không thể điều chỉnh tham số thời gian chạy trên kết nối này.</string>
     <string name="generation_empty_all_unsupported">Mô hình này không nhận tham số có thể điều chỉnh trên kết nối này.</string>
-<string name="generation_parameter_unverified_badge">Chưa xác minh</string>
+    <string name="generation_parameter_unverified_badge">Chưa xác minh</string>
     <string name="generation_parameter_unverified_group_note">Các tham số này được suy ra từ giao thức bạn đã chọn. Oriveo chưa xác minh chúng có tác dụng trên kết nối này.</string>
     <string name="generation_parameter_dormant_summary">%1$d tham số bạn đã đặt được giữ lại và hiện không được gửi đi.</string>
     <string name="generation_parameter_dormant_view">Xem</string>
@@ -1178,6 +1210,8 @@
     <string name="chat_token_usage_cache_write">Ghi cache</string>
     <string name="chat_token_usage_total">Tổng</string>
     <string name="chat_token_usage_unavailable">Chưa có</string>
+    <string name="chat_token_usage_cost">Chi phí</string>
+    <string name="chat_token_usage_estimated">Ước tính</string>
     <string name="generation_conversation_scope_hint">Chỉ áp dụng khi mô hình này được dùng trong cuộc trò chuyện này. Đổi mô hình không sao chép giá trị; quay lại sẽ khôi phục chúng.</string>
     <string name="generation_parameter_self_healed">Mô hình này đã từ chối %1$s. Đã thử lại với cài đặt mặc định.</string>
     <string name="relay_transport_llamacpp_native">Completion gốc của llama.cpp</string>
@@ -1377,27 +1411,22 @@
     <string name="tool_call_unhandled_multiple">Mô hình đã thử dùng các công cụ (%1$s) không có trên kết nối này.</string>
     <string name="tool_call_arguments_truncated">Đã cắt tại 2 KB</string>
     <string name="tool_fallback_library_not_searched">Kết nối này không hỗ trợ công cụ nên thư viện chưa được tìm kiếm.</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">Hết dung lượng lưu trữ</string>
     <string name="storage_blocked_message">Thiết bị của bạn không còn dung lượng trống nên Oriveo không thể mở dữ liệu cục bộ. Hãy giải phóng bớt dung lượng rồi thử lại — các cuộc trò chuyện vẫn được lưu trên thiết bị này và không bị mất.</string>
     <string name="storage_blocked_action_free_space">Giải phóng dung lượng</string>
     <string name="database_unavailable_title">Không mở được dữ liệu cục bộ</string>
     <string name="database_unavailable_message">Oriveo không mở được dữ liệu cục bộ trên thiết bị này. Hãy thử lại, hoặc liên hệ bộ phận hỗ trợ nếu tình trạng này lặp lại.</string>
     <string name="link_open_failed_message">Không mở được liên kết. Hãy bật trình duyệt rồi thử lại.</string>
-    <string name="contact_support">Liên hệ hỗ trợ</string>
-    <string name="price_input">Đầu vào</string>
-    <string name="price_output">Đầu ra</string>
-    <string name="price_cache_read">Đọc cache</string>
-    <string name="price_cache_write">Ghi cache</string>
     <string name="external_app_unavailable">Không có ứng dụng mở được mục này. Hãy cài hoặc bật một ứng dụng.</string>
-    <plurals name="notes_count">
-        <item quantity="other">%1$d ghi chú</item>
-    </plurals>
     <string name="secure_field_show">Hiện ký tự</string>
     <string name="secure_field_hide">Ẩn ký tự</string>
-    <string name="generation_parameter_name_stop">Chuỗi dừng</string>
     <string name="generation_diagnostics_section">Chẩn đoán thiết lập tạo sinh</string>
     <string name="generation_diagnostics_empty">Bạn chưa có bản ghi chẩn đoán</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">Tài khoản này không thể gửi phản hồi.</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">Công cụ</string>
     <string name="mcp_tools_chip_state_on">Đang bật %d máy chủ</string>
     <string name="mcp_tools_chip_state_off">Đang tắt</string>
@@ -1472,6 +1501,8 @@
     <string name="mcp_detail_seconds">%s giây</string>
     <string name="mcp_detail_third_party_note">Kết quả do máy chủ của bên thứ ba trả về. Chỉ hiển thị 2 KB đầu tiên. Oriveo chưa kiểm tra nội dung này.</string>
     <string name="mcp_detail_not_on_device">Chi tiết chỉ được lưu trên thiết bị đã chạy bước này.</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">Công cụ và kết nối</string>
     <string name="mcp_servers_title">Máy chủ MCP</string>
     <plurals name="mcp_settings_entry_count">
@@ -1611,109 +1642,161 @@
     <string name="mcp_reauth_failed_body">Trang đăng nhập đã bị đóng, hoặc dịch vụ không chấp thuận yêu cầu. Không có gì thay đổi.</string>
     <string name="mcp_reauth_unreachable_body">Hãy chắc chắn rằng thiết bị này hiện truy cập được máy chủ rồi thử lại.</string>
     <string name="mcp_reauth_token_title">Dán mã truy cập mới</string>
-    <string name="additional_body_attachments_filled">Oriveo tự điền tệp đính kèm.</string>
-    <string name="additional_body_cannot_change">Không thể thay đổi</string>
-    <string name="additional_body_check">Hãy kiểm tra nội dung yêu cầu bổ sung</string>
-    <string name="additional_body_conversation_filled">Oriveo tự điền nội dung cuộc trò chuyện.</string>
-    <string name="additional_body_device_only">Chỉ lưu trên thiết bị này, không đồng bộ</string>
-    <string name="additional_body_docs_link">Xem %1$s hỗ trợ những trường nào</string>
-    <string name="additional_body_field_filled">Oriveo tự điền trường này.</string>
-    <string name="additional_body_field_name_invalid">Không thể dùng tên này làm tên trường.</string>
-    <string name="additional_body_footer">Các trường ở đây được thêm nguyên văn vào yêu cầu; Oriveo không kiểm tra máy chủ của bạn có chấp nhận hay không. Nếu một trường trùng tên với một mục trong cài đặt nâng cao, giá trị ở đây sẽ được dùng, còn các cài đặt khác vẫn được gửi như bình thường.</string>
-    <string name="additional_body_included">Bao gồm</string>
-    <string name="additional_body_model_chosen">Mô hình là mô hình bạn đã chọn trong Oriveo.</string>
-    <string name="additional_body_paste">Dán</string>
-    <string name="additional_body_paste_replace_body">Khi dán, nội dung hiện tại sẽ được thay bằng nội dung trong bảng nhớ tạm.</string>
-    <string name="additional_body_paste_replace_title">Thay thế nội dung hiện có?</string>
-    <string name="additional_body_reason_blocked_segment">Không thể dùng “%1$s” làm tên trường trong nội dung yêu cầu bổ sung.</string>
-    <string name="additional_body_reason_invalid_json">Nội dung yêu cầu bổ sung không phải JSON hợp lệ.</string>
-    <string name="additional_body_reason_not_object">Nội dung yêu cầu bổ sung phải là một đối tượng JSON đặt trong { }.</string>
-    <string name="additional_body_reason_protected_field">“%1$s” do Oriveo tự điền nên không thể đặt trong nội dung yêu cầu bổ sung.</string>
-    <string name="additional_body_reason_too_deep">Nội dung yêu cầu bổ sung lồng nhau sâu quá 32 cấp.</string>
-    <string name="additional_body_reason_too_large">Nội dung yêu cầu bổ sung lớn hơn 64 KB.</string>
-    <string name="additional_body_rejected_upstream">Yêu cầu kèm nội dung yêu cầu bổ sung đã bị từ chối</string>
-    <string name="additional_body_remove_line">%1$s Hãy xóa dòng %2$d để gửi.</string>
-    <string name="additional_body_retry_without">Thử lại không kèm nội dung yêu cầu bổ sung</string>
-    <string name="additional_body_send_toggle">Gửi kèm yêu cầu</string>
-    <string name="additional_body_send_toggle_note">Khi tắt, nội dung vẫn được giữ nhưng không được gửi</string>
-    <string name="additional_body_switch_blocked_invalid">Nội dung yêu cầu bổ sung đang có lỗi nên công tắc này không thể thay đổi. Hãy sửa ở đó trước.</string>
-    <string name="additional_body_switch_blocked_off">Nội dung yêu cầu bổ sung hiện không được gửi kèm yêu cầu. Hãy bật ở đó trước.</string>
-    <string name="additional_body_system_prompt_filled">Oriveo tự điền lời nhắc hệ thống.</string>
-    <string name="additional_body_tidy">Định dạng lại</string>
-    <string name="additional_body_tidy_invalid">Đây chưa phải JSON hợp lệ nên chưa có gì thay đổi.</string>
-    <string name="additional_body_title">Nội dung yêu cầu bổ sung</string>
-    <string name="additional_body_when_sending">Khi gửi</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">Khả năng</string>
+    <string name="model_options_local">Cục bộ</string>
+    <string name="model_options_web_note">Tìm kiếm web trước khi trả lời khi câu hỏi cần đến</string>
+    <string name="model_options_always_thinks">Luôn suy nghĩ trước khi trả lời</string>
+    <string name="model_options_thinks_first_note">Suy nghĩ kỹ trước nên câu trả lời sẽ lâu hơn một chút</string>
+    <string name="model_options_higher_levels_note">Mức càng cao càng lâu và có thể tốn phí hơn.</string>
+    <string name="model_options_template_thinking_note">Bật hoặc tắt suy nghĩ qua mẫu trò chuyện. Có hiệu lực hay không tùy vào máy chủ của bạn.</string>
+    <string name="model_options_connection_cannot">Kết nối này không hỗ trợ</string>
+    <string name="model_options_uses_model_default">Theo mặc định của mô hình</string>
+    <string name="model_options_reasoning_not_catalogued">Oriveo chưa có cài đặt suy nghĩ cho mô hình này nên mô hình chạy theo mặc định riêng.</string>
+    <string name="model_options_web_not_catalogued">Oriveo chưa có cài đặt tìm kiếm web cho mô hình này nên chưa thể bật ở đây.</string>
+    <string name="model_options_see_adjustable_models">Xem mô hình nào điều chỉnh được</string>
+    <string name="model_options_no_thinking_mode">Mô hình này không có chế độ suy nghĩ</string>
+    <string name="model_options_shows_thinking_fixed">Hiển thị quá trình suy nghĩ · không thể điều chỉnh</string>
+    <string name="model_options_cannot_search">Mô hình này không tìm kiếm web được</string>
+    <string name="model_options_always_on">Luôn bật</string>
+    <string name="model_options_subscription_always_searches">Với gói đăng ký này, mô hình này luôn tìm kiếm trên web.</string>
+    <string name="model_options_web_when_needed">Khi cần</string>
+    <string name="model_options_web_every_message">Mọi tin nhắn</string>
+    <string name="model_options_needs_manual_setup">Cần thiết lập thủ công</string>
+    <string name="model_options_reasoning_no_generic_switch">Nhà cung cấp này không có công tắc chuẩn cho suy nghĩ. Hãy thêm các trường riêng của nhà cung cấp vào nội dung yêu cầu bổ sung.</string>
+    <string name="model_options_web_no_generic_switch">Nhà cung cấp này không có công tắc chuẩn cho tìm kiếm web. Hãy thêm các trường riêng của nhà cung cấp vào nội dung yêu cầu bổ sung.</string>
+    <string name="model_options_open_additional_body">Mở nội dung yêu cầu bổ sung</string>
+    <string name="model_options_choose_protocol_first">Hãy chọn giao thức cho kết nối này trước</string>
+    <string name="model_options_protocol_auto_note">Giao thức vẫn đang là “Tự động” nên Oriveo không biết cách gửi cài đặt tìm kiếm web và suy nghĩ.</string>
+    <string name="model_options_choose_protocol">Chọn giao thức</string>
+    <string name="model_options_tier_rejected_title">“%1$s” đã bị từ chối</string>
+    <string name="model_options_tier_rejected_body">Mô hình này hiện không chấp nhận “%1$s” nên đã chuyển về “%2$s”. Mức này sẽ tự quay lại khi mô hình hỗ trợ trở lại.</string>
+    <string name="model_options_more_count">Còn %1$d mục khác</string>
+    <string name="model_options_cant_switch_here">Chưa thể chuyển ở đây</string>
+    <string name="model_options_not_available_yet">Chưa khả dụng</string>
+    <string name="model_options_web_and_thinking_fields">Trường cho tìm kiếm web và suy nghĩ</string>
+    <string name="model_options_vision_available">Khả dụng · hiện mục chọn ảnh ở ô nhập</string>
+    <string name="model_options_vision_unknown">Chưa rõ · ghi nhớ sau khi gửi</string>
+    <string name="model_options_vision_hidden">Không khả dụng · ẩn mục chọn ảnh ở ô nhập</string>
+    <string name="model_options_file_pdf_native">PDF gửi nguyên bản · còn lại dạng văn bản</string>
+    <string name="model_options_file_native_when_supported">Định dạng được hỗ trợ gửi nguyên bản · còn lại dạng văn bản</string>
+    <string name="model_options_file_text">Gửi dưới dạng văn bản</string>
+    <string name="model_options_turn_summary">Lượt này sẽ gửi: %1$s</string>
+    <string name="model_options_summary_web_on">Bật tìm kiếm web</string>
+    <string name="model_options_summary_thinking_level">Suy nghĩ: %1$s</string>
+    <string name="model_options_summary_thinking_on">Bật suy nghĩ</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="other">%d mức</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">Chỉ cuộc trò chuyện này</string>
+    <string name="advanced_reset">Đặt lại</string>
+    <string name="advanced_reset_conversation_title">Đặt lại cài đặt của cuộc trò chuyện này?</string>
+    <string name="advanced_reset_conversation_body">Thao tác này chỉ xóa các tham số bạn đã đổi trong cuộc trò chuyện này. Mặc định của mô hình và nội dung yêu cầu bổ sung vẫn giữ nguyên.</string>
+    <string name="advanced_reset_conversation_action">Đặt lại thay đổi của cuộc trò chuyện này</string>
+    <string name="advanced_reset_model_title">Đặt lại mặc định của mô hình này?</string>
+    <string name="advanced_reset_model_body">Thao tác này xóa các tham số mặc định bạn đã đặt cho mô hình này trên kết nối này. Các thay đổi trong từng cuộc trò chuyện vẫn giữ nguyên.</string>
+    <string name="advanced_reset_model_action">Đặt lại mặc định của mô hình</string>
+    <string name="advanced_more">Thêm</string>
+    <string name="advanced_not_adjusted">Chưa điều chỉnh</string>
+    <string name="advanced_entries_count">%1$d mục</string>
+    <string name="advanced_fields_count">%1$d trường</string>
+    <string name="advanced_random_each_time">Ngẫu nhiên mỗi lần</string>
+    <string name="advanced_plain_text">Văn bản thường</string>
+    <string name="advanced_write_your_own">Tự viết</string>
     <string name="advanced_additional_body_subtitle">Thêm bằng JSON các trường chưa có ở trên</string>
+    <string name="advanced_not_in_use">Chưa dùng</string>
+    <string name="advanced_changed_in_conversation">Đã đổi trong cuộc trò chuyện này</string>
+    <string name="advanced_using_your_default">Đang dùng mặc định của mô hình do bạn đặt</string>
+    <string name="advanced_model_defaults">Mặc định của mô hình</string>
+    <string name="advanced_your_default">Mặc định của mô hình</string>
+    <string name="advanced_state_set">Đã đặt</string>
+    <string name="advanced_state_on">Bật</string>
+    <string name="advanced_use_model_default">Dùng mặc định của mô hình</string>
+    <string name="advanced_dont_send">Không gửi cài đặt này</string>
     <string name="advanced_allowed_range">Phạm vi cho phép: %1$s</string>
     <string name="advanced_also_covers">Bao gồm cả %1$s</string>
-    <string name="advanced_changed_in_conversation">Đã đổi trong cuộc trò chuyện này</string>
-    <string name="advanced_crossed_out_legend">Các cài đặt bị gạch ngang đang do %1$s đảm nhận.</string>
-    <string name="advanced_diagnostics_delete_body">Thao tác này xóa các bản ghi chẩn đoán đang hiển thị của mô hình này. Bản ghi của các mô hình khác vẫn được giữ.</string>
-    <string name="advanced_diagnostics_delete_title">Xóa các bản ghi chẩn đoán này?</string>
-    <string name="advanced_dont_send">Không gửi cài đặt này</string>
+    <string name="advanced_no_limit">Không giới hạn</string>
+    <string name="advanced_stop_sequences">Chuỗi dừng</string>
+    <string name="advanced_new_stop_sequence">Chuỗi dừng mới</string>
+    <string name="advanced_stop_sequences_note">Mô hình dừng ngay khi viết ra bất kỳ chuỗi nào trong số này. Một chuỗi có thể chứa dấu phẩy, khoảng trắng và dấu xuống dòng.</string>
+    <string name="advanced_remove_item">Xóa %1$s</string>
+    <string name="advanced_error_max_tokens">Mô hình này chỉ viết được tối đa %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_error_number">Hãy nhập một số. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_error_integer">Hãy nhập một số nguyên. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_error_highest">Giá trị cao nhất mô hình này chấp nhận là %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_error_lowest">Giá trị thấp nhất mô hình này chấp nhận là %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_error_greater_than">Giá trị phải lớn hơn %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_error_less_than">Giá trị phải nhỏ hơn %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_error_json_schema">Đây không phải JSON Schema hợp lệ. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_error_value_rejected">Mô hình này không chấp nhận giá trị này. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
+    <string name="advanced_dropped_thinking">Mô hình không chấp nhận mục này khi Suy nghĩ đang bật nên mục này không được gửi.</string>
     <string name="advanced_dropped_conflict">Xung đột với một cài đặt khác nên cài đặt này bị bỏ qua.</string>
     <string name="advanced_dropped_conflict_with">Không thể gửi cùng %1$s nên cài đặt này bị bỏ qua.</string>
     <string name="advanced_dropped_depends">Phụ thuộc vào một cài đặt khác chưa được đặt nên không được gửi.</string>
-    <string name="advanced_dropped_reasoning_budget">Nhỏ hơn ngân sách suy luận nên giá trị mặc định sẽ được gửi thay thế.</string>
-    <string name="advanced_dropped_required_default">Mô hình này bắt buộc có trường này nên giá trị mặc định vẫn được gửi.</string>
     <string name="advanced_dropped_requires">Chỉ được gửi khi %1$s cũng được đặt.</string>
-    <string name="advanced_dropped_thinking">Mô hình không chấp nhận mục này khi Suy nghĩ đang bật nên mục này không được gửi.</string>
     <string name="advanced_dropped_value">Mô hình này không chấp nhận giá trị này nên cài đặt này không được gửi.</string>
+    <string name="advanced_dropped_required_default">Mô hình này bắt buộc có trường này nên giá trị mặc định vẫn được gửi.</string>
+    <string name="advanced_dropped_reasoning_budget">Nhỏ hơn ngân sách suy luận nên giá trị mặc định sẽ được gửi thay thế.</string>
+    <string name="advanced_taken_over">%1$s đang bật nên cài đặt này không được dùng.</string>
+    <string name="advanced_crossed_out_legend">Các cài đặt bị gạch ngang đang do %1$s đảm nhận.</string>
+    <string name="advanced_grey_defaults_legend">Số màu xám là giá trị mặc định riêng của %1$s. Chúng không được gửi trừ khi bạn thay đổi.</string>
+    <string name="advanced_mirostat_note">Giữ độ ngẫu nhiên của đầu ra ổn định quanh một mức mục tiêu, thay cho Top K và Top P.</string>
+    <string name="advanced_target_entropy">Entropy mục tiêu</string>
+    <string name="advanced_learning_rate">Tốc độ học</string>
+    <string name="advanced_repetition">Chống lặp lại</string>
     <string name="advanced_dry_note">Hạn chế lặp lại nguyên đoạn từ văn bản trước</string>
+    <string name="advanced_more_sampling">Lấy mẫu khác</string>
+    <string name="advanced_xtc_note">Thỉnh thoảng bỏ qua từ có khả năng cao nhất để cách diễn đạt đa dạng hơn</string>
     <string name="advanced_dynamic_temperature">Nhiệt độ động</string>
     <string name="advanced_dynamic_temperature_note">Nhiệt độ thay đổi theo mức độ chắc chắn của mô hình</string>
-    <string name="advanced_entries_count">%1$d mục</string>
-    <string name="advanced_error_greater_than">Giá trị phải lớn hơn %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_error_highest">Giá trị cao nhất mô hình này chấp nhận là %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_error_integer">Hãy nhập một số nguyên. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_error_json_schema">Đây không phải JSON Schema hợp lệ. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_error_less_than">Giá trị phải nhỏ hơn %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_error_lowest">Giá trị thấp nhất mô hình này chấp nhận là %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_error_max_tokens">Mô hình này chỉ viết được tối đa %1$s. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_error_number">Hãy nhập một số. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_error_value_rejected">Mô hình này không chấp nhận giá trị này. Cài đặt này sẽ không được gửi cho đến khi được sửa; các cài đặt khác không bị ảnh hưởng.</string>
-    <string name="advanced_fields_count">%1$d trường</string>
-    <string name="advanced_grey_defaults_legend">Số màu xám là giá trị mặc định riêng của %1$s. Chúng không được gửi trừ khi bạn thay đổi.</string>
-    <string name="advanced_learning_rate">Tốc độ học</string>
-    <string name="advanced_mirostat_note">Giữ độ ngẫu nhiên của đầu ra ổn định quanh một mức mục tiêu, thay cho Top K và Top P.</string>
-    <string name="advanced_model_defaults">Mặc định của mô hình</string>
-    <string name="advanced_more">Thêm</string>
-    <string name="advanced_more_sampling">Lấy mẫu khác</string>
-    <string name="advanced_new_stop_sequence">Chuỗi dừng mới</string>
-    <string name="advanced_no_limit">Không giới hạn</string>
-    <string name="advanced_not_adjusted">Chưa điều chỉnh</string>
-    <string name="advanced_not_in_use">Chưa dùng</string>
-    <string name="advanced_plain_text">Văn bản thường</string>
-    <string name="advanced_preset_apply">Áp dụng cài đặt sẵn</string>
-    <string name="advanced_preset_apply_body">“%1$s” sẽ thay thế mọi giá trị bạn đã đặt cho mô hình này: %2$s.</string>
-    <string name="advanced_preset_apply_title">Áp dụng cài đặt sẵn này?</string>
-    <string name="advanced_random_each_time">Ngẫu nhiên mỗi lần</string>
-    <string name="advanced_reasoning_set_by_thinking">Với mô hình này, chế độ suy nghĩ được đặt trong \"Tùy chọn mô hình\" › \"Suy nghĩ\". Để đặt một mức làm mặc định, hãy chọn mức ấy tại đó rồi chạm \"Đặt làm mặc định cho mô hình này\". Dòng này không được gửi đi.</string>
-    <string name="advanced_remove_item">Xóa %1$s</string>
-    <string name="advanced_repetition">Chống lặp lại</string>
-    <string name="advanced_reset">Đặt lại</string>
-    <string name="advanced_reset_conversation_action">Đặt lại thay đổi của cuộc trò chuyện này</string>
-    <string name="advanced_reset_conversation_body">Thao tác này chỉ xóa các tham số bạn đã đổi trong cuộc trò chuyện này. Mặc định của mô hình và nội dung yêu cầu bổ sung vẫn giữ nguyên.</string>
-    <string name="advanced_reset_conversation_title">Đặt lại cài đặt của cuộc trò chuyện này?</string>
-    <string name="advanced_reset_model_action">Đặt lại mặc định của mô hình</string>
-    <string name="advanced_reset_model_body">Thao tác này xóa các tham số mặc định bạn đã đặt cho mô hình này trên kết nối này. Các thay đổi trong từng cuộc trò chuyện vẫn giữ nguyên.</string>
-    <string name="advanced_reset_model_title">Đặt lại mặc định của mô hình này?</string>
-    <string name="advanced_state_on">Bật</string>
-    <string name="advanced_state_set">Đã đặt</string>
-    <string name="advanced_stop_sequences">Chuỗi dừng</string>
-    <string name="advanced_stop_sequences_note">Mô hình dừng ngay khi viết ra bất kỳ chuỗi nào trong số này. Một chuỗi có thể chứa dấu phẩy, khoảng trắng và dấu xuống dòng.</string>
-    <string name="advanced_taken_over">%1$s đang bật nên cài đặt này không được dùng.</string>
-    <string name="advanced_target_entropy">Entropy mục tiêu</string>
-    <string name="advanced_this_conversation_only">Chỉ cuộc trò chuyện này</string>
-    <string name="advanced_use_model_default">Dùng mặc định của mô hình</string>
-    <string name="advanced_using_your_default">Đang dùng mặc định của mô hình do bạn đặt</string>
-    <string name="advanced_write_your_own">Tự viết</string>
-    <string name="advanced_xtc_note">Thỉnh thoảng bỏ qua từ có khả năng cao nhất để cách diễn đạt đa dạng hơn</string>
-    <string name="advanced_your_default">Mặc định của mô hình</string>
+    <string name="additional_body_title">Nội dung yêu cầu bổ sung</string>
+    <string name="additional_body_send_toggle">Gửi kèm yêu cầu</string>
+    <string name="additional_body_send_toggle_note">Khi tắt, nội dung vẫn được giữ nhưng không được gửi</string>
+    <string name="additional_body_device_only">Chỉ lưu trên thiết bị này, không đồng bộ</string>
+    <string name="additional_body_paste">Dán</string>
+    <string name="additional_body_tidy">Định dạng lại</string>
+    <string name="additional_body_when_sending">Khi gửi</string>
+    <string name="additional_body_included">Bao gồm</string>
+    <string name="additional_body_cannot_change">Không thể thay đổi</string>
+    <string name="additional_body_footer">Các trường ở đây được thêm nguyên văn vào yêu cầu; Oriveo không kiểm tra máy chủ của bạn có chấp nhận hay không. Nếu một trường trùng tên với một mục trong cài đặt nâng cao, giá trị ở đây sẽ được dùng, còn các cài đặt khác vẫn được gửi như bình thường.</string>
+    <string name="additional_body_docs_link">Xem %1$s hỗ trợ những trường nào</string>
+    <string name="additional_body_remove_line">%1$s Hãy xóa dòng %2$d để gửi.</string>
+    <string name="additional_body_conversation_filled">Oriveo tự điền nội dung cuộc trò chuyện.</string>
+    <string name="additional_body_attachments_filled">Oriveo tự điền tệp đính kèm.</string>
+    <string name="additional_body_system_prompt_filled">Oriveo tự điền lời nhắc hệ thống.</string>
+    <string name="additional_body_tools_managed">Oriveo quản lý công cụ.</string>
+    <string name="additional_body_model_chosen">Mô hình là mô hình bạn đã chọn trong Oriveo.</string>
+    <string name="additional_body_streaming_by_oriveo">Oriveo quyết định cách truyền phát câu trả lời.</string>
+    <string name="additional_body_field_filled">Oriveo tự điền trường này.</string>
+    <string name="additional_body_field_name_invalid">Không thể dùng tên này làm tên trường.</string>
+    <string name="additional_body_paste_replace_title">Thay thế nội dung hiện có?</string>
+    <string name="additional_body_paste_replace_body">Khi dán, nội dung hiện tại sẽ được thay bằng nội dung trong bảng nhớ tạm.</string>
+    <string name="additional_body_tidy_invalid">Đây chưa phải JSON hợp lệ nên chưa có gì thay đổi.</string>
+    <string name="additional_body_switch_blocked_invalid">Nội dung yêu cầu bổ sung đang có lỗi nên công tắc này không thể thay đổi. Hãy sửa ở đó trước.</string>
+    <string name="additional_body_switch_blocked_off">Nội dung yêu cầu bổ sung hiện không được gửi kèm yêu cầu. Hãy bật ở đó trước.</string>
+    <string name="additional_body_check">Hãy kiểm tra nội dung yêu cầu bổ sung</string>
+    <string name="additional_body_rejected_upstream">Yêu cầu kèm nội dung yêu cầu bổ sung đã bị từ chối</string>
+    <string name="additional_body_reason_too_large">Nội dung yêu cầu bổ sung lớn hơn 64 KB.</string>
+    <string name="additional_body_reason_invalid_json">Nội dung yêu cầu bổ sung không phải JSON hợp lệ.</string>
+    <string name="additional_body_reason_not_object">Nội dung yêu cầu bổ sung phải là một đối tượng JSON đặt trong { }.</string>
+    <string name="additional_body_reason_too_deep">Nội dung yêu cầu bổ sung lồng nhau sâu quá 32 cấp.</string>
+    <string name="additional_body_reason_blocked_segment">Không thể dùng “%1$s” làm tên trường trong nội dung yêu cầu bổ sung.</string>
+    <string name="additional_body_reason_protected_field">“%1$s” do Oriveo tự điền nên không thể đặt trong nội dung yêu cầu bổ sung.</string>
+    <string name="additional_body_retry_without">Thử lại không kèm nội dung yêu cầu bổ sung</string>
+    <string name="local_request_line_format">Dòng %1$d: %2$s</string>
+    <string name="local_request_custom_line_format">Trường %1$s, dòng %2$d: %3$s</string>
+    <string name="local_request_custom_format">Trường %1$s: %2$s</string>
+    <string name="local_request_not_sent">Tin nhắn này chưa được gửi.</string>
     <string name="generation_parameter_name_grammar">Ràng buộc ngữ pháp (GBNF)</string>
     <string name="generation_parameter_name_min_tokens">Số token đầu ra tối thiểu</string>
     <string name="generation_parameter_name_skip_special_tokens">Ẩn token đặc biệt trong đầu ra</string>
     <string name="generation_parameter_omitted_value">Bỏ qua</string>
+    <string name="advanced_reasoning_set_by_thinking">Với mô hình này, chế độ suy nghĩ được đặt trong \"Tùy chọn mô hình\" › \"Suy nghĩ\". Để đặt một mức làm mặc định, hãy chọn mức ấy tại đó rồi chạm \"Đặt làm mặc định cho mô hình này\". Dòng này không được gửi đi.</string>
+    <string name="advanced_preset_apply">Áp dụng cài đặt sẵn</string>
+    <string name="advanced_preset_apply_title">Áp dụng cài đặt sẵn này?</string>
+    <string name="advanced_preset_apply_body">“%1$s” sẽ thay thế mọi giá trị bạn đã đặt cho mô hình này: %2$s.</string>
+    <string name="advanced_diagnostics_delete_title">Xóa các bản ghi chẩn đoán này?</string>
+    <string name="advanced_diagnostics_delete_body">Thao tác này xóa các bản ghi chẩn đoán đang hiển thị của mô hình này. Bản ghi của các mô hình khác vẫn được giữ.</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">LLM tùy chỉnh · Rơ-le tùy chỉnh</string>
     <string name="relay_setup_hero_title">Kết nối rơ-le tùy chỉnh</string>
@@ -1784,6 +1867,7 @@
     <string name="relay_relative_minutes_ago">%d phút trước</string>
     <string name="relay_relative_hours_ago">%d giờ trước</string>
     <string name="relay_detail_default_model">Mẫu mặc định</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">Nhập địa chỉ và khóa, rồi chọn mô hình ở bước tiếp theo. Giao thức và khả năng được phát hiện cho từng mô hình.</string>
     <string name="relay_setup_will_request">Sẽ gửi yêu cầu tới %1$s</string>
     <string name="relay_setup_key_name">Tên (không bắt buộc)</string>
@@ -1873,6 +1957,14 @@
     <string name="relay_catalog_status_denied">Khóa hiện tại không có quyền truy cập</string>
     <string name="relay_catalog_unreachable_title">Vì sao không kết nối được</string>
     <string name="relay_catalog_enable_hint">Khi bật, Oriveo gửi 1 yêu cầu rất nhỏ để xác nhận mô hình dùng được. Chạm vào một mô hình trong danh mục để xem “Nâng cao” trước mà không gửi yêu cầu nào.</string>
+    <string name="relay_catalog_add_all">Thêm tất cả</string>
+    <string name="relay_catalog_enable_hint_explicit">Chạm vào một mô hình trong danh mục để xem “Nâng cao” trước mà không gửi yêu cầu nào.</string>
+    <string name="relay_catalog_remove_last_reason">Kết nối này cần có ít nhất một mô hình.</string>
+    <string name="relay_model_advanced_auto_equals_connection">Tự động = giao thức mặc định của kết nối này (%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">Thay đổi có hiệu lực ngay và chỉ được lưu trên thiết bị này.</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="other">Đã thêm %1$d mô hình</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">Không lấy được danh sách mô hình</string>
     <string name="relay_catalog_group_other">Khác</string>
     <string name="relay_advanced_key_section">Khóa</string>
@@ -1961,6 +2053,7 @@
     <string name="relay_web_chat_note">Chat Completions không có trường chuẩn cho tìm kiếm web. Mẫu chỉ dùng được với mô hình tìm kiếm; hãy xem tài liệu của dịch vụ.</string>
     <string name="relay_web_other_protocols">Giao thức khác</string>
     <string name="relay_web_template_replace_body">Mẫu sẽ thay thế nội dung bạn đã nhập cho giao thức này.</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">Xác thực, header và tham số truy vấn</string>
     <string name="relay_manual_connection_name">Tên kết nối</string>
     <string name="relay_manual_model_footnote">Nhập ID mô hình đúng y như rơ-le tùy chỉnh của bạn liệt kê. Sau này bạn có thể thêm mô hình khác từ thư viện mô hình.</string>
@@ -1974,64 +2067,6 @@
     <string name="relay_manual_model_entry_note_exact">Nhập ID mô hình đúng y như rơ-le tùy chỉnh của bạn liệt kê.</string>
     <string name="relay_manual_model_entry_note_capabilities">Khả năng của mô hình sẽ được ghi nhớ sau khi bạn gửi tin nhắn. Bạn cũng có thể kiểm tra trong “Nâng cao”.</string>
     <string name="relay_connection_not_verified">Kết nối chưa được xác minh.</string>
-    <string name="local_request_custom_format">Trường %1$s: %2$s</string>
-    <string name="local_request_custom_line_format">Trường %1$s, dòng %2$d: %3$s</string>
-    <string name="local_request_line_format">Dòng %1$d: %2$s</string>
-    <string name="local_request_not_sent">Tin nhắn này chưa được gửi.</string>
-    <string name="model_options_always_thinks">Luôn suy nghĩ trước khi trả lời</string>
-    <string name="model_options_cannot_search">Mô hình này không tìm kiếm web được</string>
-    <string name="model_options_always_on">Luôn bật</string>
-    <string name="model_options_subscription_always_searches">Với gói đăng ký này, mô hình này luôn tìm kiếm trên web.</string>
-    <string name="model_options_cant_switch_here">Chưa thể chuyển ở đây</string>
-    <string name="model_options_capabilities">Khả năng</string>
-    <string name="model_options_choose_protocol">Chọn giao thức</string>
-    <string name="model_options_choose_protocol_first">Hãy chọn giao thức cho kết nối này trước</string>
-    <string name="model_options_connection_cannot">Kết nối này không hỗ trợ</string>
-    <string name="model_options_higher_levels_note">Mức càng cao càng lâu và có thể tốn phí hơn.</string>
-    <string name="model_options_local">Cục bộ</string>
-    <string name="model_options_more_count">Còn %1$d mục khác</string>
-    <string name="model_options_needs_manual_setup">Cần thiết lập thủ công</string>
-    <string name="model_options_no_thinking_mode">Mô hình này không có chế độ suy nghĩ</string>
-    <string name="model_options_not_available_yet">Chưa khả dụng</string>
-    <string name="model_options_open_additional_body">Mở nội dung yêu cầu bổ sung</string>
-    <string name="model_options_protocol_auto_note">Giao thức vẫn đang là “Tự động” nên Oriveo không biết cách gửi cài đặt tìm kiếm web và suy nghĩ.</string>
-    <string name="model_options_reasoning_no_generic_switch">Nhà cung cấp này không có công tắc chuẩn cho suy nghĩ. Hãy thêm các trường riêng của nhà cung cấp vào nội dung yêu cầu bổ sung.</string>
-    <string name="model_options_reasoning_not_catalogued">Oriveo chưa có cài đặt suy nghĩ cho mô hình này nên mô hình chạy theo mặc định riêng.</string>
-    <string name="model_options_see_adjustable_models">Xem mô hình nào điều chỉnh được</string>
-    <string name="model_options_template_thinking_note">Bật hoặc tắt suy nghĩ qua mẫu trò chuyện. Có hiệu lực hay không tùy vào máy chủ của bạn.</string>
-    <string name="model_options_thinks_first_note">Suy nghĩ kỹ trước nên câu trả lời sẽ lâu hơn một chút</string>
-    <string name="model_options_tier_rejected_body">Mô hình này hiện không chấp nhận “%1$s” nên đã chuyển về “%2$s”. Mức này sẽ tự quay lại khi mô hình hỗ trợ trở lại.</string>
-    <string name="model_options_tier_rejected_title">“%1$s” đã bị từ chối</string>
-    <string name="model_options_uses_model_default">Theo mặc định của mô hình</string>
-    <string name="model_options_web_and_thinking_fields">Trường cho tìm kiếm web và suy nghĩ</string>
-    <string name="model_options_vision_available">Khả dụng · hiện mục chọn ảnh ở ô nhập</string>
-    <string name="model_options_vision_unknown">Chưa rõ · ghi nhớ sau khi gửi</string>
-    <string name="model_options_vision_hidden">Không khả dụng · ẩn mục chọn ảnh ở ô nhập</string>
-    <string name="model_options_file_pdf_native">PDF gửi nguyên bản · còn lại dạng văn bản</string>
-    <string name="model_options_file_native_when_supported">Định dạng được hỗ trợ gửi nguyên bản · còn lại dạng văn bản</string>
-    <string name="model_options_file_text">Gửi dưới dạng văn bản</string>
-    <string name="model_options_turn_summary">Lượt này sẽ gửi: %1$s</string>
-    <string name="model_options_summary_web_on">Bật tìm kiếm web</string>
-    <string name="model_options_summary_thinking_level">Suy nghĩ: %1$s</string>
-    <string name="model_options_summary_thinking_on">Bật suy nghĩ</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="other">%d mức</item>
-    </plurals>
-    <string name="model_options_web_every_message">Mọi tin nhắn</string>
-    <string name="model_options_web_no_generic_switch">Nhà cung cấp này không có công tắc chuẩn cho tìm kiếm web. Hãy thêm các trường riêng của nhà cung cấp vào nội dung yêu cầu bổ sung.</string>
-    <string name="model_options_web_not_catalogued">Oriveo chưa có cài đặt tìm kiếm web cho mô hình này nên chưa thể bật ở đây.</string>
-    <string name="model_options_web_note">Tìm kiếm web trước khi trả lời khi câu hỏi cần đến</string>
-    <string name="model_options_web_when_needed">Khi cần</string>
-    <string name="additional_body_tools_managed">Oriveo quản lý công cụ.</string>
-    <string name="additional_body_streaming_by_oriveo">Oriveo quyết định cách truyền phát câu trả lời.</string>
-    <string name="relay_catalog_add_all">Thêm tất cả</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="other">Đã thêm %1$d mô hình</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">Kết nối này cần có ít nhất một mô hình.</string>
-    <string name="relay_catalog_enable_hint_explicit">Chạm vào một mô hình trong danh mục để xem “Nâng cao” trước mà không gửi yêu cầu nào.</string>
-    <string name="relay_model_advanced_changes_apply">Thay đổi có hiệu lực ngay và chỉ được lưu trên thiết bị này.</string>
-    <string name="relay_model_advanced_auto_equals_connection">Tự động = giao thức mặc định của kết nối này (%1$s)</string>
     <string name="relay_avatar_change_icon">Đổi biểu tượng</string>
     <string name="relay_avatar_letter">Chữ cái</string>
     <string name="relay_avatar_icon_paper_plane">Máy bay giấy</string>
@@ -2243,7 +2278,7 @@
     <string name="memory_editor_category">Danh mục</string>
     <string name="memory_editor_too_long">Tối đa 2.000 ký tự</string>
     <string name="memory_delete_confirm_title">Xóa mục bộ nhớ này?</string>
-    <string name="memory_delete_confirm_body">Mục này sẽ bị xóa vĩnh viễn khỏi thiết bị này.</string>
+    <string name="memory_delete_confirm_body">Mục này sẽ bị xóa trên mọi thiết bị của bạn.</string>
     <string name="memory_action_organize">Tách thành các mục</string>
     <string name="memory_raw_view">Văn bản thường</string>
     <string name="memory_raw_view_hint">Ngăn cách các mục bằng một dòng chỉ có ---.</string>
@@ -2273,8 +2308,165 @@
     <string name="context_confirm_also_price_line">Yêu cầu này còn vượt ngưỡng tăng giá %2$s của %1$s, nên cả yêu cầu bị tính theo giá ngữ cảnh dài.</string>
     <string name="context_confirm_dont_ask">Không hỏi lại trong cuộc trò chuyện này</string>
     <string name="context_confirm_send">Vẫn gửi</string>
-    <string name="chat_last_used_model_retired_hint">Mô hình bạn dùng lần trước đã ngừng cung cấp. Hiện đang dùng %1$s.</string>
-    <string name="model_options_shows_thinking_fixed">Hiển thị quá trình suy nghĩ · không thể điều chỉnh</string>
     <string name="settings_section_general">Cài đặt chung</string>
     <string name="settings_section_help_about">Trợ giúp &amp; Giới thiệu</string>
+    <string name="settings_footer_poem">Giữa muôn vàn mô hình, có một câu trả lời dành riêng cho bạn.</string>
+    <string name="skills_home_autoCount">Tự động · %1$d</string>
+    <string name="skills_home_slashHint">Gõ / để dùng</string>
+    <string name="skills_home_empty">Lưu lại cách bạn thích làm</string>
+    <string name="skills_list_subtitle">Lưu lại cách làm bạn muốn, AI sẽ tự dùng khi phù hợp.</string>
+    <string name="skills_create_describePlaceholder">Mô tả cách làm, AI sẽ viết thành kỹ năng</string>
+    <string name="skills_create_fromChat">Từ cuộc trò chuyện</string>
+    <string name="skills_create_manual">Tạo thủ công</string>
+    <string name="skills_segment_mine">Của tôi</string>
+    <string name="skills_segment_templates">Mẫu</string>
+    <string name="skills_group_auto">Tự động</string>
+    <string name="skills_group_manual">Chỉ thủ công</string>
+    <string name="skills_card_usageCount">Lượt dùng: %1$d</string>
+    <string name="skills_row_slashHint">Dùng khi bạn gõ %1$s</string>
+    <string name="skills_auto_needWhenTitle">Trước hết, hãy cho biết khi nào dùng</string>
+    <string name="skills_auto_suggest">Gợi ý</string>
+    <string name="skills_auto_limitReached">Đã đạt giới hạn tự động dùng (%1$d). Hãy tắt bớt một kỹ năng trước.</string>
+    <string name="skills_search_placeholder">Tìm kỹ năng</string>
+    <string name="skills_empty_title">Chưa có kỹ năng nào</string>
+    <string name="skills_empty_body">Lưu lại cách làm quen thuộc để không phải giải thích lại mỗi lần.</string>
+    <string name="skills_empty_browseTemplates">Xem mẫu</string>
+    <string name="skills_migrate_banner">Kỹ năng chưa có “Khi nào dùng”: %1$d. Thêm một câu để chúng có thể được dùng tự động.</string>
+    <string name="skills_migrate_review">Bổ sung lần lượt</string>
+    <string name="skills_templates_note">Mẫu chỉ được dùng tự động sau khi bạn thêm vào “Của tôi”.</string>
+    <string name="skills_templates_featured">Nổi bật</string>
+    <string name="skills_templates_addToMine">Thêm vào kỹ năng của tôi</string>
+    <string name="skills_templates_add">Thêm</string>
+    <string name="skills_templates_added">Đã thêm</string>
+    <string name="skills_templates_tryOnce">Dùng thử một lần</string>
+    <string name="skills_detail_useInNewChat">Dùng trong cuộc trò chuyện mới</string>
+    <string name="skills_detail_orSlash">Hoặc gõ %1$s vào ô tin nhắn</string>
+    <string name="skills_detail_usage">Lượt dùng: %1$d · Lần cuối %2$s</string>
+    <string name="skills_detail_neverUsed">Chưa dùng lần nào</string>
+    <string name="skills_detail_autoInvoke">Tự động dùng</string>
+    <string name="skills_detail_whenToUse">Khi nào dùng</string>
+    <string name="skills_detail_whenToUseNote">AI dựa vào đây để quyết định</string>
+    <string name="skills_detail_instructions">Cách làm</string>
+    <string name="skills_detail_showAll">Xem tất cả</string>
+    <string name="skills_detail_references">Tài liệu tham khảo</string>
+    <string name="skills_detail_starters">Câu mở đầu</string>
+    <string name="skills_detail_recentChats">Cuộc trò chuyện gần đây</string>
+    <string name="skills_detail_try">Dùng thử</string>
+    <string name="skills_edit_changeIcon">Đổi biểu tượng</string>
+    <string name="skills_edit_name">Tên</string>
+    <string name="skills_edit_whenBadge">Quyết định việc tự động dùng</string>
+    <string name="skills_edit_whenPlaceholder">VD: Khi tôi nhờ gom ghi chú thành báo cáo tuần. Không dùng cho báo cáo ngày.</string>
+    <string name="skills_edit_keywordsCaption">Các từ này sẽ kích hoạt · chỉ cần mô tả tình huống</string>
+    <string name="skills_edit_whenTip">Ghi rõ kỹ năng làm gì, khi nào dùng và bạn thường hỏi thế nào. Thêm “Không dùng cho …” để tránh dùng nhầm. Từ đặt trong dấu ngoặc kép sẽ được tô sáng.</string>
+    <string name="skills_edit_polish">Trau chuốt bằng AI</string>
+    <string name="skills_edit_addStarter">Thêm câu mở đầu</string>
+    <string name="skills_edit_modelAndFeatures">Mô hình và tính năng</string>
+    <string name="skills_edit_followChat">Theo cuộc trò chuyện</string>
+    <string name="skills_edit_needWhenForAuto">Hãy điền “Khi nào dùng” hoặc tắt tự động dùng.</string>
+    <string name="skills_draft_askScenarios">Kể một hai tình huống bạn sẽ dùng nó</string>
+    <string name="skills_draft_askQuality">Thế nào là một kết quả tốt?</string>
+    <string name="skills_draft_skip">Bỏ qua</string>
+    <string name="skills_draft_generating">Đang viết bản nháp…</string>
+    <string name="skills_draft_title">Bản nháp</string>
+    <string name="skills_draft_editFirst">Sửa trước</string>
+    <string name="skills_draft_suggestedIcon">Biểu tượng gợi ý</string>
+    <string name="skills_draft_failed">Chưa tạo xong bản nháp. Phần dùng được đã được điền sẵn cho bạn.</string>
+    <string name="skills_fromChat_menuConversation">Lưu thành kỹ năng</string>
+    <string name="skills_fromChat_menuMessage">Lưu cách làm này thành kỹ năng</string>
+    <string name="skills_fromChat_messages">Tin nhắn: %1$d</string>
+    <string name="skills_fromChat_extracting">Đang tổng hợp…</string>
+    <string name="skills_limit_upgrade">Nâng cấp để có thêm</string>
+    <string name="skills_limit_draftKept">Bản nháp vẫn được giữ trên thiết bị này.</string>
+    <string name="skills_composer_placeholder">Gõ / để dùng kỹ năng</string>
+    <string name="skills_picker_title">Kỹ năng của tôi</string>
+    <string name="skills_picker_multi">Có thể chọn nhiều</string>
+    <string name="skills_picker_auto">Tự động</string>
+    <string name="skills_picker_manual">Thủ công</string>
+    <string name="skills_picker_manage">Quản lý kỹ năng</string>
+    <string name="skills_picker_maxReached">Tối đa %1$d cùng lúc</string>
+    <string name="skills_chip_deleted">Đã xóa</string>
+    <string name="skills_message_attached">Đã kèm: %1$s</string>
+    <string name="skills_used_chip">Đã dùng: %1$s</string>
+    <string name="skills_used_loading">Đang dùng %1$s…</string>
+    <string name="skills_used_byChoice">Được dùng vì bạn đã chọn</string>
+    <string name="skills_used_why">Vì sao được dùng</string>
+    <string name="skills_used_disableHere">Không tự động dùng trong cuộc trò chuyện này</string>
+    <string name="skills_used_view">Xem kỹ năng</string>
+    <string name="skills_settings_autoToggle">Tự động dùng kỹ năng</string>
+    <string name="skills_settings_autoToggleFooter">Khi tắt, mô hình sẽ không tự chọn kỹ năng. Bạn vẫn có thể gõ / để dùng.</string>
+    <string name="skills_try_banner">Đang dùng thử · Không lưu vào lịch sử</string>
+    <string name="skills_try_saveToSkill">Lưu vào kỹ năng</string>
+    <string name="skills_try_adjust">Chỉnh cách làm</string>
+    <string name="skills_try_saved">Đã lưu vào “%1$s”</string>
+    <string name="skills_try_savedToDraft">Đã chép vào trang chỉnh sửa. Hãy lưu ở đó để giữ thay đổi.</string>
+    <string name="skills_improve_prompt">Thêm yêu cầu này vào “%1$s”?</string>
+    <string name="skills_improve_review">Xem thay đổi</string>
+    <string name="skills_improve_accept">Thêm vào kỹ năng</string>
+    <string name="skills_improve_dismiss">Để sau</string>
+    <string name="skills_improve_addedLine">Đã thêm</string>
+    <string name="skills_improve_removedLine">Đã xóa</string>
+    <string name="skills_improve_saved">Đã thêm vào “%1$s”</string>
+    <string name="skills_saveFailed">Không thể lưu thay đổi. Vui lòng thử lại.</string>
+    <string name="skills_usage_manifestRow">Token cho danh sách kỹ năng</string>
+    <string name="skills_glyph_writing">Viết lách</string>
+    <string name="skills_glyph_report">Báo cáo</string>
+    <string name="skills_glyph_code">Mã nguồn</string>
+    <string name="skills_glyph_study">Học tập</string>
+    <string name="skills_glyph_travel">Du lịch</string>
+    <string name="skills_glyph_health">Sức khỏe</string>
+    <string name="skills_glyph_meeting">Cuộc họp</string>
+    <string name="skills_glyph_idea">Ý tưởng</string>
+    <string name="skills_glyph_translate">Dịch thuật</string>
+    <string name="skills_glyph_email">Email</string>
+    <string name="skills_glyph_data">Dữ liệu</string>
+    <string name="skills_glyph_design">Thiết kế</string>
+    <string name="skills_glyph_legal">Pháp lý</string>
+    <string name="skills_glyph_finance">Tài chính</string>
+    <string name="skills_glyph_marketing">Tiếp thị</string>
+    <string name="skills_glyph_support">Hỗ trợ</string>
+    <string name="skills_glyph_teaching">Giảng dạy</string>
+    <string name="skills_glyph_research">Nghiên cứu</string>
+    <string name="skills_glyph_life">Đời sống</string>
+    <string name="skills_glyph_food">Ẩm thực</string>
+    <string name="skills_glyph_music">Âm nhạc</string>
+    <string name="skills_glyph_photo">Nhiếp ảnh</string>
+    <string name="skills_glyph_product">Sản phẩm</string>
+    <string name="skills_glyph_general">Chung</string>
+    <string name="skills_home_notesRecent">Chỉnh sửa gần đây</string>
+    <string name="skills_search_noResults">Không có kết quả</string>
+    <string name="generic_error_try_again">Đã xảy ra lỗi. Vui lòng thử lại.</string>
+    <string name="loading_usage_trends">Đang tải xu hướng sử dụng…</string>
+    <string name="usage_vs_last_month">so với tháng trước</string>
+    <string name="usage_section_insights">PHÂN TÍCH</string>
+    <string name="usage_section_budgets">NGÂN SÁCH</string>
+    <string name="usage_sample_report">Báo cáo mẫu</string>
+    <string name="usage_clear">Xoá</string>
+    <string name="usage_monthly_budget_eyebrow">Ngân sách hàng tháng</string>
+    <string name="skills_knowledgeErrorOpenAI">Trước tiên hãy thêm và cấu hình nhà cung cấp OpenAI.</string>
+    <string name="skills_knowledgeErrorEndpoint">Cơ sở tri thức chỉ hoạt động với endpoint OpenAI chính thức.</string>
+    <string name="skills_knowledgeErrorModelDisabled">Trước tiên hãy thêm và bật %1$s trong nhà cung cấp OpenAI của bạn.</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">Cơ sở tri thức hiện không khả dụng.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">Tệp cơ sở tri thức phải có kích thước từ 20 MB trở xuống.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">Mỗi Skill có tối đa 5 tệp cơ sở tri thức và tổng dung lượng 100 MB.</string>
+    <string name="skills_knowledgeErrorExtractFailed">Không thể trích xuất văn bản từ tệp này.</string>
+    <string name="skills_knowledgeErrorUploadFailed">Không thể tải lên tệp này.</string>
+    <string name="skills_knowledgeErrorIndexFailed">Không thể lập chỉ mục cho tệp này.</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">Truy xuất cơ sở tri thức cho tin nhắn này đã thất bại.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">Không thể dọn dẹp tệp từ xa. Hãy thử lại sau.</string>
+    <string name="custom_llm_connection_method">Phương thức kết nối</string>
+    <string name="local_compute_pairing_code">Mã ghép nối</string>
+    <string name="local_compute_scan_qr">Quét mã QR</string>
+    <string name="api_endpoint_not_configured">Chưa cấu hình</string>
+    <string name="contact_support">Liên hệ hỗ trợ</string>
+    <string name="error_attachment_not_accepted_title">Tệp đính kèm không được chấp nhận</string>
+    <string name="generation_empty_runtime_locked">Không thể điều chỉnh tham số thời gian chạy trên kết nối này.</string>
+    <string name="legal_consent_notice">Bằng cách tiếp tục, bạn đồng ý với các điều khoản pháp lý bên dưới.</string>
+    <string name="price_cache_read">Đọc cache</string>
+    <string name="price_cache_write">Ghi cache</string>
+    <string name="price_input">Đầu vào</string>
+    <string name="price_output">Đầu ra</string>
+    <string name="settings_report_issue">Báo cáo sự cố</string>
+    <string name="settings_source_code">Mã nguồn</string>
+    <string name="skills_pinToHome">Ghim vào Trang chủ</string>
+    <string name="skills_unpin">Bỏ ghim khỏi Trang chủ</string>
 </resources>

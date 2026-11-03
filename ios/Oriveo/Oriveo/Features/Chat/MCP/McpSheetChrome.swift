@@ -240,7 +240,7 @@ struct McpServerIconView: View {
             OriveoTheme.Palette.primarySoft
             Text(String(name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased())
                 .font(.system(size: size * 0.45, weight: .bold))
-                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
         }
         .clipShape(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous))
     }

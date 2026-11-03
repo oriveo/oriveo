@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import Testing
 @testable import Oriveo
 
@@ -216,6 +217,157 @@ struct DictationHostBindingTests {
         #expect(capture.stopCount == 0)
         withExtendedLifetime((chat, home)) { controller.onEvent?(.insert("x")) }
         #expect(log.entries == ["home-insert:x"])
+    }
+
+    // MARK: Live text into the input field
+
+    /// Draft source text: the host's @State is replaced by a reference box in the test.
+    private final class Draft {
+        var text = ""
+    }
+
+    /// Real selection exit (no input field attached) plus a host with a draft box: insert / send records the draft at that moment.
+    private func makeLiveHost(
+        _ log: HostLog, draft: Draft, probe: ComposerSelectionProbe, canSend: Bool = true
+    ) -> DictationHostBinding {
+        DictationHostBinding(
+            canSend: { canSend },
+            onInsert: {
+                draft.text = probe.insert(transcript: $0, currentText: draft.text)
+                log.entries.append("insert:\(draft.text)")
+            },
+            onSend: { log.entries.append("send:\(draft.text)") },
+            toast: { log.toasts.append($0) },
+            live: .probe(probe, text: Binding(get: { draft.text }, set: { draft.text = $0 }))
+        )
+    }
+
+    /// Draft "Hello world", selection "llo"; recording starts after the host takes over. Returns the controller and the live-text identifier.
+    private func startLiveDictation(
+        _ log: HostLog, draft: Draft, probe: ComposerSelectionProbe, canSend: Bool = true
+    ) async -> (DictationController, DictationHostBinding, Int) {
+        draft.text = "Hello world"
+        probe.update(range: NSRange(location: 2, length: 3))
+        let capture = FakeAudioCapture(sampleRate: 48_000)
+        let controller = makeController(capture: capture)
+        let host = makeLiveHost(log, draft: draft, probe: probe, canSend: canSend)
+        host.attach(controller: controller, slotKey: Self.slotKey)
+        await controller.micTapped()
+        capture.feed(seconds: 1, amplitude: 0.1)
+        #expect(controller.state == .recording(startedAt: Date(timeIntervalSince1970: 1_000)))
+        return (controller, host, controller.liveText.begin())
+    }
+
+    private static func live(_ finals: [String], _ partial: String) -> String {
+        DictationRules.liveInsert(finals: finals, partial: partial, into: "Hello world", selectionStart: 2, selectionEnd: 5).text
+    }
+
+    @Test("a later host of the same key took over events: an earlier host's detach does not clear its onEvent")
+    func liveSnapshotsWriteFromRecordingBase() async {
+        let draft = Draft()
+        let probe = ComposerSelectionProbe()
+        let (controller, host, generation) = await startLiveDictation(HostLog(), draft: draft, probe: probe)
+
+        controller.liveText.publish(SystemSTTLiveSnapshot(finals: ["Big"], partial: "wor"), generation: generation)
+        #expect(draft.text == Self.live(["Big"], "wor"))
+        let first = DictationRules.liveInsert(
+            finals: ["Big"], partial: "wor", into: "Hello world", selectionStart: 2, selectionEnd: 5
+        )
+        #expect(probe.range == NSRange(location: first.cursor, length: 0))
+
+        controller.liveText.publish(SystemSTTLiveSnapshot(finals: ["Big", "word"], partial: ""), generation: generation)
+        #expect(draft.text == Self.live(["Big", "word"], ""))
+        withExtendedLifetime(host) {}
+    }
+
+    @Test("a later host of the same key took over events: an earlier host's detach does not clear its onEvent")
+    func finalInsertReplacesLiveRegion() async {
+        let draft = Draft()
+        let probe = ComposerSelectionProbe()
+        let log = HostLog()
+        let (controller, host, generation) = await startLiveDictation(log, draft: draft, probe: probe)
+        controller.liveText.publish(SystemSTTLiveSnapshot(finals: ["Big"], partial: "wor"), generation: generation)
+
+        controller.onEvent?(.insert("Big word"))
+        let expected = DictationRules.liveInsert(
+            finals: ["Big word"], partial: "", into: "Hello world", selectionStart: 2, selectionEnd: 5
+        )
+        #expect(draft.text == expected.text)
+        #expect(probe.range == NSRange(location: expected.cursor, length: 0))
+        #expect(log.entries == ["insert:\(expected.text)"])
+        withExtendedLifetime(host) {}
+    }
+
+    @Test("a later host of the same key took over events: an earlier host's detach does not clear its onEvent")
+    func newGenerationRefetchesBase() async {
+        let draft = Draft()
+        let probe = ComposerSelectionProbe()
+        let log = HostLog()
+        let (controller, host, first) = await startLiveDictation(log, draft: draft, probe: probe)
+        controller.liveText.publish(SystemSTTLiveSnapshot(finals: ["Big"], partial: "wor"), generation: first)
+        #expect(draft.text == Self.live(["Big"], "wor"))
+
+        // The previous generation ended without sending liveDiscarded; the user then changed the draft and the cursor.
+        draft.text = "Bye"
+        probe.update(range: NSRange(location: 3, length: 0))
+        let second = controller.liveText.begin()
+        controller.liveText.publish(SystemSTTLiveSnapshot(finals: ["Hi"], partial: ""), generation: second)
+        let written = DictationRules.liveInsert(finals: ["Hi"], partial: "", into: "Bye", selectionStart: 3, selectionEnd: 3)
+        #expect(draft.text == written.text)
+
+        controller.onEvent?(.insert("Hi there"))
+        let expected = DictationRules.liveInsert(
+            finals: ["Hi there"], partial: "", into: "Bye", selectionStart: 3, selectionEnd: 3
+        )
+        #expect(draft.text == expected.text)
+        #expect(log.entries == ["insert:\(expected.text)"])
+        withExtendedLifetime(host) {}
+    }
+
+    @Test("a later host of the same key took over events: an earlier host's detach does not clear its onEvent")
+    func liveDiscardedRestoresBase() async {
+        let draft = Draft()
+        let probe = ComposerSelectionProbe()
+        let log = HostLog()
+        let (controller, host, generation) = await startLiveDictation(log, draft: draft, probe: probe)
+        controller.liveText.publish(SystemSTTLiveSnapshot(finals: ["Big"], partial: "wor"), generation: generation)
+
+        controller.onEvent?(.liveDiscarded)
+        #expect(draft.text == "Hello world")
+        #expect(probe.range == NSRange(location: 2, length: 3))
+        #expect(log.entries.isEmpty)
+        #expect(log.toasts.isEmpty)
+        withExtendedLifetime(host) {}
+    }
+
+    @Test("a later host of the same key took over events: an earlier host's detach does not clear its onEvent")
+    func liveTextClearedKeepsDraft() async {
+        let draft = Draft()
+        let probe = ComposerSelectionProbe()
+        let (controller, host, generation) = await startLiveDictation(HostLog(), draft: draft, probe: probe)
+        controller.liveText.publish(SystemSTTLiveSnapshot(finals: ["Big"], partial: "wor"), generation: generation)
+
+        controller.liveText.reset()
+        #expect(controller.liveText.value == nil)
+        #expect(draft.text == Self.live(["Big"], "wor"))
+        withExtendedLifetime(host) {}
+    }
+
+    @Test("a later host of the same key took over events: an earlier host's detach does not clear its onEvent")
+    func sendReplacesLiveRegionThenSends() async {
+        let draft = Draft()
+        let probe = ComposerSelectionProbe()
+        let log = HostLog()
+        let (controller, host, generation) = await startLiveDictation(log, draft: draft, probe: probe)
+        controller.liveText.publish(SystemSTTLiveSnapshot(finals: ["Big"], partial: "wor"), generation: generation)
+
+        controller.onEvent?(.send("Big word"))
+        let expected = DictationRules.liveInsert(
+            finals: ["Big word"], partial: "", into: "Hello world", selectionStart: 2, selectionEnd: 5
+        ).text
+        #expect(log.entries == ["insert:\(expected)", "send:\(expected)"])
+        #expect(draft.text == expected)
+        withExtendedLifetime(host) {}
     }
 
     @Test("a later host of the same key took over events: an earlier host's detach does not clear its onEvent")

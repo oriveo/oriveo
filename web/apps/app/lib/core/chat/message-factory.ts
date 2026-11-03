@@ -4,7 +4,7 @@
  */
 
 import type { ChatMessage, Conversation, AIModel, Provider, Attachment, QuoteContext } from '@oriveo/shared';
-import { isValidQuoteContext } from '@oriveo/shared';
+import { conversationSkillFields, isValidQuoteContext } from '@oriveo/shared';
 import { normalizeConversationInstructions } from '@oriveo/core/context/conversation-instructions';
 import { createCanonicalUUID, normalizePinnedNoteIDs } from '../../utils/id-utils';
 import { makeAutoConversationTitle, makePreviewText } from '../conversation-metadata';
@@ -67,13 +67,17 @@ export function createNewConversation(params: {
   model: AIModel;
   userMessage: ChatMessage;
   messages: ChatMessage[];
+  /** Legacy single skill; used only when skillIds is empty. */
   skillId?: string;
+  /** Composer skill chips; written through conversationSkillFields (skillId = the first). */
+  skillIds?: readonly string[];
   useMemory?: boolean;
   pinnedNoteIds?: string[];
   /** Conversation settings draft instructions; written onto the object only when non-empty after normalization */
   instructions?: string;
 }): Conversation {
   const { provider, model, userMessage, messages, skillId, useMemory, pinnedNoteIds } = params;
+  const skillIds = params.skillIds && params.skillIds.length > 0 ? params.skillIds : skillId ? [skillId] : [];
   const instructions = normalizeConversationInstructions(params.instructions ?? '');
   const normalizedPinnedNoteIds = normalizePinnedNoteIDs(pinnedNoteIds);
   // Activity sort time = createdAt of the first user message. updatedAt is the createdAt of the
@@ -96,7 +100,7 @@ export function createNewConversation(params: {
     draftText: '',
     updatedAt: activityAt,
     createdAt: activityAt,
-    ...(skillId ? { skillId } : {}),
+    ...(skillIds.length > 0 ? conversationSkillFields(skillIds) : {}),
     ...(useMemory !== undefined ? { useMemory } : {}),
     ...(normalizedPinnedNoteIds.length > 0 ? { pinnedNoteIds: normalizedPinnedNoteIds } : {}),
     ...(instructions ? { instructions } : {}),

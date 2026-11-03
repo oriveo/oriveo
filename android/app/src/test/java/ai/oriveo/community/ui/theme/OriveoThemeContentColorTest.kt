@@ -1,10 +1,10 @@
 package ai.oriveo.community.ui.theme
 
+import androidx.compose.material3.contentColorFor
 import androidx.compose.ui.graphics.Color
 import java.io.File
 import kotlin.math.pow
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 /**
@@ -45,17 +45,11 @@ class OriveoThemeContentColorTest {
     }
 
     /**
-     * Why the inheritance chain is broken in the first place: OriveoColors and the
-     * Material3 ColorScheme are two independent sets of color values.
-     *
-     * As long as these surfaces are unequal, `ColorScheme.contentColorFor` will never
-     * match, so any M3 container using `containerColor = colors.*` can never resolve a
-     * content color from it. If someone ever aligns the two palettes, this test will
-     * start failing -- at that point the "should we still provide it explicitly"
-     * question needs to be re-decided, not silently deleted.
+     * Both M3 schemes are derived from the palette instance, so `ColorScheme.contentColorFor(surface)` hits and must
+     * yield the same textPrimary the theme provides explicitly; otherwise text inside M3 containers drifts from the rest.
      */
     @Test
-    fun `light surfaces miss the material scheme and dark scheme hits with the same content color`() {
+    fun `light and dark schemes hit the palette surface with the provided content color`() {
         // The dark ColorScheme is derived from the palette instance (darkColorSchemeOf), so surface hits;
         // the content color it yields must be textPrimary, the same as the explicitly provided one, or text inside M3 containers would differ from text outside.
         for (palette in DarkPaletteId.entries) {
@@ -63,10 +57,14 @@ class OriveoThemeContentColorTest {
             assertEquals("${palette.id} M3 surface should equal the palette surface", palette.colors.surface, scheme.surface)
             assertEquals("${palette.id} M3 onSurface should equal textPrimary", palette.colors.textPrimary, scheme.onSurface)
         }
-        assertNotEquals(
-            "the light surface now matches the M3 ColorScheme, so the premise behind contentColorFor missing has changed",
-            colorSchemeSurface("lightColorScheme"),
-            LightOriveoColors.surface,
+        // Light scheme is derived the same way: an M3 container on the palette surface must get textPrimary,
+        // not the M3 default ink that differs from the explicitly provided content color.
+        val light = lightColorSchemeOf(LightOriveoColors)
+        assertEquals("light M3 surface should equal the palette surface", LightOriveoColors.surface, light.surface)
+        assertEquals(
+            "light contentColorFor(surface) should be textPrimary",
+            LightOriveoColors.textPrimary,
+            light.contentColorFor(light.surface),
         )
     }
 
@@ -111,14 +109,6 @@ class OriveoThemeContentColorTest {
         "surface" to composite(LightOriveoColors.surface, LightOriveoColors.background),
         "surfaceInset" to composite(LightOriveoColors.surfaceInset, LightOriveoColors.background),
     )
-
-    /** Reads the M3 ColorScheme's surface straight from the theme source, so the test doesn't keep a second copy of the hex value. */
-    private fun colorSchemeSurface(block: String): Color {
-        val body = themeSource.substringAfter("$block(").substringBefore("\n)")
-        val hex = Regex("""\n\s*surface = Color\(0x([0-9A-Fa-f]{8})\)""").find(body)
-        assertTrue("could not find a surface declaration in $block, the palette structure has changed", hex != null)
-        return Color(hex!!.groupValues[1].toLong(16))
-    }
 
     private fun assertAA(label: String, foreground: Color, background: Color) {
         val ratio = contrast(composite(foreground, background), background)

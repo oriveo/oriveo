@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
+import ai.oriveo.community.ui.component.oriveoSwitchColors
 
 @Composable
 internal fun RelayGroupHeader(
@@ -304,8 +305,11 @@ internal fun RelayToggleRow(
             checked = isOn,
             enabled = enabled,
             onCheckedChange = onToggle,
-            // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
-            modifier = Modifier.semantics { contentDescription = title },
+            colors = oriveoSwitchColors(),
+            // The switch carries no label of its own; without a contentDescription a screen reader only says "switch".
+            modifier = Modifier
+                .semantics { contentDescription = title }
+                ,
         )
     }
 }

@@ -156,7 +156,6 @@
     "generationParameterDormantClear": "清除",
     "generationParameterDormantRestored": "已恢復 {count} 項參數",
     "generationPresetName": "預設名稱",
-    "capabilityControlFixedByConnection": "由目前連線決定",
     "capabilityControlReasonPending": "自動設定尚未就緒",
     "capabilityControlReasonUnsupported": "此模型不支援此請求",
     "capabilityControlReasonExternalConnector": "由獨立的外部服務提供，不在此聊天請求中",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "最難的問題，不惜時間。",
     "capabilityControlReasoningFixedLevel": "此模型的思考檔位是固定的，無法調節。",
     "capabilityControlCannotAdjustYet": "暫不支援調節",
+    "capabilityControlGoToParameters": "前往參數",
     "customRequestFieldsNotAllowed": "此欄位不可用。此模型允許的欄位：{fields}",
     "customRequestFieldsFooter": "欄位會原樣加入傳送給模型的請求，僅支援該供應商官方聲明的欄位；填錯可能導致請求失敗。草稿只保存在本機。",
     "customRequestFieldsScopeConnectionModel": "作用域：此連接下的該模型，作為其對話的預設設定。",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "新增",
     "advancedStopSequenceRemove": "刪除 {sequence}",
     "advancedMore": "更多",
-    "add": "新增",
-    "capabilityControlGoToParameters": "前往參數"
+    "add": "新增"
   },
   "pages": {
     "welcome": {
       "title": "歡迎使用 Oriveo",
       "tagline": "所有模型，一個應用。",
-      "slogan": "你的金鑰，你的成本，你的資料。",
       "description": "設定你的第一個 AI 供應商，開始多模型對話。",
       "addProvider": "新增供應商",
       "enterHome": "進入首頁"
@@ -502,7 +500,6 @@
       "stop": "停止生成",
       "generating": "生成中",
       "activityWebSearch": "正在聯網搜尋",
-      "activityMcpTool": "正在使用 {server} · {tool}",
       "aiAnswering": "AI 正在回答…",
       "export": "匯出",
       "continueAnswering": "繼續回答",
@@ -586,7 +583,9 @@
         "cacheRead": "快取讀取",
         "cacheWrite": "快取寫入",
         "total": "總計",
-        "unavailable": "暫無"
+        "unavailable": "暫無",
+        "cost": "費用",
+        "estimated": "估算"
       },
       "attachedNotesTitle": "已帶入目前對話的筆記",
       "removeNoteContext": "移除上下文：{title}",
@@ -595,7 +594,12 @@
       "viaOllamaCloud": "經 Ollama 雲端",
       "modelRemovedBanner": "這個對話用的模型已不在 {connection} 裡。",
       "modelRemovedChoose": "選擇模型",
+      "connectionRemovedBanner": "這個對話用的連線已刪除。",
+      "modelRetiredBanner": "{model} 已下架。",
+      "modelRetiredSwitchTo": "切換到 {model}",
+      "lastUsedModelRetiredHint": "上次使用的模型已下架，已改用 {model}。",
       "copyFailed": "複製失敗",
+      "activityMcpTool": "正在使用 {server} · {tool}",
       "contextCompaction": {
         "summaryLine1": "{count, plural, other {已整理較早的 {count} 則訊息 · {before} → {after} token}}",
         "summaryLine2": "由 {model} 整理 · 查看摘要",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "這次還會越過 {model} 的 {line} 加價門檻，整筆請求按長上下文價格計費。",
         "confirmDontAsk": "此對話不再提示",
         "confirmSend": "仍要傳送"
-      },
-      "connectionRemovedBanner": "這個對話用的連線已刪除。",
-      "modelRetiredBanner": "{model} 已下架。",
-      "modelRetiredSwitchTo": "切換到 {model}",
-      "lastUsedModelRetiredHint": "上次使用的模型已下架，已改用 {model}。"
+      }
     },
     "providerSetup": {
       "title": "新增供應商",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "改用 API 金鑰",
         "disabledFallback": "ChatGPT 訂閱登入目前無法使用。你可以改用 API 金鑰，或刪除此連線。"
       },
-      "subscription": "訂閱",
-      "tokenPrices": {
-        "input": "輸入 {count}",
-        "cacheRead": "快取讀取 {count}",
-        "cacheWrite": "快取寫入 {count}",
-        "output": "輸出 {count}",
-        "unit": "tokens"
-      }
+      "subscription": "訂閱"
     },
     "providers": {
       "title": "供應商",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "隱私政策",
-      "sourceCode": "原始碼",
       "aiSection": "AI",
       "skills": "技能",
       "backupImportExport": "備份與匯入/匯出",
-      "reportIssue": "回報問題",
-      "documentation": "文件",
       "aboutTagline": "所有模型，一個應用。",
       "context": {
         "title": "上下文",
@@ -1781,7 +1771,7 @@
       "editorCategory": "分類",
       "editorTooLong": "最多 2000 字",
       "deleteConfirmTitle": "要刪除這則記憶嗎？",
-      "deleteConfirmBody": "將從這台裝置上永久刪除。",
+      "deleteConfirmBody": "所有裝置上都會刪除。",
       "actionOrganize": "整理成多則",
       "rawView": "原文",
       "rawViewHint": "每則之間用單獨一行「---」分隔。",
@@ -1912,6 +1902,10 @@
     "upstream": {
       "title": "供應商錯誤",
       "message": "供應商對此請求傳回了錯誤。請重試或切換模型。"
+    },
+    "emptyReply": {
+      "title": "供應商傳回了空回應",
+      "message": "供應商未傳回這則訊息的回覆內容。"
     },
     "moderationBlocked": {
       "title": "內容遭攔截",
@@ -2060,14 +2054,11 @@
     "title": "技能",
     "mySkills": "我的技能",
     "builtinSkills": "內建技能",
-    "pinned": "已置頂",
-    "newSkill": "新建技能",
+    "newSkill": "新增技能",
     "editSkill": "編輯技能",
     "deleteSkill": "刪除技能",
     "forkSkill": "複製為我的技能",
-    "useSkill": "使用",
-    "pinToHome": "置頂到首頁",
-    "unpinFromHome": "取消置頂",
+    "useSkill": "使用此技能",
     "instructions": "提示詞",
     "instructionsPlaceholder": "例如：你是一位資深程式碼審查員，擅長安全性和效能審查。用使用者的語言回覆。",
     "starterMessages": "對話開場白",
@@ -2076,7 +2067,7 @@
     "referenceFiles": "參考資料",
     "tipInstructions": "定義 AI 的行為方式——個性、專長和回覆風格。只有 AI 能看到，使用者看不到。",
     "knowledgeSectionTitle": "知識",
-    "tipReferenceFiles": "AI 每次回覆都會完整讀取這些檔案，就像它桌上始終攤開的筆記。適合簡短、重要的文件（風格指南、術語表、核心規則）。檔案越大，每次對話費用越高。",
+    "tipReferenceFiles": "AI 每次回覆都會完整讀取這些檔案，就像它桌上始終打開的筆記。適合簡短、重要的文件（如風格指南、詞彙表、核心規則）。檔案越大，每次對話費用越高。",
     "noReferenceFiles": "暫無參考資料",
     "addFile": "新增檔案",
     "filesQuota": "{count} / {max}",
@@ -2092,7 +2083,7 @@
     "allSkills": "全部技能",
     "greeting": "有什麼可以幫你的？",
     "greetingSub": "問點什麼，或者直接開始輸入。",
-    "noCustomSkills": "還沒有自訂技能",
+    "noCustomSkills": "尚無自訂技能",
     "createFirst": "建立一個",
     "deleteConfirmTitle": "刪除「{name}」？",
     "deleteConfirmMessage": "既有的對話不會受到影響。",
@@ -2134,7 +2125,7 @@
     "openai_not_configured": "Skill 知識庫需要官方 OpenAI API 金鑰。",
     "openai_endpoint_not_official": "Skill 知識庫僅支援官方 OpenAI endpoint。",
     "retrieval_model_not_enabled": "請先在 OpenAI provider 中新增並啟用 {model}。",
-    "knowledge_service_unavailable": "Skill 知識庫暫時不可用，你仍可繼續編輯並儲存這個 Skill。",
+    "knowledge_service_unavailable": "知識庫暫時無法使用。",
     "unsupported_file_type": "這種檔案類型暫不支援用於知識庫。",
     "reference_file_too_large": "參考檔案必須小於等於 3 MB。",
     "knowledge_file_too_large": "知識庫檔案必須小於等於 20 MB。",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "新增供應商後即可使用此技能",
     "providerRequiredMessage": "此技能需要先有一個可用的 AI 供應商，才能開始對話。",
     "providerRequiredAction": "新增供應商",
-    "promptCancel": "暫不"
+    "promptCancel": "暫不",
+    "home": {
+      "autoCount": "自動使用 · {count}",
+      "slashHint": "輸入 / 即可使用",
+      "empty": "存下你的做法",
+      "notesRecent": "最近編輯"
+    },
+    "list": {
+      "subtitle": "存下你的做法，AI 會在適合的時候用上。"
+    },
+    "create": {
+      "describePlaceholder": "描述一個做法，AI 幫你寫成技能",
+      "fromChat": "從對話儲存",
+      "manual": "手動建立"
+    },
+    "segment": {
+      "mine": "我的",
+      "templates": "範本"
+    },
+    "group": {
+      "auto": "自動使用",
+      "manual": "僅手動"
+    },
+    "card": {
+      "usageCount": "用過 {count} 次"
+    },
+    "row": {
+      "slashHint": "輸入 {slash} 時使用"
+    },
+    "auto": {
+      "needWhenTitle": "先說一下什麼時候用它",
+      "suggest": "AI 建議",
+      "limitReached": "自動使用已達上限（{count}），請先關閉一個。"
+    },
+    "search": {
+      "placeholder": "搜尋技能"
+    },
+    "empty": {
+      "title": "還沒有技能",
+      "body": "把常用的做法存下來，下次就不用再交代一遍。",
+      "browseTemplates": "看看範本"
+    },
+    "migrate": {
+      "banner": "缺少「何時使用」的技能：{count} 個。補上一句，就能自動使用。",
+      "review": "逐一補上"
+    },
+    "templates": {
+      "note": "範本加到「我的」之後，才會被自動使用。",
+      "featured": "精選",
+      "addToMine": "加到我的",
+      "add": "新增",
+      "added": "已新增",
+      "tryOnce": "直接試用"
+    },
+    "detail": {
+      "useInNewChat": "在新對話中使用",
+      "orSlash": "或在輸入框輸入 {slash}",
+      "usage": "用過 {count} 次 · 上次 {time}",
+      "neverUsed": "還沒用過",
+      "autoInvoke": "自動使用",
+      "whenToUse": "何時使用",
+      "whenToUseNote": "AI 會依此判斷要不要用",
+      "instructions": "做法",
+      "showAll": "展開全部",
+      "references": "參考資料",
+      "starters": "開場白",
+      "recentChats": "最近使用它的對話",
+      "try": "試一試"
+    },
+    "edit": {
+      "changeIcon": "更換圖示",
+      "name": "名稱",
+      "whenBadge": "決定是否自動使用",
+      "whenPlaceholder": "例如：我要把零散事項整理成週報時使用；不用於寫日報",
+      "keywordsCaption": "這些詞會觸發 · 寫清楚情境就夠了",
+      "whenTip": "寫清楚做什麼、什麼時候用、你通常怎麼說；可以加一句「不用於……」減少誤用。用「」括起的詞會醒目標示。",
+      "polish": "AI 潤飾",
+      "addStarter": "新增開場白",
+      "modelAndFeatures": "模型與功能",
+      "followChat": "跟隨對話",
+      "needWhenForAuto": "請填寫「何時使用」，或關閉自動使用。"
+    },
+    "draft": {
+      "askScenarios": "舉一兩個你會用到它的情境",
+      "askQuality": "怎樣算做得好？",
+      "skip": "略過",
+      "generating": "正在撰寫草稿…",
+      "title": "草稿",
+      "editFirst": "先編輯",
+      "suggestedIcon": "建議圖示",
+      "failed": "無法產生完整草稿，已幫你填好可用的部分。"
+    },
+    "fromChat": {
+      "menuConversation": "存為技能",
+      "menuMessage": "把這個做法存為技能",
+      "messages": "{count} 則訊息",
+      "extracting": "正在提煉…"
+    },
+    "limit": {
+      "upgrade": "升級解鎖更多",
+      "draftKept": "草稿已保留在本機。"
+    },
+    "composer": {
+      "placeholder": "輸入 / 使用技能"
+    },
+    "picker": {
+      "title": "我的技能",
+      "multi": "可複選",
+      "auto": "自動",
+      "manual": "手動",
+      "manage": "管理技能",
+      "maxReached": "一次最多 {count} 個"
+    },
+    "chip": {
+      "deleted": "已刪除"
+    },
+    "message": {
+      "attached": "使用了 {names}"
+    },
+    "used": {
+      "chip": "已使用 {names}",
+      "loading": "正在使用 {names}…",
+      "byChoice": "依你的選擇使用",
+      "why": "為什麼用了它",
+      "disableHere": "這個對話不再自動使用",
+      "view": "查看技能"
+    },
+    "settings": {
+      "autoToggle": "自動使用技能",
+      "autoToggleFooter": "關閉後，模型不會自己挑技能；輸入 / 仍可手動使用。"
+    },
+    "try": {
+      "banner": "試用中 · 不會存入紀錄",
+      "saveToSkill": "寫回技能",
+      "adjust": "調整做法",
+      "saved": "已寫回「{name}」",
+      "savedToDraft": "已帶回編輯頁，儲存後才會生效"
+    },
+    "improve": {
+      "prompt": "要把這條要求記進「{name}」嗎？",
+      "review": "查看變更",
+      "accept": "寫入技能",
+      "dismiss": "暫時不要",
+      "addedLine": "新增",
+      "removedLine": "刪除",
+      "saved": "已記進「{name}」"
+    },
+    "usage": {
+      "manifestRow": "技能清單額外用量"
+    },
+    "glyph": {
+      "writing": "寫作",
+      "report": "報告",
+      "code": "程式碼",
+      "study": "學習",
+      "travel": "旅行",
+      "health": "健康",
+      "meeting": "會議",
+      "idea": "靈感",
+      "translate": "翻譯",
+      "email": "郵件",
+      "data": "資料",
+      "design": "設計",
+      "legal": "法律",
+      "finance": "財務",
+      "marketing": "行銷",
+      "support": "客服",
+      "teaching": "教學",
+      "research": "研究",
+      "life": "生活",
+      "food": "美食",
+      "music": "音樂",
+      "photo": "攝影",
+      "product": "產品",
+      "general": "通用"
+    },
+    "capability": {
+      "title": "模型偏好",
+      "any": "任意",
+      "reasoning": "推理",
+      "vision": "視覺",
+      "fast": "快速",
+      "largeContext": "大上下文"
+    },
+    "saveFailed": "無法儲存變更，請重試。"
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2636,8 +2811,7 @@
       "stepLimit": "本次選擇的文件過多或過長，請減少勾選後重試。",
       "notConnected": "開始研究前，請先連接資料庫來源。",
       "sourceForbidden": "來源因權限或策略限制拒絕了存取，重新連接無法解決，請檢查來源端的共享/合規設定。",
-      "unavailable": "資料庫暫時無法使用，請稍後重試。",
-      "retry": "重試"
+      "unavailable": "資料庫暫時無法使用，請稍後重試。"
     }
   },
   "notes": {

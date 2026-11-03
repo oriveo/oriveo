@@ -150,7 +150,10 @@ internal fun ModelControlCard(
                 Switch(
                     checked = toggle,
                     onCheckedChange = onToggle,
-                    colors = SwitchDefaults.colors(checkedTrackColor = colors.primaryTextSafe),
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = colors.primaryTextSafe,
+                        checkedThumbColor = colors.switchThumb,
+                    ),
                     modifier = Modifier
                         .heightIn(min = 44.dp)
                         .semantics { contentDescription = title },

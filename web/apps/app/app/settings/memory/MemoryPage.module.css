@@ -350,7 +350,7 @@
   margin: 22px 0 0;
   padding: 12px 14px;
   border-radius: 12px;
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   font-size: 13.5px;
   line-height: 21px;
   color: var(--o-text-secondary);
@@ -551,7 +551,7 @@
 }
 
 .itemGroupAdd:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   color: var(--o-text);
 }
 
@@ -680,7 +680,7 @@
   flex: none;
   padding: 3px 8px;
   border-radius: 6px;
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   font-size: 11.5px;
   font-weight: 600;
   color: var(--o-text-tertiary);
@@ -712,7 +712,7 @@
 .itemRow:focus-within .itemMore,
 .itemMore[aria-expanded='true'] {
   opacity: 1;
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   color: var(--o-text);
 }
 
@@ -758,7 +758,7 @@
 }
 
 .itemMenuItem:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
 }
 
 .itemMenuItemDanger,
@@ -896,7 +896,7 @@
   height: 22px;
   padding: 0 8px 0 6px;
   border-radius: 6px;
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   font-size: 12px;
   color: var(--o-text-secondary);
   white-space: nowrap;
@@ -1249,7 +1249,7 @@
 .inboxEntryGlyph {
   display: grid;
   flex: none;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .inboxEntryText {
@@ -1335,7 +1335,7 @@
   display: grid;
   place-items: center;
   flex: none;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .regenerateText {
@@ -1660,7 +1660,7 @@
   flex: none;
   padding: 1px 6px;
   border-radius: 5px;
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   font-family: var(--o-font-mono);
   font-size: 12px;
   color: var(--o-primary-text-safe);
@@ -1987,7 +1987,7 @@
 }
 
 .inboxSecondary:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   color: var(--o-text);
 }
 

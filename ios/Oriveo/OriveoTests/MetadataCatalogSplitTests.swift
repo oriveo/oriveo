@@ -847,6 +847,8 @@ struct MetadataCatalogSplitTests {
             path: directory.appendingPathComponent("oriveo.sqlite").path,
             configuration: DatabaseSchema.makeConfiguration()
         )
+        // Close before the deferred directory removal above runs (defers are LIFO), so SQLite never sees its files unlinked.
+        defer { try? pool.close() }
         let files = AttachmentFileStore(rootDirectory: directory.appendingPathComponent("Files", isDirectory: true))
         let migrator = DatabaseSchema.makeMigrator(attachmentFileStore: files)
 

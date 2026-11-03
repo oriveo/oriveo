@@ -56,7 +56,7 @@
   border: 0;
   background: none;
   font: inherit;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   cursor: pointer;
 }
 
@@ -110,7 +110,7 @@
 }
 
 .bubbleAssistant {
-  background: color-mix(in srgb, var(--o-surface-raised) 96%, transparent);
+  background: color-mix(in srgb, var(--o-fill-muted) 96%, transparent);
   border: 1px solid color-mix(in srgb, var(--o-border) 70%, transparent);
   border-bottom-left-radius: 6px;
 }
@@ -118,7 +118,7 @@
 .bubbleUser {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--o-primary) 14%, var(--o-surface-raised)),
+    color-mix(in srgb, var(--o-primary) 14%, var(--o-fill-muted)),
     color-mix(in srgb, var(--o-primary) 8%, var(--o-surface))
   );
   border: 1px solid color-mix(in srgb, var(--o-primary) 22%, transparent);

@@ -1,5 +1,75 @@
 import SwiftUI
 
+/// Composer shell fill per state. Light mode is opaque: the former translucent white tint is
+/// composited source-over onto the page base so message text never shows through, while the
+/// empty area looks unchanged. Dark mode keeps its translucent values.
+enum ComposerShellFill {
+    enum State: CaseIterable {
+        case focused
+        case draftHighlight
+        case idle
+    }
+
+    struct Tone: Equatable {
+        let hex: UInt
+        let alpha: CGFloat
+    }
+
+    struct Spec: Equatable {
+        let light: Tone
+        let dark: Tone
+    }
+
+    /// Light value of `OriveoTheme.Palette.backgroundBase`, resolved from the token with a light trait.
+    static let lightPageBase: UInt = {
+        let resolved = UIColor(OriveoTheme.Palette.backgroundBase)
+            .resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        resolved.getRed(&r, green: &g, blue: &b, alpha: &a)
+        func byte(_ v: CGFloat) -> UInt { UInt(min(max((v * 255).rounded(), 0), 255)) }
+        return (byte(r) << 16) | (byte(g) << 8) | byte(b)
+    }()
+
+    /// Source-over composite of `top` onto an opaque `base`; the result is always opaque.
+    static func compositeOver(_ top: Tone, base: UInt) -> Tone {
+        let a = min(max(top.alpha, 0), 1)
+        func channel(_ shift: UInt) -> UInt {
+            let t = Double((top.hex >> shift) & 0xFF)
+            let b = Double((base >> shift) & 0xFF)
+            let v = (t * Double(a) + b * (1 - Double(a))).rounded()
+            return UInt(min(max(v, 0), 255))
+        }
+        return Tone(hex: (channel(16) << 16) | (channel(8) << 8) | channel(0), alpha: 1)
+    }
+
+    static func spec(for state: State) -> Spec {
+        let lightTint: Tone
+        let dark: Tone
+        switch state {
+        case .focused:
+            lightTint = Tone(hex: 0xFFFFFF, alpha: 0.26)
+            dark = Tone(hex: 0x101113, alpha: 0.46)
+        case .draftHighlight:
+            lightTint = Tone(hex: 0xFBF9FF, alpha: 0.19)
+            dark = Tone(hex: 0x0B0C0E, alpha: 0.42)
+        case .idle:
+            lightTint = Tone(hex: 0xFFFFFF, alpha: 0.11)
+            dark = Tone(hex: 0x07080A, alpha: 0.38)
+        }
+        return Spec(light: compositeOver(lightTint, base: lightPageBase), dark: dark)
+    }
+
+    static func color(for state: State) -> Color {
+        let s = spec(for: state)
+        return Color.dynamic(
+            light: s.light.hex,
+            dark: s.dark.hex,
+            lightAlpha: s.light.alpha,
+            darkAlpha: s.dark.alpha
+        )
+    }
+}
+
 func formatProviderResetAt(
     _ resetAt: Date,
     locale: Locale = .current,
@@ -30,6 +100,75 @@ struct ChatComposerTextPush: Equatable {
     mutating func push(_ text: String) {
         token += 1
         self.text = text
+    }
+}
+
+/// Cold-start realtime typed text held while the disclosure is pending; kept in memory only and sent after consent.
+struct RealtimeTypedPendingSend: Equatable {
+    let text: String
+    let request: RealtimeModelDisclosureRequest
+
+    /// Text to send after the disclosure answer: sent only if accepted and the conversation is still pending; nil on decline, dismiss, or conversation switch (the text stays in the input).
+    func textToSend(accepted: Bool, activeConversationID: UUID?) -> String? {
+        guard accepted, request.conversationID == activeConversationID else { return nil }
+        return text
+    }
+
+    /// Input text after the outcome of the in-flight typed send (same as the home page HomeRealtimeTypedSend.inputText): not cleared on send;
+    /// cleared only when persisted and only if the field still holds this text (edits made while waiting are kept); openFailed / disclosureDeclined /
+    /// endedBeforePersist / hostLeft keep the text as is, with no concatenation.
+    static func inputText(
+        _ current: String, sent: String, outcome: RealtimeModelPolicy.TypedSendOutcomeKind
+    ) -> String {
+        guard !RealtimeModelPolicy.typedSendOutcome(context: .chat, outcome: outcome).inputKeepsText else { return current }
+        return current.trimmingCharacters(in: .whitespacesAndNewlines) == sent ? "" : current
+    }
+}
+
+/// Two realtime session signals observed by the input bar: user turns persisted in this page's realtime session, and the end delivery of the call.
+private struct RealtimeSessionSignals: ViewModifier {
+    let onUserPersisted: (Int?) -> Void
+    let onEnd: (VoiceConversationSession.EndDelivery?) -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .onChange(of: VoiceConversationSession.shared.realtimeDrafts?.userPersisted) { _, count in onUserPersisted(count) }
+            .onChange(of: VoiceConversationSession.shared.lastEnd) { _, end in onEnd(end) }
+    }
+}
+
+/// A realtime typed send already handed off by this page and not yet settled: the text stays in the field until settled, and no new send is handed off.
+/// Persisted signal uses the page's persisted user-turn count (VoiceConversationSession.realtimeDrafts); the end signal uses lastEnd.
+struct RealtimeTypedInFlight: Equatable {
+    let text: String
+    let conversationID: UUID?
+    /// Persisted user-turn count of this page's realtime session at handoff (0 on cold start); exceeding it means this text is persisted.
+    let persistedBaseline: Int
+
+    /// Record the in-flight send at handoff; nil if one is already in flight (unsettled), so the page does not hand off another.
+    @MainActor
+    static func begin(
+        _ current: RealtimeTypedInFlight?, text: String, conversationID: UUID?,
+        session: VoiceConversationSession = .shared
+    ) -> RealtimeTypedInFlight? {
+        guard current == nil else { return nil }
+        let baseline = session.hasRealtime(in: conversationID) ? (session.realtimeDrafts?.userPersisted ?? 0) : 0
+        return RealtimeTypedInFlight(text: text, conversationID: conversationID, persistedBaseline: baseline)
+    }
+
+    /// The persisted user-turn count changed: above the baseline means this text is persisted; otherwise there is no outcome yet.
+    func outcome(userPersisted: Int?) -> RealtimeModelPolicy.TypedSendOutcomeKind? {
+        (userPersisted ?? 0) > persistedBaseline ? .persisted : nil
+    }
+
+    /// The page switched to another conversation: this text settles as hostLeft.
+    func outcome(host conversationID: UUID?) -> RealtimeModelPolicy.TypedSendOutcomeKind? {
+        conversationID == self.conversationID ? nil : .hostLeft
+    }
+
+    /// Input text from the outcome.
+    func inputText(_ current: String, outcome: RealtimeModelPolicy.TypedSendOutcomeKind) -> String {
+        RealtimeTypedPendingSend.inputText(current, sent: text, outcome: outcome)
     }
 }
 
@@ -274,6 +413,10 @@ struct ChatComposerBar: View {
     let currentModel: AIModel?
     /// Set when the conversation's model has been removed: a banner shows above the input and sending is disabled.
     var modelRemovedBanner: ChatModelRemovedBanner? = nil
+    /// Conversation value may be a realtime model while the voice catalog failed to load: when non-nil, a failure row with retry shows above the input and the primary key is disabled without a spinner.
+    var realtimeCatalogRetryRow: ChatRealtimeCatalogRetryRow? = nil
+    /// capability keys the ChatView exports from the current facade projection.
+    /// The set is empty when Relay cannot resolve a unique final route, so the UI stays fail-closed.
     let visibleCapabilityKeys: Set<String>
     let capabilityEvidenceIdentity: CapabilityEvidenceRequestIdentity?
     /// Availability, disabled reasons and first-attach hints of the attachment entries (image / video / file); ChatView computes them from the facade entry and passes them in.
@@ -284,7 +427,6 @@ struct ChatComposerBar: View {
     var conversationID: UUID? = nil
     let generationParameterScopeID: UUID
     var isReadOnly: Bool = false
-    var transparentChrome: Bool = false
     /// The conversation's stored draft; nil means the observation is not ready or has stopped (not
     /// that the draft is empty). The live input lives in this bar's `@State`.
     let storeDraft: String?
@@ -306,9 +448,14 @@ struct ChatComposerBar: View {
     @Binding var reasoningIntentSelection: String?
     @Binding var webEnabled: Bool
     var composerFocused: Binding<Bool>
+    /// Conversation switched to typing while realtime is selected (nil = compose state): ChatView owns it, kept in memory only; capability projection and this bar read the same value;
+    /// removed when realtime selection for that conversation becomes false.
+    var realtimeTypingHosts: Binding<Set<UUID?>> = .constant([])
 
     let onSend: (_ text: String, _ attachments: [Attachment]) -> Void
     let onChooseModel: () -> Void
+    /// Retry in the failure row: reload the voice catalog.
+    var onRetryRealtimeCatalog: () -> Void = {}
     /// The "Tools" chip (remote MCP). Nil hides the entry.
     var toolsChip: ComposerToolsChipState?
     /// Opens the tool panel.
@@ -327,9 +474,15 @@ struct ChatComposerBar: View {
     var onOpenContextUsage: () -> Void = {}
     /// Tapping ≋ on an empty draft: the host runs the gate, then starts the voice conversation.
     var onStartVoiceConversation: () -> Void = {}
+    /// Realtime typing send that would open a session: the host runs the same sign-in gates as ≋;
+    /// false = a prompt was shown, the text stays in the composer.
+    var realtimeTypedPreflight: () -> Bool = { true }
+    /// Realtime selection without disclosure consent yet: the host shows the disclosure (with cost note) and holds this text, then sends it after consent.
+    var onNeedsRealtimeDisclosure: (RealtimeModelSelection, String) -> Void = { _, _ in }
+    /// The realtime typed send already handed off and not yet settled: ChatView owns it (a send after consent is also recorded here); kept in memory only.
+    var realtimeTypedInFlight: Binding<RealtimeTypedInFlight?> = .constant(nil)
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
     @Environment(AppState.self) private var appState
     @Environment(\.windowNavigation) private var windowNavigation
@@ -356,6 +509,8 @@ struct ChatComposerBar: View {
     @State private var opensTestCapabilitiesAfterControls = false
     @State private var webPreferenceSelection: CapabilityWebPreference = .off
     @State private var voiceTapGuard = VoiceEntryTapGuard()
+    /// Recognition language sheet inside the voice stage.
+    @State private var showsRecognitionLanguageSheet = false
     @Namespace private var voiceOrbNamespace
 
     private var visibleRelatedNotes: [NoteRecallEngine.Suggestion] {
@@ -379,7 +534,6 @@ struct ChatComposerBar: View {
         }
     }
 
-    private var isDarkMode: Bool { colorScheme == .dark }
     private var controlsDisabled: Bool { isSendingMessage || isReadOnly }
 
     private var attachmentUploadBlocked: Bool {
@@ -392,6 +546,10 @@ struct ChatComposerBar: View {
     }
 
     private var preferredAnimation: Animation {
+        Self.composerAnimation(reduceMotion: reduceMotion)
+    }
+
+    static func composerAnimation(reduceMotion: Bool) -> Animation {
         reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.34, dampingFraction: 0.84)
     }
 
@@ -510,7 +668,22 @@ struct ChatComposerBar: View {
         ChatModelRemovedBanner.isSendEnabled(
             hasComposerContent: hasComposerContent,
             controlsDisabled: controlsDisabled,
-            banner: modelRemovedBanner
+            banner: modelRemovedBanner,
+            awaitingVoiceCatalog: awaitsVoiceCatalog
+        )
+    }
+
+    /// Conversation value may be a realtime model while the voice catalog is not ready yet: the send key is disabled while loading; the revision re-evaluates when the catalog arrives.
+    private var awaitsVoiceCatalog: Bool {
+        _ = appState.realtimeVoiceCatalogRevision
+        guard let conversationID,
+              let conversation = appState.conversation(for: conversationID),
+              let conversationProvider = appState.provider(for: conversation.providerID)
+        else { return false }
+        return ChatModelRemovedBanner.awaitsVoiceCatalog(
+            storedModelID: conversation.modelID,
+            provider: conversationProvider,
+            voiceCatalog: appState.realtimeVoiceCatalog()
         )
     }
 
@@ -540,157 +713,159 @@ struct ChatComposerBar: View {
 
     // MARK: - Body
 
-    @ViewBuilder
-    private var noteContextSection: some View {
-        if !pinnedNoteSummaries.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.tr("Notes used in this chat", table: .notes))
-                    .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(pinnedNoteSummaries) { note in
-                            HStack(spacing: 4) {
-                                Image(systemName: "quote.opening").font(.system(size: 9))
-                                Text(NoteText.displayTitle(note.title))
-                                    .font(OriveoTheme.Typography.footnote)
-                                    .lineLimit(1)
-                                Button {
-                                    appState.unpinNote(note.id, from: conversationID)
-                                } label: {
-                                    Image(systemName: "xmark.circle.fill").font(.system(size: 12))
-                                }
-                                .accessibilityLabel(L10n.tr("Unpin", table: .notes))
-                                .buttonStyle(.plain)
-                            }
-                            .foregroundStyle(OriveoTheme.Palette.primary)
-                            .padding(.horizontal, OriveoTheme.Spacing.sm)
-                            .padding(.vertical, 5)
-                            .background(Capsule().fill(OriveoTheme.Palette.primarySoft))
-                        }
-                    }
-                }
-            }
-            .transition(.move(edge: .top).combined(with: .opacity))
-        }
-        if !visibleRelatedNotes.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(L10n.tr("Related notes", table: .notes))
-                    .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                ForEach(visibleRelatedNotes) { note in
-                    HStack(spacing: OriveoTheme.Spacing.sm) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(NoteText.displayTitle(note.title))
-                                .font(OriveoTheme.Typography.footnote)
-                                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                                .lineLimit(1)
-                            if note.showsSourceBadge {
-                                NoteSourceBadge(providerKind: note.sourceProviderKind,
-                                                modelName: note.sourceModelName,
-                                                providerName: note.sourceProviderName,
-                                                size: 12)
-                            }
-                        }
-                        Spacer(minLength: 0)
-                        Button(L10n.tr("Attach", table: .notes)) {
-                            appState.pinNote(note.id, to: conversationID)
-                            dismissedRelatedNoteIDs.insert(note.id)
-                        }
-                        .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                        .buttonStyle(.plain)
-                        .foregroundStyle(OriveoTheme.Palette.primary)
-                        Button(L10n.tr("Dismiss", table: .notes)) {
-                            dismissedRelatedNoteIDs.insert(note.id)
-                        }
-                        .font(OriveoTheme.Typography.footnote)
-                        .buttonStyle(.plain)
-                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                    }
-                }
-            }
-            .padding(OriveoTheme.Spacing.md)
-            .background(RoundedRectangle(cornerRadius: OriveoTheme.Radius.inset).fill(OriveoTheme.Palette.surfaceInset))
-            .transition(.move(edge: .top).combined(with: .opacity))
-        }
-    }
-
+    /// Note context above the input: pinned chips plus related-note suggestions (matches Web).
     #if DEBUG
     nonisolated(unsafe) static var bodyEvaluationCount = 0
     static func resetBodyEvaluationCount() { bodyEvaluationCount = 0 }
     #endif
+
+    /// While the voice stage is shown, the panel spans the full width at the bottom (including the safe area), with no bar inset or gradient background and no managed quota line; other banners keep their own margins.
+    private var showsVoiceStage: Bool {
+        voiceConversationController != nil || VoiceConversationDemo.status != nil
+    }
 
     var body: some View {
         #if DEBUG
         let _ = { Self.bodyEvaluationCount += 1 }()
         #endif
         let _ = CapabilityEvidenceObservationBridge.shared.contentRevision
+        let stageInset = showsVoiceStage ? OriveoTheme.Spacing.lg : 0
         VStack(alignment: .leading, spacing: 10) {
-            if let modelRemovedBanner {
-                modelRemovedBannerView(modelRemovedBanner)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
+            Group {
+            ChatComposerBannerStack(
+                modelRemovedBanner: modelRemovedBanner,
+                realtimeCatalogRetryRow: realtimeCatalogRetryRow,
+                compactionHintConversationID: compactionHintConversationID,
+                compactingConversationID: compactingConversationID,
+                conversationID: conversationID,
+                onChooseModel: onChooseModel,
+                onRetryRealtimeCatalog: onRetryRealtimeCatalog
+            )
 
-            if let compactionHintConversationID {
-                compactionHintBannerView(conversationID: compactionHintConversationID)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
-            if let compactingConversationID {
-                compactionInProgressView(conversationID: compactingConversationID)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
-            noteContextSection
+            ChatComposerNoteContextSection(
+                pinnedNoteSummaries: pinnedNoteSummaries,
+                visibleRelatedNotes: visibleRelatedNotes,
+                conversationID: conversationID,
+                dismissedRelatedNoteIDs: $dismissedRelatedNoteIDs
+            )
 
             if let dictationController = DictationHub.shared.controller {
                 DictationPromptSlot(
                     controller: dictationController,
-                    onCheckConnection: openDictationCheckConnection
+                    onCheckConnection: openDictationCheckConnection,
+                    onOpenVoiceSettings: openDictationVoiceSettings
                 )
             }
+            }
+            .padding(.horizontal, stageInset)
 
             if let voiceSurface = voiceConversationController {
                 // The voice conversation replaces the chip row and the input row; the mic and the field are hidden.
-                VoiceConversationBar(surface: voiceSurface, orbNamespace: voiceOrbNamespace) {
+                VoiceConversationBar(
+                    surface: voiceSurface,
+                    orbNamespace: voiceOrbNamespace,
+                    languageChip: .recognitionLanguage { showsRecognitionLanguageSheet = true }
+                ) {
+                    // The idle stage shows no ✕ (the keyboard button on the left switches to typing); ✕ only ends an active conversation.
                     VoiceConversationSession.shared.end(.user)
                 }
+                .recognitionLanguageSheet(isPresented: $showsRecognitionLanguageSheet)
                 .transition(.opacity)
             } else if VoiceConversationDemo.status != nil {
-                VoiceConversationDemo.bar
+                VoiceConversationDemo.bar()
             } else {
                 if showsModeControls {
-                    capabilityStrip
+                    ChatComposerCapabilityStrip(
+                        provider: provider,
+                        currentModel: currentModel,
+                        conversationID: conversationID,
+                        generationParameterScopeID: generationParameterScopeID,
+                        modelControlTransportIdentity: modelControlTransportIdentity,
+                        controlsDisabled: controlsDisabled,
+                        isSendingMessage: isSendingMessage,
+                        isReadOnly: isReadOnly,
+                        showsModelControls: $showsModelControls,
+                        modelControlsInitialRoute: modelControlsInitialRoute,
+                        opensModelPickerAfterControls: $opensModelPickerAfterControls,
+                        opensConnectionSettingsAfterControls: $opensConnectionSettingsAfterControls,
+                        opensConnectionWebSearchAfterControls: $opensConnectionWebSearchAfterControls,
+                        opensSearchSettingsAfterControls: $opensSearchSettingsAfterControls,
+                        opensTestCapabilitiesAfterControls: $opensTestCapabilitiesAfterControls,
+                        onModelControlsDismiss: handleModelControlsDismiss,
+                        webEnabled: $webEnabled,
+                        reasoningMode: $reasoningMode,
+                        reasoningIntentSelection: $reasoningIntentSelection,
+                        modelBehaviorAccent: modelBehaviorAccent,
+                        hasModelControlSelection: hasModelControlSelection,
+                        activeCapabilityGlyphs: activeCapabilityGlyphs,
+                        modelControlSummary: modelControlSummary,
+                        toolsChip: toolsChip,
+                        onOpenTools: onOpenTools,
+                        contextUsage: contextUsage,
+                        onOpenContextUsage: onOpenContextUsage,
+                        highlightPulse: highlightPulse
+                    )
                         .padding(.bottom, -4)
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
                 if !pendingAttachments.isEmpty {
-                    attachmentPreviewRow
+                    ChatComposerAttachmentPreviewRow(
+                        provider: provider,
+                        pendingAttachments: $pendingAttachments,
+                        attachmentAccent: attachmentAccent,
+                        onTapKnowledgeCTA: { navigation.openSkillEdit() }
+                    )
                         .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
 
-                composerInputRow
+                ChatComposerInputRow(
+                    pendingQuoteContext: $pendingQuoteContext,
+                    composerText: $composerText,
+                    composerFocused: composerFocused,
+                    dictationProbe: dictationProbe,
+                    dictationCanSend: dictationCanSend,
+                    isSendingMessage: isSendingMessage,
+                    controlsDisabled: controlsDisabled,
+                    hasDraftHighlight: hasDraftHighlight,
+                    hasComposerContent: hasComposerContent,
+                    supportsAttachmentEntry: supportsAttachmentEntry,
+                    attachmentUploadBlocked: attachmentUploadBlocked,
+                    attachmentButtonSystemImage: attachmentButtonSystemImage,
+                    attachmentButtonCount: attachmentButtonCount,
+                    supportsImageAttachment: supportsImageAttachment,
+                    supportsVideoAttachment: supportsVideoAttachment,
+                    supportsFileAttachment: supportsFileAttachment,
+                    attachmentEntries: attachmentEntries,
+                    hasDisabledAttachmentEntry: hasDisabledAttachmentEntry,
+                    attachmentAccessibilityLabel: attachmentAccessibilityLabel,
+                    attachmentAccessibilityValue: attachmentAccessibilityValue,
+                    attachmentAccent: attachmentAccent,
+                    onShowCamera: onShowCamera,
+                    onShowPhotoPicker: onShowPhotoPicker,
+                    onShowFileImporter: onShowFileImporter,
+                    awaitsVoiceCatalog: awaitsVoiceCatalog,
+                    realtimeCatalogRetryRow: realtimeCatalogRetryRow,
+                    modelRemovedBanner: modelRemovedBanner,
+                    isRealtimeTyping: isRealtimeTyping,
+                    hasRealtimeTypedInFlight: realtimeTypedInFlight.wrappedValue != nil,
+                    voiceConversationAvailable: voiceConversationAvailable,
+                    modelProducesText: VoiceConversationEntry.modelProducesText(currentModel),
+                    realtimeSelected: appState.realtimeModelSelection(for: conversationID) != nil,
+                    conversationID: conversationID,
+                    realtimeTypingHosts: realtimeTypingHosts,
+                    voiceOrbNamespace: voiceOrbNamespace,
+                    onCancel: onCancel,
+                    onStartVoiceConversationTap: startVoiceConversationFromTap,
+                    onSubmit: { text in submitComposer(text: text) }
+                )
                     .transition(.opacity)
             }
+
         }
-        .padding(.horizontal, OriveoTheme.Spacing.lg)
-        .padding(.top, 12)
-        .padding(.bottom, OriveoTheme.Spacing.sm + 2)
-        .background {
-            if !transparentChrome {
-                LinearGradient(
-                    stops: [
-                        .init(color: OriveoTheme.Palette.background.opacity(0), location: 0),
-                        .init(color: OriveoTheme.Palette.background, location: 0.42),
-                        .init(color: OriveoTheme.Palette.background, location: 1)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .ignoresSafeArea(.container, edges: [.bottom, .horizontal])
-            }
-        }
+        .padding(.horizontal, showsVoiceStage ? 0 : OriveoTheme.Spacing.lg)
+        .padding(.top, showsVoiceStage ? 0 : 12)
+        .padding(.bottom, showsVoiceStage ? 0 : OriveoTheme.Spacing.sm + 2)
         .animation(preferredAnimation, value: showsModeControls)
         .animation(
             VoiceConversationBar.transitionAnimation(reduceMotion: reduceMotion),
@@ -718,6 +893,9 @@ struct ChatComposerBar: View {
         }
         .onDisappear {
             VoiceConversationSession.shared.hostDisappeared(conversationID)
+            if let inFlight = realtimeTypedInFlight.wrappedValue {
+                settleRealtimeTyped(inFlight, outcome: .hostLeft)
+            }
             commitDraft()
             if let carrierHandoffToken {
                 navigation.chatHandoff.unregister(carrierHandoffToken)
@@ -742,16 +920,24 @@ struct ChatComposerBar: View {
         .onChange(of: conversationID) { old, new in
             syncStoredCapabilitySelection()
             VoiceConversationSession.shared.hostSwitched(from: old, to: new)
+            if let inFlight = realtimeTypedInFlight.wrappedValue, let outcome = inFlight.outcome(host: new) {
+                settleRealtimeTyped(inFlight, outcome: outcome)
+            }
         }
         .onChange(of: isSendingMessage) { wasSending, isSending in
             if wasSending, !isSending { voiceTapGuard.generationEnded(atMs: VoiceEntryTapGuard.nowMs()) }
         }
-        // ✕ hands the half-spoken transcript back as the draft.
-        .onChange(of: VoiceConversationSession.shared.lastEnd) { _, end in
-            guard let end, let draft = VoiceConversationSession.shared.consumeEndDraft(end, host: conversationID)
-            else { return }
-            composerText = composerText.isEmpty ? draft : composerText + " " + draft
-        }
+        .modifier(RealtimeTypingReset(
+            key: RealtimeTypingReset.Key(
+                conversationID: conversationID,
+                selection: appState.realtimeModelSelection(for: conversationID)
+            ),
+            hosts: realtimeTypingHosts
+        ))
+        .modifier(RealtimeSessionSignals(
+            onUserPersisted: realtimeTypedUserPersisted,
+            onEnd: realtimeSessionEnded
+        ))
         // A conversation switch, an external push, focus loss and a store echo can land in the same
         // update; separate onChange handlers run in no guaranteed order.
         .onChange(of: draftInputs) { old, new in
@@ -805,7 +991,8 @@ struct ChatComposerBar: View {
                 composerText = updated
                 return updated
             },
-            onSend: { text in submitComposer(text: text) }
+            onSend: { text in submitComposer(text: text) },
+            live: .probe(dictationProbe, text: $composerText)
         ))
     }
 
@@ -828,6 +1015,11 @@ struct ChatComposerBar: View {
         return .providerDetail(providerID)
     }
 
+    /// Dictation card Change Language / Change Dictation Engine: open the voice settings page.
+    private func openDictationVoiceSettings() {
+        navigation.attemptNavigate(to: .voiceSettings)
+    }
+
     private func openDictationCheckConnection(_ providerID: UUID?) {
         switch Self.dictationCheckConnectionRoute(providerID: providerID) {
         case .providerDetail(let id):
@@ -839,7 +1031,60 @@ struct ChatComposerBar: View {
 
     /// Shared by the send button and dictation's "transcribe and send": carries the pending attachments.
     private func submitComposer(text: String) {
+        if isRealtimeTyping {
+            submitRealtimeTyped(text: text)
+            return
+        }
         onSend(text, pendingAttachments)
+    }
+
+    /// Realtime typed send: hand off to this conversation's realtime session (a playback-only one if none), and keep the typing state.
+    /// No clearing on send: the text stays in the field and is cleared on first persist; no new send is handed off while one is in flight (unsettled).
+    private func submitRealtimeTyped(text: String) {
+        let typed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !typed.isEmpty else { return }
+        let session = VoiceConversationSession.shared
+        guard realtimeTypedInFlight.wrappedValue == nil else { return }
+        // Cold start (no realtime session on this page yet) runs the same pre-check as the ≋ key first; a blocked text stays in the input.
+        if !session.hasRealtime(in: conversationID), !realtimeTypedPreflight() { return }
+        guard let inFlight = RealtimeTypedInFlight.begin(
+            realtimeTypedInFlight.wrappedValue, text: typed, conversationID: conversationID, session: session
+        ) else { return }
+        realtimeTypedInFlight.wrappedValue = inFlight
+        Task {
+            // Not yet accepted the disclosure: the page shows it and holds this text without connecting; the page sends it after consent.
+            let sent = await session.sendRealtimeTyped(
+                typed, conversationID: inFlight.conversationID, host: appState,
+                onNeedsRealtimeDisclosure: { onNeedsRealtimeDisclosure($0, typed) }
+            )
+            // Not handed off (openFailed / disclosureDeclined): the text is still in the field; only the in-flight send is settled.
+            if !sent { settleRealtimeTyped(inFlight, outcome: .openFailed) }
+        }
+    }
+
+    /// Clear the input when the in-flight realtime typed send is persisted (only if the field still holds this text).
+    private func realtimeTypedUserPersisted(_ userPersisted: Int?) {
+        guard let inFlight = realtimeTypedInFlight.wrappedValue,
+              let outcome = inFlight.outcome(userPersisted: userPersisted) else { return }
+        settleRealtimeTyped(inFlight, outcome: outcome)
+    }
+
+    /// The call ends: if the in-flight send is not yet persisted, the text stays in the field and is not concatenated;
+    /// ✕ hands the half-spoken transcript back as the draft.
+    private func realtimeSessionEnded(_ end: VoiceConversationSession.EndDelivery?) {
+        guard let end else { return }
+        if let inFlight = realtimeTypedInFlight.wrappedValue {
+            settleRealtimeTyped(inFlight, outcome: .endedBeforePersist)
+        }
+        guard let draft = VoiceConversationSession.shared.consumeEndDraft(end, host: conversationID) else { return }
+        composerText = composerText.isEmpty ? draft : composerText + " " + draft
+    }
+
+    /// Settle the in-flight send (only if it is still this one): compute the input text from the outcome and release the next handoff.
+    private func settleRealtimeTyped(_ inFlight: RealtimeTypedInFlight, outcome: RealtimeModelPolicy.TypedSendOutcomeKind) {
+        guard realtimeTypedInFlight.wrappedValue == inFlight else { return }
+        realtimeTypedInFlight.wrappedValue = nil
+        composerText = inFlight.inputText(composerText, outcome: outcome)
     }
 
     /// The same source as the send button; the transcript is inserted before sending, so this is judged as "has content".
@@ -847,7 +1092,8 @@ struct ChatComposerBar: View {
         ChatModelRemovedBanner.isSendEnabled(
             hasComposerContent: true,
             controlsDisabled: controlsDisabled,
-            banner: modelRemovedBanner
+            banner: modelRemovedBanner,
+            awaitingVoiceCatalog: awaitsVoiceCatalog
         )
     }
 
@@ -954,188 +1200,281 @@ struct ChatComposerBar: View {
 
     // MARK: - Capability Strip
 
-    private var capabilityStrip: some View {
-        HStack(spacing: 6) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                capabilityStripContent
-                    .padding(.horizontal, 2)
-                    .padding(.vertical, 2)
-            }
-            .scrollClipDisabled()
-            .mask(horizontalEdgeFadeMask)
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Pinned at the trailing end, outside the scrolling chips.
-            if let contextUsage, ContextUsageRing.isVisible(contextUsage) {
-                ContextUsageRing(summary: contextUsage, onTap: onOpenContextUsage)
-            }
+    private func handleModelControlsDismiss() {
+        if opensConnectionSettingsAfterControls {
+            opensConnectionSettingsAfterControls = false
+            navigation.openProviderDetail(providerID: provider.id)
+            return
         }
+        if opensConnectionWebSearchAfterControls {
+            opensConnectionWebSearchAfterControls = false
+            appState.openRelayWebSearch(providerID: provider.id)
+            return
+        }
+        if opensSearchSettingsAfterControls {
+            opensSearchSettingsAfterControls = false
+            appState.navigation.attemptNavigate(to: .webSearchSettings)
+            return
+        }
+        if opensTestCapabilitiesAfterControls {
+            opensTestCapabilitiesAfterControls = false
+            if let testedModel = currentModel {
+                appState.openRelayModelAdvanced(providerID: provider.id, modelID: testedModel.id, readOnly: false)
+            }
+            return
+        }
+        guard opensModelPickerAfterControls else { return }
+        opensModelPickerAfterControls = false
+        onChooseModel()
     }
 
-    private var capabilityStripContent: some View {
-        HStack(spacing: 7) {
-            Button { showsModelControls = true } label: {
-                composerControlChip(
-                    title: L10n.tr("Model Options"),
-                    systemImage: "slider.horizontal.3",
-                    accent: modelBehaviorAccent,
-                    emphasized: hasModelControlSelection,
-                    disabled: false,
-                    accessory: .chevron,
-                    capabilityGlyphs: activeCapabilityGlyphs
-                )
-            }
-            .buttonStyle(ComposerInteractiveButtonStyle())
-            .accessibilityLabel(Text(L10n.tr("Model Options")))
-            .accessibilityValue(Text(modelControlSummary))
-            .sheet(isPresented: $showsModelControls, onDismiss: {
-                if opensConnectionSettingsAfterControls {
-                    opensConnectionSettingsAfterControls = false
-                    navigation.openProviderDetail(providerID: provider.id)
-                    return
-                }
-                if opensConnectionWebSearchAfterControls {
-                    opensConnectionWebSearchAfterControls = false
-                    appState.openRelayWebSearch(providerID: provider.id)
-                    return
-                }
-                if opensSearchSettingsAfterControls {
-                    opensSearchSettingsAfterControls = false
-                    appState.navigation.attemptNavigate(to: .webSearchSettings)
-                    return
-                }
-                if opensTestCapabilitiesAfterControls {
-                    opensTestCapabilitiesAfterControls = false
-                    if let testedModel = currentModel {
-                        appState.openRelayModelAdvanced(providerID: provider.id, modelID: testedModel.id, readOnly: false)
-                    }
-                    return
-                }
-                guard opensModelPickerAfterControls else { return }
-                opensModelPickerAfterControls = false
-                onChooseModel()
-            }) {
-                ModelControlsEntrySheet(
-                    provider: provider,
-                    model: currentModel,
-                    conversationID: generationParameterScopeID,
-                    isExistingConversation: conversationID != nil,
-                    transportIdentity: modelControlTransportIdentity,
-                    runtimeIsReadOnly: controlsDisabled,
-                    runtimeReadOnlyReason: isSendingMessage
-                        ? L10n.tr("Thinking…", table: .chat)
-                        : L10n.tr("Loading conversation…", table: .chat),
-                    webEnabled: $webEnabled,
-                    reasoningMode: $reasoningMode,
-                    reasoningIntentSelection: $reasoningIntentSelection,
-                    onChooseConnection: {
-                        opensModelPickerAfterControls = true
-                        showsModelControls = false
-                    },
-                    onOpenConnectionSettings: {
-                        opensConnectionSettingsAfterControls = true
-                        showsModelControls = false
-                    },
-                    onOpenConnectionWebSearch: {
-                        opensConnectionWebSearchAfterControls = true
-                        showsModelControls = false
-                    },
-                    onOpenTestCapabilities: {
-                        opensTestCapabilitiesAfterControls = true
-                        showsModelControls = false
-                    },
-                    onOpenSearchSettings: {
-                        opensSearchSettingsAfterControls = true
-                        showsModelControls = false
-                    },
-                    initialRoute: modelControlsInitialRoute
-                )
-                .presentationDragIndicator(.visible)
-            }
-
-            // The "Tools" chip. Its number is the count of servers turned on and usable in this
-            // conversation; at 0 there is no number and no highlight. When the current connection cannot
-            // carry tools the chip is dimmed but still tappable: the panel it opens explains why. It can be
-            // opened while an answer is generating too (changes apply to the next send).
-            if let toolsChip {
-                Button {
-                    onOpenTools()
-                } label: {
-                    composerControlChip(
-                        title: L10n.tr("Tools", table: .mcp),
-                        systemImage: "wrench.adjustable",
-                        accent: modelBehaviorAccent,
-                        emphasized: toolsChip.enabledServerCount > 0,
-                        disabled: isReadOnly || !toolsChip.isAvailable,
-                        badgeText: toolsChip.enabledServerCount > 0 ? String(toolsChip.enabledServerCount) : nil
-                    )
-                }
-                .buttonStyle(ComposerInteractiveButtonStyle())
-                .disabled(isReadOnly)
-                .accessibilityLabel(Text(L10n.tr("Tools", table: .mcp)))
-                .accessibilityValue(Text(toolsChip.accessibilityValue))
-            }
-        }
-    }
-
+    /// The VoiceOver summary reads **what will actually happen on this send**, from the same source as the chip glyphs.
+    /// Reading the expressed preference (`webPreferenceSelection` / stored intent) would make VoiceOver users
+    /// hear "Web: Auto" while the screen shows no globe and the request carries no web tool.
     private var modelControlSummary: String {
         let web = ModelControlIntentLabel.webText(
             capabilityDecision.webSearchEnabled ? webPreferenceSelection : .off
         )
+        // "Automatic" rather than "Provider default": the panel row is now called "Automatic",
+        // and VoiceOver reading a different word than the screen is as bad as a wrong label.
         let thinking = capabilityDecision.reasoningIntent.map(ModelControlIntentLabel.text)
             ?? L10n.tr("Automatic")
         return "\(L10n.tr("Web Search", table: .chat)): \(web) · \(L10n.tr("Thinking Mode", table: .chat)): \(thinking)"
     }
 
-    // MARK: - Attachment Preview
+    // MARK: - Text Input Shell
 
-    private var attachmentPreviewRow: some View {
-        let canUseKnowledge = provider.kind == .openAI && !ProviderCredentialResolver.apiKey(provider: provider, modelID: nil).isEmpty
-        let hasTruncatedChip = canUseKnowledge && pendingAttachments.contains { $0.extractedTruncated == true }
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: OriveoTheme.Spacing.sm) {
-                ForEach(pendingAttachments) { attachment in
-                    ChatAttachmentPicker.attachmentThumbnail(
-                        attachment,
-                        onRemove: { id in
-                            pendingAttachments.removeAll { $0.id == id }
-                        },
-                        onTapKnowledgeCTA: (canUseKnowledge && attachment.extractedTruncated == true)
-                            ? { navigation.openSkillEdit() }
-                            : nil
-                    )
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-        }
-        .frame(height: hasTruncatedChip ? 112 : 78)
-        .background {
-            let trayShape = RoundedRectangle(cornerRadius: 20, style: .continuous)
-            trayShape
-                .fill(
-                    Color.dynamic(
-                        light: 0xF8FAFC,
-                        dark: 0x111A2C,
-                        lightAlpha: 0.66,
-                        darkAlpha: 0.58
-                    )
-                )
-                .overlay {
-                    trayShape.fill(attachmentAccent.softFill.opacity(isDarkMode ? 0.05 : 0.08))
-                }
-                .shadow(color: OriveoTheme.Palette.shadow.opacity(isDarkMode ? 0.12 : 0.035), radius: 7, y: 3)
-        }
-        .mask(horizontalEdgeFadeMask)
+    /// Empty-draft placeholder "Listening…" while recording (design §1 row 1); unchanged while transcribing or idle. Home's field uses it too.
+    static func listeningPlaceholder(phase: DictationInputPhase) -> String? {
+        phase == .recording ? L10n.tr("Listening…", table: .voice) : nil
     }
 
-    // MARK: - Composer Input Row
+    /// Composer placeholder: listening › AI is answering › type a message.
+    static func inputPlaceholder(phase: DictationInputPhase, isSending: Bool) -> String {
+        if let listening = listeningPlaceholder(phase: phase) { return listening }
+        if isSending { return L10n.tr("AI is answering...", table: .chat) }
+        return L10n.tr("Type a message...", table: .chat)
+    }
 
-    @ViewBuilder
-    private var composerInputRow: some View {
+    /// The attachment "+" only shows in the normal phase: no attaching while recording / transcribing, so the button would only mis-tap (matches the canvas and Android).
+    static func showsAttachmentEntry(supportsEntry: Bool, phase: DictationInputPhase) -> Bool {
+        supportsEntry && !phase.isDictating
+    }
+
+    /// Third-compaction hint (P3·U4 contract item 6): shown while ChatManager flags this conversation.
+    private var compactionHintConversationID: UUID? {
+        guard let conversationID, appState.pendingCompactionHint == conversationID else { return nil }
+        return conversationID
+    }
+
+    /// Shown only while this conversation's AI summary call runs.
+    private var compactingConversationID: UUID? {
+        guard let conversationID, appState.aiCompactingConversationIDs.contains(conversationID) else { return nil }
+        return conversationID
+    }
+
+    // MARK: - Voice Conversation
+
+    /// Primary key in the ≋ state: debounce through the tap guard, then start the voice conversation.
+    private func startVoiceConversationFromTap() {
+        guard voiceTapGuard.acceptsTap(atMs: VoiceEntryTapGuard.nowMs()) else { return }
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        onStartVoiceConversation()
+    }
+
+    /// Realtime typing in this conversation: a realtime selection exists and the user switched from the stage to the field.
+    private var isRealtimeTyping: Bool {
+        realtimeTypingHosts.wrappedValue.contains(conversationID) && appState.realtimeModelSelection(for: conversationID) != nil
+    }
+
+    /// Voice stage: shown while this page hosts a live conversation; stays up with a realtime selection (an idle tap takes the same path as ≋).
+    /// After a failed call: retry = tap the orb; open connection / switch model go through realtimeFailureNavigation.
+    private var voiceConversationController: (any VoiceConversationSurface)? {
+        // Typing wins over the stage: the field shows even mid-conversation.
+        guard !isRealtimeTyping else { return nil }
+        let session = VoiceConversationSession.shared
+        let selection = appState.realtimeModelSelection(for: conversationID)
+        let failure = session.realtimeFailure(in: conversationID, selection: selection)
+        let navigation = realtimeFailureNavigation
+        return session.stageSurface(
+            in: conversationID,
+            realtimeSelected: showsRealtimeVoiceStage,
+            realtimeSelection: selection,
+            onIdleTap: {
+                guard voiceTapGuard.acceptsTap(atMs: VoiceEntryTapGuard.nowMs()) else { return }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                onStartVoiceConversation()
+            },
+            onFailureAction: { navigation.perform($0, failure: failure, selection: selection) },
+            onSwitchToTyping: { [realtimeTypingHosts, conversationID] in
+                realtimeTypingHosts.wrappedValue.insert(conversationID)
+            }
+        )
+    }
+
+    /// Stage failure routes: open connection matches the dictation card's Check Connection; switch model opens this page's model picker.
+    private var realtimeFailureNavigation: RealtimeFailureNavigation {
+        RealtimeFailureNavigation(
+            openConnection: openDictationCheckConnection,
+            openModelPicker: onChooseModel,
+            clearRealtimeSelection: { [appState, conversationID] in
+                appState.clearRealtimeModelSelection(for: conversationID)
+            }
+        )
+    }
+
+    /// This page has a realtime selection and the primary key resolves to the stage (not generating, voice conversation allowed).
+    private var showsRealtimeVoiceStage: Bool {
+        VoiceConversationEntry.primaryAction(
+            isSending: isSendingMessage,
+            hasContent: hasComposerContent,
+            sendEnabled: false,
+            voiceAvailable: voiceConversationAvailable,
+            modelProducesText: VoiceConversationEntry.modelProducesText(currentModel),
+            realtimeSelected: appState.realtimeModelSelection(for: conversationID) != nil,
+            realtimeTyping: isRealtimeTyping,
+            realtimeReadOnly: controlsDisabled
+        ) == .voiceStage
+    }
+
+    /// ≋ needs an editable page, a usable model and the dictation pipeline.
+    private var voiceConversationAvailable: Bool {
+        !controlsDisabled && modelRemovedBanner == nil && DictationHub.shared.controller != nil
+    }
+    // MARK: - Highlight Pulse
+
+    private func configureHighlightPulse() {
+        highlightPulseToken += 1
+        highlightPulse = false
+    }
+
+    private func triggerHighlightPulse() {
+        guard !reduceMotion else { return }
+        highlightPulseToken += 1
+        let token = highlightPulseToken
+        withAnimation(.easeOut(duration: 0.18)) { highlightPulse = true }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
+            guard token == highlightPulseToken else { return }
+            withAnimation(.easeInOut(duration: 0.36)) { highlightPulse = false }
+        }
+    }
+
+    // MARK: - Accent Colors
+
+    private var attachmentAccent: ComposerCapabilityAccent {
+        .init(
+            tint: Color.dynamic(light: 0x52607A, dark: 0xCBD5E1),
+            iconStart: Color.dynamic(light: 0xA5B4FC, dark: \.accent),
+            iconEnd: Color.dynamic(light: 0x6366F1, dark: \.primary),
+            softFill: Color.dynamic(light: 0xF8FAFC, dark: 0x172136, lightAlpha: 1, darkAlpha: 0.94),
+            softBorder: Color.dynamic(light: 0xD5DBE7, dark: 0x94A3B8, lightAlpha: 1, darkAlpha: 0.26),
+            shadow: OriveoTheme.Palette.shadow
+        )
+    }
+
+    private var modelBehaviorAccent: ComposerCapabilityAccent {
+        .init(
+            // Brand colors: the default light palette keeps hand-tuned values, others follow the palette; dark soft fill is 15% primary, no hard-coded purple-black.
+            tint: Color.brand(defaultLight: 0x5B4AB8, light: \.textSafe, dark: \.accent),
+            iconStart: Color.brand(defaultLight: 0xA78BFA, light: \.accent, dark: \.accent), // dark-palette-guard: keep (d) hand-tuned light value for the default palette
+            iconEnd: Color.brand(defaultLight: 0x6D5BD0, light: \.ink, dark: \.primary),
+            softFill: Color.brand(defaultLight: 0xF5F3FF, light: \.soft, dark: \.primary, darkAlpha: 0.15),
+            softBorder: Color.brand(defaultLight: 0xC4B5FD, light: \.ink, lightAlpha: 0.7, dark: \.primary, darkAlpha: 0.3), // dark-palette-guard: keep (d) hand-tuned light value for the default palette
+            shadow: Color.brand(defaultLight: 0x6D5BD0, light: \.ink, lightAlpha: 0.15, darkFixed: 0x000000, darkAlpha: 0.22)
+        )
+    }
+
+    private func accent(for capability: ModelCapability) -> ComposerCapabilityAccent {
+        switch capability {
+        case .reasoning:
+            return .init(
+                tint: Color.dynamic(light: 0xC66312, dark: 0xF6C24B),
+                iconStart: Color.dynamic(light: 0xF0A11F, dark: 0xF6C24B),
+                iconEnd: Color.dynamic(light: 0xC66312, dark: 0xD97706),
+                softFill: Color.dynamic(light: 0xFFF3DE, dark: 0x3A2610, lightAlpha: 1, darkAlpha: 0.92),
+                softBorder: Color.dynamic(light: 0xE4B05D, dark: 0xF6C24B, lightAlpha: 0.65, darkAlpha: 0.34),
+                shadow: Color.dynamic(light: 0xC66312, dark: 0x000000, lightAlpha: 0.18, darkAlpha: 0.22)
+            )
+        case .web:
+            return .init(
+                tint: Color.dynamic(light: 0x0F766E, dark: 0x2DD4BF),
+                iconStart: Color.dynamic(light: 0x2DC7B4, dark: 0x2DD4BF),
+                iconEnd: Color.dynamic(light: 0x0891B2, dark: 0x0F766E),
+                softFill: Color.dynamic(light: 0xE9FBF7, dark: 0x102A28, lightAlpha: 1, darkAlpha: 0.92),
+                softBorder: Color.dynamic(light: 0x7ADBCF, dark: 0x5EEAD4, lightAlpha: 0.62, darkAlpha: 0.28),
+                shadow: Color.dynamic(light: 0x0F766E, dark: 0x000000, lightAlpha: 0.14, darkAlpha: 0.22)
+            )
+        case .image, .video, .file, .text, .imageGen, .nativePdf, .toolCall:
+            return attachmentAccent
+        }
+    }
+}
+
+/// Composer input row (quote chip, text shell, attachment entry, action cluster), split out of
+/// `ChatComposerBar.body` so the Debug body frame keeps main-thread stack headroom. Inputs are explicit
+/// values, bindings and callbacks; behavior and styling are unchanged.
+private struct ChatComposerInputRow: View {
+    @Binding var pendingQuoteContext: QuoteContext?
+    @Binding var composerText: String
+    let composerFocused: Binding<Bool>
+    let dictationProbe: ComposerSelectionProbe
+    let dictationCanSend: Bool
+    let isSendingMessage: Bool
+    let controlsDisabled: Bool
+    let hasDraftHighlight: Bool
+    let hasComposerContent: Bool
+    let supportsAttachmentEntry: Bool
+    let attachmentUploadBlocked: Bool
+    let attachmentButtonSystemImage: String
+    let attachmentButtonCount: Int
+    let supportsImageAttachment: Bool
+    let supportsVideoAttachment: Bool
+    let supportsFileAttachment: Bool
+    let attachmentEntries: ComposerAttachmentEntries
+    let hasDisabledAttachmentEntry: Bool
+    let attachmentAccessibilityLabel: String
+    let attachmentAccessibilityValue: String
+    let attachmentAccent: ComposerCapabilityAccent
+    let onShowCamera: () -> Void
+    let onShowPhotoPicker: () -> Void
+    let onShowFileImporter: () -> Void
+    let awaitsVoiceCatalog: Bool
+    let realtimeCatalogRetryRow: ChatRealtimeCatalogRetryRow?
+    let modelRemovedBanner: ChatModelRemovedBanner?
+    let isRealtimeTyping: Bool
+    let hasRealtimeTypedInFlight: Bool
+    let voiceConversationAvailable: Bool
+    let modelProducesText: Bool
+    let realtimeSelected: Bool
+    let conversationID: UUID?
+    let realtimeTypingHosts: Binding<Set<UUID?>>
+    let voiceOrbNamespace: Namespace.ID
+    let onCancel: () -> Void
+    let onStartVoiceConversationTap: () -> Void
+    let onSubmit: (String) -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isDarkMode: Bool { colorScheme == .dark }
+    private var preferredAnimation: Animation { ChatComposerBar.composerAnimation(reduceMotion: reduceMotion) }
+
+    private func submitComposer(text: String) {
+        onSubmit(text)
+    }
+
+    var body: some View {
         if let controller = DictationHub.shared.controller {
-            DictationInputSwitcher(controller: controller, canSend: dictationCanSend) {
-                composerIdleInputRow
+            // While dictating, the field stays on top (read-only) and the recording bar takes the full row below it.
+            DictationInputSwitcher(
+                controller: controller,
+                canSend: dictationCanSend,
+                arrangement: .sideBySide(spacing: 7, stackedSpacing: 8)
+            ) { phase in
+                composerInputColumn(phase: phase)
+            } buttons: {
+                composerActionCluster
+                    .padding(.bottom, 7)
             }
         } else {
             composerIdleInputRow
@@ -1144,12 +1483,16 @@ struct ChatComposerBar: View {
 
     private var composerIdleInputRow: some View {
         HStack(alignment: .bottom, spacing: 7) {
-            VStack(spacing: 6) {
-                pendingQuoteChip
-                composerTextInputShell
-            }
+            composerInputColumn(phase: .normal)
             composerActionCluster
                 .padding(.bottom, 7)
+        }
+    }
+
+    private func composerInputColumn(phase: DictationInputPhase) -> some View {
+        VStack(spacing: 6) {
+            pendingQuoteChip
+            composerTextInputShell(phase: phase)
         }
     }
 
@@ -1171,14 +1514,14 @@ struct ChatComposerBar: View {
         }
     }
 
-    // MARK: - Text Input Shell
-
-    private var composerTextInputShell: some View {
-        let shellShape = RoundedRectangle(cornerRadius: 22, style: .continuous)
+    /// While dictating (phase != normal) the field is read-only, drops the keyboard and hides the inline mic and attachment "+"; recording adds the flow border.
+    private func composerTextInputShell(phase: DictationInputPhase) -> some View {
+        let shellShape = RoundedRectangle(cornerRadius: 24, style: .continuous)
         let focused = composerFocused.wrappedValue
+        let showsAttachmentEntry = ChatComposerBar.showsAttachmentEntry(supportsEntry: supportsAttachmentEntry, phase: phase)
 
         return HStack(alignment: .center, spacing: 8) {
-            if supportsAttachmentEntry {
+            if showsAttachmentEntry {
                 attachmentEntryButton
             }
 
@@ -1186,12 +1529,12 @@ struct ChatComposerBar: View {
             ComposerTextView(
                 text: $composerText,
                 isFocused: composerFocused,
-                placeholder: isSendingMessage
-                    ? L10n.tr("AI is answering...", table: .chat)
-                    : L10n.tr("Type a message...", table: .chat),
+                placeholder: ChatComposerBar.inputPlaceholder(
+                    phase: phase, isSending: isSendingMessage
+                ),
                 font: Self.inputFont,
                 textColor: controlsDisabled ? Self.inputDisabledColor : Self.inputTextColor,
-                isEnabled: !controlsDisabled,
+                isEnabled: !controlsDisabled && !phase.isDictating,
                 maxLength: ChatInputLimit.maxUTF16,
                 onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast,
                 selectionProbe: dictationProbe,
@@ -1199,16 +1542,17 @@ struct ChatComposerBar: View {
                 onHardwareReturnSend: { submitComposer(text: composerText) },
                 canSendOnHardwareReturn: !isSendingMessage && hasDraftHighlight
             )
+            .accessibilityIdentifier("chat_composer_input")
             .padding(.vertical, 8)
             .frame(minHeight: 44, alignment: .center)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            if let controller = DictationHub.shared.controller {
+            if let controller = DictationHub.shared.controller, !phase.isDictating {
                 DictationMicButton(controller: controller)
                     .disabled(controlsDisabled)
             }
         }
-        .padding(.leading, supportsAttachmentEntry ? 6 : 14)
+        .padding(.leading, showsAttachmentEntry ? 6 : 14)
         .padding(.trailing, 14)
         .padding(.vertical, 5)
         .background {
@@ -1219,7 +1563,10 @@ struct ChatComposerBar: View {
             )
         }
         .overlay {
-            if focused {
+            if phase == .recording {
+                DictationFlowBorder(cornerRadius: 24)
+            } else if focused {
+                // Focused: static AI gradient border, no per-frame redraw while typing.
                 aiFocusBorder(shellShape)
             }
         }
@@ -1242,23 +1589,29 @@ struct ChatComposerBar: View {
     private static let inputDisabledColor = UIColor(OriveoTheme.Palette.textTertiary)
 
     private var composerShellFill: Color {
+        let state: ComposerShellFill.State
         if composerFocused.wrappedValue {
-            return Color.dynamic(light: 0xFFFFFF, dark: 0x101113, lightAlpha: 0.26, darkAlpha: 0.46)
+            state = .focused
+        } else if hasDraftHighlight {
+            state = .draftHighlight
+        } else {
+            state = .idle
         }
-        if hasDraftHighlight {
-            return Color.dynamic(light: 0xFBF9FF, dark: 0x0B0C0E, lightAlpha: 0.19, darkAlpha: 0.42)
-        }
-        return Color.dynamic(light: 0xFFFFFF, dark: 0x07080A, lightAlpha: 0.11, darkAlpha: 0.38)
+        return ComposerShellFill.color(for: state)
     }
 
     private var composerShellBorder: Color {
+        // Focused: the solid stroke yields to the gradient border (aiFocusBorder).
         if composerFocused.wrappedValue { return .clear }
         if hasDraftHighlight { return OriveoTheme.Palette.primary.opacity(0.25) }
+        // Unfocused: soft lavender stroke in the aurora / brand family instead of neutral gray.
         return OriveoTheme.Palette.primary.opacity(0.16)
     }
 
+    // MARK: - Focus Gradient Border
 
     private var aiBorderColors: [Color] {
+        // Restrained rainbow: blue -> purple -> magenta -> warm -> mint -> back to blue.
         [
             Color(hex: 0x6E8BFF),
             Color(hex: 0x9B6BFF),
@@ -1276,9 +1629,11 @@ struct ChatComposerBar: View {
             angle: .degrees(24)
         )
         return ZStack {
+            // Outer glow: the colored ring bleeds slightly past the edge.
             shape.stroke(gradient, lineWidth: 3)
                 .blur(radius: 6)
                 .opacity(0.55)
+            // Crisp colored stroke.
             shape.strokeBorder(gradient, lineWidth: 1.8)
         }
         .allowsHitTesting(false)
@@ -1296,6 +1651,8 @@ struct ChatComposerBar: View {
             count: attachmentButtonCount
         )
 
+        // Vision models: the image entry splits into Take Photo + Choose from Library, like ChatGPT / Claude / Gemini.
+        // Take Photo only shows when the device has a camera (not on Mac Catalyst / Simulator).
         let cameraAvailable = UIImagePickerController.isSourceTypeAvailable(.camera)
         let imageOptionCount = supportsImageAttachment ? (cameraAvailable ? 2 : 1) : 0
         let nonImageOptionCount = (supportsVideoAttachment ? 1 : 0) + (supportsFileAttachment ? 1 : 0)
@@ -1338,6 +1695,7 @@ struct ChatComposerBar: View {
                 .accessibilityLabel(Text(attachmentAccessibilityLabel))
                 .accessibilityValue(Text(attachmentAccessibilityValue))
         } else if supportsImageAttachment {
+            // No camera: fall back to a single button that opens the photo library.
             Button { onShowPhotoPicker() } label: { label }
                 .buttonStyle(ComposerInteractiveButtonStyle())
                 .disabled(attachmentDisabled)
@@ -1372,142 +1730,6 @@ struct ChatComposerBar: View {
         .accessibilityHint(Text(reason))
     }
 
-    /// Hint shown on the third compaction while ChatManager flags this conversation.
-    private var compactionHintConversationID: UUID? {
-        guard let conversationID, appState.pendingCompactionHint == conversationID else { return nil }
-        return conversationID
-    }
-
-    private func compactionHintBannerView(conversationID: UUID) -> some View {
-        let tint = OriveoTheme.Palette.primary
-        return VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .top, spacing: 8) {
-                Image(systemName: "rectangle.compress.vertical")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(tint)
-                    .accessibilityHidden(true)
-                Text(L10n.tr("context_compaction_third_hint", table: .chat))
-                    .font(OriveoTheme.Typography.footnote)
-                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            HStack(spacing: 16) {
-                Spacer(minLength: 0)
-                Button {
-                    appState.chatManager.dismissCompactionHint()
-                } label: {
-                    Text(L10n.tr("context_compaction_third_hint_dismiss", table: .chat))
-                }
-                .font(OriveoTheme.Typography.footnote)
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                .buttonStyle(.plain)
-                Button {
-                    ContextCompactionActions(appState: appState, conversationID: conversationID)
-                        .startNewChatWithSummary()
-                } label: {
-                    Text(L10n.tr("context_compaction_third_hint_new_chat", table: .chat))
-                }
-                .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.primary)
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
-                )
-        }
-    }
-
-    /// Shown only while an AI summary call is running for this conversation.
-    private var compactingConversationID: UUID? {
-        guard let conversationID, appState.aiCompactingConversationIDs.contains(conversationID) else { return nil }
-        return conversationID
-    }
-
-    private func compactionInProgressView(conversationID: UUID) -> some View {
-        let tint = OriveoTheme.Palette.primary
-        return HStack(alignment: .center, spacing: 8) {
-            ProgressView()
-                .controlSize(.mini)
-                .tint(tint)
-                .accessibilityHidden(true)
-            Text(L10n.tr("context_compaction_in_progress", table: .chat))
-                .font(OriveoTheme.Typography.footnote)
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            Button {
-                appState.chatManager.cancelCompaction(conversationId: conversationID)
-            } label: {
-                Text(L10n.tr("context_compaction_cancel", table: .chat))
-            }
-            .font(OriveoTheme.Typography.footnote.weight(.semibold))
-            .foregroundStyle(tint)
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
-                )
-        }
-    }
-
-    /// The row shown when the conversation's model was removed: the same compact style as the other banners, with one button on the right that opens the model picker.
-    private func modelRemovedBannerView(_ banner: ChatModelRemovedBanner) -> some View {
-        let tint = OriveoTheme.Palette.warning
-        return HStack(alignment: .center, spacing: 8) {
-            Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(tint)
-                .accessibilityHidden(true)
-            Text(banner.message)
-                .font(OriveoTheme.Typography.footnote)
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                .lineLimit(2)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-            Spacer(minLength: 0)
-            if let successorModelID = banner.successorModelID {
-                // An official model was retired and its successor is enabled: one tap switches to the successor, through the same selection path as the model picker.
-                Button(banner.actionTitle) {
-                    appState.selectModel(modelID: successorModelID, providerID: banner.providerID, for: conversationID)
-                }
-                .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.primary)
-                .buttonStyle(.plain)
-            } else {
-                Button(banner.actionTitle, action: onChooseModel)
-                    .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.primary)
-                    .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background {
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
-                )
-        }
-    }
-
     // MARK: - Attachment Composer Button
 
     private func attachmentComposerButton(
@@ -1519,6 +1741,8 @@ struct ChatComposerBar: View {
         let accent = attachmentAccent
 
         return ZStack(alignment: .topTrailing) {
+            // Flat lavender circle + bare icon, matching the toolbar buttons (no stroke / highlight / shadow box).
+            // With attachments the icon turns brand purple with a count badge at the top trailing corner.
             Image(systemName: systemImage)
                 .font(.system(size: systemImage == "plus" ? 17 : 16, weight: .semibold))
                 .foregroundStyle(emphasized ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textPrimary)
@@ -1552,100 +1776,39 @@ struct ChatComposerBar: View {
         .opacity(disabled ? 0.52 : 1)
     }
 
-    // MARK: - Control Chip
-
-    private func composerControlChip(
-        title: String,
-        systemImage: String,
-        accent: ComposerCapabilityAccent,
-        emphasized: Bool,
-        disabled: Bool,
-        badgeText: String? = nil,
-        accessory: ComposerControlChipAccessory = .none,
-        capabilityGlyphs: [String] = []
-    ) -> some View {
-        let chipShape = Capsule(style: .continuous)
-
-        return HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.system(size: 12.5, weight: .semibold))
-                .foregroundStyle(emphasized ? accent.tint : OriveoTheme.Palette.textTertiary)
-                .symbolEffect(.bounce, value: emphasized)
-                .frame(width: 17)
-
-            Text(title)
-                .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                .foregroundStyle(emphasized ? OriveoTheme.Palette.textPrimary : OriveoTheme.Palette.textTertiary)
-                .lineLimit(1)
-
-            if emphasized && badgeText == nil {
-                if capabilityGlyphs.isEmpty {
-                    composerEmphasisOrb(accent: accent)
-                } else {
-                    HStack(spacing: 3.5) {
-                        ForEach(capabilityGlyphs, id: \.self) { glyph in
-                            Image(systemName: glyph)
-                                .font(.system(size: 10.5, weight: .bold))
-                                .foregroundStyle(accent.tint)
-                        }
-                    }
-                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
-                }
-            }
-
-            if let badgeText {
-                Text(badgeText)
-                    .font(.system(size: 10.25, weight: .semibold))
-                    .monospacedDigit()
-                    .foregroundStyle(emphasized ? accent.tint : OriveoTheme.Palette.textTertiary)
-                    .lineLimit(1)
-                    .contentTransition(.numericText())
-            }
-
-            accessoryView(for: accessory, accent: accent)
-        }
-        .fixedSize(horizontal: true, vertical: false)
-        .padding(.horizontal, 11)
-        .frame(minHeight: 34)
-        .frame(minWidth: 44)
-        .contentShape(chipShape)
-        .background {
-            chipShape
-                .fill(
-                    emphasized
-                        ? accent.softFill.opacity(isDarkMode ? 0.68 : 0.80)
-                        : Color.dynamic(light: 0xF9FAFD, dark: 0x121A2A, lightAlpha: 0.58, darkAlpha: 0.58)
-                )
-        }
-        .contentShape(.hoverEffect, chipShape)
-        .hoverEffect(.highlight)
-        .shadow(
-            color: emphasized ? accent.shadow.opacity(0.08) : .clear,
-            radius: emphasized ? 7 : 0,
-            y: emphasized ? 2 : 0
-        )
-        .opacity(disabled ? 0.52 : 1)
-    }
-
     // MARK: - Action Cluster
 
     private var composerActionCluster: some View {
+        // A realtime typed sentence still in flight: the send key greys out like the not-sendable style.
+        // Waiting for the voice catalog: the primary key (≋ / ↑ share one key) spins disabled and reads "loading model".
+        // Catalog load failed: disabled without the spinner; the failure row above offers retry.
+        let awaitingCatalog = awaitsVoiceCatalog
+        let catalogLoading = ChatRealtimeCatalogRetryRow.showsLoadingIndicator(
+            awaitingVoiceCatalog: awaitingCatalog,
+            retryRow: realtimeCatalogRetryRow
+        )
         let isPrimed = ChatModelRemovedBanner.isSendEnabled(
             hasComposerContent: hasComposerContent,
             controlsDisabled: controlsDisabled,
-            banner: modelRemovedBanner
-        )
+            banner: modelRemovedBanner,
+            awaitingVoiceCatalog: awaitingCatalog
+        ) && !(isRealtimeTyping && hasRealtimeTypedInFlight)
 
         let action = VoiceConversationEntry.primaryAction(
             isSending: isSendingMessage,
             hasContent: hasComposerContent,
             sendEnabled: isPrimed,
             voiceAvailable: voiceConversationAvailable,
-            modelProducesText: VoiceConversationEntry.modelProducesText(currentModel)
+            modelProducesText: modelProducesText,
+            realtimeSelected: realtimeSelected,
+            realtimeTyping: isRealtimeTyping,
+            realtimeReadOnly: controlsDisabled
         )
 
         return Group {
-            if action != .voice && isSendingMessage {
+            if action == .backToStage {
+                backToStageButton
+            } else if action != .voice && isSendingMessage {
                 OriveoCircleIconButton(
                     systemImage: "stop.fill",
                     fill: AnyShapeStyle(OriveoTheme.Palette.danger),
@@ -1660,7 +1823,7 @@ struct ChatComposerBar: View {
             } else {
                 // ≋ and ↑ are the same solid purple primary key: empty draft ≋, text ↑, and the switch only morphs the icon while the key itself stays put.
                 let isVoice = action == .voice
-                let isLit = isVoice || isPrimed
+                let isLit = !awaitingCatalog && (isVoice || isPrimed)
                 OriveoCircleIconButton(
                     systemImage: isVoice ? "waveform" : "arrow.up",
                     // Unavailable (empty draft and no ≋): the same flat lavender circle as the attachment / top buttons (no white fill or grey edge);
@@ -1668,7 +1831,9 @@ struct ChatComposerBar: View {
                     fill: isLit
                         ? AnyShapeStyle(OriveoTheme.Palette.primaryGradient)
                         : AnyShapeStyle(Color.brand(defaultLight: OriveoLightBrand.defaultBrand.ink, light: \.ink, lightAlpha: 0.12, darkFixed: 0xFFFFFF, darkAlpha: 0.10)),
-                    foreground: isLit ? OriveoTheme.Palette.onPrimary : OriveoTheme.Palette.textTertiary,
+                    foreground: catalogLoading
+                        ? .clear
+                        : (isLit ? OriveoTheme.Palette.onPrimary : OriveoTheme.Palette.textTertiary),
                     border: isLit ? OriveoTheme.Palette.hairline : .clear,
                     shadowColor: isLit ? OriveoTheme.Palette.primaryGlow : .clear,
                     size: 40,
@@ -1676,9 +1841,7 @@ struct ChatComposerBar: View {
                     bounceValue: isPrimed
                 ) {
                     if isVoice {
-                        guard voiceTapGuard.acceptsTap(atMs: VoiceEntryTapGuard.nowMs()) else { return }
-                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                        onStartVoiceConversation()
+                        onStartVoiceConversationTap()
                     } else {
                         UIImpactFeedbackGenerator(style: .light).impactOccurred()
                         submitComposer(text: composerText)
@@ -1687,9 +1850,22 @@ struct ChatComposerBar: View {
                 .contentTransition(reduceMotion ? .opacity : .symbolEffect(.replace))
                 .voiceOrbMatched(voiceOrbNamespace, reduceMotion: reduceMotion)
                 .scaleEffect(isLit ? 1 : 0.96)
+                .overlay {
+                    if catalogLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(OriveoTheme.Palette.textTertiary)
+                            .allowsHitTesting(false)
+                    }
+                }
                 .disabled(!isLit)
-                // ≋ and ↑ are both icon-only: each gets a screen reader name (↑ shares "Send" with the home page key)
-                .accessibilityLabel(isVoice ? Text(VoiceConversationCopy.startA11y) : Text(L10n.tr("memory_extraction_send", table: .chat)))
+                // ≋ and ↑ are icon-only: each gets a VoiceOver label (↑ reads "Send" like Home); "loading model" while waiting for the catalog.
+                .accessibilityLabel(
+                    catalogLoading
+                        ? Text(ChatModelRemovedBanner.voiceCatalogLoadingLabel)
+                        : (isVoice ? Text(VoiceConversationCopy.startA11y) : Text(L10n.tr("Send", table: .chat)))
+                )
+                .accessibilityIdentifier(isVoice ? "chat_voice_conversation_button" : "chat_send_button")
             }
         }
         .animation(preferredAnimation, value: isSendingMessage)
@@ -1698,16 +1874,35 @@ struct ChatComposerBar: View {
 
     // MARK: - Voice Conversation
 
-    /// The voice bar shows here when this page hosts the running conversation.
-    private var voiceConversationController: (any VoiceConversationSurface)? {
-        let session = VoiceConversationSession.shared
-        guard session.isPresented(in: conversationID) else { return nil }
-        return session.surface
-    }
-
-    /// ≋ needs an editable page, a usable model and the dictation pipeline.
-    private var voiceConversationAvailable: Bool {
-        !controlsDisabled && modelRemovedBanner == nil && DictationHub.shared.controller != nil
+    /// Back-to-stage button in the ≋ slot while realtime typing with an empty draft (shared with Home).
+    private var backToStageButton: some View {
+        RealtimeBackToStageButton(
+            accessibilityID: "chat_voice_back_to_stage_button",
+            hitSize: 40,
+            namespace: voiceOrbNamespace,
+            reduceMotion: reduceMotion
+        ) {
+            // With a realtime session here: request the mic, resume capture on the same connection and return to the stage; stay typing if denied.
+            // Without one, only return to the idle stage: no connect, no mic request.
+            // A reply that is playing is interrupted by resumeVoiceCapture (interruptsPlayback); the page does not decide.
+            let session = VoiceConversationSession.shared
+            let host = conversationID
+            let decision = RealtimeModelPolicy.backToStage(session: session.hasRealtime(in: host) ? .typingOpened : .none)
+            switch decision.action {
+            case .idleStage:
+                realtimeTypingHosts.wrappedValue.remove(host)
+                return
+            case .none:
+                return
+            case .resumeCapture:
+                break
+            }
+            Task {
+                if await session.resumeRealtimeVoice(in: host) {
+                    realtimeTypingHosts.wrappedValue.remove(host)
+                }
+            }
+        }
     }
 
     // MARK: - Shared Surface Helper
@@ -1737,122 +1932,8 @@ struct ChatComposerBar: View {
             }
             .overlay(shape.stroke(border, lineWidth: 1))
     }
-
-    // MARK: - Small Helpers
-
-    private var horizontalEdgeFadeMask: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .clear, location: 0),
-                .init(color: .black, location: 0.04),
-                .init(color: .black, location: 0.96),
-                .init(color: .clear, location: 1)
-            ],
-            startPoint: .leading,
-            endPoint: .trailing
-        )
-    }
-
-    @ViewBuilder
-    private func accessoryView(
-        for accessory: ComposerControlChipAccessory,
-        accent: ComposerCapabilityAccent
-    ) -> some View {
-        switch accessory {
-        case .none:
-            EmptyView()
-        case .chevron:
-            Image(systemName: "chevron.down")
-                .font(.system(size: 9.5, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.textTertiary)
-        case .selectedMark:
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(accent.iconEnd)
-        }
-    }
-
-    private func composerEmphasisOrb(accent: ComposerCapabilityAccent) -> some View {
-        ZStack {
-            Circle().fill(accent.softFill)
-            Circle()
-                .fill(accent.iconEnd)
-                .frame(width: 5.5, height: 5.5)
-                .shadow(color: accent.shadow.opacity(0.22), radius: 4, y: 2)
-        }
-        .frame(width: 12, height: 12)
-        .scaleEffect(reduceMotion ? 1 : (highlightPulse ? 1.04 : 0.94))
-        .opacity(reduceMotion ? 1 : (highlightPulse ? 1 : 0.82))
-    }
-
-    // MARK: - Highlight Pulse
-
-    private func configureHighlightPulse() {
-        highlightPulseToken += 1
-        highlightPulse = false
-    }
-
-    private func triggerHighlightPulse() {
-        guard !reduceMotion else { return }
-        highlightPulseToken += 1
-        let token = highlightPulseToken
-        withAnimation(.easeOut(duration: 0.18)) { highlightPulse = true }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.42) {
-            guard token == highlightPulseToken else { return }
-            withAnimation(.easeInOut(duration: 0.36)) { highlightPulse = false }
-        }
-    }
-
-    // MARK: - Accent Colors
-
-    private var attachmentAccent: ComposerCapabilityAccent {
-        .init(
-            tint: Color.dynamic(light: 0x52607A, dark: 0xCBD5E1),
-            iconStart: Color.dynamic(light: 0xA5B4FC, dark: \.accent),
-            iconEnd: Color.dynamic(light: 0x6366F1, dark: \.primary),
-            softFill: Color.dynamic(light: 0xF8FAFC, dark: 0x172136, lightAlpha: 1, darkAlpha: 0.94),
-            softBorder: Color.dynamic(light: 0xD5DBE7, dark: 0x94A3B8, lightAlpha: 1, darkAlpha: 0.26),
-            shadow: OriveoTheme.Palette.shadow
-        )
-    }
-
-    private var modelBehaviorAccent: ComposerCapabilityAccent {
-        .init(
-            // Brand colors: the default palette keeps its hand-tuned light values, other palettes follow the palette; the dark soft fill takes 15% of the primary instead of a fixed violet-black
-            tint: Color.brand(defaultLight: 0x5B4AB8, light: \.textSafe, dark: \.accent),
-            iconStart: Color.brand(defaultLight: 0xA78BFA, light: \.accent, dark: \.accent),
-            iconEnd: Color.brand(defaultLight: 0x6D5BD0, light: \.ink, dark: \.primary),
-            softFill: Color.brand(defaultLight: 0xF5F3FF, light: \.soft, dark: \.primary, darkAlpha: 0.15),
-            softBorder: Color.brand(defaultLight: 0xC4B5FD, light: \.ink, lightAlpha: 0.7, dark: \.primary, darkAlpha: 0.3),
-            shadow: Color.brand(defaultLight: 0x6D5BD0, light: \.ink, lightAlpha: 0.15, darkFixed: 0x000000, darkAlpha: 0.22)
-        )
-    }
-
-    private func accent(for capability: ModelCapability) -> ComposerCapabilityAccent {
-        switch capability {
-        case .reasoning:
-            return .init(
-                tint: Color.dynamic(light: 0xC66312, dark: 0xF6C24B),
-                iconStart: Color.dynamic(light: 0xF0A11F, dark: 0xF6C24B),
-                iconEnd: Color.dynamic(light: 0xC66312, dark: 0xD97706),
-                softFill: Color.dynamic(light: 0xFFF3DE, dark: 0x3A2610, lightAlpha: 1, darkAlpha: 0.92),
-                softBorder: Color.dynamic(light: 0xE4B05D, dark: 0xF6C24B, lightAlpha: 0.65, darkAlpha: 0.34),
-                shadow: Color.dynamic(light: 0xC66312, dark: 0x000000, lightAlpha: 0.18, darkAlpha: 0.22)
-            )
-        case .web:
-            return .init(
-                tint: Color.dynamic(light: 0x0F766E, dark: 0x2DD4BF),
-                iconStart: Color.dynamic(light: 0x2DC7B4, dark: 0x2DD4BF),
-                iconEnd: Color.dynamic(light: 0x0891B2, dark: 0x0F766E),
-                softFill: Color.dynamic(light: 0xE9FBF7, dark: 0x102A28, lightAlpha: 1, darkAlpha: 0.92),
-                softBorder: Color.dynamic(light: 0x7ADBCF, dark: 0x5EEAD4, lightAlpha: 0.62, darkAlpha: 0.28),
-                shadow: Color.dynamic(light: 0x0F766E, dark: 0x000000, lightAlpha: 0.14, darkAlpha: 0.22)
-            )
-        case .image, .video, .file, .text, .imageGen, .nativePdf, .toolCall:
-            return attachmentAccent
-        }
-    }
 }
+
 
 private struct ComposerCapabilityAccent {
     let tint: Color
@@ -1884,23 +1965,115 @@ struct ComposerToolsChipState: Equatable {
     var enabledServerCount: Int
     /// Whether the current connection and model can use MCP tools; the chip is dimmed when they cannot.
     var isAvailable: Bool
+    /// A specific unavailable reason (realtime model selected: voice_realtime_no_tools) for VoiceOver; nil = the generic MCP reason.
+    var unavailableReason: String? = nil
 
     /// What VoiceOver reads as the value. When the model cannot use tools it gives the reason, the same
     /// sentence as the title of the panel the chip opens, instead of the "Disabled" it reads when no
     /// server is turned on.
     var accessibilityValue: String {
-        guard isAvailable else { return L10n.tr("This model can't use tools", table: .mcp) }
+        guard isAvailable else { return unavailableReason ?? L10n.tr("This model can't use tools", table: .mcp) }
         return enabledServerCount > 0 ? String(enabledServerCount) : L10n.tr("Disabled")
     }
 
-    /// Whether the capability strip draws the "Tools" capsule: the master switch is on and at least one server has been added (even if all are off).
-    /// Hidden when none has been added (the discovery entry is in Settings > MCP); also not drawn while the panel state has not been read yet (`.empty`).
-    static func resolve(featureEnabled: Bool, panelState: McpToolPanelState) -> ComposerToolsChipState? {
+    /// Whether the capability strip draws the Tools capsule: the master switch is on and at least one server has been added (even if all are off),
+    /// same rule as the library capsule. Hidden when none has been added (the discovery entry is in Settings > MCP); also not drawn while the panel state is unknown (`.empty`).
+    /// realtimeMode non-nil = a realtime model is selected, projected through `RealtimeModelPolicy.capability`:
+    /// typing state is dimmed but tappable and shows the reason; not drawn in the voice stage state.
+    static func resolve(
+        featureEnabled: Bool,
+        panelState: McpToolPanelState,
+        realtimeMode: RealtimeModelPolicy.ComposerMode? = nil
+    ) -> ComposerToolsChipState? {
         guard featureEnabled, panelState.hasServers else { return nil }
+        if let realtimeMode {
+            let capability = RealtimeModelPolicy.capability(modelKind: .realtime, mode: realtimeMode)
+            guard capability.tools == "disabledTappable" else { return nil }
+            return ComposerToolsChipState(
+                enabledServerCount: panelState.enabledServerCount,
+                isAvailable: false,
+                unavailableReason: capability.toolsReasonKey.flatMap(RealtimeCapabilityCopy.reason)
+            )
+        }
         return ComposerToolsChipState(
             enabledServerCount: panelState.enabledServerCount,
             isAvailable: panelState.availability.isAvailable
         )
+    }
+}
+
+/// A change of the selected model in this conversation (back to a text model, to another realtime model, or realtime cancelled) resets this conversation's typing state to the entry state.
+/// Switching conversations alone is not a change: typing state is stored per conversation, so entering another one leaves it alone.
+struct RealtimeTypingReset: ViewModifier {
+    struct Key: Equatable {
+        let conversationID: UUID?
+        let selection: RealtimeModelSelection?
+    }
+
+    let key: Key
+    @Binding var hosts: Set<UUID?>
+
+    func body(content: Content) -> some View {
+        content.onChange(of: key) { old, new in
+            var next = hosts
+            Self.apply(old: old, new: new, hosts: &next)
+            if next != hosts { hosts = next }
+        }
+    }
+
+    static func apply(old: Key, new: Key, hosts: inout Set<UUID?>) {
+        // Switching conversations alone is not a change (typing state is stored per conversation)
+        guard old.conversationID == new.conversationID, hosts.contains(new.conversationID) else { return }
+        let keeps = RealtimeModelPolicy.typingAfterSelectionChange(
+            typing: true, before: policySelection(old.selection), after: policySelection(new.selection)
+        )
+        if !keeps { hosts.remove(new.conversationID) }
+    }
+
+    /// Map the selection to the fixture {connectionId, model}: connection = providerID.
+    static func policySelection(_ selection: RealtimeModelSelection?) -> RealtimeModelPolicy.PickerSelected? {
+        selection.map { RealtimeModelPolicy.PickerSelected(connectionId: $0.providerID.uuidString, model: $0.model) }
+    }
+}
+
+/// Which composer state applies while a realtime model is selected: the primary key resolves to the voice stage = stage, otherwise (the user switched to typing, generating, or read-only) = typing;
+/// nil when no realtime model is selected. voiceAvailable = the page is not read-only (realtime ignores the dictation engine and the text-model-removed banner). ChatView and the input bar use the same rule (`VoiceConversationEntry.primaryAction`).
+enum ComposerRealtimeMode {
+    static func resolve(
+        realtimeSelected: Bool,
+        isSending: Bool,
+        voiceAvailable: Bool,
+        typing: Bool = false
+    ) -> RealtimeModelPolicy.ComposerMode? {
+        guard realtimeSelected else { return nil }
+        let action = VoiceConversationEntry.primaryAction(
+            isSending: isSending,
+            hasContent: false,
+            sendEnabled: false,
+            voiceAvailable: voiceAvailable,
+            modelProducesText: true,
+            realtimeSelected: true,
+            realtimeTyping: typing
+        )
+        return action == .voiceStage ? .stage : .typing
+    }
+}
+
+/// Map the realtime capability reason key to the localized copy (Voice table; keys are the English source text).
+enum RealtimeCapabilityCopy {
+    static func reason(_ key: String) -> String? {
+        switch key {
+        case "voice_realtime_no_attachments":
+            L10n.tr("Realtime voice models don't take attachments. Switch to a text model to send them.", table: .voice)
+        case "voice_realtime_no_web_search":
+            L10n.tr("Realtime voice models can't search the web.", table: .voice)
+        case "voice_realtime_no_thinking":
+            L10n.tr("Realtime voice models don't support thinking.", table: .voice)
+        case "voice_realtime_no_tools":
+            L10n.tr("Realtime voice models can't use tools.", table: .voice)
+        default:
+            nil
+        }
     }
 }
 
@@ -1913,6 +2086,8 @@ private struct ChatComposerDictationHost: ViewModifier {
     let onInsert: (String) -> String
     /// Sends the given text.
     let onSend: (String) -> Void
+    /// Realtime text is written into the input field.
+    let live: DictationLiveHooks
 
     /// Remembers the text after the latest insertion: "transcribe and send" sends right after inserting, without waiting for the bound @State to refresh.
     private final class InsertedText {
@@ -1936,7 +2111,8 @@ private struct ChatComposerDictationHost: ViewModifier {
                     guard let text = inserted.value else { return }
                     inserted.value = nil
                     onSend(text)
-                }
+                },
+                live: live
             )
         } else {
             content
@@ -1988,8 +2164,23 @@ struct ComposerAttachmentEntries: Equatable, Sendable {
         }
     }
 
-    /// The same identity as `ChatAttachmentPicker.ImportContext` (built from the partition).
-    static func resolve(provider: Provider?, model: AIModel?, partitionID: String?) -> ComposerAttachmentEntries {
+    /// Same identity as `ChatAttachmentPicker.ImportContext` (built from the partition).
+    /// realtimeMode non-nil = a realtime model is selected: the typing state shows the three entries disabled with voice_realtime_no_attachments; the voice stage state does not exist.
+    static func resolve(
+        provider: Provider?,
+        model: AIModel?,
+        partitionID: String?,
+        realtimeMode: RealtimeModelPolicy.ComposerMode? = nil
+    ) -> ComposerAttachmentEntries {
+        if let realtimeMode {
+            let capability = RealtimeModelPolicy.capability(modelKind: .realtime, mode: realtimeMode)
+            guard capability.attachments == "disabledWithReason",
+                  let reason = capability.attachmentsReasonKey.flatMap(RealtimeCapabilityCopy.reason) else { return .closed }
+            func disabled(_ medium: InputCapabilityCopy.Medium) -> Entry {
+                Entry(isEnabled: false, disabledReason: reason, hintsFirstAttach: false, medium: medium)
+            }
+            return ComposerAttachmentEntries(image: disabled(.image), video: disabled(.video), file: disabled(.file))
+        }
         guard let provider, let model else { return .closed }
         let identity = partitionID.flatMap {
             ChatView.capabilityEvidenceIdentity(provider: provider, model: model, partitionID: $0)
@@ -2071,5 +2262,600 @@ enum ComposerAttachmentAdmission {
         guard let entry = added.lazy.map({ entries.entry(for: $0.kind) }).first(where: \.hintsFirstAttach),
               history.consumeFirstHint(providerID: providerID, modelID: modelID) else { return nil }
         return InputCapabilityCopy.hintFirstAttach(entry.medium)
+    }
+}
+
+// MARK: - Body sections
+// Each section is its own `View` struct so it renders in its own stack frame: the Debug build of
+// `ChatComposerBar.body` overflowed the 1 MB main-thread stack while these were inline.
+
+private func composerHorizontalEdgeFadeMask() -> some View {
+    LinearGradient(
+        stops: [
+            .init(color: .clear, location: 0),
+            .init(color: .black, location: 0.04),
+            .init(color: .black, location: 0.96),
+            .init(color: .clear, location: 1)
+        ],
+        startPoint: .leading,
+        endPoint: .trailing
+    )
+}
+
+/// Model removed, voice catalog retry, and compaction rows above the composer.
+private struct ChatComposerBannerStack: View {
+    let modelRemovedBanner: ChatModelRemovedBanner?
+    let realtimeCatalogRetryRow: ChatRealtimeCatalogRetryRow?
+    let compactionHintConversationID: UUID?
+    let compactingConversationID: UUID?
+    let conversationID: UUID?
+    let onChooseModel: () -> Void
+    let onRetryRealtimeCatalog: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppState.self) private var appState
+
+    private var isDarkMode: Bool { colorScheme == .dark }
+
+    var body: some View {
+        if let modelRemovedBanner {
+            modelRemovedBannerView(modelRemovedBanner)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+
+        if let realtimeCatalogRetryRow {
+            realtimeCatalogRetryRowView(realtimeCatalogRetryRow)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+
+        if let compactionHintConversationID {
+            compactionHintBannerView(conversationID: compactionHintConversationID)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+
+        if let compactingConversationID {
+            compactionInProgressView(conversationID: compactingConversationID)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+
+    private func compactionHintBannerView(conversationID: UUID) -> some View {
+        let tint = OriveoTheme.Palette.primary
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "rectangle.compress.vertical")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(tint)
+                    .accessibilityHidden(true)
+                Text(L10n.tr("context_compaction_third_hint", table: .chat))
+                    .font(OriveoTheme.Typography.footnote)
+                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 16) {
+                Spacer(minLength: 0)
+                Button {
+                    appState.chatManager.dismissCompactionHint()
+                } label: {
+                    Text(L10n.tr("context_compaction_third_hint_dismiss", table: .chat))
+                }
+                .font(OriveoTheme.Typography.footnote)
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .buttonStyle(.plain)
+                Button {
+                    ContextCompactionActions(appState: appState, conversationID: conversationID)
+                        .startNewChatWithSummary()
+                } label: {
+                    Text(L10n.tr("context_compaction_third_hint_new_chat", table: .chat))
+                }
+                .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
+                )
+        }
+    }
+
+    private func compactionInProgressView(conversationID: UUID) -> some View {
+        let tint = OriveoTheme.Palette.primary
+        return HStack(alignment: .center, spacing: 8) {
+            ProgressView()
+                .controlSize(.mini)
+                .tint(tint)
+                .accessibilityHidden(true)
+            Text(L10n.tr("context_compaction_in_progress", table: .chat))
+                .font(OriveoTheme.Typography.footnote)
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button {
+                appState.chatManager.cancelCompaction(conversationId: conversationID)
+            } label: {
+                Text(L10n.tr("context_compaction_cancel", table: .chat))
+            }
+            .font(OriveoTheme.Typography.footnote.weight(.semibold))
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
+                )
+        }
+    }
+
+    /// Row shown when the conversation model was removed: same compact style as the sync banner, trailing button opens the model picker.
+    private func modelRemovedBannerView(_ banner: ChatModelRemovedBanner) -> some View {
+        let tint = OriveoTheme.Palette.warning
+        return HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(banner.message)
+                .font(OriveoTheme.Typography.footnote)
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            if let successorModelID = banner.successorModelID {
+                // Official / Free model retired with an enabled successor: switch to it in one tap through the model picker's selection path.
+                Button(banner.actionTitle) {
+                    appState.selectModel(modelID: successorModelID, providerID: banner.providerID, for: conversationID)
+                }
+                .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+                .buttonStyle(.plain)
+            } else {
+                Button(banner.actionTitle, action: onChooseModel)
+                    .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+                    .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
+                )
+        }
+    }
+
+    /// Voice catalog load failure row: same style as the model removed row, trailing Retry reloads the catalog.
+    private func realtimeCatalogRetryRowView(_ row: ChatRealtimeCatalogRetryRow) -> some View {
+        let tint = OriveoTheme.Palette.warning
+        return HStack(alignment: .center, spacing: 8) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(tint)
+                .accessibilityHidden(true)
+            Text(row.message)
+                .font(OriveoTheme.Typography.footnote)
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            Button(row.actionTitle, action: onRetryRealtimeCatalog)
+                .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+                .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background {
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(tint.opacity(isDarkMode ? 0.14 : 0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .stroke(tint.opacity(isDarkMode ? 0.28 : 0.20), lineWidth: 1)
+                )
+        }
+    }
+}
+
+/// Notes pinned to this chat and related-note suggestions.
+private struct ChatComposerNoteContextSection: View {
+    let pinnedNoteSummaries: [NoteSummary]
+    let visibleRelatedNotes: [NoteRecallEngine.Suggestion]
+    let conversationID: UUID?
+    @Binding var dismissedRelatedNoteIDs: Set<UUID>
+
+    @Environment(AppState.self) private var appState
+
+    var body: some View {
+        if !pinnedNoteSummaries.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.tr("Notes used in this chat", table: .notes))
+                    .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(pinnedNoteSummaries) { note in
+                            HStack(spacing: 4) {
+                                Image(systemName: "quote.opening").font(.system(size: 9))
+                                Text(NoteText.displayTitle(note.title))
+                                    .font(OriveoTheme.Typography.footnote)
+                                    .lineLimit(1)
+                                Button {
+                                    appState.unpinNote(note.id, from: conversationID)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill").font(.system(size: 12))
+                                }
+                                .accessibilityLabel(L10n.tr("Unpin", table: .notes))
+                                .buttonStyle(.plain)
+                            }
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+                            .padding(.horizontal, OriveoTheme.Spacing.sm)
+                            .padding(.vertical, 5)
+                            .background(Capsule().fill(OriveoTheme.Palette.primarySoft))
+                        }
+                    }
+                }
+            }
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+        if !visibleRelatedNotes.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(L10n.tr("Related notes", table: .notes))
+                    .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                ForEach(visibleRelatedNotes) { note in
+                    HStack(spacing: OriveoTheme.Spacing.sm) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(NoteText.displayTitle(note.title))
+                                .font(OriveoTheme.Typography.footnote)
+                                .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                                .lineLimit(1)
+                            if note.showsSourceBadge {
+                                NoteSourceBadge(providerKind: note.sourceProviderKind,
+                                                modelName: note.sourceModelName,
+                                                providerName: note.sourceProviderName,
+                                                size: 12)
+                            }
+                        }
+                        Spacer(minLength: 0)
+                        Button(L10n.tr("Attach", table: .notes)) {
+                            appState.pinNote(note.id, to: conversationID)
+                            dismissedRelatedNoteIDs.insert(note.id)
+                        }
+                        .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
+                        Button(L10n.tr("Dismiss", table: .notes)) {
+                            dismissedRelatedNoteIDs.insert(note.id)
+                        }
+                        .font(OriveoTheme.Typography.footnote)
+                        .buttonStyle(.plain)
+                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
+                    }
+                }
+            }
+            .padding(OriveoTheme.Spacing.md)
+            .background(RoundedRectangle(cornerRadius: OriveoTheme.Radius.inset).fill(OriveoTheme.Palette.surfaceInset))
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
+}
+
+/// Pending attachment thumbnails tray.
+private struct ChatComposerAttachmentPreviewRow: View {
+    let provider: Provider
+    @Binding var pendingAttachments: [Attachment]
+    let attachmentAccent: ComposerCapabilityAccent
+    let onTapKnowledgeCTA: () -> Void
+
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var isDarkMode: Bool { colorScheme == .dark }
+
+    var body: some View {
+        // Truncation CTA gate: only shown when the current provider is OpenAI with a key configured.
+        let canUseKnowledge = provider.kind == .openAI && !ProviderCredentialResolver.apiKey(provider: provider, modelID: nil).isEmpty
+        let hasTruncatedChip = canUseKnowledge && pendingAttachments.contains { $0.extractedTruncated == true }
+        return ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: OriveoTheme.Spacing.sm) {
+                ForEach(pendingAttachments) { attachment in
+                    ChatAttachmentPicker.attachmentThumbnail(
+                        attachment,
+                        onRemove: { id in
+                            pendingAttachments.removeAll { $0.id == id }
+                        },
+                        onTapKnowledgeCTA: (canUseKnowledge && attachment.extractedTruncated == true)
+                            ? { onTapKnowledgeCTA() }
+                            : nil
+                    )
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+        }
+        .frame(height: hasTruncatedChip ? 112 : 78)
+        .background {
+            let trayShape = RoundedRectangle(cornerRadius: 20, style: .continuous)
+            trayShape
+                .fill(
+                    Color.dynamic(
+                        light: 0xF8FAFC,
+                        dark: 0x111A2C,
+                        lightAlpha: 0.66,
+                        darkAlpha: 0.58
+                    )
+                )
+                .overlay {
+                    trayShape.fill(attachmentAccent.softFill.opacity(isDarkMode ? 0.05 : 0.08))
+                }
+                .shadow(color: OriveoTheme.Palette.shadow.opacity(isDarkMode ? 0.12 : 0.035), radius: 7, y: 3)
+        }
+        .mask(composerHorizontalEdgeFadeMask())
+    }
+}
+
+/// Model Options and Tools chips plus the context usage ring.
+private struct ChatComposerCapabilityStrip: View {
+    let provider: Provider
+    let currentModel: AIModel?
+    let conversationID: UUID?
+    let generationParameterScopeID: UUID
+    let modelControlTransportIdentity: String?
+    let controlsDisabled: Bool
+    let isSendingMessage: Bool
+    let isReadOnly: Bool
+    @Binding var showsModelControls: Bool
+    let modelControlsInitialRoute: ModelControlsRoute?
+    @Binding var opensModelPickerAfterControls: Bool
+    @Binding var opensConnectionSettingsAfterControls: Bool
+    @Binding var opensConnectionWebSearchAfterControls: Bool
+    @Binding var opensSearchSettingsAfterControls: Bool
+    @Binding var opensTestCapabilitiesAfterControls: Bool
+    let onModelControlsDismiss: () -> Void
+    @Binding var webEnabled: Bool
+    @Binding var reasoningMode: ReasoningMode
+    @Binding var reasoningIntentSelection: String?
+    let modelBehaviorAccent: ComposerCapabilityAccent
+    let hasModelControlSelection: Bool
+    let activeCapabilityGlyphs: [String]
+    let modelControlSummary: String
+    let toolsChip: ComposerToolsChipState?
+    let onOpenTools: () -> Void
+    let contextUsage: ContextUsageSummary?
+    let onOpenContextUsage: () -> Void
+    let highlightPulse: Bool
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(AppState.self) private var appState
+
+    private var isDarkMode: Bool { colorScheme == .dark }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                capabilityStripContent
+                    .padding(.horizontal, 2)
+                    .padding(.vertical, 2)
+            }
+            .scrollClipDisabled()
+            .mask(composerHorizontalEdgeFadeMask())
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Pinned at the trailing end, outside the scrolling chips.
+            if let contextUsage, ContextUsageRing.isVisible(contextUsage) {
+                ContextUsageRing(summary: contextUsage, onTap: onOpenContextUsage)
+            }
+        }
+    }
+
+    private var capabilityStripContent: some View {
+        HStack(spacing: 7) {
+            // The single entry does not consume model / identity / managed / runtime read-only checks.
+            // Without a model it still opens the fallback panel to pick one; writability is decided inside the panel.
+            Button { showsModelControls = true } label: {
+                composerControlChip(
+                    title: L10n.tr("Model Options"),
+                    systemImage: "slider.horizontal.3",
+                    accent: modelBehaviorAccent,
+                    emphasized: hasModelControlSelection,
+                    disabled: false,
+                    accessory: .chevron,
+                    capabilityGlyphs: activeCapabilityGlyphs
+                )
+            }
+            .buttonStyle(ComposerInteractiveButtonStyle())
+            .accessibilityLabel(Text(L10n.tr("Model Options")))
+            .accessibilityValue(Text(modelControlSummary))
+            .sheet(isPresented: $showsModelControls, onDismiss: onModelControlsDismiss) {
+                ModelControlsEntrySheet(
+                    provider: provider,
+                    model: currentModel,
+                    conversationID: generationParameterScopeID,
+                    isExistingConversation: conversationID != nil,
+                    transportIdentity: modelControlTransportIdentity,
+                    runtimeIsReadOnly: controlsDisabled,
+                    runtimeReadOnlyReason: isSendingMessage
+                        ? L10n.tr("Thinking…", table: .chat)
+                        : L10n.tr("Loading conversation…", table: .chat),
+                    webEnabled: $webEnabled,
+                    reasoningMode: $reasoningMode,
+                    reasoningIntentSelection: $reasoningIntentSelection,
+                    onChooseConnection: {
+                        opensModelPickerAfterControls = true
+                        showsModelControls = false
+                    },
+                    onOpenConnectionSettings: {
+                        opensConnectionSettingsAfterControls = true
+                        showsModelControls = false
+                    },
+                    onOpenConnectionWebSearch: {
+                        opensConnectionWebSearchAfterControls = true
+                        showsModelControls = false
+                    },
+                    onOpenTestCapabilities: {
+                        opensTestCapabilitiesAfterControls = true
+                        showsModelControls = false
+                    },
+                    onOpenSearchSettings: {
+                        opensSearchSettingsAfterControls = true
+                        showsModelControls = false
+                    },
+                    initialRoute: modelControlsInitialRoute,
+                    realtimeSelected: appState.realtimeModelSelection(for: conversationID) != nil
+                )
+                // The panel owns its detents (height follows content, full height on sub-pages): presentation preferences
+                // written outside override the inner ones, so setting them here would silently break the panel's sizing.
+                .presentationDragIndicator(.visible)
+            }
+
+            // Tools chip (design 01 / 05): the number is enabled, available servers in this chat; at 0 there is no number and no highlight.
+            // When the connection cannot send tools it is dimmed but still tappable, opening a panel that explains why (design 04).
+            // It also opens while generating (changes apply to the next send, not the current answer).
+            if let toolsChip {
+                Button {
+                    onOpenTools()
+                } label: {
+                    composerControlChip(
+                        title: L10n.tr("Tools", table: .mcp),
+                        systemImage: "wrench.adjustable",
+                        accent: modelBehaviorAccent,
+                        emphasized: toolsChip.enabledServerCount > 0,
+                        disabled: isReadOnly || !toolsChip.isAvailable,
+                        badgeText: toolsChip.enabledServerCount > 0 ? String(toolsChip.enabledServerCount) : nil
+                    )
+                }
+                .buttonStyle(ComposerInteractiveButtonStyle())
+                .disabled(isReadOnly)
+                .accessibilityLabel(Text(L10n.tr("Tools", table: .mcp)))
+                .accessibilityValue(Text(toolsChip.accessibilityValue))
+            }
+        }
+    }
+
+    private func composerControlChip(
+        title: String,
+        systemImage: String,
+        accent: ComposerCapabilityAccent,
+        emphasized: Bool,
+        disabled: Bool,
+        badgeText: String? = nil,
+        accessory: ComposerControlChipAccessory = .none,
+        capabilityGlyphs: [String] = []
+    ) -> some View {
+        let chipShape = Capsule(style: .continuous)
+
+        return HStack(spacing: 6) {
+            Image(systemName: systemImage)
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(emphasized ? accent.tint : OriveoTheme.Palette.textTertiary)
+                .symbolEffect(.bounce, value: emphasized)
+                .frame(width: 17)
+
+            Text(title)
+                .font(OriveoTheme.Typography.footnote.weight(.semibold))
+                .foregroundStyle(emphasized ? OriveoTheme.Palette.textPrimary : OriveoTheme.Palette.textTertiary)
+                .lineLimit(1)
+
+            if emphasized && badgeText == nil {
+                // When specific capabilities are set, draw their glyphs so the chip says which one changed;
+                // only changes without a dedicated glyph (model behavior) fall back to the dot.
+                if capabilityGlyphs.isEmpty {
+                    composerEmphasisOrb(accent: accent)
+                } else {
+                    HStack(spacing: 3.5) {
+                        ForEach(capabilityGlyphs, id: \.self) { glyph in
+                            Image(systemName: glyph)
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundStyle(accent.tint)
+                        }
+                    }
+                    .transition(.opacity.combined(with: .scale(scale: 0.85)))
+                }
+            }
+
+            if let badgeText {
+                Text(badgeText)
+                    .font(.system(size: 10.25, weight: .semibold))
+                    .monospacedDigit()
+                    .foregroundStyle(emphasized ? accent.tint : OriveoTheme.Palette.textTertiary)
+                    .lineLimit(1)
+                    .contentTransition(.numericText())
+            }
+
+            accessoryView(for: accessory, accent: accent)
+        }
+        .fixedSize(horizontal: true, vertical: false)
+        .padding(.horizontal, 11)
+        .frame(minHeight: 34)
+        .frame(minWidth: 44)
+        .contentShape(chipShape)
+        .background {
+            chipShape
+                .fill(
+                    emphasized
+                        ? accent.softFill.opacity(isDarkMode ? 0.68 : 0.80)
+                        : Color.dynamic(light: 0xF9FAFD, dark: 0x121A2A, lightAlpha: 0.58, darkAlpha: 0.58)
+                )
+        }
+        .contentShape(.hoverEffect, chipShape)
+        .hoverEffect(.highlight)
+        .shadow(
+            color: emphasized ? accent.shadow.opacity(0.08) : .clear,
+            radius: emphasized ? 7 : 0,
+            y: emphasized ? 2 : 0
+        )
+        .opacity(disabled ? 0.52 : 1)
+    }
+
+    @ViewBuilder
+    private func accessoryView(
+        for accessory: ComposerControlChipAccessory,
+        accent: ComposerCapabilityAccent
+    ) -> some View {
+        switch accessory {
+        case .none:
+            EmptyView()
+        case .chevron:
+            Image(systemName: "chevron.down")
+                .font(.system(size: 9.5, weight: .semibold))
+                .foregroundStyle(OriveoTheme.Palette.textTertiary)
+        case .selectedMark:
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(accent.iconEnd)
+        }
+    }
+
+    private func composerEmphasisOrb(accent: ComposerCapabilityAccent) -> some View {
+        ZStack {
+            Circle().fill(accent.softFill)
+            Circle()
+                .fill(accent.iconEnd)
+                .frame(width: 5.5, height: 5.5)
+                .shadow(color: accent.shadow.opacity(0.22), radius: 4, y: 2)
+        }
+        .frame(width: 12, height: 12)
+        .scaleEffect(reduceMotion ? 1 : (highlightPulse ? 1.04 : 0.94))
+        .opacity(reduceMotion ? 1 : (highlightPulse ? 1 : 0.82))
     }
 }

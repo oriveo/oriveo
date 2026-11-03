@@ -70,7 +70,7 @@ struct MemoryRawView: View {
             HStack(spacing: 8) {
                 Text(verbatim: MemoryItems.rawViewSeparator)
                     .font(.system(size: 12, design: .monospaced))
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
                     .background(RoundedRectangle(cornerRadius: 5, style: .continuous).fill(OriveoTheme.Palette.surface))
@@ -146,7 +146,7 @@ struct MemoryRawView: View {
             } label: {
                 Text(L10n.tr("memory_raw_view_save", table: .chat))
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     .padding(.horizontal, 12)
                     .frame(minHeight: 44)
                     .contentShape(Rectangle())

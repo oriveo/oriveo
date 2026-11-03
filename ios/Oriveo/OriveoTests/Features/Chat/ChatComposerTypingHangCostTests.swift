@@ -33,11 +33,6 @@ struct ChatComposerTypingHangCostTests {
     func typingInComposer() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "composer-typing-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let provider = TestFactories.makeProvider(kind: .openAI)
@@ -71,6 +66,10 @@ struct ChatComposerTypingHangCostTests {
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         defer { state.flushConversationPersistQueue() }
         // The message window opens the database of the active partition; without switching, the list
         // stays on its skeleton and the input is read-only. Switch after creating AppState: in a clean

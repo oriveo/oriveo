@@ -33,7 +33,10 @@ import ai.oriveo.community.core.model.GenerationParameterProfileFingerprint
 import ai.oriveo.community.core.model.GenerationParameterSettingsStore
 import ai.oriveo.community.core.model.CapabilityPreferenceStore
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
+import ai.oriveo.community.core.voice.realtime.RealtimeSelection
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 internal class ChatSendCommandCoordinator(
@@ -45,6 +48,10 @@ internal class ChatSendCommandCoordinator(
     private val currentConversationId: () -> String?,
     /** Instructions written by the conversation settings while still a draft; stored with the object when the first send creates the conversation. */
     private val pendingDraftInstructions: () -> String = { "" },
+    /** Composer skill chips chosen before the conversation exists; written onto the new row (P4 contract 20). */
+    private val pendingDraftSkillIds: () -> List<String> = { emptyList() },
+    /** Disabled-auto ids for a request: the conversation's stored list plus disables not yet written back to it. */
+    private val disabledAutoForSend: (conversationId: String, stored: List<String>) -> List<String> = { _, stored -> stored },
     private val onProviderSelectionError: () -> Unit,
     private val onProviderResolutionError: (Throwable) -> Unit,
     private val onModelSelectionError: () -> Unit,
@@ -112,7 +119,39 @@ internal class ChatSendCommandCoordinator(
      * proposes through the tool instead). Null = the real decision ([resolveMemoryProposeMode]).
      */
     private val memoryProposeMode: (suspend (Conversation, Provider, modelId: String) -> MemoryProposeMode)? = null,
+    /** Voice catalog cache snapshot (realtime check); defaults to Koin's VoiceCatalogClient, no Koin (unit tests) = realtime models are not recognized. */
+    private val voiceCatalog: () -> ai.oriveo.community.core.voice.VoiceCatalog? = {
+        val client = org.koin.mp.KoinPlatform.getKoinOrNull()?.getOrNull<ai.oriveo.community.core.voice.VoiceCatalogClient>()
+        (client?.state?.value as? ai.oriveo.community.core.voice.VoiceCatalogState.Available)?.catalog
+    },
 ) {
+    private val realtimeTypedSends = MutableSharedFlow<String>(extraBufferCapacity = 1)
+
+    /**
+     * A sentence typed while a realtime model is selected: it does not go through the text chat API; this page's voice host (rememberVoiceConversationHost)
+     * takes it and sends it to the realtime connection; the host does not store it separately.
+     */
+    val realtimeTyped: SharedFlow<String> = realtimeTypedSends
+
+    // A sentence handed to the host but not yet settled: while in flight, the send key does not hand over the next one.
+    @Volatile
+    private var realtimeTypedInFlight: String? = null
+
+    /**
+     * The host reports the outcome of the typed sentence: only persisted clears the input box, and only while the box still holds that sentence verbatim (an edit made in flight is left alone);
+     * any other outcome keeps the text. Every outcome releases the send key.
+     */
+    fun realtimeTypedSettled(text: String, outcome: String, composerText: String) {
+        if (realtimeTypedInFlight == text) realtimeTypedInFlight = null
+        val result = ai.oriveo.community.core.voice.realtime.RealtimeModel.typedSendOutcome(
+            ai.oriveo.community.core.voice.realtime.RealtimeModel.TYPED_CONTEXT_CHAT,
+            outcome,
+        )
+        if (result.inputKeepsText || composerText.trim() != text.trim()) return
+        // The draft page has no conversation row yet: when the id is empty, only clear the input box (updateDraft writes nothing when no row is found).
+        viewModelScope.launch { onComposerConsumed(currentConversationId().orEmpty()) }
+    }
+
     fun sendMessage(
         text: String,
         attachments: List<Attachment>?,
@@ -121,20 +160,28 @@ internal class ChatSendCommandCoordinator(
         quoteContext: QuoteContext? = null,
         /** VOICE for a voice-conversation send; it then leaves the composer (text, attachments, draft) alone. */
         delivery: ai.oriveo.community.core.context.ContextDelivery? = null,
+        /**
+         * Called when this send ends without being handed to the send path (blocked by a gate, disclosure to confirm first, exception or cancel): the voice turn reports failure from it,
+         * so it never ends with no event. Not wired by default, so the composer send is unchanged.
+         */
+        onBlocked: () -> Unit = {},
     ) {
         // No connection or no model selected both mean "no usable model": the request is blocked before it is sent.
         if (providerId == null) {
             onProviderSelectionError()
             onSendSettled()
+            onBlocked()
             return
         }
         if (modelId == null) {
             onModelSelectionError()
             onSendSettled()
+            onBlocked()
             return
         }
 
         viewModelScope.launch {
+            var dispatched = false
             try {
                 val provider = resolveChatProvider(
                     providerRepository = providerRepository,
@@ -145,7 +192,10 @@ internal class ChatSendCommandCoordinator(
                 // The relay session's model has been removed or the official model is retired: no request is sent, and the notice bar guides the user to pick again.
                 if (preSendGuardBlocked(provider, modelId)) return@launch
 
-                if (requiresDisclosure(provider.kind)) {
+                // A realtime selection's typed send goes to the realtime host, which asks the realtime
+                // disclosure; the provider disclosure is not asked on top of it.
+                val realtime = RealtimeSelection.isRealtime(provider, modelId, voiceCatalog())
+                if (!realtime && requiresDisclosure(provider.kind)) {
                     onDisclosureRequired(
                         ProviderDisclosurePrompt(
                             kind = provider.kind,
@@ -164,13 +214,14 @@ internal class ChatSendCommandCoordinator(
                     return@launch
                 }
 
-                sendMessageInternal(provider, modelId, text, attachments, quoteContext, delivery = delivery)
+                dispatched = sendMessageInternal(provider, modelId, text, attachments, quoteContext, delivery = delivery)
             } finally {
                 // Catch-all reset: a missing provider or model, a disclosure gate, a thrown
                 // exception and coroutine cancellation all land here. On the success path
                 // launchSend has already handed the request to the streaming scope by now, so the
                 // setup phase is over either way.
                 onSendSettled()
+                if (!dispatched) onBlocked()
             }
         }
     }
@@ -402,7 +453,10 @@ internal class ChatSendCommandCoordinator(
             onFailure = onProviderResolutionError,
         ) ?: return false
         if (preSendGuardBlocked(provider, modelId)) return false
-        if (requiresDisclosure(provider.kind)) {
+        // A realtime selection only asks the realtime disclosure on the voice stage (it already names the
+        // provider), accepting it records the provider disclosure too.
+        val realtime = RealtimeSelection.isRealtime(provider, modelId, voiceCatalog())
+        if (!realtime && requiresDisclosure(provider.kind)) {
             onDisclosureRequired(
                 ProviderDisclosurePrompt(
                     kind = provider.kind,
@@ -432,7 +486,12 @@ internal class ChatSendCommandCoordinator(
 
     /** Pre-send guards shared by every entry: a retired official model and a removed relay session model block the send. */
     private fun preSendGuardBlocked(provider: Provider, modelId: String): Boolean {
-        if (ProviderSelectionSnapshot.modelRetirement(provider, modelId)?.sendBlocked == true) return true
+        // Realtime model is not in the text catalog: skip the retirement check, so it is not reported as a missing model.
+        // Voice catalog not ready: on an official apiKey connection an id missing from the text catalog may be a realtime model, so do not judge missing yet.
+        val catalog = voiceCatalog()
+        if (!RealtimeSelection.isRealtime(provider, modelId, catalog) &&
+            ProviderSelectionSnapshot.modelRetirement(provider, modelId, voiceCatalogPending = catalog == null)?.sendBlocked == true
+        ) return true
         return RelayModelFallback.removedConnectionName(provider, modelId) != null
     }
 
@@ -475,19 +534,23 @@ internal class ChatSendCommandCoordinator(
     ): Pair<Provider, ai.oriveo.community.core.model.AIModel>? {
         if (providerId == null || modelId == null) return null
         val provider = runCatching { providerRepository.getById(providerId) }.getOrNull() ?: return null
-        val selectedModel = ProviderSelectionSnapshot.currentModel(provider, modelId) ?: return null
+        // Realtime models are not in the text list: resolve with the voice catalog, otherwise the first conversation would be created with the default text model.
+        val selectedModel = ProviderSelectionSnapshot.currentModel(provider, modelId, voiceCatalog = voiceCatalog()) ?: return null
         return provider to selectedModel
     }
 
     private suspend fun createFirstConversationRow(
         provider: Provider,
         selectedModel: ai.oriveo.community.core.model.AIModel,
-    ): Conversation = conversationRepository.create(
-        providerID = provider.id,
-        providerKind = provider.kind,
-        modelID = ModelSelectionUtils.preferredStoredModelIdentifier(selectedModel, provider.kind),
-        instructions = pendingDraftInstructions(),
-    )
+    ): Conversation {
+        val created = conversationRepository.create(
+            providerID = provider.id,
+            providerKind = provider.kind,
+            modelID = ModelSelectionUtils.preferredStoredModelIdentifier(selectedModel, provider.kind),
+            instructions = pendingDraftInstructions(),
+        )
+        return created
+    }
 
     /** Moves the draft-time MCP / parameter / capability records onto the new conversation (first send). */
     private suspend fun adoptFirstConversationDrafts(
@@ -545,15 +608,34 @@ internal class ChatSendCommandCoordinator(
         attachments: List<Attachment>?,
         quoteContext: QuoteContext?,
         delivery: ai.oriveo.community.core.context.ContextDelivery? = null,
-    ) {
-        if (preSendGuardBlocked(provider, modelId)) return
-        if (conversationProviderDeleted(provider.id)) return
+    ): Boolean {
         val providerId = provider.id
-        val selectedModel = ProviderSelectionSnapshot.currentModel(provider, modelId)
+        if (preSendGuardBlocked(provider, modelId)) return false
+        if (conversationProviderDeleted(providerId)) return false
+        val catalog = voiceCatalog()
+        val selectedModel = ProviderSelectionSnapshot.currentModel(provider, modelId, voiceCatalog = catalog)
             ?: run {
+                // Voice catalog not ready and the id may be a realtime model: stay silent and keep the composer text,
+                // without recording no_model or showing an error.
+                if (catalog == null && isPossibleRealtimeId(provider, modelId)) return false
                 onModelSelectionError()
-                return
+                return false
             }
+        // Typed send for a realtime model: hand it to this page's realtime host, which sends it to the same realtime model (speech and text); no text request is built and no attachment preflight runs (attachments are disabled).
+        if (delivery == null && RealtimeSelection.isRealtime(provider, selectedModel.id, catalog)) {
+            // No host is receiving (page not present): do not send, keep the input box as is; never fall back to the text API.
+            // The previous sentence is still in flight: do not hand over the next one; keep the input box as is.
+            if (realtimeTypedInFlight != null) return false
+            if (realtimeTypedSends.subscriptionCount.value == 0 || !realtimeTypedSends.tryEmit(text)) return false
+            // The input box is kept until the sentence is stored: [realtimeTypedSettled] clears it after the host reports the outcome.
+            realtimeTypedInFlight = text
+            onQuoteConsumed(quoteContext)
+            return true
+        }
+        // A voice delivery selected a realtime model (not reached after the engine switch): as a fallback, do not hand it to the text API and show no error.
+        if (delivery != null && RealtimeSelection.isRealtime(provider, selectedModel.id, catalog)) {
+            return false
+        }
 
         // This turn's attachments do not fit: do not create a conversation or clear the composer, and leave the text and
         // attachments for the user to adjust. The route is worked out from the web search and reasoning values this send
@@ -583,7 +665,11 @@ internal class ChatSendCommandCoordinator(
         }
         AttachmentSendPreflight.undeliverable(provider, selectedModel, text, attachments, sendOptions)?.let { error ->
             onAttachmentsUndeliverable(error)
-            return
+            return false
+        }
+        // A voice delivery selected a realtime model (not reached after the engine switch): as a fallback, do not hand it to the text API and show no error.
+        if (delivery != null && RealtimeSelection.isRealtime(provider, selectedModel.id, catalog)) {
+            return false
         }
 
         val runtimeModelId = selectedModel.id
@@ -613,6 +699,7 @@ internal class ChatSendCommandCoordinator(
             providerID = providerId,
             providerKind = provider.kind,
             modelID = storedModelId,
+            disabledAutoSkillIds = disabledAutoForSend(conv.id, conv.disabledAutoSkillIds),
         )
 
         // A voice turn never came from the composer: whatever the user typed meanwhile stays put.
@@ -657,7 +744,7 @@ internal class ChatSendCommandCoordinator(
                 delivery = delivery,
             )
             onQuoteConsumed(quoteContext)
-            return
+            return true
         }
         launchSend.launch(
             conversation = requestConversation,
@@ -676,6 +763,7 @@ internal class ChatSendCommandCoordinator(
         // The quote is only consumed once the request has actually been handed off. Any earlier
         // setup failure leaves it pending so the user does not lose the selection.
         onQuoteConsumed(quoteContext)
+        return true
     }
 
     private suspend fun fetchFullConversationHistory(conversationId: String): List<ChatMessage> =

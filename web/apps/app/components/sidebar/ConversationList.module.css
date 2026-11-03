@@ -164,7 +164,7 @@
 }
 
 .editToolbarBtn:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   color: var(--o-text);
 }
 

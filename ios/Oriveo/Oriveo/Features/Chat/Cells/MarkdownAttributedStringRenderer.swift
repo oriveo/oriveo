@@ -139,8 +139,8 @@ nonisolated enum MarkdownAttributedStringRenderer {
 
     private static let textColor = UIColor(OriveoTheme.Palette.textPrimary)
     private static let secondaryColor = UIColor(OriveoTheme.Palette.textSecondary)
-    private static let linkColor = UIColor(OriveoTheme.Palette.primary)
-    /// Inline code: in dark mode the text is the current palette accent (the secondary-color information layer) on a 7% white background; light mode is unchanged. Shared with MarkdownMessageView.
+    private static let linkColor = OriveoTheme.Palette.primaryTextOnSurfaceUIColor
+    /// Inline code: in dark mode the text is the current palette accent (the secondary-colour information layer) on a 7% white background; light mode is unchanged. Shared with MarkdownMessageView.
     static let codeFg = UIColor.oriveoDynamic(light: 0x0F172A, dark: \.accent)
     static let codeBg = UIColor { trait in
         trait.userInterfaceStyle == .dark

@@ -14,7 +14,7 @@
   height: 36px;
   border-radius: 7px;
   background: color-mix(in srgb, var(--o-primary) 11%, var(--o-surface));
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .header h2,
@@ -66,7 +66,7 @@
 .loadMore {
   border: 0;
   background: transparent;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font: inherit;
   font-size: 12px;
   font-weight: 700;
@@ -150,9 +150,9 @@
   width: 30px;
   height: 30px;
   border-radius: 6px;
-  /* No border: surface-raised carries it instead, since in light mode --o-bg is almost the same color as the card and a borderless block would disappear */
-  background: var(--o-surface-raised);
-  color: var(--o-primary);
+  /* No border: uses surface-raised instead, since in light mode --o-bg is nearly the card color and the block would vanish without the frame */
+  background: var(--o-fill-muted);
+  color: var(--o-primary-text-on-surface);
 }
 
 .scopeCard[data-disabled] .scopeIcon {
@@ -195,7 +195,7 @@
 }
 
 .sectionLabel[data-at-limit] .selectionCount {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 /* Only appears at the limit: explains why the unselected rows do not respond */
@@ -246,8 +246,8 @@
   width: 30px;
   height: 30px;
   border-radius: 6px;
-  /* Same as .scopeIcon: without a border, surface-raised is what separates it from the row background */
-  background: var(--o-surface-raised);
+  /* Same as .scopeIcon: after removing the border, surface-raised separates it from the row background */
+  background: var(--o-fill-muted);
   color: var(--o-text-secondary);
   font-size: 13px;
   font-weight: 800;

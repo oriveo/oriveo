@@ -52,6 +52,7 @@ import ai.oriveo.community.core.provider.AdditionalRequestBody.PreviewStatus
 import ai.oriveo.community.core.provider.AdditionalRequestBody.Validation
 import ai.oriveo.community.feature.chat.composer.ModelControlHairline
 import ai.oriveo.community.feature.chat.composer.ModelControlNote
+import ai.oriveo.community.ui.component.oriveoSwitchColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.modelControlTextButtonColors
 
@@ -162,6 +163,7 @@ internal fun AdditionalRequestBodyPage(
                         checked = body.sendWithRequest,
                         enabled = canEdit,
                         onCheckedChange = { update(body.copy(sendWithRequest = it)) },
+                        colors = oriveoSwitchColors(),
                         modifier = Modifier
                             .semantics { contentDescription = toggleLabel },
                     )

@@ -14,6 +14,7 @@ import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.provider.ProviderCredentialResolver
+import ai.oriveo.community.core.provider.withRelayRoute
 import ai.oriveo.community.core.provider.transport.OfficialEndpointSource
 import ai.oriveo.community.core.util.generateUuidString
 
@@ -36,7 +37,7 @@ class MemoryOrganizer(private val complete: suspend (MemoryOrganizeRequest) -> S
         fun forModel(providerRepository: ProviderRepository, provider: Provider, model: AIModel): MemoryOrganizer =
             MemoryOrganizer { request ->
                 val service = providerRepository.serviceFor(provider, model)
-                val transport = projection(request, provider, model).transportInput(ChatRequestOptions())
+                val transport = projection(request, provider, model).transportInput(ChatRequestOptions().withRelayRoute(provider, model))
                 service.sendMessage(
                     apiKey = ProviderCredentialResolver.apiKey(provider, model.id),
                     modelID = model.id,

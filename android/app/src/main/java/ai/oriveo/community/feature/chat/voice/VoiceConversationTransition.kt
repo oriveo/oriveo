@@ -1,5 +1,8 @@
 package ai.oriveo.community.feature.chat.voice
 
+import androidx.annotation.VisibleForTesting
+import androidx.compose.ui.text.TextLayoutResult
+import android.icu.text.LocaleDisplayNames
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationSpec
 import androidx.compose.animation.core.LinearEasing
@@ -13,6 +16,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -30,11 +34,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import ai.oriveo.community.core.app.resolve
+import ai.oriveo.community.core.voice.VoiceEngineSettings
+import ai.oriveo.community.core.voice.recognitionLanguageRows
 import ai.oriveo.community.core.voice.conversation.ConversationStatusKey
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
+import java.util.Locale
 import kotlin.math.roundToInt
+import org.koin.mp.KoinPlatform
 
 /**
  * Window position of the page's ≋ button (its center), written by the button on layout and read by the
@@ -121,21 +130,39 @@ object VoiceConversationTransition {
  * Swaps the page's input area and the voice bar with one choreographed transition (see
  * [VoiceConversationTransition.frame]); the reverse on leaving. Both layers are composed only while the transition
  * runs; every per-frame value is read in the draw phase.
+ *
+ * The recognition language sheet closes (unchanged, capture resumes) when the conversation ends or the switcher
+ * leaves the composition. [languageSettings] overrides the
+ * settings the chip and the sheet read (null = the Koin instance).
  */
 @Composable
 fun VoiceConversationSwitcher(
     handle: VoiceConversationHandle,
     modifier: Modifier = Modifier,
     barModifier: Modifier = Modifier,
+    languageSettings: VoiceEngineSettings? = null,
+    /** Test hook: layout of the stage's status line (see [VoiceConversationBar]). */
+    @VisibleForTesting onStatusLayout: ((TextLayoutResult) -> Unit)? = null,
+    /** Centered above the stage's orb (the home page's model pill, PM0 card A3); null = none. */
+    stageHeader: (@Composable () -> Unit)? = null,
     normal: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
-    val inConversation = handle.status != null
+    // E-690: switching engines ends the old session before the new one opens; the stage stays meanwhile.
+    val switching = handle.switchingTo
+    val inConversation = handle.status != null || switching != null
+    // E-690: tell the host the notice reached the stage; it keeps the name until then.
+    LaunchedEffect(switching) { if (switching != null) handle.switchNoticeShown(switching) }
     val progress = remember { Animatable(if (inConversation) 1f else 0f) }
     LaunchedEffect(inConversation) {
+        if (!inConversation) handle.closeLanguagePicker(changed = false)
         progress.animateTo(if (inConversation) 1f else 0f, VoiceConversationTransition.spec(reduceMotion))
     }
+    DisposableEffect(handle) {
+        onDispose { handle.closeLanguagePicker(changed = false) }
+    }
+    val settings = languageSettings ?: remember { KoinPlatform.getKoinOrNull()?.getOrNull<VoiceEngineSettings>() }
     // The bar keeps the last status while it leaves.
     val lastStatus = remember { arrayOfNulls<ConversationStatusKey>(1) }
     handle.status?.let { lastStatus[0] = it }
@@ -160,7 +187,8 @@ fun VoiceConversationSwitcher(
 
     Box(
         modifier = modifier.onGloballyPositioned { origin[0] = it.positionInWindow() },
-        contentAlignment = Alignment.Center,
+        // The stage is taller than the input area: both sit on the bottom edge while they swap.
+        contentAlignment = Alignment.BottomCenter,
     ) {
         if (showNormal) {
             Box(
@@ -168,20 +196,48 @@ fun VoiceConversationSwitcher(
                     alpha = VoiceConversationTransition.frame(progress.value, reduceMotion, Offset.Zero).normalAlpha
                 },
             ) {
-                CompositionLocalProvider(LocalVoiceEntryAnchor provides anchor) { normal() }
+                // PM1 card A4: a failure ends on the idle stage; the page's RealtimeVoiceDock shows its card.
+                val idleFailure = handle.failure?.let { RealtimeIdleFailure(it, handle::perform) }
+                CompositionLocalProvider(
+                    LocalVoiceEntryAnchor provides anchor,
+                    LocalRealtimeIdleFailure provides idleFailure,
+                ) { normal() }
             }
         }
         if (showBar) {
+            val status = handle.status ?: lastStatus[0] ?: ConversationStatusKey.LISTENING
             VoiceConversationBar(
-                status = handle.status ?: lastStatus[0] ?: ConversationStatusKey.LISTENING,
+                status = status,
                 level = handle.level,
+                caption = handle.caption,
+                realtimeCaption = handle.realtimeCaption,
                 page = handle.page,
                 onEnd = handle.onEnd,
-                onTapOrb = handle.onTapOrb,
+                onTapOrb = handle::tapOrb,
                 onToggleMute = handle.onToggleMute,
                 modifier = barModifier,
                 motion = motion,
+                userSpeaking = handle.userSpeaking,
+                nudges = handle.nudges,
+                languageName = if (status == ConversationStatusKey.CHECK_LANGUAGE) {
+                    recognitionLanguageName(settings, refresh = handle.languagePickerOpen)
+                } else {
+                    null
+                },
+                onOpenLanguage = handle::openLanguagePicker,
+                failure = handle.failure,
+                onFailureAction = handle::perform,
+                switchingTo = handle.switchingTo,
+                onStatusLayout = onStatusLayout,
+                header = stageHeader,
             )
+        }
+        if (handle.languagePickerOpen) {
+            if (settings == null) {
+                RecognitionLanguageSheet(onDismiss = handle::closeLanguagePicker)
+            } else {
+                RecognitionLanguageSheet(onDismiss = handle::closeLanguagePicker, settings = settings)
+            }
         }
         if (showNormal && showBar && !reduceMotion) {
             // The ≋ glyph leaving its button and fading into the orb.
@@ -216,6 +272,41 @@ fun Modifier.voiceEntryAnchor(): Modifier {
 }
 
 private val GhostSize = 18.dp
+
+/**
+ * Saved recognition language under the same name as its row in the language sheet ([recognitionLanguageRows]); a
+ * saved tag no row carries keeps its locale display name. null = no settings (e.g. previews), shown as automatic.
+ * Re-read when [refresh] flips, i.e. after the sheet closes.
+ */
+@Composable
+private fun recognitionLanguageName(settings: VoiceEngineSettings?, refresh: Boolean): String? {
+    val context = LocalContext.current
+    return remember(settings, refresh, context) {
+        settings ?: return@remember null
+        val tag = settings.recognitionLanguage()
+        val row = recognitionLanguageRows(tag).firstOrNull { it.selected }
+        when {
+            row != null -> row.label.resolve(context)
+            tag != null -> recognitionLanguageDisplayName(tag, context.resources.configuration.locales[0])
+            else -> null
+        }
+    }
+}
+
+/**
+ * A recognition language tag (BCP 47) no sheet row carries, named in [uiLocale] by ICU's CLDR display-name pattern
+ * (as on iOS), first letter capitalized. A tag whose language the system cannot name stays
+ * the raw tag (iOS systemLanguageName), never "Xx (United States)".
+ */
+internal fun recognitionLanguageDisplayName(tag: String, uiLocale: Locale): String {
+    val locale = Locale.forLanguageTag(tag)
+    val language = locale.language
+    val names = LocaleDisplayNames.getInstance(uiLocale)
+    val languageName = names.languageDisplayName(language).orEmpty()
+    if (language.isEmpty() || languageName.isEmpty() || languageName.equals(language, ignoreCase = true)) return tag
+    val name = names.localeDisplayName(locale).orEmpty().ifEmpty { return tag }
+    return name.replaceFirstChar { it.titlecase(uiLocale) }
+}
 
 /** The flying ≋ crosses the page background, not the purple button: light-brand text-safe in light, the palette accent in dark. */
 private fun ghostGlyphTint(colors: OriveoColors, isDark: Boolean): Color = if (isDark) colors.accent else colors.primaryTextSafe

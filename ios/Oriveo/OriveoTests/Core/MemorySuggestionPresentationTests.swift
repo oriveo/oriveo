@@ -120,10 +120,12 @@ struct MemorySuggestionPresentationTests {
         )
         conversation.useMemory = useMemory
         state.upsertConversationProjection(conversation)
-        defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        // Wait for send tasks to finish before removing the partition (the 503 failure cleanup still refreshes cost writes after the session is removed), then drain each write tail:
+        // An in-flight write against a deleted database file reports disk I/O error, and writes that resolve the database by uid would re-create the partition.
+        func cleanUp() async {
+            await state.chatManager.waitForSendTasksForTesting()
+            await state.drainPendingWrites()
+            await TestPartitionCleanup.remove(uid)
             defaults.removePersistentDomain(forName: suiteName)
         }
         // Wait for the send tasks before the partition is deleted: failure wrap-up still writes (cost refresh) after the session is removed.

@@ -32,7 +32,7 @@ struct GeminiLiveWireTests {
 
     @Test func gemini_map_cases_match_fixture() throws {
         let cases = try Self.geminiCases("mapCases")
-        #expect(cases.count == 7)
+        #expect(cases.count == 11)
         for item in cases {
             let id = item["id"] as? String ?? "?"
             let input = try #require(item["input"] as? [String: Any], "\(id)")
@@ -43,9 +43,47 @@ struct GeminiLiveWireTests {
         }
     }
 
+    /// Picks one fixture case from mapCases by id, feeds each message to the new mapper, and returns the actual event JSON shape with the expected value.
+    private static func replayMapCase(_ id: String) throws -> (actual: [[String: Any]], expected: Any) {
+        let all = try #require(try fixture()["mapCases"] as? [[String: Any]])
+        let item = try #require(all.first { ($0["id"] as? String) == id }, "\(id)")
+        let input = try #require(item["input"] as? [String: Any], "\(id)")
+        let messages = try #require(input["messages"] as? [[String: Any]], "\(id)")
+        var mapper = GeminiLiveEventMapper()
+        let events = messages.flatMap { mapper.map($0) }
+        return (events.map(\.jsonObject), item["expected"] as Any)
+    }
+
+    private static func userTranscripts(_ events: [[String: Any]]) -> [[String: Any]] {
+        events.filter { ($0["type"] as? String) == "userTranscript" }
+    }
+
+    @Test func duplicate_input_transcription_after_final_dropped() throws {
+        // A same-sentence transcription arriving after the turn is final, with no ACTIVITY_START (including one arriving after turnComplete), is dropped: exactly one final and no non-final tail.
+        for id in ["gemini_duplicate_input_transcription_after_final_dropped", "gemini_duplicate_input_after_turn_complete_dropped"] {
+            let (actual, expected) = try Self.replayMapCase(id)
+            #expect(try Self.canonical(actual) == Self.canonical(expected), "\(id)")
+            let users = Self.userTranscripts(actual)
+            #expect(users.filter { ($0["final"] as? Bool) == true }.count == 1, "\(id)")
+            #expect((users.last?["final"] as? Bool) == true, "\(id)")
+        }
+        // Prefix trimmed, then new text arrives: the held segment moves to the next turn together with this chunk.
+        let (actual, expected) = try Self.replayMapCase("gemini_duplicate_prefix_then_new_text_kept_whole")
+        #expect(try Self.canonical(actual) == Self.canonical(expected))
+        let lastFinal = Self.userTranscripts(actual).last { ($0["final"] as? Bool) == true }
+        #expect((lastFinal?["text"] as? String) == "\u{4ECA}\u{5929}\u{660E}\u{5929}\u{5462}?")
+    }
+
+    @Test func same_text_after_activity_start_kept() throws {
+        // A same-sentence transcription after ACTIVITY_START is kept as the next turn.
+        let (actual, expected) = try Self.replayMapCase("gemini_same_text_after_activity_start_kept")
+        #expect(try Self.canonical(actual) == Self.canonical(expected))
+        #expect(Self.userTranscripts(actual).filter { ($0["final"] as? Bool) == true }.count == 2)
+    }
+
     @Test func gemini_open_cases_match_fixture() throws {
         let cases = try Self.geminiCases("openCases")
-        #expect(cases.count == 3)
+        #expect(cases.count == 6)
         for item in cases {
             let id = item["id"] as? String ?? "?"
             let input = try #require(item["input"] as? [String: Any], "\(id)")
@@ -59,7 +97,9 @@ struct GeminiLiveWireTests {
                 history: history,
                 model: try #require(entry["model"] as? String),
                 voice: try #require(input["voice"] as? String),
-                resumeHandle: input["resumeHandle"] as? String
+                resumeHandle: input["resumeHandle"] as? String,
+                route: VoiceConversationLogic.Route(wire: try #require(input["route"] as? String, "\(id)")),
+                language: input["language"] as? String
             )
             let actual: [String: Any] = ["beforeReady": opening.beforeReady, "afterReady": opening.afterReady]
             #expect(try Self.canonical(actual) == Self.canonical(item["expected"] as Any), "\(id)")

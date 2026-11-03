@@ -87,6 +87,42 @@ private final class AppStatePendingWorkItems: @unchecked Sendable {
     }
 }
 
+/// The realtime voice model selected in the picker: a conversation's comes from its model field, and the home one is kept in memory only.
+struct RealtimeModelSelection: Hashable, Sendable {
+    let providerID: UUID
+    let providerKind: ProviderKind
+    let model: String
+}
+
+/// Realtime model disclosure pending a reply: shown the first time a realtime row of a provider is picked in the picker (home conversationID is nil).
+struct RealtimeModelDisclosureRequest: Identifiable, Hashable {
+    let selection: RealtimeModelSelection
+    let conversationID: UUID?
+
+    var id: String {
+        "\(selection.providerID.uuidString)|\(selection.model)|\(conversationID?.uuidString ?? "home")"
+    }
+}
+
+/// Result of selecting a realtime model.
+enum RealtimeModelSelectionOutcome: Hashable, Sendable {
+    /// Applied.
+    case applied(RealtimeModelSelection)
+    /// The provider's (providerKind, realtime) has not accepted the disclosure yet: show it first and leave the selection unchanged.
+    case needsDisclosure(RealtimeModelSelection)
+    /// The voice catalog is not ready: stage the selection (only the latest is kept) and re-check when the catalog arrives; if it is not accepted, set realtimeSelectionGoneNotice.
+    case pending(RealtimeModelSelection)
+    /// The connection is no longer present.
+    case unavailable
+}
+
+/// A staged realtime selection rejected on re-check: a one-shot signal taken by the page, which then shows a toast.
+struct RealtimeSelectionGoneNotice: Identifiable, Hashable, Sendable {
+    let id: UUID
+    let conversationID: UUID?
+    let model: String
+}
+
 @MainActor
 @Observable
 final class AppState {
@@ -147,6 +183,15 @@ final class AppState {
         return result
     }
 
+    /// Route stack observer: once set, it is installed on every window's manager, and managers created later get it too.
+    @ObservationIgnored var navigationPathObserver: ((_ old: [AppRoute], _ new: [AppRoute]) -> Void)? {
+        didSet {
+            for manager in allWindowNavigations {
+                manager.onPathChange = navigationPathObserver
+            }
+        }
+    }
+
     /// Gets (or creates) a window's navigation manager. Idempotent, so it can be called from a view body.
     /// Hands out the primary manager when no live window holds it; otherwise creates a new one and wires its observers.
     /// When there is no active window, this window becomes the active one.
@@ -158,7 +203,8 @@ final class AppState {
             manager = primaryNavigation
         } else {
             manager = NavigationManager()
-            manager.onSelectedTabChange = { [weak self] in self?.persistSessionIfNeeded() }
+            manager.onPathChange = navigationPathObserver
+            manager.onSelectedTabChange = { [weak self] in self?.selectedTabDidChange() }
         }
         windowNavigations[token] = manager
         registeredWindowCount = windowNavigations.count
@@ -196,7 +242,7 @@ final class AppState {
     var directiveSuggestions = DirectiveSuggestionController()
     /// The "Save to memory?" suggestion bar; in memory only.
     var memorySuggestions = MemorySuggestionController()
-    /// The background memory candidate generation triggered by the latest fresh send; tests await it before reading the repository.
+    /// The memory candidate generation triggered by the latest new send (background); tests await it before reading the repository.
     @ObservationIgnored private(set) var memoryCandidateGeneration: Task<Void, Never>?
     /// Serial tail task for checkpoint-invalidation writes (see `invalidateCheckpointsAfterTruncation`).
     @ObservationIgnored private var checkpointInvalidationTail: Task<Void, Never>?
@@ -242,6 +288,7 @@ final class AppState {
     let noteAIManager = NoteAIManager()
     var conversationPinnedNoteIds: [UUID: [UUID]] = [:]
     var pendingPinnedNoteIds: [UUID] = []
+    /// Mirror of the active note list summaries (maintained by NoteManager).
     var noteSummaries: [NoteSummary] = [] {
         didSet { notesVersion &+= 1 }
     }
@@ -301,6 +348,38 @@ final class AppState {
     var lastUsedModelRef: LastUsedModelRef? {
         didSet { persistSessionIfNeeded() }
     }
+    /// Realtime voice model selected on the home page (key nil), kept in memory only: a cold start returns to the text model.
+    /// A conversation's realtime selection lives in its own providerID / providerKind / modelID and is not kept here.
+    private(set) var realtimeModelSelections: [UUID?: RealtimeModelSelection] = [:]
+    /// Voice catalog used to judge realtime selection: only what this process has cached (no disk read, no request); nil means the catalog is not ready.
+    /// Replacing how the catalog is fetched (test injection) follows the same rule as pushes: the revision increments only when the fetched content changes.
+    @ObservationIgnored var realtimeVoiceCatalog: () -> VoiceCatalog? = {
+        AppState.realtimeVoiceCatalog(from: ReadAloudCatalogSnapshot.shared.state)
+    } {
+        didSet { bumpRealtimeVoiceCatalogRevision() }
+    }
+    /// Catalog state -> catalog used for judging: nil (loading) and load failure both count as not ready; a server with no catalog (unavailable / 404)
+    /// is a ready, empty catalog: it no longer waits for the catalog and is handled by the delisting banner or realtime judgment (same as the Android empty state).
+    nonisolated static func realtimeVoiceCatalog(from state: VoiceCatalogState?) -> VoiceCatalog? {
+        if state == .unavailable { return .empty }
+        return state?.catalog
+    }
+    /// Voice catalog revision: increments when catalog content changes. The catalog snapshot itself is not observable; realtimeModelSelection reads this,
+    /// so when the catalog arrives after the UI, the conversation page and home re-judge at once (the voice panel appears and the capability projection changes with it).
+    private(set) var realtimeVoiceCatalogRevision: UInt = 0
+    /// Realtime row selected while the catalog was not ready (only the latest is kept; nil on home): re-checked when the catalog arrives, and a text model selection clears it.
+    @ObservationIgnored private var pendingRealtimeSelection: (
+        selection: RealtimeModelSelection,
+        conversationID: UUID?
+    )?
+    /// A staged realtime selection rejected on re-check: the page observes it, shows a toast and takes it.
+    private(set) var realtimeSelectionGoneNotice: RealtimeSelectionGoneNotice?
+    /// Realtime catalog content seen at the last increment; outer nil = never seen, inner nil = catalog not ready.
+    @ObservationIgnored private var lastSeenRealtimeCatalog: RealtimeModelPolicy.RealtimeCatalog??
+    /// Task that creates the catalog subscription; holds this instance only weakly.
+    @ObservationIgnored private var realtimeVoiceCatalogSubscription: Task<Void, Never>?
+    /// Handle of the created catalog subscription; unsubscribed on resubscribe and in deinit.
+    @ObservationIgnored private var realtimeVoiceCatalogHandle: VoiceCatalogSubscription?
 
     var pendingSearchScrollTarget: PendingSearchScrollTarget?
 
@@ -434,7 +513,9 @@ final class AppState {
     @ObservationIgnored private var boundPartitionUID: String
     /// The launch time: the grace period of the launch orphan sweep counts from it (images written during this run are never candidates). Tests can inject it.
     @ObservationIgnored let launchedAt: Date
-    /// In-memory copy of the current partition's memory items: request snapshots read it, so the database is not read on the main thread.
+    /// Session every provider request goes through (chat, catalog sync and one-shot sends such as skill drafts).
+    @ObservationIgnored let providerSession: URLSession
+    /// In-memory copy of the current partition's memory items: the request snapshot reads it, so the main thread never reads the database.
     @ObservationIgnored let memoryItemsCache = MemoryItemsCache()
     /// Lowercased id of the memory item to edit after "This one is wrong"; the memory page takes it when it appears.
     var pendingMemoryEditItemID: String?
@@ -457,11 +538,11 @@ final class AppState {
         launchedAt: Date = Date()
     ) {
         self.launchedAt = launchedAt
-        let isRunningTests = AppRuntime.isRunningTests
         self.mcpServerDirectory = mcpServerDirectory ?? McpServerDirectory()
         let requestedSessionUID = sessionUID
         providerManager = ProviderManager(session: providerSession)
         chatManager = ChatManager(providerSession: providerSession, toolCallMemory: toolCallMemory)
+        self.providerSession = providerSession
         persistsSession = !seedDemoData
         boundPartitionUID = requestedSessionUID ?? AppSessionStore.activeUID
         preferences = AppPreferencesStore.load()
@@ -498,8 +579,14 @@ final class AppState {
             providerManager.bind(to: self)
             loadSession(boundTo: requestedSessionUID ?? AppSessionStore.activeUID)
         }
+        if seedDemoData {
+            // Demo data is already in memory (no snapshot read): treat it as installed.
+            sessionSnapshotApplied = true
+            // Demo data lives in memory only, but the conversation mirror, notes and monthly totals still read and write the partition database: open it in the background as with a normal launch, never on the main thread.
+            prepareDemoSessionStoreIfNeeded()
+        }
 
-        primaryNavigation.onSelectedTabChange = { [weak self] in self?.persistSessionIfNeeded() }
+        primaryNavigation.onSelectedTabChange = { [weak self] in self?.selectedTabDidChange() }
         rebuildProviderLookup()
         rebuildConversationLookup()
 
@@ -512,19 +599,6 @@ final class AppState {
         chatManager.bind(to: self)
         skillManager.bind(to: self)
 
-        if AppStateLaunchPolicy.shouldRunProviderPriceMigration(
-            seedDemoData: seedDemoData,
-            isRunningTests: isRunningTests,
-            providers: providers
-        ) {
-            Task { [weak self] in
-                guard let self else { return }
-                for provider in self.providers where provider.kind == .openRouter {
-                    try? await self.resyncProvider(providerID: provider.id)
-                }
-            }
-        }
-
         // Legacy relay key aliases depend on metadata resolution: register them again when the snapshot arrives after the providers (the fingerprint makes this idempotent, and unchanged connections are skipped)
         metadataPublishObserver = NotificationCenter.default.addObserver(
             forName: .metadataSnapshotDidPublish, object: nil, queue: nil
@@ -535,34 +609,70 @@ final class AppState {
             }
         }
         #if DEBUG
-        Self.liveInstancesForTesting.setObject(boundPartitionUID as NSString, forKey: self)
+        Self.liveInstancesForTesting.setObject(
+            LiveInstanceRecordForTesting(
+                initialUID: boundPartitionUID,
+                creationLabel: Self.creationLabelProviderForTesting?() ?? "unlabeled"
+            ),
+            forKey: self
+        )
         #endif
     }
 
     #if DEBUG
-    /// Test seam: the AppStates still alive in the process (weak references) -> the partition they were built for. Before a test
-    /// deletes a partition it finds them by partition and waits for their in-flight reads and writes to drain (see
-    /// OriveoTests/Support/TestPartitionCleanup), so cases do not have to pass instances around.
-    private static let liveInstancesForTesting = NSMapTable<AppState, NSString>.weakToStrongObjects()
+    /// Test seam: the AppStates still alive in the process (weak references) -> the partition each was bound to at construction. Before a test deletes a partition it finds them by partition and waits for their in-flight reads and writes to drain
+    /// (see OriveoTests/Support/TestPartitionCleanup), so cases do not have to pass instances around.
+    private static let liveInstancesForTesting = NSMapTable<AppState, LiveInstanceRecordForTesting>.weakToStrongObjects()
 
-    /// Live instances built for, or currently bound to, one of the given partitions.
-    static func liveInstancesForTesting(boundTo uids: Set<String>) -> [AppState] {
-        guard let states = liveInstancesForTesting.keyEnumerator().allObjects as? [AppState] else { return [] }
-        return states.filter { state in
-            let initial = liveInstancesForTesting.object(forKey: state) as String?
-            return uids.contains(state.boundPartitionUID) || initial.map(uids.contains) == true
+    /// Registry value for a live instance: the partition bound at construction and the label of the test that created it.
+    private final class LiveInstanceRecordForTesting: NSObject {
+        let initialUID: String
+        let creationLabel: String
+
+        init(initialUID: String, creationLabel: String) {
+            self.initialUID = initialUID
+            self.creationLabel = creationLabel
         }
     }
 
-    /// Test seam: waits until every queued background read / write tail of this AppState has drained.
-    func drainPendingWrites() async {
-        await memoryReconcileTail?.value
-        await memoryItemUndoTail?.value
-        await useMemoryWriteTail?.value
-        await waitForCheckpointInvalidations()
-        await chatManager.waitForContextLedgerWrites()
-        await noteManager.waitForPendingWrites()
-        await drainConversationPersistQueue()
+    /// Test seam: returns the label of the test creating an instance (installed by the test target; nil = "unlabeled").
+    private static let creationLabelProviderLock = NSLock()
+    nonisolated(unsafe) private static var creationLabelProvider: (@Sendable () -> String?)?
+
+    nonisolated static var creationLabelProviderForTesting: (@Sendable () -> String?)? {
+        get {
+            creationLabelProviderLock.lock()
+            defer { creationLabelProviderLock.unlock() }
+            return creationLabelProvider
+        }
+        set {
+            creationLabelProviderLock.lock()
+            defer { creationLabelProviderLock.unlock() }
+            creationLabelProvider = newValue
+        }
+    }
+
+    /// Live instances built for, or currently bound to, one of the given partitions.
+    static func liveInstancesForTesting(boundTo uids: Set<String>) -> [(state: AppState, uid: String, creationLabel: String)] {
+        guard let states = liveInstancesForTesting.keyEnumerator().allObjects as? [AppState] else { return [] }
+        return states.compactMap { state in
+            let record = liveInstancesForTesting.object(forKey: state)
+            let bound = uids.contains(state.boundPartitionUID) || record.map { uids.contains($0.initialUID) } == true
+            guard bound else { return nil }
+            return (state, state.boundPartitionUID, record?.creationLabel ?? "unlabeled")
+        }
+    }
+
+    /// Test seam: work from released instances still in flight (partition -> the tasks that wait for them to drain). A case declares its local AppState after `defer`, so the instance is released first;
+    /// the cold-start load, memory backfill and write-queue work it queued keep running. Cleanup waits per partition on those tasks and does not rely on the instance staying alive.
+    private static let releasedDrainsLock = NSLock()
+    nonisolated(unsafe) private static var releasedDrains: [String: [Task<Void, Never>]] = [:]
+
+    /// Takes the drain tasks left by released instances on the given partitions.
+    nonisolated static func takeReleasedDrainsForTesting(boundTo uids: Set<String>) -> [Task<Void, Never>] {
+        releasedDrainsLock.lock()
+        defer { releasedDrainsLock.unlock() }
+        return uids.flatMap { releasedDrains.removeValue(forKey: $0) ?? [] }
     }
     #endif
 
@@ -572,6 +682,24 @@ final class AppState {
 
     nonisolated deinit {
         pendingWorkItems.cancelAll()
+        #if DEBUG
+        // Register the in-flight reads and writes of a released instance (see takeReleasedDrainsForTesting). Only the task handles and queues are captured, not the sub-managers:
+        // a kept-alive manager would keep running its [weak self] callbacks and read the released unowned appState. Note reloads are registered per partition on NoteManager.
+        let tails = [
+            sessionStoreReadyTask, memoryReconcileTail, memoryItemUndoTail, useMemoryWriteTail,
+            checkpointInvalidationTail,
+        ]
+        let queue = conversationPersistQueue
+        let drain = Task { @MainActor in
+            for tail in tails { await tail?.value }
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                queue.async { continuation.resume() }
+            }
+        }
+        Self.releasedDrainsLock.lock()
+        Self.releasedDrains[boundPartitionUID, default: []].append(drain)
+        Self.releasedDrainsLock.unlock()
+        #endif
         if let metadataPublishObserver {
             NotificationCenter.default.removeObserver(metadataPublishObserver)
         }
@@ -589,7 +717,8 @@ final class AppState {
     }
 
     private func persistSessionIfNeeded() {
-        guard persistsSession, !chatManager.isAnyStreaming else { return }
+        // The session snapshot is still being read in the background (not yet loaded into memory): the in-memory providers and folders are empty, and writing them would overwrite the disk snapshot with empty data.
+        guard persistsSession, sessionSnapshotApplied, !chatManager.isAnyStreaming else { return }
 
         let snapshot = AppSessionSnapshot(
             selectedTab: selectedTab,
@@ -808,6 +937,7 @@ final class AppState {
         deletingMessageIDs: Set<UUID> = []
     ) {
         guard partitionIsStillBound(expectedUID) else { return }
+        conversationWriteGeneration[conversation.id, default: 0] += 1
 
         // Keep the in-memory array in sync with the metadata the DB write derives
         // (auto-title, previewText) so list UI and persistence stay aligned.
@@ -1070,6 +1200,10 @@ final class AppState {
             StorageWriteHealthSignal.recordFailure(error)
             return Task { false }
         }
+        // Count deletions as writes so a read-back that started earlier cannot resurrect them.
+        for id in ids {
+            conversationWriteGeneration[id, default: 0] += 1
+        }
         conversations.removeAll { ids.contains($0.id) }
         let idList = Array(ids)
         var injectedFailure: Error?
@@ -1130,6 +1264,7 @@ final class AppState {
         }
         let persistedUID = boundPartitionUID
         chatManager.discardStreamingResources(for: id)
+        conversationWriteGeneration[id, default: 0] += 1
         conversations.removeAll { $0.id == id }
         completion(true)
 
@@ -1237,17 +1372,9 @@ final class AppState {
         conversations = []
     }
 
-    /// Waits for the writes already queued on the persist queue (without occupying the main thread).
-    func drainConversationPersistQueue() async {
-        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-            conversationPersistQueue.async { continuation.resume() }
-        }
-    }
-
-    /// Blocks until the persist queue has drained (for tests).
-    /// Not `sync {}`: when the main thread dispatch_syncs onto an idle serial queue, libdispatch lets the calling thread run
-    /// the writes queued ahead itself, so the database writes would run on the main thread (a violation of the main-thread
-    /// write gate). Post a signal and wait for it on the main thread instead; the queued writes still run on the queue.
+    /// Test only: blocks until the background DB persist queue has drained.
+    /// Do not use sync {}: when the main thread dispatch_syncs an idle serial queue, libdispatch lets the calling thread run the queued writes ahead of it itself,
+    /// so the database write runs on the main thread (flagged by the main-thread write guard). Only signal and wait on the main thread; the earlier writes still run on the queue thread.
     func flushConversationPersistQueue() {
         let drained = DispatchSemaphore(value: 0)
         conversationPersistQueue.async { drained.signal() }
@@ -1276,7 +1403,8 @@ final class AppState {
         guard let provider = provider(for: conversation.providerID) else { return .resolved }
         return ProviderSelectionSnapshot.conversationModelState(
             storedModelID: conversation.modelID,
-            in: provider
+            in: provider,
+            voiceCatalog: realtimeVoiceCatalog()
         )
     }
 
@@ -1447,6 +1575,7 @@ final class AppState {
         upsertConversationProjection(conv)
     }
 
+    /// When a conversation is opened, seeds the runtime mirror with its persisted pinnedNoteIds (first time only, so it does not overwrite pins already set at runtime).
     func seedPinnedNotes(for convID: UUID) {
         guard conversationPinnedNoteIds[convID] == nil, let conv = conversation(for: convID) else { return }
         conversationPinnedNoteIds[convID] = Array(conv.pinnedNoteIds.suffix(Self.maxPinnedNotes))
@@ -1916,6 +2045,14 @@ final class AppState {
             })
         }
         guard let ownerProvider else { return }
+        // Picking any text model exits realtime: the conversation's realtime selection ends along with the model field rewrite below, and the home page clears its memory.
+        // A realtime row staged for the same conversation (or home) while the catalog was not ready is discarded as well.
+        if let pending = pendingRealtimeSelection, pending.conversationID == conversationID {
+            pendingRealtimeSelection = nil
+        }
+        if conversationID == nil {
+            realtimeModelSelections[nil] = nil
+        }
         let metadataUpdatedAt = Date()
 
         setActiveModel(providerID: ownerProvider.id, modelID: modelID)
@@ -2000,7 +2137,7 @@ final class AppState {
     ) async -> ChatSendOutcome {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedText.isEmpty || !attachments.isEmpty else { return .refused }
-        // Checkpoint invalidations queued by an edit truncation land before the checkpoints are read to build the context.
+        // Queued checkpoint invalidations from the edit truncation are persisted first, then the checkpoints are read to assemble the context.
         if checkpointInvalidationTail != nil { await waitForCheckpointInvalidations() }
 
         let targetConversationID: UUID
@@ -2026,10 +2163,8 @@ final class AppState {
         }
 
         if isNewConversation, let generationParameterDraftSessionID {
-            // Before the first message of a new conversation, the tool panel's switches are kept under the
-            // draft id. They move to the real id when the conversation is created, and that has to happen
-            // before sending: assembling the usable tools reads by conversation id. If the move fails, this
-            // one send simply carries no tools.
+            // Before the first message of a new conversation is sent, tool-panel toggles are recorded under the draft id; when the conversation is created they move to the real id.
+            // This must happen before sending: the tools available for this send are read by conversation id. If the move fails, only this send goes without tools.
             try? await mcpServerDirectory.store(for: sessionPartitionUID).moveConversationSwitchesAsync(
                 from: generationParameterDraftSessionID, to: targetConversationID
             )
@@ -2082,7 +2217,7 @@ final class AppState {
             )
         }
 
-        // The edit-resend marker is consumed by chatManager.sendMessage, so read it first: an edit-resend does not evaluate the suggestion bar.
+        // The edit-resend flag is consumed by chatManager.sendMessage, so it is read first: an edit resend does not trigger suggestion judgment.
         let isEditResend = chatManager.isPendingEditResend(targetConversationID)
         // The propose_memory mode is only decided for a fresh send; with mode=tool the request carries propose_memory.
         let useMemory = effectiveUseMemory(targetConversation)
@@ -2110,14 +2245,16 @@ final class AppState {
             proposeMemory: proposeContext,
             delivery: delivery
         )
-        guard case .sent(let userMessageID) = outcome else { return outcome }
-        // Every actual send (the first message of a new conversation and existing conversations) writes last used: the connection and model sent with this time.
+        guard case .sent(let userMessageID) = outcome else {
+            return outcome
+        }
+        // Every actual send (a new conversation's first message and existing ones) records last-used with the connection and model that were sent.
         if let sentConversation = conversation(for: targetConversationID),
            let sentProvider = provider(for: sentConversation.providerID),
            let sentModel = sendableModel(for: sentConversation, provider: sentProvider) {
             setActiveModel(providerID: sentProvider.id, modelID: sentModel.id)
         }
-        // Only a freshly sent message is evaluated: edit-resend and automatic sends from guided flows are not; resend / regenerate do not come through here.
+        // Only newly sent messages are judged: edit resends and onboarding auto-sends are not; retry and regenerate do not go through this entry.
         guard evaluatesDirectiveSuggestion, !isEditResend, sentMemoryMode != .none else { return .sent(targetConversationID) }
         // The fallback already ran during the send because no tool was carried: do not override its result in tool mode here.
         guard proposeFallback.markSettled() else { return .sent(targetConversationID) }
@@ -2149,7 +2286,7 @@ final class AppState {
         return .sent(targetConversationID)
     }
 
-    /// Same decision as injection: conversation ?? Skill ?? true.
+    /// Same judgment as injection: conversation ?? Skill ?? true.
     private func effectiveUseMemory(_ conversation: Conversation?) -> Bool {
         conversation?.useMemory
             ?? conversation?.skillId.flatMap { skillManager.skill(by: $0) }?.useMemory
@@ -2385,9 +2522,8 @@ final class AppState {
             in: conversationID,
             capabilitySelection: capabilitySelection
         )
-        // Continuing does not truncate, so the invalidation is only queued and not awaited: awaiting it changes how
-        // the continue entry interleaves with managed recovery tasks. Ordering is covered by
-        // `waitForCheckpointInvalidations` before the next send and by the digest check at read time.
+        // Continuing does not truncate, and invalidation is only queued, not awaited: waiting would interleave badly with the managed recovery task (the ManagedChatManagerTests recovery case was observed stuck at .generating); ordering is covered by waitForCheckpointInvalidations before sends and the digest check on read.
+        // .generating); ordering is covered by `waitForCheckpointInvalidations` before sends and the digest check on read.
         invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds)
     }
 
@@ -2407,6 +2543,16 @@ final class AppState {
         await invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds).value
     }
 
+    /// Voice conversation interjection continuation: see ChatManager.amendLastUserMessage; the truncation invalidation hook is the same as regenerateMessage's.
+    func amendLastUserMessage(
+        _ text: String, messageID: UUID? = nil, turnText: String? = nil, in conversationID: UUID
+    ) async -> Bool {
+        let historyIds = checkpointHistoryIds(of: conversationID)
+        let sent = await chatManager.amendLastUserMessage(text, targetMessageID: messageID, turnText: turnText, in: conversationID)
+        await invalidateCheckpointsAfterTruncation(conversationID: conversationID, historyIdsBefore: historyIds).value
+        return sent
+    }
+
     /// The full history ids before truncation (complete the summary projection first, otherwise the pre-change history is incomplete).
     private func checkpointHistoryIds(of conversationID: UUID) -> [String] {
         guard hydrateConversationMessagesIfNeeded(id: conversationID),
@@ -2415,11 +2561,10 @@ final class AppState {
         return conversation.messages.map(\.id.uuidString)
     }
 
-    /// Invalidation hook for edit / regenerate: messages in the pre-change history that are gone after truncation are affected;
-    /// when the send is refused or nothing is truncated the set is empty and invalidate deletes nothing.
-    /// The write must not wait synchronously on the main thread (the write lock can be held by a whole-table write for
-    /// seconds): it is queued on a serial tail task. Async entry points await the returned task; the synchronous
-    /// entry (edit) only queues, and `waitForCheckpointInvalidations` waits for it before the next send.
+    /// Invalidation hook for edit and regenerate: messages in the pre-truncation history that are no longer present after truncation are affected;
+    /// empty when the send was rejected or nothing was truncated, and invalidate does not delete. Deleted checkpoints are propagated to the remote as well.
+    /// Database writes are not awaited synchronously on the main thread (the write lock can be held for seconds by a whole-table write): queued on the serial tail task,
+    /// the async entry awaits the returned task, while the sync entry (edit) only queues; before sending, waitForCheckpointInvalidations waits for it to settle.
     @discardableResult
     private func invalidateCheckpointsAfterTruncation(conversationID: UUID, historyIdsBefore: [String]) -> Task<Void, Never> {
         let previous = checkpointInvalidationTail
@@ -2443,7 +2588,7 @@ final class AppState {
         return task
     }
 
-    /// Wait for queued checkpoint invalidations to land (before a send reads checkpoints, and before test assertions).
+    /// Waits for queued checkpoint invalidations to land in the database (before a send reads checkpoints, and before test assertions).
     func waitForCheckpointInvalidations() async {
         while let task = checkpointInvalidationTail {
             await task.value
@@ -2491,15 +2636,26 @@ final class AppState {
     /// shown in the home pill, and the chat page opens right away (same as a first send from home).
     func createConversationForRealtimeVoice() -> UUID? {
         guard let active = activeModel else { return nil }
-        let conversation = createConversationForFirstSend(provider: active.provider, modelID: active.model.id)
-        // Last used was already written when the call started (recordLastUsedForRealtimeVoice), so it is not written again here.
+        var conversation = conversationForFirstSend(provider: active.provider, modelID: active.model.id)
+        // Do not write last-used: a realtime selection does not write it when the call opens; a non-realtime one was already written when the call started (recordLastUsedForRealtimeVoice).
+        // The home page's realtime selection (key nil) follows the conversation: it is written into the new conversation's model field, and the home page returns to the text model.
+        if let homeSelection = realtimeModelSelections.removeValue(forKey: nil),
+           let provider = provider(for: homeSelection.providerID),
+           isRealtimeSelection(provider: provider, model: homeSelection.model) {
+            conversation.providerID = provider.id
+            conversation.providerKind = provider.kind
+            conversation.modelID = homeSelection.model
+        }
+        pendingDraftInstructions = ""
+        upsertConversationProjection(conversation)
         presentChat(conversationID: conversation.id)
         return conversation.id
     }
 
-    /// Starting a realtime call is actual use: an existing conversation writes its sendable model and writes nothing when
-    /// it cannot send; the home page (conversation id nil) writes the model currently selected in the pill.
+    /// Records actual use when a realtime call starts: an existing conversation writes its sendable model, and an unsendable one is not written;
+    /// the home page (conversation id nil) writes the model currently selected in the pill. When the selection is a realtime model, neither opening nor reopening writes.
     func recordLastUsedForRealtimeVoice(conversationID: UUID?) {
+        guard realtimeModelSelection(for: conversationID) == nil else { return }
         guard let conversationID else {
             guard let active = activeModel else { return }
             setActiveModel(providerID: active.provider.id, modelID: active.model.id)
@@ -2510,6 +2666,138 @@ final class AppState {
               let model = sendableModel(for: conversation, provider: provider)
         else { return }
         setActiveModel(providerID: provider.id, modelID: model.id)
+    }
+
+    /// The realtime voice model currently selected for a conversation (home is nil); nil when none was picked or the text model was restored.
+    func realtimeModelSelection(for conversationID: UUID?) -> RealtimeModelSelection? {
+        realtimeModelSelections[conversationID]
+    }
+
+    /// Whether the (provider, model) pair is a realtime selection under the cached voice catalog (synchronous read).
+    private func isRealtimeSelection(provider: Provider, model: String) -> Bool {
+        RealtimeModelPolicy.realtimeSelection(
+            connection: provider.realtimePolicyConnection,
+            model: model,
+            realtimeCatalog: realtimeVoiceCatalog()?.realtimePolicyCatalog
+        ).isRealtime
+    }
+
+    /// Applies a realtime selection: the home page keeps it in memory, a conversation writes it into its model fields.
+    /// Returns false (no change) when the connection or conversation is gone, the catalog is not ready, or the catalog does not accept the model.
+    /// Does not bump when the catalog content matches the previous one: a repeated push of the same catalog does not make readers re-evaluate.
+    private func bumpRealtimeVoiceCatalogRevision() {
+        let current = realtimeVoiceCatalog()?.realtimePolicyCatalog
+        if let lastSeen = lastSeenRealtimeCatalog, lastSeen == current { return }
+        lastSeenRealtimeCatalog = .some(current)
+        realtimeVoiceCatalogRevision &+= 1
+        resolvePendingRealtimeSelection()
+    }
+
+    /// Re-checks the staged realtime selection once the catalog arrives: apply it if accepted, otherwise raise a one-shot notice.
+    private func resolvePendingRealtimeSelection() {
+        guard let pending = pendingRealtimeSelection, realtimeVoiceCatalog() != nil else { return }
+        pendingRealtimeSelection = nil
+        guard !applyRealtimeModelSelection(pending.selection, for: pending.conversationID) else { return }
+        realtimeSelectionGoneNotice = RealtimeSelectionGoneNotice(
+            id: UUID(),
+            conversationID: pending.conversationID,
+            model: pending.selection.model
+        )
+    }
+
+    /// The page takes the notice after showing its toast; leaves it alone if a newer notice replaced it.
+    func consumeRealtimeSelectionGoneNotice(_ notice: RealtimeSelectionGoneNotice) {
+        guard realtimeSelectionGoneNotice?.id == notice.id else { return }
+        realtimeSelectionGoneNotice = nil
+    }
+
+    private func applyRealtimeModelSelection(_ selection: RealtimeModelSelection, for conversationID: UUID?) -> Bool {
+        guard let provider = provider(for: selection.providerID),
+              isRealtimeSelection(provider: provider, model: selection.model)
+        else { return false }
+        guard let conversationID else {
+            realtimeModelSelections[nil] = selection
+            return true
+        }
+        guard conversation(for: conversationID) != nil else { return false }
+        return writeConversationModelFields(conversationID, provider: provider, modelID: selection.model)
+    }
+
+    /// Writes the conversation's providerID / providerKind / modelID; false when the conversation is gone, no write when unchanged.
+    /// Does not write lastUsedModelRef.
+    @discardableResult
+    private func writeConversationModelFields(_ conversationID: UUID, provider: Provider, modelID: String) -> Bool {
+        guard let current = conversation(for: conversationID) else { return false }
+        guard current.providerID != provider.id || current.providerKind != provider.kind || current.modelID != modelID
+        else { return true }
+        updateConversationModelProjections([
+            ConversationModelUpdate(
+                conversationID: conversationID,
+                providerID: provider.id,
+                providerKind: provider.kind,
+                modelID: modelID,
+                metadataUpdatedAt: Date()
+            )
+        ])
+        return true
+    }
+
+    /// Selects a realtime row in the picker: memory only; does not write lastUsedModelRef or change the conversation's modelID.
+    /// Not applied when the provider's (providerKind, realtime) has not accepted the disclosure; returns .needsDisclosure, and resolveRealtimeModelDisclosure is called after the answer.
+    @discardableResult
+    func selectRealtimeModel(
+        providerID: UUID,
+        model: String,
+        for conversationID: UUID?,
+        disclosures: VoiceDisclosureStore = VoiceDisclosureStore()
+    ) -> RealtimeModelSelectionOutcome {
+        guard let provider = provider(for: providerID) else { return .unavailable }
+        let selection = RealtimeModelSelection(providerID: provider.id, providerKind: provider.kind, model: model)
+        guard disclosures.hasAccepted(provider.kind, direction: .realtime) else {
+            return .needsDisclosure(selection)
+        }
+        if realtimeVoiceCatalog() == nil {
+            pendingRealtimeSelection = (selection, conversationID)
+            return .pending(selection)
+        }
+        guard applyRealtimeModelSelection(selection, for: conversationID) else { return .unavailable }
+        return .applied(selection)
+    }
+
+    /// Reply to the realtime model disclosure: accept -> record consent for `(providerKind, realtime)` and apply; decline (including swipe-to-dismiss) -> no change.
+    /// Returns whether the selection was applied; when accepted but the voice catalog is not ready, it is held pending and false is returned.
+    @discardableResult
+    func resolveRealtimeModelDisclosure(
+        _ selection: RealtimeModelSelection,
+        for conversationID: UUID?,
+        accepted: Bool,
+        disclosures: VoiceDisclosureStore = VoiceDisclosureStore()
+    ) -> Bool {
+        guard accepted else { return false }
+        disclosures.markAccepted(selection.providerKind, direction: .realtime)
+        // The realtime disclosure names this provider and links its privacy policy, so accepting counts as consent to that provider's disclosure.
+        ProviderDisclosureStore.markAccepted(selection.providerKind)
+        // Voice catalog still not ready on accept: hold pending just like selectRealtimeModel, return not applied, and re-check when the catalog arrives.
+        if realtimeVoiceCatalog() == nil {
+            pendingRealtimeSelection = (selection, conversationID)
+            return false
+        }
+        return applyRealtimeModelSelection(selection, for: conversationID)
+    }
+
+    /// Cancel realtime: the home page clears the in-memory selection; the conversation switches back to the last-used text model (same as a new conversation's model). No-op when the selection is not realtime.
+    func clearRealtimeModelSelection(for conversationID: UUID?) {
+        guard let conversationID else {
+            guard realtimeModelSelections[nil] != nil else { return }
+            realtimeModelSelections[nil] = nil
+            return
+        }
+        guard realtimeModelSelection(for: conversationID) != nil, let active = activeModel else { return }
+        writeConversationModelFields(
+            conversationID,
+            provider: active.provider,
+            modelID: Self.persistedConversationModelID(requestedModelID: active.model.id, in: active.provider)
+        )
     }
 
     private func createConversation(provider: Provider, modelID: String) -> Conversation {
@@ -2556,13 +2844,14 @@ final class AppState {
         }
     }
 
-    /// Loads the current partition's data into memory.
-    /// - Parameter startsAttachmentCleanup: whether to start this partition's attachment sweep here (sidecar files plus orphan images).
+    /// Load the current partition's data into memory
+    /// - Parameter startsAttachmentCleanup: Whether to start this partition's attachment cleanup (sidecar + orphaned images). Cold start and logout back to guest pass true;
+    ///   a partition switch on login passes false: after guest data (conversation upsert + image copy) is migrated, `AuthPartitionManager` starts it again
+    ///   (contract: attachment cleanup, supplementary item 3).
     ///
-    /// When the partition database is not open yet (cold start) the main thread does not open it: the non-database data of the
-    /// session snapshot is installed first, the database is prepared in the background (connection + migrations) while
-    /// `sessionStoreReady == false` and the root view shows nothing that could reach the database, and then the conversations
-    /// are read on the main thread (`loadSessionStore`).
+    /// Production paths (cold start, partition switch, retry while the database is already open) do not read the snapshot or open the database on the main thread: the session snapshot is read in the background (decode + Keychain),
+    /// then applied on the main thread with the non-database data; the database is pre-opened in the background (connect + migrate) meanwhile, during which `sessionStoreReady == false` and the home page shows the loading skeleton;
+    /// once open, the session is loaded back on the main thread by reading the database (`loadSessionStore`). The test host (`allowsMainThreadFirstOpen`) runs the whole sequence synchronously.
     func loadSession(boundTo uid: String? = nil, startsAttachmentCleanup: Bool = true) {
         resetTransientNoteContext()
         preferences = AppPreferencesStore.load()
@@ -2570,64 +2859,191 @@ final class AppState {
         boundPartitionUID = activeUID
         sessionLoadGeneration &+= 1
 
-        let snapshot = AppSessionStore.load(for: activeUID)
+        // Stop snapshot writes before clearing: the didSet fired by the clear must not write the empty providers back to the disk snapshot (writes resume only after the snapshot is applied in memory).
+        sessionSnapshotApplied = false
+        providers = []
+        folders = []
+        // Do not reset hasCompletedOnboarding: the user has already gone through onboarding and reached the main UI
+        lastUsedModelRef = nil
+        let accountGeneration = accountWriteGeneration
+        let tabGeneration = selectedTabWriteGeneration
 
-        if let snapshot {
-            selectedTab = snapshot.selectedTab
-            providers = snapshot.providers.map { $0.recoveredFromPersistence() }
-            hasCompletedOnboarding = snapshot.hasCompletedOnboarding || !snapshot.providers.isEmpty || !(snapshot.conversations ?? []).isEmpty
-            lastUsedModelRef = snapshot.lastUsedModelRef
-            folders = snapshot.folders ?? []    // :
-        } else {
-            providers = []
-            folders = []
-            lastUsedModelRef = nil
-        }
-
-        if DatabaseManager.shared.openedPool(for: activeUID) != nil || DatabaseManager.allowsMainThreadFirstOpen {
+        if DatabaseManager.allowsMainThreadFirstOpen {
+            // Test host: read the snapshot and open the database synchronously, applying the same `applySessionSnapshot` as the background path.
+            #if DEBUG
+            let (snapshot, readOnMain) = Self.readSessionSnapshot(for: activeUID)
+            if readOnMain { debugSessionSnapshotReadsOnMain += 1 }
+            #else
+            let snapshot = Self.readSessionSnapshot(for: activeUID)
+            #endif
+            applySessionSnapshot(snapshot, accountGeneration: accountGeneration, tabGeneration: tabGeneration)
             sessionStoreReady = true
             sessionStoreReadyTask = nil
-            loadSessionStore(uid: activeUID, snapshot: snapshot, startsAttachmentCleanup: startsAttachmentCleanup)
+            loadSessionStore(uid: activeUID, snapshot: snapshot, startsAttachmentCleanup: startsAttachmentCleanup, writtenSince: nil)
             return
         }
+        // Production path (cold start, partition switch, retry while the database is already open): the session snapshot (JSON decode + Keychain read of API keys) and the database open both run in the background.
         sessionStoreReady = false
         conversations = []
         let generation = sessionLoadGeneration
+        let generations = conversationWriteGeneration
+        // A snapshot write still pending on disk within the debounce window (0.3s): take it out and queue it on the write queue (in the background, behind the immediate writes already enqueued -
+        // a live debounced item means it is later than those immediate writes), then drain before reading the snapshot below. A reload of the same uid (retry from the blocking page) must be able to read the just-added provider.
+        if let pendingSnapshotWrite = pendingSessionPersistWorkItem {
+            pendingSessionPersistWorkItem = nil
+            conversationPersistQueue.async(qos: .userInitiated) {
+                guard !pendingSnapshotWrite.isCancelled else { return }
+                pendingSnapshotWrite.perform()
+                // Already on disk: the trigger scheduled for 0.3s later is cancelled.
+                pendingSnapshotWrite.cancel()
+            }
+        }
         sessionStoreReadyTask = Task { @MainActor [weak self] in
+            // Drain the write queue first: pending disk writes from the previous partition (the logout snapshot, checkpoint) complete before the next partition's database is opened;
+            // when reloading the same partition, snapshot writes still pending in the queue (and restore snapshot writes) must also finish first, so the read below sees them.
+            await self?.drainConversationPersistQueue()
+            #if DEBUG
+            let (snapshot, readOnMain) = await Task.detached(priority: .userInitiated) { () -> (AppSessionSnapshot?, Bool) in
+                if let delay = AppState.sessionSnapshotLoadDelayForTesting {
+                    try? await Task.sleep(for: delay)
+                }
+                return AppState.readSessionSnapshot(for: activeUID)
+            }.value
+            #else
+            let snapshot = await Task.detached(priority: .userInitiated) {
+                AppState.readSessionSnapshot(for: activeUID)
+            }.value
+            #endif
+            do {
+                guard let self, self.sessionLoadGeneration == generation, self.partitionIsStillBound(activeUID) else { return }
+                #if DEBUG
+                if readOnMain { self.debugSessionSnapshotReadsOnMain += 1 }
+                #endif
+                self.applySessionSnapshot(snapshot, accountGeneration: accountGeneration, tabGeneration: tabGeneration)
+            }
+            let snapshotConversations = snapshot?.conversations
+            // The restore snapshot's disk read and decode happen in the background after the drain, in parallel with the database open; when the snapshot carries its own conversations, no disk read occurs. Read it only once per load.
+            async let recoveryRead: [Conversation] = snapshotConversations == nil
+                ? Task.detached(priority: .userInitiated) {
+                    ConversationRuntimeBridge.loadRecoveryProjection(snapshot: nil, uid: activeUID)
+                }.value
+                : []
             var openError: Error?
             do {
                 _ = try await DatabaseManager.shared.prepare(for: activeUID)
             } catch {
                 openError = error
             }
+            let diskRecovered = await recoveryRead
+            let recovered = snapshotConversations ?? diskRecovered
             guard let self, self.sessionLoadGeneration == generation, self.partitionIsStillBound(activeUID) else { return }
-            // Mark ready first: the cache rebuilds triggered by installing the conversations below must be able to read the database.
+            // Mark ready first: the cache rebuild triggered by applying the session below (monthly totals etc.) needs to read the database.
             self.sessionStoreReady = true
             if let openError {
-                // It cannot be opened: same as a failed read, fall back to the recovery snapshot and enter the blocked state.
+                // Cannot open: same as a database read failure - fall back to the restore snapshot and enter the blocking state (a real error, not "not pre-opened").
                 self.databaseHealthProbe.recordFailure(openError)
-                self.conversations = self.conversationRuntimeBridge.loadRecoveryProjection(snapshot: snapshot, uid: activeUID)
+                self.conversations = recovered
             } else {
-                self.loadSessionStore(uid: activeUID, snapshot: snapshot, startsAttachmentCleanup: startsAttachmentCleanup)
+                self.loadSessionStore(
+                    uid: activeUID, snapshot: snapshot, recovered: recovered,
+                    startsAttachmentCleanup: startsAttachmentCleanup, writtenSince: generations
+                )
             }
         }
     }
 
-    /// The partition database is open: read the conversations, memory items, startup recovery and so on (the main thread only reads; every write is queued).
+    /// Read one partition's session snapshot (JSON decode + Keychain read of API keys). Pure file / Keychain IO; the production path calls it in the background.
+    #if DEBUG
+    /// Second item: whether this read happened on the main thread (tests assert the production path gives false).
+    nonisolated static func readSessionSnapshot(for uid: String) -> (AppSessionSnapshot?, Bool) {
+        let readOnMain = Thread.isMainThread
+        return (AppSessionStore.load(for: uid), readOnMain)
+    }
+    #else
+    nonisolated static func readSessionSnapshot(for uid: String) -> AppSessionSnapshot? {
+        AppSessionStore.load(for: uid)
+    }
+    #endif
+
+    /// Apply the session snapshot to memory (shared by the synchronous and background paths). Before this, `loadSession` has already cleared providers / folders / lastUsedModelRef.
+    /// - Account / selected tab written while the snapshot was loading: memory wins.
+    private func applySessionSnapshot(_ snapshot: AppSessionSnapshot?, accountGeneration: UInt, tabGeneration: UInt) {
+        let accountWrittenDuringLoad = accountWriteGeneration != accountGeneration
+        let tabWrittenDuringLoad = selectedTabWriteGeneration != tabGeneration
+        if let snapshot {
+            if !tabWrittenDuringLoad {
+                selectedTab = snapshot.selectedTab
+            }
+            providers = snapshot.providers.map { $0.recoveredFromPersistence() }
+            hasCompletedOnboarding = snapshot.hasCompletedOnboarding || !snapshot.providers.isEmpty || !(snapshot.conversations ?? []).isEmpty
+            lastUsedModelRef = snapshot.lastUsedModelRef
+            folders = snapshot.folders ?? []    // Backward compatibility: old snapshots lack this field
+            // The color backfill in init runs before the snapshot is applied (background path): backfill once after applying (only assigns colors to folders without one; idempotent).
+            if folderManager.isBound {
+                folderManager.assignColorsIfNeeded()
+            }
+        }
+        sessionSnapshotApplied = true
+        // Writes made in the meantime were not persisted to the snapshot (the guard blocked them): write it once after applying.
+        if accountWrittenDuringLoad || tabWrittenDuringLoad {
+            persistSessionIfNeeded()
+        }
+    }
+
+    private func selectedTabDidChange() {
+        selectedTabWriteGeneration &+= 1
+        persistSessionIfNeeded()
+    }
+
+    /// Demo data startup (sample / store-screenshot seed): memory state is already in place; only the database partition is moved to a background pre-open (following the end of `loadSession`).
+    /// Until it is open `sessionStoreReady == false`; once open, mark ready and rebuild the derived caches that depend on the database (monthly totals etc.).
+    private func prepareDemoSessionStoreIfNeeded() {
+        let activeUID = boundPartitionUID
+        sessionLoadGeneration &+= 1
+        guard DatabaseManager.shared.openedPool(for: activeUID) == nil, !DatabaseManager.allowsMainThreadFirstOpen else {
+            sessionStoreReady = true
+            sessionStoreReadyTask = nil
+            return
+        }
+        sessionStoreReady = false
+        let generation = sessionLoadGeneration
+        sessionStoreReadyTask = Task { @MainActor [weak self] in
+            var openError: Error?
+            do {
+                await self?.drainConversationPersistQueue()
+                _ = try await DatabaseManager.shared.prepare(for: activeUID)
+            } catch {
+                openError = error
+            }
+            guard let self, self.sessionLoadGeneration == generation, self.partitionIsStillBound(activeUID) else { return }
+            self.sessionStoreReady = true
+            if let openError {
+                self.databaseHealthProbe.recordFailure(openError)
+            }
+            self.conversationsVersion &+= 1
+        }
+    }
+
+    /// Load after the partition database is open: read the database to apply the session, memory items, startup reclamation, etc. (main thread read-only; all writes are queued).
+    /// - Parameter recovered: the recovery projection already read in the background; when nil (synchronous branch of the test host) it is read once here. The normal and database-read-failure paths share this one.
+    /// - Parameter writtenSince: the write generation when the background pre-open started loading; conversations written, created, or deleted in memory during the pre-open win in memory.
     private func loadSessionStore(
         uid activeUID: String,
         snapshot: AppSessionSnapshot?,
-        startsAttachmentCleanup: Bool
+        recovered: [Conversation]? = nil,
+        startsAttachmentCleanup: Bool,
+        writtenSince generations: [UUID: Int]?
     ) {
-        // Partition activation: migrate legacy fields into memory items / reflow edits from old clients
+        // Partition activation: migrate old fields into memory items / old client edits flow back
         reconcileMemoryItems()
         memoryItemsCache.bind(uid: activeUID)
+        let mirrorWhileOpening = generations == nil ? nil : conversations
+        let recoveredProjection = recovered ?? conversationRuntimeBridge.loadRecoveryProjection(
+            snapshot: snapshot,
+            uid: activeUID
+        )
 
         do {
-            let recoveredProjection = conversationRuntimeBridge.loadRecoveryProjection(
-                snapshot: snapshot,
-                uid: activeUID
-            )
             let authoritativeProjection = try conversationRuntimeBridge.loadLegacyProjection(uid: activeUID, hydrateFilePayloads: false)
             let mergedProjection = ConversationProjectionMerger.recover(
                 authoritative: authoritativeProjection,
@@ -2660,9 +3076,8 @@ final class AppState {
                 merged: mergedProjection,
                 authoritative: authoritativeProjection
             ) {
-                // The whole-table write is queued on the persist queue (the main thread never waits for the write lock) and
-                // every write queued afterwards lands behind it; memory uses the summary form of the merge result
-                // (the cold-start mirror holds summaries only, the same shape as reading them back from the database).
+                // The full-table write is queued on the write queue (the main thread does not synchronously wait for the write lock); later enqueued writes queue behind it. Memory first uses the summary form of the merged result
+                // (the cold-start mirror holds only summaries, the same form read back from the database); after the write lands, refresh once more from the database.
                 let bridge = conversationRuntimeBridge
                 conversationPersistQueue.async(qos: .userInitiated) {
                     Self.runConversationPersistWrite(op: "load_session_recovery_replace") {
@@ -2673,8 +3088,10 @@ final class AppState {
             } else {
                 conversations = authoritativeProjection
             }
-            // The local database read through. While blocked, this success is the user having
-            // freed space and retried.
+            if let generations, let mirrorWhileOpening {
+                mergeConversationsWrittenWhileOpening(since: generations, mirror: mirrorWhileOpening)
+            }
+            // The local database read succeeded. In the blocking state this success means "the user cleared space and the retry worked"; the closed-loop analytics event is emitted inside.
             databaseHealthProbe.recordSuccess()
         } catch {
             #if DEBUG
@@ -2685,7 +3102,7 @@ final class AppState {
             // blocked state and let the UI explain it. A false return means the failure is not a
             // storage access failure, and then only the snapshot fallback applies.
             databaseHealthProbe.recordFailure(error)
-            conversations = conversationRuntimeBridge.loadRecoveryProjection(snapshot: snapshot, uid: activeUID)
+            conversations = recoveredProjection
         }
 
         // Age out the deletion journal. Cold start on a background queue is fine: it only drops
@@ -2718,16 +3135,93 @@ final class AppState {
                 await refreshProviderMetadata()
             }
         }
+
+        // Legacy data migration: fill in missing model prices (providers are already applied at this point; demo data does not go through here).
+        if AppStateLaunchPolicy.shouldRunProviderPriceMigration(
+            seedDemoData: !persistsSession,
+            isRunningTests: AppRuntime.isRunningTests,
+            providers: providers
+        ) {
+            Task { [weak self] in
+                guard let self else { return }
+                for provider in self.providers where provider.kind == .openRouter {
+                    try? await self.resyncProvider(providerID: provider.id)
+                }
+            }
+        }
+
     }
 
-    /// Refreshes the stored providers' model metadata once Metadata has initialized.
-    /// Reads from the MetadataClient actor over the async path so a stale shared snapshot
-    /// cannot hide a fresh value.
-    /// Classify unclassified official providers against the current metadata, then run the lazy migrations
-    /// (retired regions, endpoint-source reconciliation) over every official provider and write the result back
-    /// locally. It mutates the array directly instead of going through updateProvider: updatedAt is untouched and
-    /// nothing is uploaded. When metadata is missing, providers stay unclassified but the retired-region
-    /// migration still runs.
+    /// The partition database is open (the database phase of `loadSession` has run); when false the home page shows the loading skeleton, and database-related entry points wait for `sessionStoreReadyTask`.
+    private(set) var sessionStoreReady = true
+    /// Task that pre-opens the partition database in the background and loads the session; nil once ready.
+    @ObservationIgnored private(set) var sessionStoreReadyTask: Task<Void, Never>?
+    @ObservationIgnored private var sessionLoadGeneration: UInt = 0
+    /// Write count per conversation (bumped on upsert and delete); a background pre-open compares it to
+    /// keep conversations written or deleted while the database was opening.
+    @ObservationIgnored private var conversationWriteGeneration: [UUID: Int] = [:]
+    /// Whether this `loadSession`'s session snapshot is applied in memory. While false (snapshot being read in the background), all snapshot-writing entry points write no snapshot,
+    /// so the cleared providers / folders state cannot overwrite the disk snapshot.
+    /// Initial value false: writes before `loadSession` in init (didSet / method calls) also write no snapshot, otherwise a debounced write would persist empty providers before the background read,
+    /// and the read-back would be an empty snapshot. Demo data is set to true after it is applied in init.
+    @ObservationIgnored private(set) var sessionSnapshotApplied = false
+    /// Account / selected-tab write generations: writes made while the snapshot was read in the background; memory wins when the snapshot is applied.
+    @ObservationIgnored private var accountWriteGeneration: UInt = 0
+    @ObservationIgnored private var selectedTabWriteGeneration: UInt = 0
+    #if DEBUG
+    /// Number of times this instance read the session snapshot on the main thread (tests assert the production path gives 0; counted per instance so parallel suites do not interfere).
+    @ObservationIgnored private(set) var debugSessionSnapshotReadsOnMain = 0
+    /// Test seam: wait this long before reading the session snapshot in the background (simulates a snapshot read slower than other writes).
+    nonisolated(unsafe) static var sessionSnapshotLoadDelayForTesting: Duration?
+    #endif
+
+    /// Wait for the partition database to open and the session to finish applying (returns immediately if already ready).
+    func waitForSessionStore() async {
+        while !sessionStoreReady, let task = sessionStoreReadyTask {
+            await task.value
+            // This load was superseded by a newer loadSession with no new task (or was invalidated): do not spin.
+            if sessionStoreReadyTask == task, !sessionStoreReady { return }
+        }
+    }
+
+    /// Before switching partitions, close the current partition database: the checkpoint is queued on the write queue (behind the writes already enqueued), then immediately mark "database not ready" and release the singleton reference.
+    /// From now until the next partition is opened (`loadSession` background pre-open), all UI and database-related entry points are treated as not ready, and the main thread never touches the closed database.
+    func closeSessionStoreForPartitionSwitch() {
+        enqueuePartitionCheckpoint()
+        // The old partition's database is closed: the in-memory state no longer represents the snapshot of the bound partition. Logout then clears providers / folders / account,
+        // and if snapshot writes were not turned off, those writes would land on the old partition as debounced snapshots, queued behind the logout snapshot and overwrite it empty (losing providers and keys).
+        // Debounced snapshots already taken before closing are still written as usual; writes are re-enabled after the next loadSession applies the new partition's snapshot.
+        sessionSnapshotApplied = false
+        sessionStoreReady = false
+        // The real close queues behind the checkpoint and every write already on the persist queue, and waits for the
+        // local write tails captured right now (notes, memory items): only local writes, never sending / network.
+        let noteTail = noteManager.pendingWriteTail
+        let memoryItemTail = memoryItemUndoTail
+        let barrier: (@Sendable () async -> Void)? = noteTail == nil && memoryItemTail == nil ? nil : {
+            await noteTail?.value
+            await memoryItemTail?.value
+        }
+        conversationRuntimeBridge.close(after: conversationPersistQueue, barrier: barrier)
+    }
+
+    /// While pre-opening (the mirror starts empty), conversations written in memory win: created or changed ones use the in-memory version, deleted ones are not resurrected.
+    /// These writes are queued on the write queue after the database read, so the value read back from the database is still the old one.
+    private func mergeConversationsWrittenWhileOpening(since generations: [UUID: Int], mirror: [Conversation]) {
+        let written = Set(conversationWriteGeneration.filter { generations[$0.key, default: 0] != $0.value }.keys)
+        guard !written.isEmpty else { return }
+        let mirrorByID = Dictionary(mirror.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var merged = conversations.compactMap { loaded -> Conversation? in
+            guard written.contains(loaded.id) else { return loaded }
+            return mirrorByID[loaded.id]
+        }
+        let loadedIDs = Set(conversations.map(\.id))
+        merged.insert(contentsOf: mirror.filter { written.contains($0.id) && !loadedIDs.contains($0.id) }, at: 0)
+        conversations = merged
+    }
+
+    /// Classify unclassified official providers against the current metadata, then run the lazy migrations R1 / R2 over all official providers and write back locally.
+    /// Mutates the array directly instead of going through updateProvider: updatedAt is not changed and no upload is triggered. When metadata is missing, providers stay unclassified,
+    /// but R1 (retired region) still runs.
     func backfillProviderEndpointSources(catalog: ProviderSetupCatalog = .current()) {
         var updated = providers
         var changed = false
@@ -2795,23 +3289,36 @@ final class AppState {
         }
     }
 
-    /// Saves the current data to the partition (no debounce, so nothing is lost before a switch) without waiting: the
-    /// snapshot is fixed on the main thread now and the write is queued on the persist queue. The main thread never
-    /// waits on a queue that may be busy with a whole-table write. Callers that must continue only after the write use
-    /// `persistSessionNowOffMainThread()`.
+    /// Save the current data to the partition (not debounced; used to ensure no data is lost before a switch), without waiting: the snapshot is taken on the main thread at this moment, and encoding and disk write are queued
+    /// on the session write queue (behind writes already enqueued, before any checkpoint enqueued later). The main thread does not synchronously wait for the write queue -
+    /// a main-thread `dispatch_sync` onto a queue busy with a full-table write is the pattern that triggers App Hang and view hierarchy deadlocks.
+    /// For synchronous callers (logout, provider migration); callers that need "finish writing before continuing" use `persistSessionNowOffMainThread()`.
+    /// The background pre-open of the next partition first waits for this queue to drain (see `loadSession`), so the disk write before a switch always completes first.
     func enqueueSessionPersist(for persistedUID: String? = nil) {
         guard let work = makeImmediateSessionPersistWork(for: persistedUID) else { return }
         conversationPersistQueue.async(qos: .userInitiated, execute: work)
     }
 
     #if DEBUG
-    /// Tests only: persist synchronously (the main thread waits for the persist queue; forbidden in production).
+    /// For tests only: synchronous disk write (the main thread waits on the write queue; forbidden in production, the static gate only allows this test seam).
     func persistSessionNow(for persistedUID: String? = nil) {
         enqueueSessionPersist(for: persistedUID)
         flushConversationPersistQueue()
     }
     #endif
 
+    /// Wait for the writes already enqueued on the session write queue to finish (does not block the main thread).
+    func drainConversationPersistQueue() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            conversationPersistQueue.async { continuation.resume() }
+        }
+    }
+
+    /// Same disk write order as `enqueueSessionPersist`, and waits for it to finish (without blocking the main thread).
+    ///
+    /// The login flow (`AuthPartitionManager.handleLoginSuccess`) writes to disk three times in a row, and each pass is
+    /// "main thread waits for the background queue to drain + full JSON encoding + per-provider Keychain writes". Those three synchronous waits
+    /// fall right inside the App Hang window after cold start.
     func persistSessionNowOffMainThread(for persistedUID: String? = nil) async {
         guard let work = makeImmediateSessionPersistWork(for: persistedUID) else { return }
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
@@ -2825,21 +3332,38 @@ final class AppState {
     private func makeImmediateSessionPersistWork(for persistedUID: String?) -> (@Sendable () -> Void)? {
         guard persistsSession else { return nil }
         pendingSessionPersistWorkItem?.cancel()
-        let snapshot = AppSessionSnapshot(
-            selectedTab: selectedTab,
-            hasCompletedOnboarding: hasCompletedOnboarding || !persistableProviders.isEmpty || !conversations.isEmpty,
-            providers: persistableProviders,
-            conversations: nil,
-            lastUsedModelRef: lastUsedModelRef,
-            folders: folders
-        )
+        let snapshot = currentSessionSnapshotIfApplied()
         let uid = persistedUID ?? boundPartitionUID
         let bridge = conversationRuntimeBridge
         return {
             Self.runConversationPersistWrite(op: "persist_recovery_projection_immediate") {
                 try bridge.persistRecoveryProjectionFromDatabase(uid: uid, skipIfUnchanged: true)
             }
-            AppSessionStore.save(snapshot, for: uid)
+            if let snapshot {
+                AppSessionStore.save(snapshot, for: uid)
+            }
+        }
+    }
+
+    /// WAL checkpoint before a partition switch (login / logout): the database instance is taken on the main thread (the database is not opened) and queued on the write queue,
+    /// executed after the writes already enqueued for this partition. The main thread does not synchronously wait for the write lock; `close()` then only releases the singleton reference, and the queued
+    /// checkpoint still lands on the old partition and never opens or swaps in the next partition's database.
+    @discardableResult
+    func enqueuePartitionCheckpoint() -> Task<Void, Never> {
+        guard let pool = conversationRuntimeBridge.openedPool() else { return Task {} }
+        // Enqueued synchronously: a close queued right after this call must run behind the checkpoint.
+        let done = DispatchGroup()
+        done.enter()
+        conversationPersistQueue.async(qos: .userInitiated) {
+            Self.runConversationPersistWrite(op: "partition_switch_checkpoint") {
+                try DatabaseManager.checkpoint(pool)
+            }
+            done.leave()
+        }
+        return Task.detached(priority: .userInitiated) {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                done.notify(queue: .global(qos: .userInitiated)) { continuation.resume() }
+            }
         }
     }
 
@@ -2847,14 +3371,8 @@ final class AppState {
         guard persistsSession else { return }
 
         let persistedUID = boundPartitionUID
-        let snapshot = AppSessionSnapshot(
-            selectedTab: selectedTab,
-            hasCompletedOnboarding: hasCompletedOnboarding || !persistableProviders.isEmpty || !conversations.isEmpty,
-            providers: persistableProviders,
-            conversations: nil,
-            lastUsedModelRef: lastUsedModelRef,
-            folders: folders
-        )
+        // Snapshot not yet applied in memory: skip only the snapshot part; the recovery projection and checkpoint still run.
+        let snapshot = currentSessionSnapshotIfApplied()
         let bridge = conversationRuntimeBridge
         let checkpointPool = checkpoint ? bridge.openedPool() : nil
 
@@ -2869,7 +3387,9 @@ final class AppState {
             Self.runConversationPersistWrite(op: "persist_lifecycle_recovery") {
                 try bridge.persistRecoveryProjectionFromDatabase(uid: persistedUID, skipIfUnchanged: true)
             }
-            AppSessionStore.save(snapshot, for: persistedUID)
+            if let snapshot {
+                AppSessionStore.save(snapshot, for: persistedUID)
+            }
             if let checkpointPool {
                 Self.runConversationPersistWrite(op: "persist_lifecycle_checkpoint") {
                     try DatabaseManager.checkpoint(checkpointPool)
@@ -2879,23 +3399,20 @@ final class AppState {
         }
     }
 
-    private var persistableProviders: [Provider] { providers }
-
-    /// The partition database is open and the session loaded (the database phase of `loadSession` has run). While false the
-    /// root view shows nothing and database-related entry points wait for `sessionStoreReadyTask`.
-    private(set) var sessionStoreReady = true
-    /// The task that prepares the partition database in the background and loads the session; nil when already ready.
-    @ObservationIgnored private(set) var sessionStoreReadyTask: Task<Void, Never>?
-    @ObservationIgnored private var sessionLoadGeneration: UInt = 0
-
-    /// Waits until the partition database is open and the session loaded (returns at once when already ready).
-    func waitForSessionStore() async {
-        while !sessionStoreReady, let task = sessionStoreReadyTask {
-            await task.value
-            // This load was superseded by a newer `loadSession` with no new task (or invalidated): do not spin.
-            if sessionStoreReadyTask == task, !sessionStoreReady { return }
-        }
+    /// Pending snapshot taken on the main thread; nil (no write) while the session snapshot has not been applied in memory.
+    private func currentSessionSnapshotIfApplied() -> AppSessionSnapshot? {
+        guard sessionSnapshotApplied else { return nil }
+        return AppSessionSnapshot(
+            selectedTab: selectedTab,
+            hasCompletedOnboarding: hasCompletedOnboarding || !persistableProviders.isEmpty || !conversations.isEmpty,
+            providers: persistableProviders,
+            conversations: nil,
+            lastUsedModelRef: lastUsedModelRef,
+            folders: folders
+        )
     }
+
+    private var persistableProviders: [Provider] { providers }
 
     func updateTheme(_ theme: ThemeOption) {
         preferences.theme = theme
@@ -2933,26 +3450,6 @@ final class AppState {
         reconcileMemoryItems()
     }
 
-    /// Serial tail task for undoing a memory-item save (see `removeMemoryItemInBackground`).
-    @ObservationIgnored private var memoryItemUndoTail: Task<Void, Never>?
-
-    /// The toast "Undo" deletes the just-created memory item: the tombstone write runs in the background instead of
-    /// waiting synchronously for the write lock on the main thread (behind a whole-table write that stalls for seconds);
-    /// repeated undos queue on one serial tail task so they land in tap order.
-    func removeMemoryItemInBackground(id: String) {
-        guard let repository = memoryItemRepository() else { return }
-        let previous = memoryItemUndoTail
-        memoryItemUndoTail = Task { @MainActor in
-            await previous?.value
-            _ = try? await repository.perform { try $0.remove(id: id) }
-        }
-    }
-
-    /// Wait for queued undo deletions to land (for tests).
-    func waitForMemoryItemUndo() async {
-        await memoryItemUndoTail?.value
-    }
-
     /// The memory item repository of the current partition; legacy field reads and writes go through this object's preferences. nil when the database cannot be opened.
     func memoryItemRepository() -> MemoryItemRepository? {
         MemoryItemRepository.forPartition(
@@ -2966,7 +3463,31 @@ final class AppState {
         )
     }
 
-    /// The memory candidate repository of the current partition; once confirmed, a candidate becomes an item through the same partition's item repository. nil when the database cannot be opened.
+    /// Serial tail task for "undo save" of memory items (see `removeMemoryItemInBackground`).
+    @ObservationIgnored private var memoryItemUndoTail: Task<Void, Never>?
+
+    /// The toast "Undo" deletes the just-created memory item: the tombstone write goes to the background and does not synchronously wait for the write lock (queued behind the full-table write it would stall for seconds;
+    /// measured as a hit from a synchronous main-thread database write); multiple undos queue on the same serial tail task and land in click order.
+    func removeMemoryItemInBackground(id: String) {
+        guard let repository = memoryItemRepository() else { return }
+        let previous = memoryItemUndoTail
+        memoryItemUndoTail = Task { @MainActor in
+            await previous?.value
+            _ = try? await repository.perform { try $0.remove(id: id) }
+        }
+    }
+
+    /// Wait for writes queued in the memory-item serial tail task (undo save, guest item receive) to land in the database (tests only).
+    func waitForMemoryItemWrites() async {
+        await memoryItemUndoTail?.value
+    }
+
+    /// Wait for queued undo deletions to land in the database (tests only).
+    func waitForMemoryItemUndo() async {
+        await memoryItemUndoTail?.value
+    }
+
+    /// The memory candidate repository of the current partition; after confirmation, a new item is created through the same partition's item repository; nil when the database cannot be opened.
     func memoryCandidateRepository() -> MemoryCandidateRepository? {
         if let memoryCandidateRepositoryOverride { return memoryCandidateRepositoryOverride() }
         guard let items = memoryItemRepository() else { return nil }
@@ -2996,6 +3517,25 @@ final class AppState {
     }
 
     @ObservationIgnored private var memoryReconcileTail: Task<Void, Never>?
+
+    /// On login, copy the guest partition's memory items into the current partition: the write lands in the background, queued on the memory-item serial tail task (same as undo save, landing in submission order),
+    /// queued behind the already-enqueued legacy field flow-back (the login migration flows back first, then receives guest items).
+    func adoptGuestMemoryItems(_ items: [MemoryItem]) {
+        guard !items.isEmpty, let repository = memoryItemRepository() else { return }
+        let previous = memoryItemUndoTail
+        let reconcile = memoryReconcileTail
+        memoryItemUndoTail = Task { @MainActor in
+            await previous?.value
+            await reconcile?.value
+            do {
+                try await repository.adoptGuestItems(items)
+            } catch {
+                #if DEBUG
+                print("[AppState] adoptGuestMemoryItems failed: \(error)")
+                #endif
+            }
+        }
+    }
 
     /// Dual-write memory items back to the legacy fields (same as updateMemory): save the preferences locally.
     private func writeMemoryLegacy(_ compiled: MemoryLegacyCompile) {
@@ -3058,13 +3598,30 @@ final class AppState {
         }
     }
 
-    /// Waits for the queued use-memory writes and their wrap-up (for tests).
+    /// Wait for queued memory-toggle database writes and their cleanup to finish (tests only).
     func waitForConversationUseMemoryWrites() async {
         await useMemoryWriteTail?.value
     }
 
-    /// Open the Settings memory page; when `editItemId` is non-nil, the memory page edits that item right after appearing
-    /// ("This one is wrong" in "Memory used").
+    /// Wait for all of this partition's queued database writes to finish: the note write tail, memory item and memory toggle write tails, deletion log, checkpoint invalidation, context ledger,
+    /// and the session write queue. This must complete before deleting the partition file (account deletion, demo partition reseed): in-flight writes hold the database instance captured at enqueue time;
+    /// writing after the file is deleted gives a disk I/O error, and writes that resolve the database by uid through DatabaseManager would recreate the deleted partition.
+    func drainPendingWrites() async {
+        await noteManager.waitForPendingWrites()
+        await memoryReconcileTail?.value
+        await memoryItemUndoTail?.value
+        await useMemoryWriteTail?.value
+        await waitForCheckpointInvalidations()
+        await chatManager.waitForContextLedgerWrites()
+        // MCP tables live in the partition database: the endpoint relocation write must land before it is deleted.
+        await mcpServerDirectory.waitForPendingRelocations()
+        // The tail tasks above may have enqueued writes on the session write queue: drain it last.
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            conversationPersistQueue.async { continuation.resume() }
+        }
+    }
+
+    /// Open the settings memory page; when `editItemId` is non-empty, that item is edited directly once the memory page appears (the "this is wrong" action from "memory used").
     func openMemory(editItemId: String? = nil) {
         pendingMemoryEditItemID = editItemId?.lowercased()
         navigation.openMemory()
@@ -3086,6 +3643,7 @@ final class AppState {
         navigation.openSkillEdit(skillID: skillID)
     }
 
+    /// Create a new conversation via a Skill
     func startConversationWithSkill(_ skill: Skill) {
         let (resolvedProviderID, resolvedModelID) = resolveModelForSkill(skill)
 
@@ -3100,14 +3658,13 @@ final class AppState {
 
         var conversation = createConversation(provider: provider, modelID: modelID)
         conversation.title = skill.localizedName
-        conversation.skillId = skill.id
+        conversation.skillIds = [skill.id.uuidString]
         conversation.useMemory = skill.useMemory
         conversation.isDraft = true
         upsertConversationProjection(conversation)
 
+        // The use is recorded when the first message is sent (contract item 16).
         presentChat(conversationID: conversation.id)
-
-        Task { await skillManager.recordUse(skill.id) }
     }
 
     private func resolveModelForSkill(_ skill: Skill) -> (UUID?, String?) {
@@ -3221,18 +3778,6 @@ final class ProposeFallbackOnce {
     }
 }
 
-private extension Conversation {
-    /// Summary form of the cold-start mirror (the shape `fetchConversationSummaryProjection` reads back): no bodies, the count is the override.
-    var coldStartSummary: Conversation {
-        guard messagesAreLoaded else { return self }
-        var summary = self
-        summary.messageCountOverride = displayMessageCount
-        summary.messages = []
-        summary.messagesAreLoaded = false
-        return summary
-    }
-}
-
 /// One result from the persist queue, handed back to the main thread for wrap-up: enqueueing happens synchronously on the
 /// caller's thread (keeping the order with other writes) and the main thread suspends for the result.
 nonisolated final class ConversationPersistOutcome<Value>: @unchecked Sendable {
@@ -3265,5 +3810,17 @@ nonisolated final class ConversationPersistOutcome<Value>: @unchecked Sendable {
                 }
             }
         }
+    }
+}
+
+private extension Conversation {
+    /// Summary form of the cold-start mirror (same form that `fetchConversationSummaryProjection` reads back): no body, counts use the overridden values.
+    var coldStartSummary: Conversation {
+        guard messagesAreLoaded else { return self }
+        var summary = self
+        summary.messageCountOverride = displayMessageCount
+        summary.messages = []
+        summary.messagesAreLoaded = false
+        return summary
     }
 }

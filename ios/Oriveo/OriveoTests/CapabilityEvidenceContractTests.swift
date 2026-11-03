@@ -335,8 +335,8 @@ struct CapabilityEvidenceContractTests {
         #expect(otherAccountAfter == otherAccountBefore)
     }
 
-    @Test("Ordinary Session Persist Preserves Credential Epoch And Runtime Cache")
-    func ordinarySessionPersistPreservesCredentialEpochAndRuntimeCache() throws {
+    @Test("Production session persist keeps the credential epoch, and the self-heal cache stays reusable across requests")
+    func ordinarySessionPersistPreservesCredentialEpochAndRuntimeCache() async throws {
         ProviderCapabilityIdentityStore.resetForTesting()
         UnsupportedParamCache.shared.resetForTesting()
         let uid = "h7-session-persist-\(UUID().uuidString)"
@@ -348,7 +348,7 @@ struct CapabilityEvidenceContractTests {
             models: [model],
             apiKey: "credential-a"
         )
-        defer { AppSessionStore.clearPartition(for: uid) }
+        defer { await TestPartitionCleanup.clear(uid) }
 
         ProviderAPIKeyStore.save(apiKey: provider.apiKey, providerID: providerID, uid: uid)
         let first = try #require(CapabilityEvidenceRequestIdentity.make(

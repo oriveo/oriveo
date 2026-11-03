@@ -15,6 +15,7 @@ type AppMiscActions = Pick<
   | 'setSearchMatchIndex'
   | 'setImageGenMode'
   | 'setDraftConversationInstructions'
+  | 'setDraftConversationSkillIds'
 >;
 
 /**
@@ -31,7 +32,7 @@ export function createAppSlice(set: AppStoreSet): AppMiscActions {
         // Switching conversations discards the draft conversation-settings instructions (the draft only belongs to a new conversation that has no row yet)
         return next === s.activeConversationId
           ? { activeConversationId: next }
-          : { activeConversationId: next, draftConversationInstructions: '' };
+          : { activeConversationId: next, draftConversationInstructions: '', draftConversationSkillIds: [] };
       }),
     setSelectedTab: (tab) => set({ selectedTab: tab }),
     setSidebarOpen: (open) => set({ sidebarOpen: open }),
@@ -44,5 +45,6 @@ export function createAppSlice(set: AppStoreSet): AppMiscActions {
     setSearchMatchIndex: (index) => set({ searchMatchIndex: index }),
     setImageGenMode: (mode) => set({ imageGenMode: mode }),
     setDraftConversationInstructions: (text) => set({ draftConversationInstructions: text }),
+    setDraftConversationSkillIds: (ids) => set({ draftConversationSkillIds: [...ids] }),
   };
 }

@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef, useSyncExternalStore } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import type { AIModel, Attachment, ChatMessage, Conversation, Provider, ReasoningMode, QuoteContext } from '@oriveo/shared';
+import type { AIModel, Attachment, ChatMessage, Conversation, ReasoningMode, QuoteContext } from '@oriveo/shared';
 import { Button } from '@oriveo/ui';
 import { useAppStore } from '../../providers/StoreProvider';
 import { selectIsStreamingFor } from '../../lib/core/store/selectors';
@@ -1534,6 +1534,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         webChipLit={effectiveLibraryResearchEnabled ? null : webChipLit}
         webRuntimeRejected={webRuntimeRejected}
         searchDraftSessionId={generationParameterDraftSessionId}
+        searchConversationId={effectiveId ?? undefined}
         libraryResearchEnabled={libraryFeatureEnabled ? libraryResearchEnabled : undefined}
         onLibraryResearchToggle={libraryFeatureEnabled ? handleLibraryResearchToggle : undefined}
         currentModel={currentModel}

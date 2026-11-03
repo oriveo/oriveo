@@ -8,9 +8,13 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
     struct RenderContext {
         weak var parentViewController: UIViewController?
         let maxBubbleWidth: CGFloat
-        let onRetry: (ChatMessage) -> Void
-        let onContinue: (ChatMessage) -> Void
+        /// Nil while a realtime model is selected, so Regenerate / Retry does not appear (hidden, not greyed out).
+        let onRetry: ((ChatMessage) -> Void)?
+        /// Same rule as onRetry: nil while a realtime selection or a pending voice catalog is active, so "Continue generating" does not appear.
+        let onContinue: ((ChatMessage) -> Void)?
+        /// Saves the whole AI reply or own message as a note.
         var onSaveNote: (ChatMessage) -> Void = { _ in }
+        /// Opens the saved note references of this message: a single one goes straight to its details; multiple ones are chosen by the SwiftUI outer layer.
         var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
         var onCrosscheck: (ChatMessage) -> Void = { _ in }
         /// Actions on the MCP step block (re-authorize / skip this step).
@@ -36,7 +40,8 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
         var onIgnoreMemorySuggestion: () -> Void = {}
         // Inputs the recovery card needs to decide (failed messages)
         let onRegenerate: (ChatMessage) -> Void
-        let onEditMessage: (ChatMessage) -> Void
+        /// Nil while a realtime model is selected (same rule as `onRetry`).
+        let onEditMessage: ((ChatMessage) -> Void)?
         let onSwitchModel: () -> Void
         /// Whether a failed message offers "switch to another key"; the caller derives it from the provider's current model state.
         var offersSwitchKey: (ChatMessage) -> Bool = { _ in false }
@@ -122,6 +127,12 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
 
         let messageID = model.messageID
 
+        // Live transient bubbles are not stored in the database: same cell rendering, but no actions (Android "without any actions").
+        if model.presentationKind == .liveUser || model.presentationKind == .liveAssistant {
+            return liveCell(collectionView, indexPath: indexPath, model: model, context: context,
+                            parentViewController: parentViewController)
+        }
+
         if message.role == .user {
             let cell = collectionView.dequeueReusableCell(
                 withReuseIdentifier: Self.userReuseID, for: indexPath
@@ -159,8 +170,8 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
             model: model,
             parentViewController: parentViewController,
             onContentHeightDidChange: nil,
-            onRetry: { context.onRetry(message) },
-            onContinue: { context.onContinue(message) },
+            onRetry: context.onRetry.map { retry in { retry(message) } },
+            onContinue: context.onContinue.map { resume in { resume(message) } },
             onSaveNote: { context.onSaveNote(message) },
             onOpenNoteReferences: model.noteReferences.isEmpty
                 ? nil
@@ -179,7 +190,9 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
             onOpenCompactionDetail: { context.onOpenCompactionDetail() },
             onSaveMemorySuggestion: { context.onSaveMemorySuggestion() },
             onEditMemorySuggestion: { context.onEditMemorySuggestion() },
-            onIgnoreMemorySuggestion: { context.onIgnoreMemorySuggestion() }
+            onIgnoreMemorySuggestion: { context.onIgnoreMemorySuggestion() },
+            // onRetry is nil only through realtimeGated when a realtime model is selected: the search error card follows the same rule and shows no retry button.
+            realtimeSelected: context.onRetry == nil
         )
         // `notifyContentDidChange` → `invalidateIntrinsicContentSize` → ChatLayout `supportSelfSizingInvalidation`
         if let config = AssistantMessageRecoveryBuilder.makeConfig(
@@ -187,10 +200,10 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
             isSendingMessage: context.isSendingMessage,
             isDismissed: context.isErrorDismissed(messageID),
             isTechnicalDetailExpanded: context.isRecoveryDetailExpanded(messageID),
-            onRetry: { context.onRetry(message) },
-            onContinue: { context.onContinue(message) },
+            onRetry: context.onRetry.map { retry in { retry(message) } },
+            onContinue: { context.onContinue?(message) },
             onRegenerate: { context.onRegenerate(message) },
-            onEditMessage: { context.onEditMessage(message) },
+            onEditMessage: context.onEditMessage.map { edit in { edit(message) } },
             onSwitchModelRequested: { context.onSwitchModel() },
             offersSwitchKey: context.offersSwitchKey(message),
             onSwitchKeyRequested: { context.onSwitchKey(message) },
@@ -205,5 +218,51 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
             context.onConfigureStreamingCell(cell)
         }
         return cell
+    }
+
+    /// Live transient bubbles: the reuse id is still chosen by role (same as the fallback); all action callbacks are nil and the action row and long-press menu do not show.
+    private func liveCell(
+        _ collectionView: UICollectionView,
+        indexPath: IndexPath,
+        model: ChatCollectionProjectionBuilder.MessageRenderModel,
+        context: RenderContext,
+        parentViewController: UIViewController
+    ) -> UICollectionViewCell {
+        if model.message.role == .user {
+            let cell = collectionView.dequeueReusableCell(
+                withReuseIdentifier: Self.userReuseID, for: indexPath
+            ) as! UserMessageCell
+            cell.configure(
+                model: model,
+                maxBubbleWidth: context.maxBubbleWidth,
+                parentViewController: parentViewController,
+                allowsMessageActions: false
+            )
+            return cell
+        }
+        let cell = collectionView.dequeueReusableCell(
+            withReuseIdentifier: Self.assistantReuseID, for: indexPath
+        ) as! AssistantMessageCell
+        cell.configure(
+            model: model,
+            parentViewController: parentViewController,
+            onContentHeightDidChange: nil,
+            onRetry: nil,
+            onContinue: nil,
+            realtimeSelected: true,
+            allowsMessageActions: false
+        )
+        return cell
+    }
+}
+
+extension ChatListDataSource.RenderContext {
+    /// While a realtime model is selected, the regenerate / retry / continue / edit callbacks are not provided (the entries do not exist, rather than being greyed out).
+    /// The caller folds "waiting for the voice catalog" into realtimeSelected, since a stored value may be a realtime model and collapses the same way.
+    static func realtimeGated(
+        _ action: @escaping (ChatMessage) -> Void,
+        realtimeSelected: Bool
+    ) -> ((ChatMessage) -> Void)? {
+        realtimeSelected ? nil : action
     }
 }

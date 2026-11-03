@@ -1,8 +1,10 @@
 package ai.oriveo.community.feature.chat
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import ai.oriveo.community.R
 import ai.oriveo.community.core.mcp.McpAuthPauseDecision
 import ai.oriveo.community.core.mcp.McpChatToolRunner
 import ai.oriveo.community.core.mcp.McpConfirmationCoordinator
@@ -13,6 +15,7 @@ import ai.oriveo.community.core.mcp.PendingMcpAuthPause
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.CapabilityEvidenceIdentity
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.voice.realtime.RealtimeModel
 import ai.oriveo.community.feature.chat.mcp.McpStepDetailState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -39,6 +42,8 @@ class ChatMcpCoordinator(
     private val toolCallMemoryVerdict: (Provider, AIModel) -> Boolean? = { _, _ -> null },
     /** Local identity of this connection (scopes the tool-call verdict for relays); production passes `ProviderRepository.capabilityEvidenceIdentity`. */
     private val capabilityEvidenceIdentity: suspend (Provider, String) -> CapabilityEvidenceIdentity? = { _, _ -> null },
+    /** Whether the selected model is a realtime voice model ([ai.oriveo.community.core.voice.realtime.RealtimeSelection]): the pill is dimmed and tapping it only explains why. */
+    private val isRealtimeModel: () -> Boolean = { false },
 ) {
     /** The single state shared by the panel and the pill. Read from local storage; fresh only after [refresh]. */
     var panelState: McpToolPanelState by mutableStateOf(McpToolPanelState.Empty)
@@ -58,6 +63,33 @@ class ChatMcpCoordinator(
      * Hidden when none has been added (the discovery entry is Settings > MCP); also not drawn while the panel state has not been read yet ([McpToolPanelState.Empty]).
      */
     val isToolsChipVisible: Boolean get() = isEntryVisible && panelState.hasServers
+
+    /** Tools capability in typing mode ([RealtimeModel.capability]): realtime model = disabledTappable, text model = default. */
+    private val typingToolsCapability: RealtimeModel.Capability
+        get() = RealtimeModel.capability(
+            if (isRealtimeModel()) RealtimeModel.MODEL_KIND_REALTIME else RealtimeModel.MODEL_KIND_TEXT,
+            RealtimeModel.MODE_TYPING,
+        )
+
+    /** Realtime model: the pill stays visible (same as [isToolsChipVisible]) but is dimmed. */
+    val isToolsChipDimmed: Boolean get() = typingToolsCapability.tools == "disabledTappable"
+
+    /** Reason to explain when a dimmed pill is tapped; null for text models. */
+    @get:StringRes
+    val toolsChipBlockedReasonRes: Int?
+        get() = typingToolsCapability.toolsReasonKey
+            ?.takeIf { it == RealtimeModel.COPY_NO_TOOLS }
+            ?.let { R.string.voice_realtime_no_tools }
+
+    /**
+     * Tapping the Tools pill: realtime models do not open the MCP panel and return the reason string to show; text models open the panel as before and return null.
+     */
+    @StringRes
+    fun onToolsChipTapped(): Int? {
+        toolsChipBlockedReasonRes?.let { return it }
+        openToolPanel()
+        return null
+    }
 
     private var refreshJob: Job? = null
 

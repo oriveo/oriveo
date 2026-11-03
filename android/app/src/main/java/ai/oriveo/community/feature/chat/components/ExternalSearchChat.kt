@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.OpenInNew
@@ -360,11 +359,9 @@ internal fun SearchSourcesBlock(
                         style = OriveoTheme.typography.caption,
                         color = colors.textTertiary,
                     )
-                    Box(
-                        modifier = Modifier.size(16.dp).background(colors.backgroundSecondary, CircleShape),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(Icons.Outlined.Public, contentDescription = null, modifier = Modifier.size(12.dp), tint = colors.textTertiary)
+                    // Bare 14dp tertiary icon in a 16dp slot, no fill behind it; matches iOS CitationRowView.
+                    Box(modifier = Modifier.size(16.dp), contentAlignment = Alignment.Center) {
+                        Icon(Icons.Outlined.Public, contentDescription = null, modifier = Modifier.size(14.dp), tint = colors.textTertiary)
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
@@ -424,10 +421,13 @@ internal fun SearchErrorCardView(
             }
         }
     }
+    // Warning-tinted surface like iOS UIKitSearchErrorCard (warningSoft fill, warningLine stroke, radius 14);
+    // backgroundSecondary is the neutral inset fill and does not read as a failure.
     OriveoCard(
         modifier = modifier.fillMaxWidth(),
-        fillColor = colors.backgroundSecondary,
-        borderColor = colors.hairline,
+        fillColor = colors.warningSoft,
+        borderColor = colors.warningLine,
+        radius = 14.dp,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {

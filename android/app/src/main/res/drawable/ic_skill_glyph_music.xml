@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/music.svg (glyphs.v1.json glyph:music, hue #DB2777); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M3.4 17.6a2.9 2.4 0 1 1 5.8 0a2.9 2.4 0 1 1-5.8 0ZM14.6 15.6a2.9 2.4 0 1 1 5.8 0a2.9 2.4 0 1 1-5.8 0ZM7.6 5.4l12.2-2.6a.6.6 0 0 1 .7.6v12.2h-1.6V7.6l-9.7 2.2v7.8H7.6Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="3.4"
+                android:startY="2.79"
+                android:endX="20.5"
+                android:endY="20">
+                <item android:offset="0" android:color="#F9A8D4" />
+                <item android:offset="1" android:color="#DB2777" /> <!-- capability-ui-lint: allow skill glyph content hue, fixed across themes by skills plan 3.11, not a capability colour -->
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M10 7.2l8.6-1.8"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.92"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

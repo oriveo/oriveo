@@ -3,7 +3,7 @@ import type { AppStoreSet } from './types';
 
 type SkillsActions = Pick<
   AppActions,
-  'setCatalogSkills' | 'setUserSkills' | 'updateSkillInStore' | 'addUserSkill' | 'removeUserSkill'
+  'setCatalogSkills' | 'setCatalogLoadState' | 'setUserSkills' | 'updateSkillInStore' | 'addUserSkill' | 'removeUserSkill'
 >;
 
 /** Skills slice: catalog skills, user skills, plus categories, usage and catalog version. */
@@ -11,6 +11,7 @@ export function createSkillsSlice(set: AppStoreSet): SkillsActions {
   return {
     setCatalogSkills: (skills, categories, version) =>
       set({ catalogSkills: skills ?? [], skillCategories: categories ?? [], catalogVersion: version }),
+    setCatalogLoadState: (catalogLoadState) => set({ catalogLoadState }),
     setUserSkills: (skills, usage) =>
       set({ userSkills: skills ?? [], skillUsage: usage }),
     updateSkillInStore: (id, patch) =>

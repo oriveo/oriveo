@@ -266,7 +266,10 @@ struct MemoryView: View {
         .sheet(item: $organizeTarget) { target in
             MemoryOrganizeSheet(
                 target: target,
-                organizer: MemoryOrganizer(candidates: organizeCandidate.map { [$0] } ?? [])
+                organizer: MemoryOrganizer(
+                    candidates: organizeCandidate.map { [$0] } ?? [],
+                    session: appState.providerSession
+                )
             ) { selection in
                 writeItems { try selection.save($0) }
             }
@@ -334,7 +337,7 @@ struct MemoryView: View {
                 } label: {
                     Text(L10n.tr("memory_raw_view", table: .chat))
                         .font(.system(size: 17))
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .padding(.horizontal, 8)
                         .frame(minHeight: OriveoBackButton.hitSize)
                         .contentShape(Rectangle())
@@ -678,7 +681,7 @@ struct MemoryView: View {
                 Text(actionTitle(for: action))
                     .font(.system(size: 15, weight: .semibold))
             }
-            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .frame(maxWidth: .infinity, minHeight: 44)
             .contentShape(Rectangle())
         }
@@ -968,7 +971,7 @@ struct MemoryView: View {
     private func confirmDisclosure() {
         if extractionFlow.isOrganizePending {
             Task {
-                guard case let .organize(item, provider, model) = await extractionFlow.confirm() else { return }
+                guard case let .organize(item, provider, model) = await extractionFlow.confirm(session: appState.providerSession) else { return }
                 organizeCandidate = (provider, model)
                 organizeTarget = MemoryOrganizeTarget(item: item)
             }
@@ -978,7 +981,7 @@ struct MemoryView: View {
         activeDraftRequestID = requestID
         isGeneratingDraft = true
         Task {
-            let outcome = await extractionFlow.confirm()
+            let outcome = await extractionFlow.confirm(session: appState.providerSession)
             guard activeDraftRequestID == requestID else { return }
             isGeneratingDraft = false
             switch outcome {

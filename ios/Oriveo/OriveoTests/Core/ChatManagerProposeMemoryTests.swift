@@ -127,9 +127,7 @@ struct ChatManagerProposeMemoryTests {
         defer {
             RelayWebFragmentStore.shared.deleteConnection(provider.id)
             RelayWebProbeStore.shared.clearConnection(provider.id.uuidString)
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+            await TestPartitionCleanup.remove(uid)
         }
         _ = await state.sendMessage(userText, in: conversation.id, capabilitySelection: capabilitySelection)
         var assistant: ChatMessage?
@@ -409,6 +407,22 @@ struct ChatManagerProposeMemoryTests {
             let bar = try #require(run.state.memorySuggestions.pending(in: run.conversationID))
             #expect(bar.messageID == run.message.id)
             #expect(bar.candidate == candidates.first)
+        }
+    }
+
+    @Test("A propose-only first leg with an empty tail leg is delivered and keeps the suggestion bar")
+    func proposeOnlyWithEmptyTailIsDelivered() async throws {
+        try await send(legs: [
+            (200, proposeLeg(callID: "call_p1", usage: (10, 2))),
+            (200, proposeLeg(usage: (14, 3))),
+        ]) { run in
+            #expect(run.message.state == .delivered, "propose suggestions count as visible content: \(run.message.errorDetail ?? "")")
+            #expect(run.bodies.count == 2)
+            #expect(run.message.errorTitle == nil)
+            let candidates = try await Self.pending(run.state)
+            #expect(candidates.count == 1)
+            let bar = try #require(run.state.memorySuggestions.pending(in: run.conversationID))
+            #expect(bar.messageID == run.message.id)
         }
     }
 

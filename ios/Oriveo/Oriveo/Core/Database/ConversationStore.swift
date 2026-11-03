@@ -2,6 +2,11 @@ import Foundation
 import GRDB
 import OriveoProviderKit
 
+/// See `ConversationStore.staleGeneratingMessages()`.
+nonisolated struct StaleGeneratingMessages: Sendable {
+    let messageIDs: [String]
+}
+
 final class ConversationStore: @unchecked Sendable {
     nonisolated private static let visibleUngroupedConversationWhereClause =
         "(isDraft = 0 OR messageCount > 0)"
@@ -112,6 +117,13 @@ final class ConversationStore: @unchecked Sendable {
     nonisolated private func write<T>(_ updates: (Database) throws -> T) throws -> T {
         defer { ConversationWriteGeneration.bump(path: dbPool.path) }
         return try dbPool.write(updates)
+    }
+
+    /// Tags large write transactions with their origin, so App Hang attribution charges a stall to the write holding the lock (see `DatabaseWriteLedger`).
+    nonisolated private func write<T>(label: DatabaseWriteLabel, _ updates: (Database) throws -> T) throws -> T {
+        try write { db in
+            try DatabaseWriteLabel.with(label, db) { try updates(db) }
+        }
     }
 
     nonisolated func fetchConversationList() throws -> [ConversationSummary] {
@@ -304,7 +316,8 @@ final class ConversationStore: @unchecked Sendable {
             // The USD part is recorded (for counting): the amount > epsilon and the source is empty / upstream / localEstimate.
             let usdBilled = """
                 (m.estimatedCost > ? AND (m.costSource IS NULL
-                 OR m.costSource IN ('\(CostSource.upstream.rawValue)', '\(CostSource.localEstimate.rawValue)')))
+                 OR m.costSource IN ('\(CostSource.upstream.rawValue)', '\(CostSource.localEstimate.rawValue)',
+                                     '\(CostSource.managed.rawValue)')))
                 """
             var sql = """
                 SELECT COALESCE(m.providerID, c.providerID) AS pid,
@@ -418,7 +431,7 @@ final class ConversationStore: @unchecked Sendable {
         var imageCandidates = Set<String>()
         let collectsImages = imagePartitionUID != nil
 
-        try write { db in
+        try write(label: .conversationReplaceAll) { db in
             let keptIDs = Set(conversations.map { $0.id.uuidString })
             let existingIDs = try String.fetchAll(db, sql: "SELECT id FROM conversation")
             let removedIDs = existingIDs.filter { !keptIDs.contains($0) }
@@ -494,7 +507,7 @@ final class ConversationStore: @unchecked Sendable {
         var referencedFileIDs = Set<String>()
         var imageCandidates = Set<String>()
 
-        try write { db in
+        try write(label: .messagePersist) { db in
             for conversation in prepared {
                 try upsertConversation(
                     conversation,
@@ -554,7 +567,7 @@ final class ConversationStore: @unchecked Sendable {
         guard messages.isEmpty == false else { return }
         var referencedFileIDs = Set<String>()
 
-        try write { db in
+        try write(label: .syncBatch) { db in
             guard let summary = try Self.fetchConversationSummary(db: db, id: conversationID) else { return }
             try mergeMessageRowsAdditively(
                 messages,
@@ -824,6 +837,74 @@ final class ConversationStore: @unchecked Sendable {
         }
     }
 
+    nonisolated func applyRemoteConversationMetadataPatch(_ summary: ConversationSummary) throws {
+        try insertConversation(summary)
+    }
+
+    nonisolated func applyRemoteConversationMetadataPatches(_ summaries: [ConversationSummary]) throws {
+        try write(label: .syncBatch) { db in
+            let hasFTS = try db.tableExists("search_index")
+            for summary in summaries {
+                let cols = ConversationColumnValues(from: summary)
+                try db.execute(sql: Self.conversationUpsertSQL, arguments: StatementArguments(cols.arguments))
+                // A metadata patch may change the title; sync it into the search index (messageText is untouched).
+                if hasFTS {
+                    try? db.execute(
+                        sql: "UPDATE search_index SET title = ? WHERE conversationID = ?",
+                        arguments: [summary.title, summary.id.uuidString]
+                    )
+                }
+            }
+        }
+    }
+
+    /// Read-only backfill only: **updates session metadata only, never touches the local message table**.
+    ///
+    /// Do not reuse `upsertConversations(_:)`: that path takes a set difference against `conversation.messages`
+    /// and deletes local message rows (see step 2 of `upsertConversation(_:into:referencedFileIDs:)`),
+    /// but the backfill object carries metadata only with `messages` always empty, which would wipe all local message bodies.
+    ///
+    /// Semantics:
+    /// - Conversation exists locally → **only raise** `remoteMessageCount` (the cloud count is a lower bound of "at least this many on the cloud"),
+    ///   local fields such as title / draftText / messageCount are never touched, so the read-only backfill cannot overwrite local state;
+    /// - Not present locally → insert the whole row (this fixes cross-device conversations that had no entry point on this device);
+    ///
+    /// - Returns: the number of newly inserted conversations
+    @discardableResult
+    nonisolated func backfillRemoteConversationMetadata(_ conversations: [Conversation]) throws -> Int {
+        guard !conversations.isEmpty else { return 0 }
+
+        var insertedCount = 0
+        try write(label: .syncBatch) { db in
+            for conversation in conversations {
+                let idString = conversation.id.uuidString
+
+                let exists = try Bool.fetchOne(
+                    db,
+                    sql: "SELECT EXISTS(SELECT 1 FROM conversation WHERE id = ?)",
+                    arguments: [idString]
+                ) ?? false
+
+                if exists {
+                    try db.execute(
+                        sql: "UPDATE conversation SET remoteMessageCount = MAX(remoteMessageCount, ?) WHERE id = ?",
+                        arguments: [conversation.messageCountOverride ?? 0, idString]
+                    )
+                } else {
+                    // The backfill carries no body: local messageCount must be 0; the cloud count goes only into remoteMessageCount.
+                    let cols = ConversationColumnValues(from: conversation, localRowCount: 0)
+                    try db.execute(
+                        sql: Self.conversationUpsertSQL,
+                        arguments: StatementArguments(cols.arguments)
+                    )
+                    insertedCount += 1
+                }
+            }
+        }
+        return insertedCount
+    }
+
+    /// Async search: the GRDB async read runs on the reader queue and does not block the caller's thread (main-thread safe).
     nonisolated func search(query: String) async throws -> [ConversationSummary] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -1572,6 +1653,9 @@ final class ConversationStore: @unchecked Sendable {
         let instructions: String
         let contextCap: String?
         let nonUsdCostTotals: String?
+        /// v46: JSON arrays; `skillId` above is dual-written as the first entry.
+        let skillIds: String?
+        let disabledAutoSkillIds: String?
 
         nonisolated init(from summary: ConversationSummary) {
             id = summary.id.uuidString
@@ -1590,7 +1674,10 @@ final class ConversationStore: @unchecked Sendable {
             updatedAt = summary.updatedAt.timeIntervalSince1970
             folderID = summary.folderID?.uuidString
             useMemory = summary.useMemory
-            skillId = summary.skillId?.uuidString
+            let resolvedSkillIds = summary.resolvedSkillIds
+            skillId = resolvedSkillIds.first
+            skillIds = RecordMappers.encodeStringArray(resolvedSkillIds)
+            disabledAutoSkillIds = RecordMappers.encodeStringArray(summary.disabledAutoSkillIds)
             metadataUpdatedAt = summary.metadataUpdatedAt?.timeIntervalSince1970
             messagesHydratedAt = summary.messagesHydratedAt?.timeIntervalSince1970
             messagesStale = summary.messagesStale
@@ -1628,7 +1715,9 @@ final class ConversationStore: @unchecked Sendable {
             updatedAt = conversation.updatedAt.timeIntervalSince1970
             folderID = conversation.folderID?.uuidString
             useMemory = conversation.useMemory
-            skillId = conversation.skillId?.uuidString
+            skillId = conversation.skillIds.first
+            skillIds = RecordMappers.encodeStringArray(conversation.skillIds)
+            disabledAutoSkillIds = RecordMappers.encodeStringArray(conversation.disabledAutoSkillIds)
             metadataUpdatedAt = conversation.metadataUpdatedAt?.timeIntervalSince1970
             self.messagesHydratedAt = messagesHydratedAt
             self.messagesStale = messagesStale
@@ -1647,7 +1736,7 @@ final class ConversationStore: @unchecked Sendable {
              estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
              useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
              deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap,
-             nonUsdCostTotals]
+             nonUsdCostTotals, skillIds, disabledAutoSkillIds]
         }
     }
 
@@ -1658,8 +1747,8 @@ final class ConversationStore: @unchecked Sendable {
             estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
             useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
             deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap,
-            nonUsdCostTotals
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            nonUsdCostTotals, skillIds, disabledAutoSkillIds
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             title = excluded.title,
             hasCustomTitle = excluded.hasCustomTitle,
@@ -1699,8 +1788,8 @@ final class ConversationStore: @unchecked Sendable {
             estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
             useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
             deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds, instructions, contextCap,
-            nonUsdCostTotals
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            nonUsdCostTotals, skillIds, disabledAutoSkillIds
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(id) DO UPDATE SET
             title = excluded.title,
             hasCustomTitle = excluded.hasCustomTitle,
@@ -1918,6 +2007,11 @@ final class ConversationStore: @unchecked Sendable {
                         OR message.recoveryPrimaryAction IS NOT excluded.recoveryPrimaryAction
                         OR message.stopReason IS NOT excluded.stopReason
                         OR message.memoryItemIds IS NOT excluded.memoryItemIds
+                        OR message.attachedSkillIds IS NOT excluded.attachedSkillIds
+                        OR message.usedSkills IS NOT excluded.usedSkills
+                        OR excluded.remoteConfirmedAt > COALESCE(message.remoteConfirmedAt, 0)
+                        OR (excluded.skillManifestTokens IS NOT NULL
+                            AND message.skillManifestTokens IS NOT excluded.skillManifestTokens)
                     """,
                 arguments: [
                     message.id.uuidString,
@@ -1956,7 +2050,11 @@ final class ConversationStore: @unchecked Sendable {
                     message.toolFallbackNotice,
                     message.recoveryPrimaryAction,
                     RecordMappers.encodeStopReason(message.stopReason),
-                    RecordMappers.encodeMemoryItemIds(message.memoryItemIds)
+                    RecordMappers.encodeMemoryItemIds(message.memoryItemIds),
+                    message.remoteConfirmedAt,
+                    message.role == .user ? RecordMappers.encodeStringArray(message.attachedSkillIds) : nil,
+                    message.role == .assistant ? RecordMappers.encodeUsedSkills(message.usedSkills) : nil,
+                    message.skillManifestTokens
                 ]
             )
 
@@ -2176,6 +2274,11 @@ final class ConversationStore: @unchecked Sendable {
                         OR message.recoveryPrimaryAction IS NOT excluded.recoveryPrimaryAction
                         OR message.stopReason IS NOT excluded.stopReason
                         OR message.memoryItemIds IS NOT excluded.memoryItemIds
+                        OR message.attachedSkillIds IS NOT excluded.attachedSkillIds
+                        OR message.usedSkills IS NOT excluded.usedSkills
+                        OR excluded.remoteConfirmedAt > COALESCE(message.remoteConfirmedAt, 0)
+                        OR (excluded.skillManifestTokens IS NOT NULL
+                            AND message.skillManifestTokens IS NOT excluded.skillManifestTokens)
                     """,
                 arguments: [
                     message.id.uuidString,
@@ -2214,7 +2317,11 @@ final class ConversationStore: @unchecked Sendable {
                     message.toolFallbackNotice,
                     message.recoveryPrimaryAction,
                     RecordMappers.encodeStopReason(message.stopReason),
-                    RecordMappers.encodeMemoryItemIds(message.memoryItemIds)
+                    RecordMappers.encodeMemoryItemIds(message.memoryItemIds),
+                    message.remoteConfirmedAt,
+                    message.role == .user ? RecordMappers.encodeStringArray(message.attachedSkillIds) : nil,
+                    message.role == .assistant ? RecordMappers.encodeUsedSkills(message.usedSkills) : nil,
+                    message.skillManifestTokens
                 ]
             )
 

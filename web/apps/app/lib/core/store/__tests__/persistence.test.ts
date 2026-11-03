@@ -191,6 +191,13 @@ describe('persistence.ts', () => {
       expect(store.getState().conversations).toHaveLength(0);
     });
 
+    it('hydrate_withoutStoredPreferences_defaultsSendShortcutToEnter', async () => {
+      const store = createAppStore();
+      await hydrateStore(store);
+
+      expect(store.getState().preferences.sendShortcut).toBe('enter');
+    });
+
     describe('language follows the NEXT_LOCALE cookie', () => {
       const clearLocaleCookie = () => {
         document.cookie = 'NEXT_LOCALE=;path=/;max-age=0';

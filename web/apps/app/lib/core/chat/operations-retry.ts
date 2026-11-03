@@ -195,6 +195,8 @@ function clearReusableAssistantState(message: ChatMessage): ChatMessage {
   delete clean.cacheCreationInputTokens;
   delete clean.cacheCreation5mTokens;
   delete clean.cacheCreation1hTokens;
+  // Skill list overhead belongs to the failed turn; the retry records its own.
+  delete clean.skillManifestTokens;
   delete clean.costSource;
   delete clean.capabilityRecovery;
   return clean;

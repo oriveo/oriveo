@@ -27,6 +27,8 @@ interface NavItem {
   label: string;
   href: string;
   icon?: ReactNode;
+  /** Optional trailing count badge (e.g. number of user skills); omitted = no badge. */
+  count?: number;
 }
 
 /**
@@ -52,6 +54,8 @@ interface AppShellProps {
   onNewChat?: () => void;
   /** Secondary entry below "New chat", such as Notes. Rendered through LinkComponent so it gets prefetch and the active state. */
   notesEntry?: NavItem;
+  /** Secondary entry rendered right below notesEntry (Skills), same styling. */
+  skillsEntry?: NavItem;
   /** Controlled sidebar state. Falls back to internal state if omitted. */
   sidebarOpen?: boolean;
   /** Mobile/tablet drawer state. Defaults to sidebarOpen for backward compatibility. */
@@ -100,6 +104,7 @@ export function AppShell({
   conversationList,
   onNewChat,
   notesEntry,
+  skillsEntry,
   sidebarOpen: controlledOpen,
   overlaySidebarOpen,
   mobileHomeMode,
@@ -228,6 +233,9 @@ export function AppShell({
   const renderNavItem = (item: NavItem, className: string, activeClassName?: string) => {
     const isActive = activePath === item.href;
     const itemClassName = `${className} ${isActive && activeClassName ? activeClassName : ''}`;
+    const countBadge = item.count === undefined
+      ? null
+      : <span className={styles.navItemCount} data-nav-count="">{item.count}</span>;
 
     if (LinkComponent) {
       return (
@@ -244,6 +252,7 @@ export function AppShell({
         >
           {item.icon}
           <span>{item.label}</span>
+          {countBadge}
         </LinkComponent>
       );
     }
@@ -260,6 +269,7 @@ export function AppShell({
         >
           {item.icon}
           <span>{item.label}</span>
+          {countBadge}
         </button>
       );
     }
@@ -274,6 +284,7 @@ export function AppShell({
       >
         {item.icon}
         <span>{item.label}</span>
+        {countBadge}
       </a>
     );
   };
@@ -326,6 +337,7 @@ export function AppShell({
             {newChatLabel ?? 'New Chat'}
           </button>
           {notesEntry && renderNavItem(notesEntry, styles.notesEntryBtn, styles.notesEntryBtnActive)}
+          {skillsEntry && renderNavItem(skillsEntry, styles.notesEntryBtn, styles.notesEntryBtnActive)}
         </div>
 
         {/* Conversation list */}

@@ -2,6 +2,7 @@ package ai.oriveo.community.core.data.attachment
 
 import android.content.Context
 import ai.oriveo.community.core.data.dao.MessageDao
+import ai.oriveo.community.core.data.dao.StudioWorkDao
 import ai.oriveo.community.core.data.entity.AttachmentsJsonPageRow
 import ai.oriveo.community.core.data.entity.OversizedAttachmentsJsonRow
 import ai.oriveo.community.core.model.Attachment
@@ -12,9 +13,16 @@ import io.mockk.confirmVerified
 import io.mockk.every
 import io.mockk.mockk
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -37,6 +45,7 @@ class AttachmentOrphanSweeperTest {
     private lateinit var filesDir: File
     private lateinit var store: AttachmentStore
     private val messageDao = mockk<MessageDao>()
+    private val studioWorkDao = mockk<StudioWorkDao>()
 
     @Before
     fun setUp() {
@@ -45,10 +54,12 @@ class AttachmentOrphanSweeperTest {
         store = AttachmentStore(context)
         coEvery { messageDao.findOversizedAttachmentsJsonRows(any()) } returns emptyList()
         coEvery { messageDao.readAttachmentsJsonPageAllAccounts(any(), any(), any()) } returns emptyList()
+        coEvery { studioWorkDao.referencedAssetIds() } returns emptyList()
     }
 
     private fun sweeper(launchAt: Long = LAUNCH) = AttachmentOrphanSweeper(
         messageDao = messageDao,
+        studioWorkDao = studioWorkDao,
         attachmentStore = store,
         launchTimeMillis = { launchAt },
     )
@@ -93,6 +104,7 @@ class AttachmentOrphanSweeperTest {
         val lines = mutableListOf<String>()
         val sweeper = AttachmentOrphanSweeper(
             messageDao = messageDao,
+            studioWorkDao = studioWorkDao,
             attachmentStore = store,
             launchTimeMillis = { LAUNCH },
             log = { lines += it },
@@ -219,8 +231,8 @@ class AttachmentOrphanSweeperTest {
 
     @Test
     fun orphanSweep_noDbOrCloudWrites() = runTest {
-        // The sweep depends only on MessageDao (reads) and AttachmentStore (files), and has nothing else to call;
-        // apart from the two read queries there is no call on MessageDao at all.
+        // The sweeper depends only on MessageDao / StudioWorkDao (reads) and AttachmentStore (files): no sync
+        // or cloud dependency to call, and no calls on either DAO beyond the read queries.
         saveImage("img-orphan")
         saveImage("img-live")
         referencedBy(attachmentsJson(image(id = "att-live", localImageId = "img-live")))
@@ -230,7 +242,8 @@ class AttachmentOrphanSweeperTest {
 
         coVerify(exactly = 2) { messageDao.readAttachmentsJsonPageAllAccounts(Long.MIN_VALUE, any(), any()) }
         coVerify(exactly = 2) { messageDao.findOversizedAttachmentsJsonRows(any()) }
-        confirmVerified(messageDao)
+        coVerify(exactly = 2) { studioWorkDao.referencedAssetIds() }
+        confirmVerified(messageDao, studioWorkDao)
         assertTrue(imageGone("img-orphan"))
         assertTrue(imageKept("img-live"))
     }
@@ -374,7 +387,75 @@ class AttachmentOrphanSweeperTest {
         assertTrue(imageGone("img-old-orphan"))
     }
 
+    // Shared fixture studio_data_model.v1.json orphanSweep.case: studio versions (incl. candidates) and round refs
+    // are references; one studio id is written in lowercase to prove normalization still protects it.
+    @Test
+    fun orphanSweep_keepsStudioAssets() = runTest {
+        val case = studioOrphanCase()
+        val onDisk = case.strings("onDisk")
+        val expectOrphans = case.strings("expectOrphans")
+        val studioRefs = case.strings("studioRefs")
+        val versions = case.strings("studioVersions")
+        val lowercased = versions.last()
+        assertFalse("lowercased id must be protected only by its version row", lowercased in studioRefs)
+        onDisk.forEach { saveImage(it) }
+        referencedBy(attachmentsJson(*case.strings("chatAssets").map { image(id = it) }.toTypedArray()))
+        coEvery { studioWorkDao.referencedAssetIds() } returns versions.dropLast(1) + lowercased.lowercase() + studioRefs
+
+        val deleted = sweeper().sweepOnLaunch()
+
+        assertEquals(expectOrphans.size, deleted)
+        onDisk.forEach { key ->
+            if (key in expectOrphans) {
+                assertTrue("orphan $key deleted", imageGone(key))
+            } else {
+                assertTrue("referenced $key kept", imageKept(key))
+            }
+        }
+    }
+
+    @Test
+    fun attachmentPurge_keepsStudioAsset() = runTest {
+        // Account-deletion purge: a candidate still referenced by a studio work stays on disk.
+        saveImage(STUDIO_ASSET)
+        saveImage("img-gone")
+        coEvery { studioWorkDao.referencedAssetIds() } returns listOf(STUDIO_ASSET.lowercase())
+
+        val deleted = sweeper().purgeUnreferencedAttachments(listOf(STUDIO_ASSET, "img-gone"))
+
+        assertEquals(1, deleted)
+        assertTrue(imageKept(STUDIO_ASSET))
+        assertTrue(imageGone("img-gone"))
+    }
+
+    @Test
+    fun orphanSweep_studioReferenceReadFails_deletesNothing() = runTest {
+        // Studio reference read failure aborts the round like a message read failure.
+        saveImage("img-orphan")
+        coEvery { studioWorkDao.referencedAssetIds() } throws IllegalStateException("db")
+
+        assertEquals(0, sweeper().sweepOnLaunch())
+        assertEquals(0, sweeper().purgeUnreferencedAttachments(listOf("img-orphan")))
+
+        assertTrue(imageKept("img-orphan"))
+    }
+
+    private val contracts: Path by lazy {
+        generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
+            .take(8)
+            .map { it.resolve("\u5171\u4eab/studio-contracts") }
+            .firstOrNull { Files.exists(it.resolve("studio_data_model.v1.json")) }
+            ?: error("studio_data_model.v1.json not found")
+    }
+
+    private fun studioOrphanCase(): JsonObject =
+        Json.parseToJsonElement(contracts.resolve("studio_data_model.v1.json").toFile().readText())
+            .jsonObject.getValue("orphanSweep").jsonObject.getValue("case").jsonObject
+
+    private fun JsonObject.strings(key: String): List<String> = getValue(key).jsonArray.map { it.jsonPrimitive.content }
+
     private companion object {
+        const val STUDIO_ASSET = "D0000005-0000-4000-8000-000000000005"
         const val LAUNCH = 1_800_000_000_000L
         const val OLD = LAUNCH - 48L * 60 * 60 * 1000
     }

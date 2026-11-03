@@ -1,15 +1,16 @@
 import Foundation
 
-/// Dictation and voice conversation share one AVAudioSession: whoever claims last owns it, with a generation counter.
-/// Only the current lease's release returns true, and the holder deactivates the session only then; releasing a stale lease
-/// that was displaced by a later claim is a no-op, so a late dictation stop cannot cut the mic of a conversation that just started.
-/// Dictation waits for the conversation lease to be released before starting capture, so the conversation's teardown deactivation cannot stop dictation.
+/// Dictation, voice conversation and read-aloud (including audition) share one AVAudioSession: whoever claims last owns it, with a generation counter.
+/// Only the current lease's release returns true, and the holder deactivates the session only then; releasing a stale lease displaced by a later claim is a no-op,
+/// so a late dictation stop cannot cut the mic of a conversation that just started. Dictation waits for the conversation lease to be released before opening capture, so the conversation's teardown deactivation cannot stop dictation.
 nonisolated final class VoiceAudioSessionOwner: @unchecked Sendable {
     static let shared = VoiceAudioSessionOwner()
 
     enum Client: Sendable, Equatable {
         case dictation
         case conversation
+        /// Shared with read-aloud and audition.
+        case readAloud
     }
 
     struct Lease: Sendable, Equatable {
@@ -59,7 +60,7 @@ nonisolated final class VoiceAudioSessionOwner: @unchecked Sendable {
         return true
     }
 
-    /// Suspends while the current holder is a conversation, until its lease is released (or displaced by another client); returns immediately when the task is cancelled.
+    /// Suspends while the current holder is a conversation, until its lease is released (or displaced by another client such as dictation or read-aloud); returns immediately when the task is cancelled.
     func waitForConversationRelease() async {
         let id = UUID()
         await withTaskCancellationHandler {

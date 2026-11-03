@@ -5,10 +5,9 @@ import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-life
 import { safeLocalStorage } from './web-storage';
 
 const MIGRATED_KEY = 'oriveo.storage.partitioned';
-// Has to match idb.ts:DB_VERSION: the one-time migration from the unpartitioned database must
-// create the current schema version directly, or openPartitionDB later triggers a v2 to v3
-// upgrade against stores that already exist, wasting an upgrade cycle.
-export const PARTITION_DB_VERSION = 14;
+// Must match idb.ts:DB_VERSION: the one-time legacy-to-partition migration creates the DB directly at the current schema version,
+// otherwise a later openPartitionDB would trigger a v2→v3 upgrade while the stores already exist, wasting an upgrade pass.
+export const PARTITION_DB_VERSION = 16;
 
 /**
  * Migrates data from the old IDB layout into the partitioned one, once, on first launch.
@@ -207,6 +206,29 @@ async function openPartitionDB(uid: string): Promise<IDBPDatabase> {
       }
       if (!db.objectStoreNames.contains('memoryCandidates')) {
         db.createObjectStore('memoryCandidates', { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains('remoteDeletionJournal')) {
+        db.createObjectStore('remoteDeletionJournal', { keyPath: 'key' });
+      }
+      // v16: Image Studio stores (studio_data_model.v1), same keys and indexes as idb.ts.
+      if (!db.objectStoreNames.contains('studio_works')) {
+        const works = db.createObjectStore('studio_works', { keyPath: 'id' });
+        works.createIndex('by-updated', 'updatedAt');
+      }
+      if (!db.objectStoreNames.contains('studio_rounds')) {
+        const rounds = db.createObjectStore('studio_rounds', { keyPath: 'id' });
+        rounds.createIndex('by-work', 'workId');
+      }
+      if (!db.objectStoreNames.contains('studio_versions')) {
+        const versions = db.createObjectStore('studio_versions', { keyPath: 'id' });
+        versions.createIndex('by-work', 'workId');
+        versions.createIndex('by-round', 'roundId');
+        versions.createIndex('by-asset', 'assetId');
+      }
+      if (!db.objectStoreNames.contains('studio_round_refs')) {
+        const refs = db.createObjectStore('studio_round_refs', { keyPath: ['roundId', 'order'] });
+        refs.createIndex('by-round', 'roundId');
+        refs.createIndex('by-asset', 'assetId');
       }
     },
   }));

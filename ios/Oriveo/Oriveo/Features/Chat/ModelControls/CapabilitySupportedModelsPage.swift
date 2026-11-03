@@ -72,7 +72,7 @@ struct CapabilitySupportedModelsPage: View {
 
                 Text(L10n.tr("Switch", table: .chat))
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
 
                 Image(systemName: "chevron.forward")
                     .font(.system(size: 11, weight: .semibold))

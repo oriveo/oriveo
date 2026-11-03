@@ -5,11 +5,10 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Locks the dictation wiring of the chat composer: the input row is wrapped in [DictationInputSwitcher],
- * the text shell carries [DictationMicButton], and the selection goes through selectionProbe into
- * rememberComposerLengthLimitedField. This is a source scan because EnhancedComposer is too large to compose
- * as a whole in a unit test. ChatComposerHost attaches the conversation-slot host (HOME_DRAFT_KEY when there is
- * no conversation), the status card sits above the input, and the handle and probe are passed into EnhancedComposer.
+ * Locks the dictation wiring of the chat input box: the input row is wrapped in [DictationInputSwitcher], the text shell carries [DictationMicButton],
+ * and the selection goes through selectionProbe into rememberComposerLengthLimitedField. Source scan: EnhancedComposer is too large to compose
+ * as a whole in a unit test. ChatComposerHost attaches the slot-conversation host (HOME_DRAFT_KEY when there is no conversation), the status card sits above the input box,
+ * and the handle and probe are passed into EnhancedComposer.
  */
 class ChatComposerDictationWiringTest {
     private val source: String by lazy {
@@ -22,7 +21,34 @@ class ChatComposerDictationWiringTest {
 
     @Test
     fun `input row is wrapped by the dictation switcher`() {
-        assertTrue("The input row is not wrapped in DictationInputSwitcher, so the recording bar would never swap in", source.contains("DictationInputSwitcher("))
+        val switcherAt = source.indexOf("DictationInputSwitcher(")
+        assertTrue("The input row is not wrapped in DictationInputSwitcher, so the recording bar would never swap in", switcherAt >= 0)
+        // Same as iOS DictationInputRow: the border wraps only the input row (inside the input slot), the recording bar sits one row below the border, 8dp spacing.
+        val borderAt = source.indexOf(".border(OriveoBorderWidth.standard, composerShellBorder, composerShape)")
+        assertTrue("The bordered input shell must be inside the input slot of DictationInputSwitcher", borderAt > switcherAt)
+        val call = source.substring(switcherAt, borderAt)
+        assertTrue("Recording bar to input box spacing must be 8dp", call.contains("spacing = 8.dp"))
+        assertTrue("The border must be inside the input slot", call.contains("input = {"))
+    }
+
+    /**
+     * Card aB1: EnhancedComposer has 86 parameters and the dex register count exceeds 256; the D8 9.4.24 bundled with AGP 9.4.1 compiled the null check of
+     * `pendingQuoteContext?.sourceMessageId` onto a different register, so the getter is still called when the reference is null and throws an NPE (the chat page crashes on open).
+     * The JVM bytecode itself is correct and Robolectric runs JVM bytecode, so this cannot be reproduced there; it only reproduces on a device (verified on emulator-5554).
+     * The workaround is locked here: the quote focus effect lives in its own small function and does not return into the EnhancedComposer function body.
+     */
+    @Test
+    fun `quote focus effect stays out of the oversized composer body`() {
+        val bodyStart = source.indexOf("internal fun EnhancedComposer(")
+        val bodyEnd = source.indexOf("\n@Composable\nprivate fun ", bodyStart)
+        assertTrue("Cannot find the EnhancedComposer function body", bodyStart >= 0 && bodyEnd > bodyStart)
+        val body = source.substring(bodyStart, bodyEnd)
+        assertTrue("The quote focus effect must go through ComposerQuoteFocusEffect", body.contains("ComposerQuoteFocusEffect("))
+        assertTrue(
+            "EnhancedComposer's function body must not use pendingQuoteContext directly as a LaunchedEffect key (D8 null check on the wrong register)",
+            !body.contains("LaunchedEffect(pendingQuoteContext"),
+        )
+        assertTrue("ComposerQuoteFocusEffect must be its own function", source.contains("private fun ComposerQuoteFocusEffect("))
     }
 
     @Test

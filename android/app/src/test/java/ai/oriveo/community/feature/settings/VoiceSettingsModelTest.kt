@@ -25,12 +25,14 @@ import ai.oriveo.community.core.voice.VoiceSpeedRange
 import ai.oriveo.community.core.voice.VoiceSttEntry
 import ai.oriveo.community.core.voice.VoiceTransport
 import ai.oriveo.community.core.voice.VoiceTtsEntry
+import ai.oriveo.community.core.voice.realtime.HomeRealtimeSelectionStore
 import ai.oriveo.community.testing.TestSharedPreferences
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import java.util.Locale
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -127,8 +129,10 @@ class VoiceSettingsModelTest {
         coEvery { refresh() } returns VoiceCatalogState.Available(catalog)
     }
 
+    private val realtimeStore = HomeRealtimeSelectionStore()
+
     private fun newModel(client: VoiceCatalogClient = catalogClient) =
-        VoiceSettingsViewModel(settings, client, probe, providerRepository)
+        VoiceSettingsViewModel(settings, client, probe, providerRepository, realtimeStore)
 
     private fun cloud(direction: VoiceDirection, model: String, voice: String? = null, connectionId: String = openAI.id) =
         VoiceEngineSelection.Cloud(ProviderKind.OpenAI, connectionId, model, voice).also {
@@ -225,43 +229,17 @@ class VoiceSettingsModelTest {
     }
 
     @Test
-    fun `realtime row follows model then shows provider and model`() = runTest(dispatcher) {
-        val model = newModel()
-        advanceUntilIdle()
-
-        val conversation = model.uiState.value.conversation
-        assertEquals(UiText.Resource(R.string.voice_realtime_follow_model), conversation.engineSubtitle)
-        assertNull(conversation.fallbackNotice)
-        assertEquals(UiText.Resource(R.string.voice_realtime_group_footer), conversation.footer)
-        val systemInput = model.engineSheetInput(VoiceDirection.Realtime)
-        assertEquals(UiText.Resource(R.string.voice_realtime_follow_model), systemInput.model.systemTitle)
-        assertEquals(UiText.Resource(R.string.voice_realtime_follow_model_subtitle), systemInput.model.systemSubtitle)
-        assertEquals(VoiceEngineOption.System, systemInput.model.rows.single { it.isChecked }.option)
-
-        cloud(VoiceDirection.Realtime, "gpt-realtime", voice = "marin")
-        model.onEngineSheetDismissed(VoiceDirection.Realtime)
-        assertEquals(
-            UiText.Dynamic("${ProviderKind.OpenAI.displayName} · gpt-realtime"),
-            model.uiState.value.conversation.engineSubtitle,
-        )
-        val checked = model.engineSheetInput(VoiceDirection.Realtime).model.rows
-            .single { it.isChecked }.option as VoiceEngineOption.Cloud
-        assertEquals("gpt-realtime", checked.model)
-        // The system row copy of the other directions is unchanged.
-        assertEquals(UiText.Resource(R.string.voice_engine_system), model.engineSheetInput(VoiceDirection.Stt).model.systemTitle)
-    }
-
-    @Test
-    fun `realtime fallback shows realtime settings notice`() = runTest(dispatcher) {
+    fun `settings page has no conversation group and leaves legacy realtime keys`() = runTest(dispatcher) {
         cloud(VoiceDirection.Realtime, "gpt-realtime", connectionId = "gone")
         val model = newModel()
         advanceUntilIdle()
 
-        assertEquals(VoiceEngineSelection.System, settings.selection(VoiceDirection.Realtime))
-        val conversation = model.uiState.value.conversation
-        assertEquals(UiText.Resource(R.string.voice_realtime_engine_fallback_settings), conversation.fallbackNotice)
-        assertEquals(UiText.Resource(R.string.voice_realtime_follow_model), conversation.engineSubtitle)
+        // The settings page no longer resolves a conversation engine: legacy keys are left as-is for migration to read, and dictation / read aloud show no fallback notice.
+        val legacy = settings.legacyRealtimeChoice() as VoiceEngineSelection.Cloud
+        assertEquals("gone", legacy.connectionId)
+        assertEquals("gpt-realtime", legacy.model)
         assertNull(model.uiState.value.dictation.fallbackNotice)
+        assertNull(model.uiState.value.readAloud.fallbackNotice)
     }
 
     @Test
@@ -451,5 +429,163 @@ class VoiceSettingsModelTest {
             connectionOrder,
         )
         assertFalse(openAINoKey.id in connectionOrder)
+    }
+
+    @Test
+    fun realtimeGroup_lists_official_rows() = runTest(dispatcher) {
+        // All official apiKey connections are listed (two of the same provider both appear); Relay is not listed. The subtitle carries the connection name, with isDefault first.
+        val work = openAI.copy(id = "conn-openai-work", customName = "Work")
+        val relay = Provider(id = "conn-relay", kind = ProviderKind.Relay, apiKey = "rk", baseUrlText = "https://relay.example.com/v1")
+        val repository = mockk<ProviderRepository> {
+            every { observeAll() } returns MutableStateFlow(listOf(openAI, relay, work))
+        }
+        val mini = realtimeEntry.copy(model = "gpt-realtime-mini", isDefault = false)
+        val realtimeCatalog = catalog.copy(
+            providers = mapOf(ProviderKind.OpenAI to VoiceProviderCatalog(realtime = listOf(mini, realtimeEntry))),
+        )
+        val state = MutableStateFlow<VoiceCatalogState?>(VoiceCatalogState.Available(realtimeCatalog))
+        val model = VoiceSettingsViewModel(settings, client(state), probe, repository, realtimeStore)
+        advanceUntilIdle()
+
+        val section = model.uiState.value.realtime as RealtimeSectionState.Rows
+        assertEquals(
+            listOf(
+                openAI.id to "gpt-realtime",
+                openAI.id to "gpt-realtime-mini",
+                work.id to "gpt-realtime",
+                work.id to "gpt-realtime-mini",
+            ),
+            section.rows.map { it.providerId to it.entry.model },
+        )
+        assertEquals(listOf(openAI.displayName, openAI.displayName, "Work", "Work"), section.rows.map { it.connectionName })
+        assertTrue(section.rows.none { it.checked })
+    }
+
+    @Test
+    fun realtimeGroup_empty_offers_add_provider() = runTest(dispatcher) {
+        // A catalog with no realtime model, or a server with no voice catalog (Unavailable / 404), shows the empty state, not a failure.
+        val noRealtime = catalog.copy(
+            providers = mapOf(ProviderKind.OpenAI to VoiceProviderCatalog(stt = listOf(sttEntry))),
+        )
+        val state = MutableStateFlow<VoiceCatalogState?>(VoiceCatalogState.Available(noRealtime))
+        val model = newModel(client(state))
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Empty, model.uiState.value.realtime)
+
+        state.value = VoiceCatalogState.Unavailable
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Empty, model.uiState.value.realtime)
+        // The empty-state copy goes in the group footer (same as iOS); the group keeps only the "Add provider" row
+        assertEquals(UiText.Resource(R.string.voice_realtime_settings_empty), model.uiState.value.realtimeFooter)
+    }
+
+    @Test
+    fun empty_state_footer_is_empty_text() = runTest(dispatcher) {
+        val state = MutableStateFlow<VoiceCatalogState?>(VoiceCatalogState.Unavailable)
+        val model = newModel(client(state))
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Empty, model.uiState.value.realtime)
+        assertEquals(UiText.Resource(R.string.voice_realtime_settings_empty), model.uiState.value.realtimeFooter)
+    }
+
+    @Test
+    fun footer_only_with_rows() = runTest(dispatcher) {
+        // The regular footer appears only when there are rows; loading and failure show no footer
+        val state = MutableStateFlow<VoiceCatalogState?>(null)
+        val model = newModel(client(state))
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Loading, model.uiState.value.realtime)
+        assertNull(model.uiState.value.realtimeFooter)
+
+        state.value = VoiceCatalogState.LoadFailed
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Failed, model.uiState.value.realtime)
+        assertNull(model.uiState.value.realtimeFooter)
+
+        state.value = VoiceCatalogState.Available(catalog)
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.realtime is RealtimeSectionState.Rows)
+        assertEquals(UiText.Resource(R.string.voice_realtime_settings_footer), model.uiState.value.realtimeFooter)
+    }
+
+    @Test
+    fun retry_shows_loading_before_refresh() = runTest(dispatcher) {
+        val state = MutableStateFlow<VoiceCatalogState?>(VoiceCatalogState.LoadFailed)
+        val gate = CompletableDeferred<Unit>()
+        val client = client(state)
+        coEvery { client.refresh() } coAnswers {
+            gate.await()
+            VoiceCatalogState.Available(catalog).also { state.value = it }
+        }
+        val model = newModel(client)
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Failed, model.uiState.value.realtime)
+
+        // Tapping "Retry" first returns to the loading state (spinner), which keeps spinning until the fetch comes back
+        model.retryRealtimeCatalog()
+        assertEquals(RealtimeSectionState.Loading, model.uiState.value.realtime)
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Loading, model.uiState.value.realtime)
+        coVerify(exactly = 1) { client.refresh() }
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(model.uiState.value.realtime is RealtimeSectionState.Rows)
+    }
+
+    @Test
+    fun retry_failing_again_returns_to_failed() = runTest(dispatcher) {
+        // Retry still fails: the catalog state is unchanged (the StateFlow does not emit again), and it must still go from loading back to failure
+        val state = MutableStateFlow<VoiceCatalogState?>(VoiceCatalogState.LoadFailed)
+        val client = client(state)
+        coEvery { client.refresh() } returns VoiceCatalogState.LoadFailed
+        val model = newModel(client)
+        advanceUntilIdle()
+
+        model.retryRealtimeCatalog()
+        assertEquals(RealtimeSectionState.Loading, model.uiState.value.realtime)
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Failed, model.uiState.value.realtime)
+    }
+
+    @Test
+    fun realtimeGroup_catalog_failed_offers_retry() = runTest(dispatcher) {
+        val state = MutableStateFlow<VoiceCatalogState?>(null)
+        val client = client(state)
+        val model = newModel(client)
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Loading, model.uiState.value.realtime)
+
+        state.value = VoiceCatalogState.LoadFailed
+        advanceUntilIdle()
+        assertEquals(RealtimeSectionState.Failed, model.uiState.value.realtime)
+
+        model.retryRealtimeCatalog()
+        advanceUntilIdle()
+        coVerify(exactly = 1) { client.refresh() }
+    }
+
+    @Test
+    fun realtimeRow_checked_equals_home_selection() = runTest(dispatcher) {
+        val model = newModel()
+        advanceUntilIdle()
+        val row = (model.uiState.value.realtime as RealtimeSectionState.Rows).rows.single()
+        assertFalse(row.checked)
+
+        // First tap on a row: pass the cloud notice first; without consent nothing is written to the store
+        val pending = model.onRealtimeRow(row)
+        assertNotNull(pending)
+        assertNull(realtimeStore.selection.value)
+        model.acceptRealtimeDisclosure(pending!!)
+        advanceUntilIdle()
+        assertEquals(openAI.id to "gpt-realtime", realtimeStore.selection.value)
+        assertTrue((model.uiState.value.realtime as RealtimeSectionState.Rows).rows.single().checked)
+
+        // Already agreed: write directly; when the selection is cleared elsewhere, the check mark disappears with it
+        realtimeStore.clear()
+        advanceUntilIdle()
+        assertFalse((model.uiState.value.realtime as RealtimeSectionState.Rows).rows.single().checked)
+        assertNull(model.onRealtimeRow(row))
+        assertEquals(openAI.id to "gpt-realtime", realtimeStore.selection.value)
     }
 }

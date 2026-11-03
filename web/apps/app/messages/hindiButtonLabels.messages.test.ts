@@ -13,6 +13,7 @@ const NOUNS_ENDING_IN_NA: Record<string, string> = {
   नमूना: 'sample (noun)',
   संरचना: 'composition (noun)',
   अपना: 'own (possessive pronoun; "अपना User-Agent" means a custom User-Agent)',
+  खाना: 'food (noun; the skill glyph label for Food)',
 };
 
 type Tree = Record<string, unknown>;

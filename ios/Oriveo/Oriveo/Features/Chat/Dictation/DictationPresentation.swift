@@ -20,6 +20,12 @@ nonisolated enum DictationCardAction: Sendable, Hashable, CaseIterable {
     case openSettings
     /// The host opens the connection details for engineInfo.providerID, or the provider list when there is no id
     case checkConnection
+    /// Host opens voice settings (the recognition language is changed there)
+    case changeLanguage
+    /// Host opens voice settings (the dictation engine is switched there)
+    case switchEngine
+    /// download(): installs the recognition language pack in the background
+    case download
 }
 
 @MainActor
@@ -34,6 +40,9 @@ extension DictationCardAction {
         case .notNow: return L10n.tr("Not Now", table: .voice)
         case .openSettings: return L10n.tr("Open Settings", table: .voice)
         case .checkConnection: return L10n.tr("Check Connection", table: .voice)
+        case .changeLanguage: return L10n.tr("Change Language", table: .voice)
+        case .switchEngine: return L10n.tr("Change Dictation Engine", table: .voice)
+        case .download: return L10n.tr("Download", table: .voice)
         }
     }
 }
@@ -48,8 +57,6 @@ nonisolated struct DictationCard: Sendable, Equatable {
 
 /// Activity carried by the busy input row.
 nonisolated enum DictationBusyActivity: Sendable, Equatable {
-    /// The on-device model for the system engine is downloading; progress is 0...1.
-    case preparing(progress: Double)
     /// Transcribing; cloud engines carry the connection display name, the system engine passes nil.
     case transcribing(engineName: String?)
 }
@@ -58,8 +65,6 @@ nonisolated enum DictationBusyActivity: Sendable, Equatable {
 extension DictationBusyActivity {
     var localizedCaption: String {
         switch self {
-        case .preparing:
-            return L10n.tr("Preparing speech recognition", table: .voice)
         case .transcribing(let engineName?):
             return L10n.format(L10n.tr("Transcribing · %@", table: .voice), engineName)
         case .transcribing(nil):
@@ -91,6 +96,10 @@ nonisolated enum DictationEventReaction: Sendable, Equatable {
     case insert(String)
     case insertAndSend(String)
     case toast(DictationToast)
+    /// Withdraws realtime text already written into the input field.
+    case restoreLive
+    /// The host does nothing.
+    case ignore
 }
 
 // MARK: - Presentation rules
@@ -99,10 +108,55 @@ nonisolated enum DictationEventReaction: Sendable, Equatable {
 enum DictationPresentation {
 
     /// Card mapping.
-    /// - Parameter savedDuration: duration of the slot recording in seconds; when nil the subtitle is "Recording saved".
-    static func card(for state: DictationState, savedDuration: TimeInterval?) -> DictationCard? {
+    /// - Parameter savedDuration: slot recording duration in seconds; when nil the subtitle is "Recording saved".
+    /// - Parameter recognitionLanguageName: display name of the current recognition language, used only for the "language not supported" card title and the "no text recognized" card body.
+    /// - Parameter languagePack: the controller's language-pack hint; when no other card applies (including recording and transcribing), the language-pack card is shown; no card while downloading.
+    static func card(
+        for state: DictationState, savedDuration: TimeInterval?, recognitionLanguageName: String,
+        languagePack: DictationLanguagePackPrompt? = nil
+    ) -> DictationCard? {
         switch state {
-        case .failed(.retry):
+        case .failed(.system(.network)):
+            return DictationCard(
+                title: L10n.tr("No network connection", table: .voice),
+                subtitle: L10n.tr("Connect to the internet, then retry. Your recording is saved.", table: .voice),
+                secondary: .discard,
+                primary: .retry
+            )
+        case .failed(.system(.busy)):
+            return DictationCard(
+                title: L10n.tr("Speech recognition is busy", table: .voice),
+                subtitle: L10n.tr(
+                    "The system speech recognition service is busy (already retried once). Your recording is saved, so you can retry later.",
+                    table: .voice
+                ),
+                secondary: .discard,
+                primary: .retry
+            )
+        case .failed(.system(.languageUnsupported)):
+            return DictationCard(
+                title: L10n.format(
+                    L10n.tr("Speech recognition on this device doesn’t support %1$@", table: .voice),
+                    recognitionLanguageName
+                ),
+                subtitle: L10n.tr(
+                    "Choose another recognition language or a different dictation engine. Your recording is saved.",
+                    table: .voice
+                ),
+                secondary: .discard,
+                primary: .changeLanguage
+            )
+        case .failed(.system(.noService)):
+            return DictationCard(
+                title: L10n.tr("No speech recognition service on this device", table: .voice),
+                subtitle: L10n.tr(
+                    "You can switch to the dictation engine of a provider you’ve connected. Your recording is saved.",
+                    table: .voice
+                ),
+                secondary: .discard,
+                primary: .switchEngine
+            )
+        case .failed(.retry), .failed(.system(.other)):
             return DictationCard(
                 title: L10n.tr("Transcription failed", table: .voice),
                 subtitle: L10n.tr("Recording saved", table: .voice),
@@ -119,9 +173,15 @@ enum DictationPresentation {
         case .failed(.noTranscript):
             return DictationCard(
                 title: L10n.tr("No text recognized", table: .voice),
-                subtitle: L10n.tr("Recording saved", table: .voice),
-                secondary: .discard,
-                primary: .retry
+                subtitle: L10n.format(
+                    L10n.tr(
+                        "The recognition language is %1$@. If you spoke another language, change it and try again. Your recording is saved.",
+                        table: .voice
+                    ),
+                    recognitionLanguageName
+                ),
+                secondary: .retry,
+                primary: .changeLanguage
             )
         case .interrupted:
             return DictationCard(
@@ -148,8 +208,17 @@ enum DictationPresentation {
                 secondary: .notNow,
                 primary: .openSettings
             )
-        case .idle, .preparing, .recording, .transcribing:
-            return nil
+        case .idle, .recording, .transcribing:
+            guard let languagePack, !languagePack.downloading else { return nil }
+            return DictationCard(
+                title: L10n.format(
+                    L10n.tr("Download the %1$@ speech pack for faster recognition that also works offline.", table: .voice),
+                    languagePack.displayName
+                ),
+                subtitle: "",
+                secondary: .notNow,
+                primary: .download
+            )
         }
     }
 
@@ -158,8 +227,6 @@ enum DictationPresentation {
         switch state {
         case .recording(let startedAt):
             return .recording(startedAt: startedAt)
-        case .preparing(let progress):
-            return .busy(.preparing(progress: progress))
         case .transcribing:
             return .busy(.transcribing(engineName: engineInfo?.displayName))
         case .idle, .denied, .slotOccupied, .interrupted, .failed:
@@ -178,6 +245,8 @@ enum DictationPresentation {
             return .toast(DictationToast(
                 message: L10n.tr("Didn't hear anything", table: .voice), undoTitle: nil, duration: nil
             ))
+        case .liveDiscarded:
+            return .restoreLive
         case .engineFallback:
             return .toast(DictationToast(
                 message: L10n.tr("The selected dictation engine is unavailable. Using system dictation.", table: .voice),
@@ -197,7 +266,19 @@ enum DictationPresentation {
         )
     }
 
-    /// Duration: rounded down to the second, m:ss; h:mm:ss from one hour up.
+    /// One-time hint after tapping Download on the language-pack card: downloading in the background; recognition uses the network meanwhile.
+    static func languagePackDownloadingToast(displayName: String) -> DictationToast {
+        DictationToast(
+            message: L10n.format(
+                L10n.tr("Downloading the %1$@ speech pack. Until it finishes, recognition uses the internet.", table: .voice),
+                displayName
+            ),
+            undoTitle: nil,
+            duration: nil
+        )
+    }
+
+    /// Duration: rounded down to whole seconds, m:ss; h:mm:ss for one hour or more.
     nonisolated static func formattedDuration(_ seconds: TimeInterval) -> String {
         let total = max(0, Int(seconds.rounded(.down)))
         let hours = total / 3600

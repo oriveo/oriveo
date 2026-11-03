@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/legal.svg (glyphs.v1.json glyph:legal, hue #475569); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M10.5 4.2a1.5 1.5 0 1 1 3 0a1.5 1.5 0 1 1-3 0ZM3.8 6.4h16.4a.9.9 0 0 1 0 1.8H3.8a.9.9 0 0 1 0-1.8ZM11.1 5h1.8v13.4h-1.8ZM7 18.2h10a1.6 1.6 0 0 1 0 3.2H7a1.6 1.6 0 0 1 0-3.2ZM5.5 7.6L9.2 14.2H1.8ZM5.5 9.6L3 13.4H8ZM1.6 14.2h7.8a3.9 3.9 0 0 1-7.8 0ZM18.5 7.6L22.2 14.2H14.8ZM18.5 9.6L16 13.4H21ZM14.6 14.2h7.8a3.9 3.9 0 0 1-7.8 0Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="1.6"
+                android:startY="2.7"
+                android:endX="22.4"
+                android:endY="21.4">
+                <item android:offset="0" android:color="#CBD5E1" />
+                <item android:offset="1" android:color="#475569" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

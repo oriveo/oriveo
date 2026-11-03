@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">Tüm Modelleriniz, Tek Uygulama</string>
-    <string name="provider_disclosure_ack_failed">Sağlayıcı bildirimi doğrulanamadı. Bağlantınızı kontrol edip tekrar deneyin.</string>
     <string name="tab_home">Ana Sayfa</string>
     <string name="tab_providers">Sağlayıcılar</string>
     <string name="tab_settings">Ayarlar</string>
@@ -21,7 +20,6 @@
     <string name="copy">Kopyala</string>
     <string name="copied">Kopyalandı</string>
     <string name="share">Paylaş</string>
-    <string name="legal_consent_notice">Devam ederek aşağıdaki yasal şartları kabul etmiş olursunuz.</string>
     <string name="get_started">Başlayın</string>
     <string name="api_key">API Anahtarı</string>
     <string name="validating">Doğrulanıyor…</string>
@@ -60,6 +58,7 @@
     <string name="new_chat">Yeni Sohbet</string>
     <string name="send">Gönder</string>
     <string name="stop">Durdur</string>
+    <string name="generation_parameter_name_stop">Durdurma dizileri</string>
     <string name="type_a_message">Bir mesaj yazın…</string>
     <string name="ai_is_answering">AI cevap veriyor…</string>
     <string name="regenerate">Yeniden oluştur</string>
@@ -101,6 +100,7 @@
     <string name="chat_model_removed_choose">Model seç</string>
     <string name="chat_model_retired_banner">%1$s kullanımdan kaldırıldı.</string>
     <string name="chat_model_retired_switch_to">%1$s modeline geç</string>
+    <string name="chat_last_used_model_retired_hint">Son kullandığınız model kullanımdan kaldırıldı. Artık %1$s kullanılıyor.</string>
     <string name="conversations">Konuşmalar</string>
     <string name="no_conversations">Henüz görüşme yok</string>
     <string name="search_conversation_titles_or_content">Konuşma başlıklarını veya içeriğini arayın</string>
@@ -150,6 +150,7 @@
     <string name="provider_detail_add_model_finish_setup">Kurulumu tamamlamak için model kimliğini ekleyin</string>
     <string name="provider_detail_add_model_manually">+ Model kimliğini manuel olarak ekleyin</string>
     <string name="provider_detail_available_models">%d mevcut modeller</string>
+    <string name="default_model_short">Varsayılan</string>
     <string name="provider_detail_relay_empty_description">Henüz model eklenmedi. Model kimliklerini eklemek için aşağıdaki düğmeyi kullanın.</string>
     <string name="provider_detail_badge_recent">Son</string>
     <string name="provider_detail_removed_model">%s kaldırıldı</string>
@@ -165,7 +166,6 @@
     <string name="theme_light">Açık</string>
     <string name="theme_dark">Koyu</string>
     <string name="theme_section_palettes">Paletler</string>
-    <string name="default_model_short">Varsayılan</string>
     <string name="theme_palette_purple">Mor</string>
     <string name="theme_palette_graphite">Grafit</string>
     <string name="theme_palette_black">Siyah</string>
@@ -202,8 +202,6 @@
     <string name="backup_and_export">Yedekleme ve Dışa Aktarma</string>
     <string name="privacy_policy">Gizlilik Politikası</string>
     <string name="terms_of_service">Hizmet Şartları</string>
-    <string name="settings_source_code">Kaynak Kodu</string>
-    <string name="settings_report_issue">Sorun Bildir</string>
     <string name="snackbar_provider_ready">Sağlayıcı hazır. Artık sohbete başlayabilirsiniz.</string>
     <string name="snackbar_model_added">%1$s eklendi</string>
     <string name="snackbar_model_enable_failed">Model etkinleştirilemedi. Lütfen tekrar deneyin.</string>
@@ -391,7 +389,7 @@
     <string name="share_failed">Resim paylaşılamadı</string>
     <string name="file">Dosya</string>
     <string name="file_unavailable">Yalnızca orijinal cihazda kullanılabilir</string>
-        <string name="error_generic_title">Bir şeyler ters gitti</string>
+    <string name="error_generic_title">Bir şeyler ters gitti</string>
     <string name="error_generic_message">Beklenmeyen bir hata oluştu.</string>
     <string name="hide_details">Ayrıntıları Gizle</string>
     <string name="manual_model_save_failed_title">Kaydetme Başarısız Oldu</string>
@@ -460,20 +458,18 @@
     <string name="skills_newSkill">Yeni Beceri</string>
     <string name="skills_editSkill">Beceriyi Düzenle</string>
     <string name="skills_useSkill">Bu Beceriyi Kullan</string>
-    <string name="skills_pinToHome">Ana Sayfaya Sabitle</string>
     <string name="pin_conversation">Sabitle</string>
     <string name="unpin_conversation">Sabitlemeyi kaldır</string>
     <string name="pinned_section">Sabitlendi</string>
-    <string name="skills_unpin">Ana Sayfadaki sabitlemeyi kaldır</string>
     <string name="skills_instructions">Çabuk</string>
     <string name="skills_knowledgeFiles">Referans Materyalleri</string>
     <string name="skills_advancedSettings">Gelişmiş Ayarlar</string>
     <string name="skills_useMemory">Tercihleri Hatırla</string>
     <string name="skills_noCustomSkills">Henüz özel Beceri yok</string>
     <string name="skills_deleteConfirmTitle">%s silinsin mi?</string>
-    <string name="skills_discardChanges">Değişiklikler silinsin mi?</string>
+    <string name="skills_discardChanges">Değişiklikler Silinsin mi?</string>
     <string name="skills_needProviderMessage">Konuşma başlatmak için en az bir yapay zeka sağlayıcısına ihtiyacınız var.</string>
-    <string name="skills_addProvider">Sağlayıcı Ekle</string>
+    <string name="skills_addProvider">Sağlayıcı ekle</string>
     <string name="skills_providerRequiredMessage">Bu Beceri, sohbet başlatmadan önce kullanılabilir bir AI sağlayıcısına ihtiyaç duyar.</string>
     <string name="skills_providerRequiredTitle">Bu Beceriyi kullanmak için sağlayıcı ekleyin</string>
     <string name="skills_systemPromptPlaceholder">örneğin Kıdemli bir kod incelemecisisiniz. Kodu güvenlik, performans ve okunabilirlik açısından inceleyin. Kullanıcının dilinde yanıt verin.</string>
@@ -484,7 +480,7 @@
     <string name="skills_capabilityVision">Görüş</string>
     <string name="skills_capabilityFast">Hızlı</string>
     <string name="skills_capabilityLargeContext">Geniş Bağlam</string>
-    <string name="skills_addFile">Dosya Ekle</string>
+    <string name="skills_addFile">Dosya ekle</string>
     <string name="skills_noKnowledgeFiles">Henüz referans materyali yok</string>
     <string name="skills_useMemoryDescription">Kişisel tercihlerinizi konuşmalara dahil edin</string>
     <string name="skills_tipInstructions">Yapay zekanın nasıl davranacağını (kişiliğini, uzmanlığını ve tepki stilini) tanımlayan talimatları yazın. Bunu yalnızca yapay zeka görüyor, kullanıcılar göremiyor.</string>
@@ -493,7 +489,7 @@
     <string name="skills_filesQuota">%1$d / %2$d</string>
     <string name="skills_fileTooLarge">Dosya içeriği 8.000 karakter sınırını aşıyor</string>
     <string name="skills_emojiIcon">Emoji Simgesi</string>
-    <string name="skills_nChars">%d karakterleri</string>
+    <string name="skills_nChars">%1$d karakter</string>
     <string name="skills_skillName">Beceri Adı</string>
     <string name="skills_briefDescription">Kısa açıklama</string>
     <string name="skills_discardMessage">Kaydedilmemiş değişiklikleriniz var. Bunları silmek istediğinizden emin misiniz?</string>
@@ -706,18 +702,24 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">Query parametre anahtarı</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">%1$s kullanmak üzeresiniz</string>
     <string name="provider_disclosure_body_default">Mesajınız yanıt oluşturmak için %1$s adresine gönderilecek. Oriveo mesajlarınızı veya API anahtarlarınızı sunucularımızda saklamaz.</string>
     <string name="provider_disclosure_body_relay">Mesajınız yapılandırdığınız model hizmetine gönderilecektir. Oriveo, bu hizmetin gizlilik uygulamalarını doğrulayamaz.</string>
     <string name="provider_disclosure_view_policy">%1$s gizlilik politikasını görüntüleyin</string>
     <string name="provider_disclosure_continue">Devam</string>
     <string name="provider_disclosure_cancel">İptal</string>
+    <string name="provider_disclosure_ack_failed">Sağlayıcı bildirimi doğrulanamadı. Bağlantınızı kontrol edip tekrar deneyin.</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">Web aramayı destekler</string>
     <string name="relay_advanced_web_search_profile">Web arama profili</string>
     <string name="relay_profile_auto">Otomatik</string>
     <string name="relay_test_connection">Bağlantıyı sına</string>
     <string name="relay_test_connection_missing_fields">Kendi istek URL\'nizi ve API anahtarınızı kullanın</string>
     <string name="relay_value_label">Değer</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">Geçerli bir HTTPS istek URL\'si girin.</string>
     <string name="greeting_morning">Günaydın</string>
     <string name="greeting_afternoon">İyi günler</string>
@@ -727,22 +729,22 @@
     <string name="greeting_afternoon_with_name">İyi günler, %1$s</string>
     <string name="greeting_evening_with_name">İyi akşamlar, %1$s</string>
     <string name="greeting_still_up_with_name">%1$s, uyumadın mı?</string>
-<string name="greeting_morning_2">Güzel sabahlar</string>
-<string name="greeting_morning_3">Merhaba</string>
-<string name="greeting_morning_4">Selam</string>
-<string name="greeting_morning_5">Hoş geldin</string>
-<string name="greeting_afternoon_2">Nasılsın?</string>
-<string name="greeting_afternoon_3">Selam</string>
-<string name="greeting_afternoon_4">Hoş geldin</string>
-<string name="greeting_afternoon_5">Merhaba</string>
-<string name="greeting_evening_2">Nasıl gidiyor?</string>
-<string name="greeting_evening_3">Hoş geldin</string>
-<string name="greeting_evening_4">Merhaba</string>
-<string name="greeting_evening_5">Selam</string>
-<string name="greeting_night_2">Epey geç olmuş</string>
-<string name="greeting_night_3">Selam</string>
-<string name="greeting_night_4">Hoş geldin</string>
-<string name="greeting_night_5">Merhaba</string>
+    <string name="greeting_morning_2">Güzel sabahlar</string>
+    <string name="greeting_morning_3">Merhaba</string>
+    <string name="greeting_morning_4">Selam</string>
+    <string name="greeting_morning_5">Hoş geldin</string>
+    <string name="greeting_afternoon_2">Nasılsın?</string>
+    <string name="greeting_afternoon_3">Selam</string>
+    <string name="greeting_afternoon_4">Hoş geldin</string>
+    <string name="greeting_afternoon_5">Merhaba</string>
+    <string name="greeting_evening_2">Nasıl gidiyor?</string>
+    <string name="greeting_evening_3">Hoş geldin</string>
+    <string name="greeting_evening_4">Merhaba</string>
+    <string name="greeting_evening_5">Selam</string>
+    <string name="greeting_night_2">Epey geç olmuş</string>
+    <string name="greeting_night_3">Selam</string>
+    <string name="greeting_night_4">Hoş geldin</string>
+    <string name="greeting_night_5">Merhaba</string>
     <string name="tagline_morning_1">Acelesi yok, yavaş yavaş.</string>
     <string name="tagline_morning_2">Bugün kendi temponda ilerle.</string>
     <string name="tagline_morning_3">Hiçbir soru küçük değil.</string>
@@ -759,23 +761,25 @@
     <string name="tagline_night_2">Uykun tutmuyorsa konuşalım.</string>
     <string name="tagline_night_3">Etraf artık sessiz.</string>
     <string name="tagline_night_4">İstediğin kadar düşün.</string>
-<string name="tagline_morning_5">Yeni bir şey denemenin tam günü.</string>
-<string name="tagline_morning_6">Burada sesli düşünebilirsin.</string>
-<string name="tagline_morning_7">Her şey sırayla.</string>
-<string name="tagline_morning_8">Düşüncelerini birlikte toparlayalım.</string>
-<string name="tagline_afternoon_5">Kaldığın yerden devam et.</string>
-<string name="tagline_afternoon_6">Hazır olduğunda sor.</string>
-<string name="tagline_afternoon_7">Farklı bir açıdan bakmak iyi gelir.</string>
-<string name="tagline_afternoon_8">Mükemmel olması gerekmiyor.</string>
-<string name="tagline_evening_5">Gerisi yarına kalsın.</string>
-<string name="tagline_evening_6">Sadece sohbet etmek de güzel.</string>
-<string name="tagline_evening_7">Düşünmek için sakin bir akşam.</string>
-<string name="tagline_evening_8">Güne huzurlu bir kapanış.</string>
-<string name="tagline_night_5">Aklından geçenleri yaz.</string>
-<string name="tagline_night_6">Dinlenmeyi unutma.</string>
-<string name="tagline_night_7">Gece sessiz, zihin berrak.</string>
-<string name="tagline_night_8">Bu gece acele yok.</string>
+    <string name="tagline_morning_5">Yeni bir şey denemenin tam günü.</string>
+    <string name="tagline_morning_6">Burada sesli düşünebilirsin.</string>
+    <string name="tagline_morning_7">Her şey sırayla.</string>
+    <string name="tagline_morning_8">Düşüncelerini birlikte toparlayalım.</string>
+    <string name="tagline_afternoon_5">Kaldığın yerden devam et.</string>
+    <string name="tagline_afternoon_6">Hazır olduğunda sor.</string>
+    <string name="tagline_afternoon_7">Farklı bir açıdan bakmak iyi gelir.</string>
+    <string name="tagline_afternoon_8">Mükemmel olması gerekmiyor.</string>
+    <string name="tagline_evening_5">Gerisi yarına kalsın.</string>
+    <string name="tagline_evening_6">Sadece sohbet etmek de güzel.</string>
+    <string name="tagline_evening_7">Düşünmek için sakin bir akşam.</string>
+    <string name="tagline_evening_8">Güne huzurlu bir kapanış.</string>
+    <string name="tagline_night_5">Aklından geçenleri yaz.</string>
+    <string name="tagline_night_6">Dinlenmeyi unutma.</string>
+    <string name="tagline_night_7">Gece sessiz, zihin berrak.</string>
+    <string name="tagline_night_8">Bu gece acele yok.</string>
     <string name="aurora_placeholder_what_can_i_help">Sana nasıl yardımcı olabilirim?</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">otomatik / boş bırak</string>
     <string name="relay_disable_response_storage_footnote">Yalnızca OpenAI Responses · store: false ayarlanır</string>
     <string name="relay_disable_response_storage_short">Yanıtları bulutta saklamayın</string>
@@ -832,10 +836,16 @@
     <string name="relay_security_mode_option_unknown_disabled">Bu bağlantı türünü seçmeden önce yerel, LAN veya özel VPN adresi girin.</string>
     <string name="relay_connection_no_key_required_cleartext">Bu bağlantı için anahtar gerekmez · Şifrelenmemiş bağlantılar asla kimlik bilgisi göndermez.</string>
     <string name="relay_remove_api_key">Anahtarı kaldır</string>
-<string name="streaming_pulse_a11y">Oluşturuluyor</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">Oluşturuluyor</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">Bu ay etkin</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">Bu ay etkin</string>
     <string name="providers_all_providers">Tüm sağlayıcılar</string>
     <string name="providers_today">Bugün</string>
     <string name="providers_all_synced">Tümü senkronize</string>
@@ -844,6 +854,8 @@
     <string name="providers_delete_this_question">Bu sağlayıcı silinsin mi?</string>
     <string name="providers_delete_this_message">Bu sağlayıcının silinmesi aynı zamanda ilgili sohbetleri ve varsayılan model yapılandırmasını da kaldırır.</string>
     <string name="manual_model_clear">Temizle</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">API anahtarı gerekli</string>
     <string name="tap_to_view">Görüntülemek için dokunun</string>
     <string name="tap_to_set">Ayarlamak için dokunun</string>
@@ -859,6 +871,8 @@
     <string name="code_block_expand">Genişlet</string>
     <string name="chat_show_full_message">Mesajın tamamını göster</string>
     <string name="code_block_lines">%d satır</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">İnternet bağlantısı yok</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -868,6 +882,7 @@
     <string name="reasoning_hide">Düşünceyi gizle</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">%1$s dosyasından metin çıkarılamadı (taranmış bir PDF gibi görünüyor).</string>
@@ -879,7 +894,6 @@
     <string name="file_extraction_error_generic">%1$s işlenemedi. Tekrar deneyin veya başka bir dosya seçin.</string>
     <string name="file_extraction_truncated_notice">%1$s uzun olduğu için %3$d satırın yalnızca ilk %2$d satırı eklendi.</string>
     <string name="file_extraction_send_blocked_text_budget">Gönderilmedi: %1$s ile birlikte ekli metin bu modelin sınırını aşıyor. Bir dosyayı kaldırın veya modeli değiştirin.</string>
-    <string name="error_attachment_not_accepted_title">Ek kabul edilmedi</string>
     <string name="file_extraction_text_budget_exceeded">%1$s eklenmedi: eklenseydi bu mesaja iliştirilen metin izin verilen sınırı aşardı.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d satır çıkarıldı</string>
     <string name="file_attachment_count_limit_reached">Bu model için en fazla %1$d dosya ekleyebilirsin.</string>
@@ -889,6 +903,8 @@
     <string name="empty_greeting_mind">Aklında ne var?</string>
     <string name="empty_greeting_together">Birlikte neyi çözelim?</string>
     <string name="empty_chat_ask_anything">Ne istersen sor ya da yazmaya başla.</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">Amiral GPT modelleri</string>
     <string name="provider_tagline_anthropic">Claude modelleri</string>
     <string name="provider_tagline_gemini">Metin, görsel ve video</string>
@@ -904,6 +920,8 @@
     <string name="provider_tagline_groq">Ultra hızlı çıkarım</string>
     <string name="provider_tagline_together">Açık kaynak modeller</string>
     <string name="provider_tagline_fireworks">Hızlı ve uygun fiyatlı</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">Sağlayıcı bağla</string>
     <string name="provider_setup_hero_subtitle">Yapay zekâ sağlayıcını seç, ardından API anahtarını gir</string>
     <string name="provider_category_all">Tüm</string>
@@ -916,12 +934,13 @@
     <string name="provider_already_connected_subtitle">Mevcut bağlantıyı yönetin veya farklı bir API anahtarıyla başka bir hesap ekleyin.</string>
     <string name="provider_manage_existing">Mevcudu yönet</string>
     <string name="provider_add_another_account">Başka hesap ekle</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="capability_video">Video</string>
     <string name="citations_section_title">Kaynaklar</string>
     <string name="citations_view_all">%1$d kaynağın tümünü göster</string>
     <string name="citations_collapse">Daha az göster</string>
     <string name="api_endpoint">API Uç Noktası</string>
-    <string name="api_endpoint_not_configured">Yapılandırılmadı</string>
     <string name="relay_guidance_codex_identity_switch_type">Bu bağlantı, Codex istemci kimliği gerektiriyor. Sağlayıcılar → bu bağlantı → Model Kitaplığı → bu model → Gelişmiş yolunu açın, protokolü OpenAI Responses olarak ayarlayın ve tekrar deneyin.</string>
     <string name="relay_guidance_codex_identity_still_rejected">Bu bağlantı, Oriveo\'nun Codex istemci kimliğini hâlâ reddediyor. Sağlayıcılar → bu bağlantı → Bağlantıyı düzenle → Başlıklar ve sorgu parametreleri yolunu açın, özel bir User-Agent veya başlık ayarlayın ya da başka bir bağlantıya geçin.</string>
     <string name="relay_guidance_responses_only_endpoint">Bu bağlantı yalnızca /v1/responses sunuyor ve /chat/completions isteklerini reddediyor. Sağlayıcılar → bu bağlantı → Model Kitaplığı → bu model → Gelişmiş yolunu açın, protokolü OpenAI Responses olarak ayarlayın ve tekrar deneyin.</string>
@@ -972,10 +991,17 @@
     <string name="outline_nav_label">Sohbet ana hatları</string>
     <string name="outline_jump_to">Şuna git: %1$s</string>
     <string name="outline_attachment_only">(Ek)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">Notlar</string>
     <string name="notes_subtitle">Sohbet içeriğini not olarak kaydet</string>
     <string name="notes_untitled">Adsız not</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="one">%1$d not</item>
+        <item quantity="other">%1$d not</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">Notlar</string>
     <string name="notes_tab_trash">Çöp</string>
     <!-- Actions -->
@@ -1038,7 +1064,7 @@
     <string name="notes_toast_export_failed">Dışa aktarma başarısız</string>
     <string name="notes_toast_folder_created">\"%1$s\" klasörü oluşturuldu</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">Not olarak kaydet</string>
     <string name="notes_chat_replace_current_note">Notu seçimle güncelle</string>
     <string name="notes_chat_return_to_note">Nota dön</string>
@@ -1070,13 +1096,19 @@
     <string name="notes_detail_delete_this">Bu notu sil</string>
     <string name="notes_nothing_written">Henüz içerik yok.</string>
     <!-- Güncellemeleri denetle (yalnızca Android · Play In-App Updates) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">Fiyat bilinmiyor</string>
     <string name="pricing_non_standard">Standart dışı faturalandırma</string>
     <string name="pricing_free">Özgür</string>
     <string name="enabled_models_help">Eklenen modeller Ana ekrandaki model seçicide görünür.</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">Bu sohbet yüklenemedi</string>
     <string name="chat_load_stalled_message">Bu sohbetin mesajları henüz bu cihazda değil. Buluttan almak için tekrar deneyin.</string>
     <string name="chat_bootstrap_in_progress">Sohbet yükleniyor…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">Tüm modelleriniz, {tek uygulama}</string>
     <string name="onboarding_title_models">Her soru için {doğru model}</string>
     <string name="onboarding_title_byok">Anahtarlar sizde, {fatura sizin}</string>
@@ -1093,6 +1125,8 @@
     <string name="onboarding_legal">Devam ederek [Hizmet Şartları](oriveo://terms) ve [Gizlilik Politikası](oriveo://privacy) belgelerini kabul edersiniz.</string>
     <string name="developer_options">Geliştirici Seçenekleri</string>
     <string name="replay_onboarding">Tanıtımı yeniden izle</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">Hızlı Kurulum</string>
     <string name="relay_quick_subtitle">İstek URL\'sini ve API anahtarını girin. Oriveo sizin için bağlantı ayarlarını tespit edecektir.</string>
     <string name="relay_models_found">Katalogda %1$d modelini/modellerini buldum.</string>
@@ -1160,9 +1194,8 @@
     <string name="generation_empty_not_verified">Bu model için henüz ayarlanabilir parametre yok</string>
     <string name="generation_empty_not_verified_detail">Bir parametrenin gerçekten etki ettiğini doğruladıktan sonra ayarlara izin veriyoruz; bu modeli bu bağlantıda henüz test etmedik. Modelin akıl yürütme yeteneği bundan etkilenmez.</string>
     <string name="generation_empty_catalog_managed">Bu modelin parametreleri artık resmi katalog tarafından yönetiliyor ve burada özelleştirilemiyor.</string>
-    <string name="generation_empty_runtime_locked">Bu bağlantıda çalışma zamanı parametreleri değiştirilemez.</string>
     <string name="generation_empty_all_unsupported">Bu model, bu bağlantıda ayarlanabilir parametre kabul etmiyor.</string>
-<string name="generation_parameter_unverified_badge">Doğrulanmadı</string>
+    <string name="generation_parameter_unverified_badge">Doğrulanmadı</string>
     <string name="generation_parameter_unverified_group_note">Bu parametreler seçtiğin protokolden çıkarıldı. Oriveo bunların bu bağlantıda etki edip etmediğini doğrulamadı.</string>
     <string name="generation_parameter_dormant_summary">Ayarladığınız %1$d parametre saklandı ve şu anda gönderilmiyor.</string>
     <string name="generation_parameter_dormant_view">Görüntüle</string>
@@ -1180,6 +1213,8 @@
     <string name="chat_token_usage_cache_write">Önbellek yazma</string>
     <string name="chat_token_usage_total">Toplam</string>
     <string name="chat_token_usage_unavailable">Veri yok</string>
+    <string name="chat_token_usage_cost">Maliyet</string>
+    <string name="chat_token_usage_estimated">Tahmini</string>
     <string name="generation_conversation_scope_hint">Yalnızca bu sohbette bu model kullanılırken geçerlidir. Model değiştirmek değerleri kopyalamaz; geri dönünce geri yüklenir.</string>
     <string name="generation_parameter_self_healed">Bu model %1$s parametresini reddetti. Varsayılan ayarla yeniden denendi.</string>
     <string name="relay_transport_llamacpp_native">llama.cpp yerel completion</string>
@@ -1379,28 +1414,22 @@
     <string name="tool_call_unhandled_multiple">Model bu bağlantıda kullanılamayan araçları (%1$s) kullanmayı denedi.</string>
     <string name="tool_call_arguments_truncated">2 KB’de kesildi</string>
     <string name="tool_fallback_library_not_searched">Bu bağlantı araçları desteklemediği için kitaplıkta arama yapılmadı.</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">Depolama Alanı Dolu</string>
     <string name="storage_blocked_message">Cihazınızda boş alan kalmadığı için Oriveo yerel verilerini açamıyor. Biraz yer açıp tekrar deneyin — sohbetleriniz bu cihazda kayıtlı kalmaya devam ediyor, kaybolmaz.</string>
     <string name="storage_blocked_action_free_space">Yer Aç</string>
     <string name="database_unavailable_title">Yerel Veriler Açılamıyor</string>
     <string name="database_unavailable_message">Oriveo bu cihazda yerel verilerini açamadı. Tekrar deneyin veya bu durum sürerse destek ile iletişime geçin.</string>
     <string name="link_open_failed_message">Bağlantı açılamadı. Bir tarayıcı etkinleştirip tekrar deneyin.</string>
-    <string name="contact_support">Destekle İletişime Geç</string>
-    <string name="price_input">Girdi</string>
-    <string name="price_output">Çıktı</string>
-    <string name="price_cache_read">Önbellek okuma</string>
-    <string name="price_cache_write">Önbellek yazma</string>
     <string name="external_app_unavailable">Bunu açabilecek uygulama yok. Bir tane yükleyin veya etkinleştirin.</string>
-    <plurals name="notes_count">
-        <item quantity="one">%1$d not</item>
-        <item quantity="other">%1$d not</item>
-    </plurals>
     <string name="secure_field_show">Karakterleri göster</string>
     <string name="secure_field_hide">Karakterleri gizle</string>
-    <string name="generation_parameter_name_stop">Durdurma dizileri</string>
     <string name="generation_diagnostics_section">Oluşturma ayarları tanıları</string>
     <string name="generation_diagnostics_empty">Henüz tanı kaydın yok</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">Bu hesapla geri bildirim gönderilemiyor.</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">Araçlar</string>
     <string name="mcp_tools_chip_state_on">%d sunucu açık</string>
     <string name="mcp_tools_chip_state_off">Kapalı</string>
@@ -1479,6 +1508,8 @@
     <string name="mcp_detail_seconds">%s sn</string>
     <string name="mcp_detail_third_party_note">Sonuçlar üçüncü taraf bir sunucudan gelir. Yalnızca ilk 2 KB gösterilir. Oriveo içeriği denetlemedi.</string>
     <string name="mcp_detail_not_on_device">Ayrıntılar yalnızca bu adımı çalıştıran cihazda saklanır.</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">Araçlar ve bağlantılar</string>
     <string name="mcp_servers_title">MCP sunucuları</string>
     <plurals name="mcp_settings_entry_count">
@@ -1621,109 +1652,162 @@
     <string name="mcp_reauth_failed_body">Oturum açma sayfası kapatıldı veya hizmet isteği onaylamadı. Hiçbir şey değişmedi.</string>
     <string name="mcp_reauth_unreachable_body">Bu cihazın şu anda sunucuya erişebildiğinden emin olup yeniden deneyin.</string>
     <string name="mcp_reauth_token_title">Yeni bir erişim belirteci yapıştırın</string>
-    <string name="additional_body_attachments_filled">Ekleri Oriveo doldurur.</string>
-    <string name="additional_body_cannot_change">Değiştirilemez</string>
-    <string name="additional_body_check">Ek istek gövdesini kontrol edin</string>
-    <string name="additional_body_conversation_filled">Sohbet içeriğini Oriveo doldurur.</string>
-    <string name="additional_body_device_only">Yalnızca bu cihazda saklanır, eşzamanlanmaz</string>
-    <string name="additional_body_docs_link">%1$s hangi alanları destekliyor</string>
-    <string name="additional_body_field_filled">Bu alanı Oriveo doldurur.</string>
-    <string name="additional_body_field_name_invalid">Bu ad, alan adı olarak kullanılamaz.</string>
-    <string name="additional_body_footer">Buradaki alanlar isteğe yazıldığı gibi eklenir; Oriveo sunucunuzun bunları kabul edip etmediğini kontrol etmez. Bir alan gelişmiş bir ayarla aynı ada sahipse buradaki kullanılır, diğer ayarlarınız her zamanki gibi gönderilir.</string>
-    <string name="additional_body_included">Eklenir</string>
-    <string name="additional_body_model_chosen">Model, Oriveo\'da seçtiğiniz modeldir.</string>
-    <string name="additional_body_paste">Yapıştır</string>
-    <string name="additional_body_paste_replace_body">Yapıştırdığınızda mevcut içerik panodaki içerikle değiştirilir.</string>
-    <string name="additional_body_paste_replace_title">Mevcut içerik değiştirilsin mi?</string>
-    <string name="additional_body_reason_blocked_segment">“%1$s” ek istek gövdesinde alan adı olarak kullanılamaz.</string>
-    <string name="additional_body_reason_invalid_json">Ek istek gövdesi geçerli bir JSON değil.</string>
-    <string name="additional_body_reason_not_object">Ek istek gövdesi { } içine alınmış bir JSON nesnesi olmalı.</string>
-    <string name="additional_body_reason_protected_field">“%1$s” alanını Oriveo doldurur; ek istek gövdesinde ayarlanamaz.</string>
-    <string name="additional_body_reason_too_deep">Ek istek gövdesi 32 düzeyden daha derin iç içe geçmiş.</string>
-    <string name="additional_body_reason_too_large">Ek istek gövdesi 64 KB sınırını aşıyor.</string>
-    <string name="additional_body_rejected_upstream">Ek istek gövdesiyle gönderilen istek reddedildi</string>
-    <string name="additional_body_remove_line">%1$s Göndermek için %2$d. satırı silin.</string>
-    <string name="additional_body_retry_without">Ek istek gövdesi olmadan tekrar dene</string>
-    <string name="additional_body_send_toggle">İsteklerle gönder</string>
-    <string name="additional_body_send_toggle_note">Kapalıyken içerik saklanır ama gönderilmez</string>
-    <string name="additional_body_switch_blocked_invalid">Ek istek gövdesinde bir sorun olduğu için bu anahtar onu değiştiremiyor. Önce orada düzeltin.</string>
-    <string name="additional_body_switch_blocked_off">Ek istek gövdesi şu anda isteklerle gönderilmiyor. Önce orada gönderimi açın.</string>
-    <string name="additional_body_system_prompt_filled">Sistem istemini Oriveo doldurur.</string>
-    <string name="additional_body_tidy">Biçimlendir</string>
-    <string name="additional_body_tidy_invalid">Henüz geçerli bir JSON değil, bu yüzden hiçbir şey değiştirilmedi.</string>
-    <string name="additional_body_title">Ek istek gövdesi</string>
-    <string name="additional_body_when_sending">Gönderirken</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">Yetenekler</string>
+    <string name="model_options_local">Yerel</string>
+    <string name="model_options_web_note">Soru gerektirdiğinde önce web\'de arar</string>
+    <string name="model_options_always_thinks">Yanıtlamadan önce her zaman düşünür</string>
+    <string name="model_options_thinks_first_note">Önce iyice düşünür, bu yüzden yanıtlar biraz daha uzun sürer</string>
+    <string name="model_options_higher_levels_note">Düzey yükseldikçe süre uzar, maliyet de artabilir.</string>
+    <string name="model_options_template_thinking_note">Düşünmeyi sohbet şablonu üzerinden açar veya kapatır. Çalışıp çalışmayacağı sunucunuza bağlıdır.</string>
+    <string name="model_options_connection_cannot">Bu bağlantı bunu yapamaz</string>
+    <string name="model_options_uses_model_default">Modelin varsayılanını kullanır</string>
+    <string name="model_options_reasoning_not_catalogued">Oriveo\'da bu model için henüz düşünme ayarı yok, bu yüzden model kendi varsayılanıyla çalışır.</string>
+    <string name="model_options_web_not_catalogued">Oriveo\'da bu model için henüz web araması ayarı yok, bu yüzden burada açılamaz.</string>
+    <string name="model_options_see_adjustable_models">Hangi modellerin ayarlanabildiğini görün</string>
+    <string name="model_options_no_thinking_mode">Bu modelde düşünme modu yok</string>
+    <string name="model_options_shows_thinking_fixed">Düşünme sürecini gösterir · ayarlanamaz</string>
+    <string name="model_options_cannot_search">Bu model web\'de arama yapamaz</string>
+    <string name="model_options_always_on">Her zaman açık</string>
+    <string name="model_options_subscription_always_searches">Bu abonelikte bu model her zaman web\'de arama yapar.</string>
+    <string name="model_options_web_when_needed">Gerektiğinde</string>
+    <string name="model_options_web_every_message">Her mesajda</string>
+    <string name="model_options_needs_manual_setup">Elle kurulum gerekiyor</string>
+    <string name="model_options_reasoning_no_generic_switch">Bu sağlayıcının düşünme için standart bir anahtarı yok. Gerekli alanları ek istek gövdesine ekleyin.</string>
+    <string name="model_options_web_no_generic_switch">Bu sağlayıcının web araması için standart bir anahtarı yok. Gerekli alanları ek istek gövdesine ekleyin.</string>
+    <string name="model_options_open_additional_body">Ek istek gövdesini aç</string>
+    <string name="model_options_choose_protocol_first">Önce bu bağlantının protokolünü seçin</string>
+    <string name="model_options_protocol_auto_note">Protokol hâlâ “Otomatik” olduğu için Oriveo web araması ve düşünme ayarlarını nasıl göndereceğini bilemiyor.</string>
+    <string name="model_options_choose_protocol">Protokol seç</string>
+    <string name="model_options_tier_rejected_title">“%1$s” reddedildi</string>
+    <string name="model_options_tier_rejected_body">Bu model şu anda “%1$s” düzeyini kabul etmediği için “%2$s” düzeyine dönüldü. Model yeniden desteklediğinde önceki düzey kendiliğinden geri gelir.</string>
+    <string name="model_options_more_count">%1$d daha</string>
+    <string name="model_options_cant_switch_here">Burada henüz değiştirilemiyor</string>
+    <string name="model_options_not_available_yet">Henüz kullanılamıyor</string>
+    <string name="model_options_web_and_thinking_fields">Web araması ve düşünme alanları</string>
+    <string name="model_options_vision_available">Kullanılabilir · fotoğraf seçici görünür</string>
+    <string name="model_options_vision_unknown">Bilinmiyor · gönderdikten sonra hatırlanır</string>
+    <string name="model_options_vision_hidden">Kullanılamaz · fotoğraf seçici gizli</string>
+    <string name="model_options_file_pdf_native">PDF doğrudan · diğerleri metin olarak</string>
+    <string name="model_options_file_native_when_supported">Desteklenen biçimler doğrudan · diğerleri metin olarak</string>
+    <string name="model_options_file_text">Metin olarak gönderilir</string>
+    <string name="model_options_turn_summary">Bu sefer gönderilecek: %1$s</string>
+    <string name="model_options_summary_web_on">Web araması açık</string>
+    <string name="model_options_summary_thinking_level">Düşünme: %1$s</string>
+    <string name="model_options_summary_thinking_on">Düşünme açık</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="one">%d düzey</item>
+        <item quantity="other">%d düzey</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">Yalnızca bu sohbet</string>
+    <string name="advanced_reset">Sıfırla</string>
+    <string name="advanced_reset_conversation_title">Bu sohbetin ayarları sıfırlansın mı?</string>
+    <string name="advanced_reset_conversation_body">Yalnızca bu sohbette değiştirdiğiniz parametreler temizlenir. Model varsayılanlarınız ve ek istek gövdesi olduğu gibi kalır.</string>
+    <string name="advanced_reset_conversation_action">Bu sohbetteki değişiklikleri sıfırla</string>
+    <string name="advanced_reset_model_title">Bu modelin varsayılanları sıfırlansın mı?</string>
+    <string name="advanced_reset_model_body">Bu bağlantıda bu model için belirlediğiniz varsayılan parametreleri temizler. Tek tek sohbetlerde yapılan değişiklikler olduğu gibi kalır.</string>
+    <string name="advanced_reset_model_action">Model varsayılanlarını sıfırla</string>
+    <string name="advanced_more">Daha Fazla</string>
+    <string name="advanced_not_adjusted">Değişiklik yok</string>
+    <string name="advanced_entries_count">Öğe: %1$d</string>
+    <string name="advanced_fields_count">Alan: %1$d</string>
+    <string name="advanced_random_each_time">Her seferinde rastgele</string>
+    <string name="advanced_plain_text">Düz metin</string>
+    <string name="advanced_write_your_own">Kendi alanlarınız</string>
     <string name="advanced_additional_body_subtitle">Yukarıda olmayan alanları JSON olarak ekleyin</string>
+    <string name="advanced_not_in_use">Kullanılmıyor</string>
+    <string name="advanced_changed_in_conversation">Bu sohbette değiştirildi</string>
+    <string name="advanced_using_your_default">Belirlediğiniz model varsayılanı kullanılıyor</string>
+    <string name="advanced_model_defaults">Model varsayılanları</string>
+    <string name="advanced_your_default">Varsayılanınız</string>
+    <string name="advanced_state_set">Ayarlandı</string>
+    <string name="advanced_state_on">Açık</string>
+    <string name="advanced_use_model_default">Model varsayılanını kullan</string>
+    <string name="advanced_dont_send">Bu ayarı gönderme</string>
     <string name="advanced_allowed_range">İzin verilen aralık: %1$s</string>
     <string name="advanced_also_covers">Şunları da kapsar: %1$s</string>
-    <string name="advanced_changed_in_conversation">Bu sohbette değiştirildi</string>
-    <string name="advanced_crossed_out_legend">Üstü çizili ayarları şu anda %1$s yönetiyor.</string>
-    <string name="advanced_diagnostics_delete_body">Bu model için gösterilen tanılama kayıtları silinir. Diğer modellerin kayıtları korunur.</string>
-    <string name="advanced_diagnostics_delete_title">Bu tanılama kayıtları silinsin mi?</string>
-    <string name="advanced_dont_send">Bu ayarı gönderme</string>
+    <string name="advanced_no_limit">Sınır yok</string>
+    <string name="advanced_stop_sequences">Durdurma dizileri</string>
+    <string name="advanced_new_stop_sequence">Yeni durdurma dizisi</string>
+    <string name="advanced_stop_sequences_note">Model bunlardan herhangi birini yazdığı anda durur. Bir dizi virgül, boşluk ve satır sonu içerebilir.</string>
+    <string name="advanced_remove_item">Kaldır: %1$s</string>
+    <string name="advanced_error_max_tokens">Bu model en fazla %1$s yazabilir. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_error_number">Bir sayı girin. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_error_integer">Bir tam sayı girin. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_error_highest">Bu modelin kabul ettiği en yüksek değer %1$s. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_error_lowest">Bu modelin kabul ettiği en düşük değer %1$s. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_error_greater_than">Değer %1$s değerinden büyük olmalı. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_error_less_than">Değer %1$s değerinden küçük olmalı. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_error_json_schema">Bu geçerli bir JSON Schema değil. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_error_value_rejected">Bu model bu değeri kabul etmiyor. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
+    <string name="advanced_dropped_thinking">Düşünme açıkken model bunu kabul etmediği için gönderilmez.</string>
     <string name="advanced_dropped_conflict">Başka bir ayarla çakıştığı için bu ayar dışarıda bırakılır.</string>
     <string name="advanced_dropped_conflict_with">%1$s ile birlikte gönderilemediği için bu ayar dışarıda bırakılır.</string>
     <string name="advanced_dropped_depends">Ayarlanmamış başka bir ayara bağlı olduğu için gönderilmez.</string>
-    <string name="advanced_dropped_reasoning_budget">Akıl yürütme bütçesinden küçük olduğu için bunun yerine varsayılan değer gönderilir.</string>
-    <string name="advanced_dropped_required_default">Bu model bu alanı zorunlu tuttuğu için varsayılan değer yine gönderilir.</string>
     <string name="advanced_dropped_requires">Yalnızca %1$s da ayarlanmışsa gönderilir.</string>
-    <string name="advanced_dropped_thinking">Düşünme açıkken model bunu kabul etmediği için gönderilmez.</string>
     <string name="advanced_dropped_value">Bu model bu değeri kabul etmediği için bu ayar gönderilmez.</string>
+    <string name="advanced_dropped_required_default">Bu model bu alanı zorunlu tuttuğu için varsayılan değer yine gönderilir.</string>
+    <string name="advanced_dropped_reasoning_budget">Akıl yürütme bütçesinden küçük olduğu için bunun yerine varsayılan değer gönderilir.</string>
+    <string name="advanced_taken_over">%1$s açık olduğu için bu ayar kullanılmıyor.</string>
+    <string name="advanced_crossed_out_legend">Üstü çizili ayarları şu anda %1$s yönetiyor.</string>
+    <string name="advanced_grey_defaults_legend">Gri sayılar %1$s tarafının kendi varsayılanlarıdır. Siz değiştirmedikçe gönderilmezler.</string>
+    <string name="advanced_mirostat_note">Top K ve Top P yerine, çıktının rastgeleliğini bir hedef değer etrafında sabit tutar.</string>
+    <string name="advanced_target_entropy">Hedef entropi</string>
+    <string name="advanced_learning_rate">Öğrenme oranı</string>
+    <string name="advanced_repetition">Tekrar</string>
     <string name="advanced_dry_note">Önceki metinden bütün pasajların aynen tekrarlanmasını engeller</string>
+    <string name="advanced_more_sampling">Diğer örnekleme ayarları</string>
+    <string name="advanced_xtc_note">Daha çeşitli ifadeler için bazen en olası kelimeyi atlar</string>
     <string name="advanced_dynamic_temperature">Dinamik sıcaklık</string>
     <string name="advanced_dynamic_temperature_note">Sıcaklık, modelin ne kadar emin olduğuna göre değişir</string>
-    <string name="advanced_entries_count">Öğe: %1$d</string>
-    <string name="advanced_error_greater_than">Değer %1$s değerinden büyük olmalı. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_error_highest">Bu modelin kabul ettiği en yüksek değer %1$s. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_error_integer">Bir tam sayı girin. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_error_json_schema">Bu geçerli bir JSON Schema değil. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_error_less_than">Değer %1$s değerinden küçük olmalı. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_error_lowest">Bu modelin kabul ettiği en düşük değer %1$s. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_error_max_tokens">Bu model en fazla %1$s yazabilir. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_error_number">Bir sayı girin. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_error_value_rejected">Bu model bu değeri kabul etmiyor. Düzeltilene kadar bu ayar gönderilmez; diğer ayarlarınız etkilenmez.</string>
-    <string name="advanced_fields_count">Alan: %1$d</string>
-    <string name="advanced_grey_defaults_legend">Gri sayılar %1$s tarafının kendi varsayılanlarıdır. Siz değiştirmedikçe gönderilmezler.</string>
-    <string name="advanced_learning_rate">Öğrenme oranı</string>
-    <string name="advanced_mirostat_note">Top K ve Top P yerine, çıktının rastgeleliğini bir hedef değer etrafında sabit tutar.</string>
-    <string name="advanced_model_defaults">Model varsayılanları</string>
-    <string name="advanced_more">Daha Fazla</string>
-    <string name="advanced_more_sampling">Diğer örnekleme ayarları</string>
-    <string name="advanced_new_stop_sequence">Yeni durdurma dizisi</string>
-    <string name="advanced_no_limit">Sınır yok</string>
-    <string name="advanced_not_adjusted">Değişiklik yok</string>
-    <string name="advanced_not_in_use">Kullanılmıyor</string>
-    <string name="advanced_plain_text">Düz metin</string>
-    <string name="advanced_preset_apply">Ön ayarı uygula</string>
-    <string name="advanced_preset_apply_body">“%1$s”, bu model için ayarladığınız her şeyin yerini alır: %2$s.</string>
-    <string name="advanced_preset_apply_title">Bu ön ayar uygulansın mı?</string>
-    <string name="advanced_random_each_time">Her seferinde rastgele</string>
-    <string name="advanced_reasoning_set_by_thinking">Bu modelde düşünme, \"Model Seçenekleri\" › \"Düşünme\" bölümünden ayarlanır. Bir seviyeyi varsayılan yapmak için orada seç ve \"Bu model için varsayılan yap\" düğmesine dokun. Bu satır gönderilmez.</string>
-    <string name="advanced_remove_item">Kaldır: %1$s</string>
-    <string name="advanced_repetition">Tekrar</string>
-    <string name="advanced_reset">Sıfırla</string>
-    <string name="advanced_reset_conversation_action">Bu sohbetteki değişiklikleri sıfırla</string>
-    <string name="advanced_reset_conversation_body">Yalnızca bu sohbette değiştirdiğiniz parametreler temizlenir. Model varsayılanlarınız ve ek istek gövdesi olduğu gibi kalır.</string>
-    <string name="advanced_reset_conversation_title">Bu sohbetin ayarları sıfırlansın mı?</string>
-    <string name="advanced_reset_model_action">Model varsayılanlarını sıfırla</string>
-    <string name="advanced_reset_model_body">Bu bağlantıda bu model için belirlediğiniz varsayılan parametreleri temizler. Tek tek sohbetlerde yapılan değişiklikler olduğu gibi kalır.</string>
-    <string name="advanced_reset_model_title">Bu modelin varsayılanları sıfırlansın mı?</string>
-    <string name="advanced_state_on">Açık</string>
-    <string name="advanced_state_set">Ayarlandı</string>
-    <string name="advanced_stop_sequences">Durdurma dizileri</string>
-    <string name="advanced_stop_sequences_note">Model bunlardan herhangi birini yazdığı anda durur. Bir dizi virgül, boşluk ve satır sonu içerebilir.</string>
-    <string name="advanced_taken_over">%1$s açık olduğu için bu ayar kullanılmıyor.</string>
-    <string name="advanced_target_entropy">Hedef entropi</string>
-    <string name="advanced_this_conversation_only">Yalnızca bu sohbet</string>
-    <string name="advanced_use_model_default">Model varsayılanını kullan</string>
-    <string name="advanced_using_your_default">Belirlediğiniz model varsayılanı kullanılıyor</string>
-    <string name="advanced_write_your_own">Kendi alanlarınız</string>
-    <string name="advanced_xtc_note">Daha çeşitli ifadeler için bazen en olası kelimeyi atlar</string>
-    <string name="advanced_your_default">Varsayılanınız</string>
+    <string name="additional_body_title">Ek istek gövdesi</string>
+    <string name="additional_body_send_toggle">İsteklerle gönder</string>
+    <string name="additional_body_send_toggle_note">Kapalıyken içerik saklanır ama gönderilmez</string>
+    <string name="additional_body_device_only">Yalnızca bu cihazda saklanır, eşzamanlanmaz</string>
+    <string name="additional_body_paste">Yapıştır</string>
+    <string name="additional_body_tidy">Biçimlendir</string>
+    <string name="additional_body_when_sending">Gönderirken</string>
+    <string name="additional_body_included">Eklenir</string>
+    <string name="additional_body_cannot_change">Değiştirilemez</string>
+    <string name="additional_body_footer">Buradaki alanlar isteğe yazıldığı gibi eklenir; Oriveo sunucunuzun bunları kabul edip etmediğini kontrol etmez. Bir alan gelişmiş bir ayarla aynı ada sahipse buradaki kullanılır, diğer ayarlarınız her zamanki gibi gönderilir.</string>
+    <string name="additional_body_docs_link">%1$s hangi alanları destekliyor</string>
+    <string name="additional_body_remove_line">%1$s Göndermek için %2$d. satırı silin.</string>
+    <string name="additional_body_conversation_filled">Sohbet içeriğini Oriveo doldurur.</string>
+    <string name="additional_body_attachments_filled">Ekleri Oriveo doldurur.</string>
+    <string name="additional_body_system_prompt_filled">Sistem istemini Oriveo doldurur.</string>
+    <string name="additional_body_tools_managed">Araçları Oriveo yönetir.</string>
+    <string name="additional_body_model_chosen">Model, Oriveo\'da seçtiğiniz modeldir.</string>
+    <string name="additional_body_streaming_by_oriveo">Yanıtın nasıl akış halinde geleceğine Oriveo karar verir.</string>
+    <string name="additional_body_field_filled">Bu alanı Oriveo doldurur.</string>
+    <string name="additional_body_field_name_invalid">Bu ad, alan adı olarak kullanılamaz.</string>
+    <string name="additional_body_paste_replace_title">Mevcut içerik değiştirilsin mi?</string>
+    <string name="additional_body_paste_replace_body">Yapıştırdığınızda mevcut içerik panodaki içerikle değiştirilir.</string>
+    <string name="additional_body_tidy_invalid">Henüz geçerli bir JSON değil, bu yüzden hiçbir şey değiştirilmedi.</string>
+    <string name="additional_body_switch_blocked_invalid">Ek istek gövdesinde bir sorun olduğu için bu anahtar onu değiştiremiyor. Önce orada düzeltin.</string>
+    <string name="additional_body_switch_blocked_off">Ek istek gövdesi şu anda isteklerle gönderilmiyor. Önce orada gönderimi açın.</string>
+    <string name="additional_body_check">Ek istek gövdesini kontrol edin</string>
+    <string name="additional_body_rejected_upstream">Ek istek gövdesiyle gönderilen istek reddedildi</string>
+    <string name="additional_body_reason_too_large">Ek istek gövdesi 64 KB sınırını aşıyor.</string>
+    <string name="additional_body_reason_invalid_json">Ek istek gövdesi geçerli bir JSON değil.</string>
+    <string name="additional_body_reason_not_object">Ek istek gövdesi { } içine alınmış bir JSON nesnesi olmalı.</string>
+    <string name="additional_body_reason_too_deep">Ek istek gövdesi 32 düzeyden daha derin iç içe geçmiş.</string>
+    <string name="additional_body_reason_blocked_segment">“%1$s” ek istek gövdesinde alan adı olarak kullanılamaz.</string>
+    <string name="additional_body_reason_protected_field">“%1$s” alanını Oriveo doldurur; ek istek gövdesinde ayarlanamaz.</string>
+    <string name="additional_body_retry_without">Ek istek gövdesi olmadan tekrar dene</string>
+    <string name="local_request_line_format">Satır %1$d: %2$s</string>
+    <string name="local_request_custom_line_format">%1$s alanları, %2$d. satır: %3$s</string>
+    <string name="local_request_custom_format">%1$s alanları: %2$s</string>
+    <string name="local_request_not_sent">Bu mesaj gönderilmedi.</string>
     <string name="generation_parameter_name_grammar">Dilbilgisi kısıtı (GBNF)</string>
     <string name="generation_parameter_name_min_tokens">En az çıktı token sayısı</string>
     <string name="generation_parameter_name_skip_special_tokens">Çıktıda özel token’ları gizle</string>
     <string name="generation_parameter_omitted_value">Atla</string>
+    <string name="advanced_reasoning_set_by_thinking">Bu modelde düşünme, \"Model Seçenekleri\" › \"Düşünme\" bölümünden ayarlanır. Bir seviyeyi varsayılan yapmak için orada seç ve \"Bu model için varsayılan yap\" düğmesine dokun. Bu satır gönderilmez.</string>
+    <string name="advanced_preset_apply">Ön ayarı uygula</string>
+    <string name="advanced_preset_apply_title">Bu ön ayar uygulansın mı?</string>
+    <string name="advanced_preset_apply_body">“%1$s”, bu model için ayarladığınız her şeyin yerini alır: %2$s.</string>
+    <string name="advanced_diagnostics_delete_title">Bu tanılama kayıtları silinsin mi?</string>
+    <string name="advanced_diagnostics_delete_body">Bu model için gösterilen tanılama kayıtları silinir. Diğer modellerin kayıtları korunur.</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">Özel LLM · Özel aktarma</string>
     <string name="relay_setup_hero_title">Özel aktarmaya bağlanın</string>
@@ -1798,6 +1882,7 @@
     <string name="relay_relative_minutes_ago">%d dakika önce</string>
     <string name="relay_relative_hours_ago">%d saat önce</string>
     <string name="relay_detail_default_model">Varsayılan Model</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">Adresi ve anahtarı girin, sonraki adımda kullanacağınız modelleri seçin. Protokol ve yetenekler her model için ayrı ayrı algılanır.</string>
     <string name="relay_setup_will_request">İstek adresi: %1$s</string>
     <string name="relay_setup_key_name">Ad (isteğe bağlı)</string>
@@ -1897,6 +1982,15 @@
     <string name="relay_catalog_status_denied">Geçerli anahtarın erişimi yok</string>
     <string name="relay_catalog_unreachable_title">Neden erişilemiyor</string>
     <string name="relay_catalog_enable_hint">Etkinleştirince modelin çalıştığını doğrulamak için 1 çok küçük istek gönderilir. Önce “Gelişmiş” bölümüne bakmak için katalogdaki bir modele dokunun; bu sırada istek gönderilmez.</string>
+    <string name="relay_catalog_add_all">Tümünü ekle</string>
+    <string name="relay_catalog_enable_hint_explicit">Önce “Gelişmiş” bölümüne bakmak için katalogdaki bir modele dokunun; bu sırada istek gönderilmez.</string>
+    <string name="relay_catalog_remove_last_reason">Bu bağlantıda en az bir model olmalı.</string>
+    <string name="relay_model_advanced_auto_equals_connection">Otomatik = bu bağlantının varsayılan protokolü (%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">Değişiklikler hemen uygulanır ve yalnızca bu cihazda saklanır.</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="one">%1$d model eklendi</item>
+        <item quantity="other">%1$d model eklendi</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">Model listesi alınamadı</string>
     <string name="relay_catalog_group_other">Diğer</string>
     <string name="relay_advanced_key_section">Anahtar</string>
@@ -1989,6 +2083,7 @@
     <string name="relay_web_chat_note">Chat Completions’ta web araması için standart bir alan yok. Şablon yalnızca arama modelleriyle çalışır; hizmetin belgelerine bakın.</string>
     <string name="relay_web_other_protocols">Diğer protokoller</string>
     <string name="relay_web_template_replace_body">Şablon, bu protokol için girdiklerinizin yerini alır.</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">Kimlik doğrulama, başlıklar ve sorgu parametreleri</string>
     <string name="relay_manual_connection_name">Bağlantı adı</string>
     <string name="relay_manual_model_footnote">Model kimliğini özel aktarmanızda göründüğü şekliyle, birebir aynı girin. Daha sonra model kitaplığından başka modeller ekleyebilirsiniz.</string>
@@ -2002,66 +2097,6 @@
     <string name="relay_manual_model_entry_note_exact">Model kimliğini özel aktarmanızda göründüğü şekliyle, birebir aynı girin.</string>
     <string name="relay_manual_model_entry_note_capabilities">Modelin neler yapabildiği, bir mesaj gönderdiğinizde kaydedilir. “Gelişmiş” bölümünden de test edebilirsiniz.</string>
     <string name="relay_connection_not_verified">Bağlantı doğrulanmadı.</string>
-    <string name="local_request_custom_format">%1$s alanları: %2$s</string>
-    <string name="local_request_custom_line_format">%1$s alanları, %2$d. satır: %3$s</string>
-    <string name="local_request_line_format">Satır %1$d: %2$s</string>
-    <string name="local_request_not_sent">Bu mesaj gönderilmedi.</string>
-    <string name="model_options_always_thinks">Yanıtlamadan önce her zaman düşünür</string>
-    <string name="model_options_cannot_search">Bu model web\'de arama yapamaz</string>
-    <string name="model_options_always_on">Her zaman açık</string>
-    <string name="model_options_subscription_always_searches">Bu abonelikte bu model her zaman web\'de arama yapar.</string>
-    <string name="model_options_cant_switch_here">Burada henüz değiştirilemiyor</string>
-    <string name="model_options_capabilities">Yetenekler</string>
-    <string name="model_options_choose_protocol">Protokol seç</string>
-    <string name="model_options_choose_protocol_first">Önce bu bağlantının protokolünü seçin</string>
-    <string name="model_options_connection_cannot">Bu bağlantı bunu yapamaz</string>
-    <string name="model_options_higher_levels_note">Düzey yükseldikçe süre uzar, maliyet de artabilir.</string>
-    <string name="model_options_local">Yerel</string>
-    <string name="model_options_more_count">%1$d daha</string>
-    <string name="model_options_needs_manual_setup">Elle kurulum gerekiyor</string>
-    <string name="model_options_no_thinking_mode">Bu modelde düşünme modu yok</string>
-    <string name="model_options_not_available_yet">Henüz kullanılamıyor</string>
-    <string name="model_options_open_additional_body">Ek istek gövdesini aç</string>
-    <string name="model_options_protocol_auto_note">Protokol hâlâ “Otomatik” olduğu için Oriveo web araması ve düşünme ayarlarını nasıl göndereceğini bilemiyor.</string>
-    <string name="model_options_reasoning_no_generic_switch">Bu sağlayıcının düşünme için standart bir anahtarı yok. Gerekli alanları ek istek gövdesine ekleyin.</string>
-    <string name="model_options_reasoning_not_catalogued">Oriveo\'da bu model için henüz düşünme ayarı yok, bu yüzden model kendi varsayılanıyla çalışır.</string>
-    <string name="model_options_see_adjustable_models">Hangi modellerin ayarlanabildiğini görün</string>
-    <string name="model_options_template_thinking_note">Düşünmeyi sohbet şablonu üzerinden açar veya kapatır. Çalışıp çalışmayacağı sunucunuza bağlıdır.</string>
-    <string name="model_options_thinks_first_note">Önce iyice düşünür, bu yüzden yanıtlar biraz daha uzun sürer</string>
-    <string name="model_options_tier_rejected_body">Bu model şu anda “%1$s” düzeyini kabul etmediği için “%2$s” düzeyine dönüldü. Model yeniden desteklediğinde önceki düzey kendiliğinden geri gelir.</string>
-    <string name="model_options_tier_rejected_title">“%1$s” reddedildi</string>
-    <string name="model_options_uses_model_default">Modelin varsayılanını kullanır</string>
-    <string name="model_options_web_and_thinking_fields">Web araması ve düşünme alanları</string>
-    <string name="model_options_vision_available">Kullanılabilir · fotoğraf seçici görünür</string>
-    <string name="model_options_vision_unknown">Bilinmiyor · gönderdikten sonra hatırlanır</string>
-    <string name="model_options_vision_hidden">Kullanılamaz · fotoğraf seçici gizli</string>
-    <string name="model_options_file_pdf_native">PDF doğrudan · diğerleri metin olarak</string>
-    <string name="model_options_file_native_when_supported">Desteklenen biçimler doğrudan · diğerleri metin olarak</string>
-    <string name="model_options_file_text">Metin olarak gönderilir</string>
-    <string name="model_options_turn_summary">Bu sefer gönderilecek: %1$s</string>
-    <string name="model_options_summary_web_on">Web araması açık</string>
-    <string name="model_options_summary_thinking_level">Düşünme: %1$s</string>
-    <string name="model_options_summary_thinking_on">Düşünme açık</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="one">%d düzey</item>
-        <item quantity="other">%d düzey</item>
-    </plurals>
-    <string name="model_options_web_every_message">Her mesajda</string>
-    <string name="model_options_web_no_generic_switch">Bu sağlayıcının web araması için standart bir anahtarı yok. Gerekli alanları ek istek gövdesine ekleyin.</string>
-    <string name="model_options_web_not_catalogued">Oriveo\'da bu model için henüz web araması ayarı yok, bu yüzden burada açılamaz.</string>
-    <string name="model_options_web_note">Soru gerektirdiğinde önce web\'de arar</string>
-    <string name="model_options_web_when_needed">Gerektiğinde</string>
-    <string name="additional_body_tools_managed">Araçları Oriveo yönetir.</string>
-    <string name="additional_body_streaming_by_oriveo">Yanıtın nasıl akış halinde geleceğine Oriveo karar verir.</string>
-    <string name="relay_catalog_add_all">Tümünü ekle</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="one">%1$d model eklendi</item>
-        <item quantity="other">%1$d model eklendi</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">Bu bağlantıda en az bir model olmalı.</string>
-    <string name="relay_catalog_enable_hint_explicit">Önce “Gelişmiş” bölümüne bakmak için katalogdaki bir modele dokunun; bu sırada istek gönderilmez.</string>
-    <string name="relay_model_advanced_changes_apply">Değişiklikler hemen uygulanır ve yalnızca bu cihazda saklanır.</string>
-    <string name="relay_model_advanced_auto_equals_connection">Otomatik = bu bağlantının varsayılan protokolü (%1$s)</string>
     <string name="relay_avatar_change_icon">Simgeyi değiştir</string>
     <string name="relay_avatar_letter">Harf</string>
     <string name="relay_avatar_icon_paper_plane">Kâğıt uçak</string>
@@ -2281,7 +2316,7 @@
     <string name="memory_editor_category">Kategori</string>
     <string name="memory_editor_too_long">En fazla 2.000 karakter</string>
     <string name="memory_delete_confirm_title">Bu bellek kaydı silinsin mi?</string>
-    <string name="memory_delete_confirm_body">Bu cihazdan kalıcı olarak silinir.</string>
+    <string name="memory_delete_confirm_body">Tüm cihazlarınızdan silinir.</string>
     <string name="memory_action_organize">Kayıtlara ayır</string>
     <string name="memory_raw_view">Düz metin</string>
     <string name="memory_raw_view_hint">Kayıtları yalnızca --- içeren bir satırla ayırın.</string>
@@ -2311,8 +2346,165 @@
     <string name="context_confirm_also_price_line">Ayrıca %1$s için %2$s fiyat eşiğini de aşıyor; bu yüzden isteğin tamamı uzun bağlam fiyatından ücretlendirilir.</string>
     <string name="context_confirm_dont_ask">Bu sohbette bir daha sorma</string>
     <string name="context_confirm_send">Yine de gönder</string>
-    <string name="chat_last_used_model_retired_hint">Son kullandığınız model kullanımdan kaldırıldı. Artık %1$s kullanılıyor.</string>
-    <string name="model_options_shows_thinking_fixed">Düşünme sürecini gösterir · ayarlanamaz</string>
     <string name="settings_section_general">Genel</string>
     <string name="settings_section_help_about">Yardım ve Bilgi</string>
+    <string name="settings_footer_poem">Sayısız modelin arasında, yalnızca size ait o cevap.</string>
+    <string name="skills_home_autoCount">Otomatik · %1$d</string>
+    <string name="skills_home_slashHint">Kullanmak için / yazın</string>
+    <string name="skills_home_empty">Kendi yönteminizi kaydedin</string>
+    <string name="skills_list_subtitle">İşlerin nasıl yapılmasını istediğinizi kaydedin; yapay zeka uygun olduğunda bunu kullanır.</string>
+    <string name="skills_create_describePlaceholder">Bir yöntemi anlatın, yapay zeka beceriyi yazsın</string>
+    <string name="skills_create_fromChat">Sohbetten</string>
+    <string name="skills_create_manual">Elle oluştur</string>
+    <string name="skills_segment_mine">Becerilerim</string>
+    <string name="skills_segment_templates">Şablonlar</string>
+    <string name="skills_group_auto">Otomatik</string>
+    <string name="skills_group_manual">Yalnızca elle</string>
+    <string name="skills_card_usageCount">Kullanım: %1$d</string>
+    <string name="skills_row_slashHint">%1$s yazdığınızda kullanılır</string>
+    <string name="skills_auto_needWhenTitle">Önce ne zaman kullanılacağını yazın</string>
+    <string name="skills_auto_suggest">Öner</string>
+    <string name="skills_auto_limitReached">Otomatik kullanım sınırına ulaşıldı (%1$d). Önce birini kapatın.</string>
+    <string name="skills_search_placeholder">Beceri ara</string>
+    <string name="skills_empty_title">Henüz beceri yok</string>
+    <string name="skills_empty_body">Sık kullandığınız yöntemleri kaydedin, her seferinde yeniden anlatmanız gerekmesin.</string>
+    <string name="skills_empty_browseTemplates">Şablonlara göz at</string>
+    <string name="skills_migrate_banner">“Ne zaman kullanılır” alanı boş beceriler: %1$d. Bir cümle ekleyin, otomatik kullanılabilsinler.</string>
+    <string name="skills_migrate_review">Tek tek tamamla</string>
+    <string name="skills_templates_note">Şablonlar ancak “Becerilerim” bölümüne eklendikten sonra otomatik kullanılır.</string>
+    <string name="skills_templates_featured">Öne çıkanlar</string>
+    <string name="skills_templates_addToMine">Becerilerime ekle</string>
+    <string name="skills_templates_add">Ekle</string>
+    <string name="skills_templates_added">Eklendi</string>
+    <string name="skills_templates_tryOnce">Bir kez dene</string>
+    <string name="skills_detail_useInNewChat">Yeni sohbette kullan</string>
+    <string name="skills_detail_orSlash">Ya da mesaj kutusuna %1$s yazın</string>
+    <string name="skills_detail_usage">Kullanım: %1$d · Son kullanım %2$s</string>
+    <string name="skills_detail_neverUsed">Henüz kullanılmadı</string>
+    <string name="skills_detail_autoInvoke">Otomatik kullan</string>
+    <string name="skills_detail_whenToUse">Ne zaman kullanılır</string>
+    <string name="skills_detail_whenToUseNote">Yapay zeka buna bakarak karar verir</string>
+    <string name="skills_detail_instructions">Talimatlar</string>
+    <string name="skills_detail_showAll">Tümünü göster</string>
+    <string name="skills_detail_references">Referans materyalleri</string>
+    <string name="skills_detail_starters">Sohbet başlatıcıları</string>
+    <string name="skills_detail_recentChats">Son sohbetler</string>
+    <string name="skills_detail_try">Dene</string>
+    <string name="skills_edit_changeIcon">Simgeyi değiştir</string>
+    <string name="skills_edit_name">Ad</string>
+    <string name="skills_edit_whenBadge">Otomatik kullanımı belirler</string>
+    <string name="skills_edit_whenPlaceholder">ör. Notlarımı haftalık rapora dönüştürmeni istediğimde. Günlük güncellemeler için değil.</string>
+    <string name="skills_edit_keywordsCaption">Bu kelimelerle tetiklenir · durumu anlatmanız yeterli</string>
+    <string name="skills_edit_whenTip">Ne yaptığını, ne zaman kullanılacağını ve genelde nasıl istediğinizi yazın. Yanlış eşleşmeleri önlemek için “… için değil” ekleyin. Tırnak içindeki kelimeler vurgulanır.</string>
+    <string name="skills_edit_polish">Yapay zekayla iyileştir</string>
+    <string name="skills_edit_addStarter">Başlatıcı ekle</string>
+    <string name="skills_edit_modelAndFeatures">Model ve özellikler</string>
+    <string name="skills_edit_followChat">Sohbetle aynı</string>
+    <string name="skills_edit_needWhenForAuto">“Ne zaman kullanılır” alanını doldurun veya otomatik kullanımı kapatın.</string>
+    <string name="skills_draft_askScenarios">Kullanacağınız bir iki durum örneği verin</string>
+    <string name="skills_draft_askQuality">İyi bir sonuç nasıl olmalı?</string>
+    <string name="skills_draft_skip">Atla</string>
+    <string name="skills_draft_generating">Taslak yazılıyor…</string>
+    <string name="skills_draft_title">Taslak</string>
+    <string name="skills_draft_editFirst">Önce düzenle</string>
+    <string name="skills_draft_suggestedIcon">Önerilen simge</string>
+    <string name="skills_draft_failed">Taslak tamamlanamadı. Kullanılabilir kısımlar sizin için dolduruldu.</string>
+    <string name="skills_fromChat_menuConversation">Beceri olarak kaydet</string>
+    <string name="skills_fromChat_menuMessage">Bu yaklaşımı beceri olarak kaydet</string>
+    <string name="skills_fromChat_messages">Mesaj: %1$d</string>
+    <string name="skills_fromChat_extracting">Derleniyor…</string>
+    <string name="skills_limit_upgrade">Daha fazlası için yükselt</string>
+    <string name="skills_limit_draftKept">Taslağınız bu cihazda saklanıyor.</string>
+    <string name="skills_composer_placeholder">Beceri kullanmak için / yazın</string>
+    <string name="skills_picker_title">Becerilerim</string>
+    <string name="skills_picker_multi">Birden fazla seçilebilir</string>
+    <string name="skills_picker_auto">Otomatik</string>
+    <string name="skills_picker_manual">Elle</string>
+    <string name="skills_picker_manage">Becerileri yönet</string>
+    <string name="skills_picker_maxReached">Aynı anda en fazla %1$d</string>
+    <string name="skills_chip_deleted">Silindi</string>
+    <string name="skills_message_attached">Kullanılan: %1$s</string>
+    <string name="skills_used_chip">Kullanıldı: %1$s</string>
+    <string name="skills_used_loading">%1$s kullanılıyor…</string>
+    <string name="skills_used_byChoice">Siz seçtiğiniz için kullanıldı</string>
+    <string name="skills_used_why">Neden kullanıldı</string>
+    <string name="skills_used_disableHere">Bu sohbette otomatik kullanma</string>
+    <string name="skills_used_view">Beceriyi görüntüle</string>
+    <string name="skills_settings_autoToggle">Becerileri otomatik kullan</string>
+    <string name="skills_settings_autoToggleFooter">Kapalıyken model kendi başına beceri seçmez. Yine de / yazarak birini kullanabilirsiniz.</string>
+    <string name="skills_try_banner">Deneniyor · Geçmişe kaydedilmez</string>
+    <string name="skills_try_saveToSkill">Beceriye kaydet</string>
+    <string name="skills_try_adjust">Talimatları düzenle</string>
+    <string name="skills_try_saved">“%1$s” becerisine kaydedildi</string>
+    <string name="skills_try_savedToDraft">Düzenleyiciye aktarıldı. Kalıcı olması için orada kaydedin.</string>
+    <string name="skills_improve_prompt">Bunu “%1$s” becerisine ekleyelim mi?</string>
+    <string name="skills_improve_review">Değişikliği incele</string>
+    <string name="skills_improve_accept">Beceriye ekle</string>
+    <string name="skills_improve_dismiss">Şimdi değil</string>
+    <string name="skills_improve_addedLine">Eklendi</string>
+    <string name="skills_improve_removedLine">Kaldırıldı</string>
+    <string name="skills_improve_saved">“%1$s” becerisine eklendi</string>
+    <string name="skills_saveFailed">Değişiklikler kaydedilemedi. Lütfen tekrar deneyin.</string>
+    <string name="skills_usage_manifestRow">Beceri listesi ek yükü</string>
+    <string name="skills_glyph_writing">Yazı</string>
+    <string name="skills_glyph_report">Rapor</string>
+    <string name="skills_glyph_code">Kod</string>
+    <string name="skills_glyph_study">Ders çalışma</string>
+    <string name="skills_glyph_travel">Seyahat</string>
+    <string name="skills_glyph_health">Sağlık</string>
+    <string name="skills_glyph_meeting">Toplantı</string>
+    <string name="skills_glyph_idea">Fikir</string>
+    <string name="skills_glyph_translate">Çeviri</string>
+    <string name="skills_glyph_email">E-posta</string>
+    <string name="skills_glyph_data">Veri</string>
+    <string name="skills_glyph_design">Tasarım</string>
+    <string name="skills_glyph_legal">Hukuk</string>
+    <string name="skills_glyph_finance">Finans</string>
+    <string name="skills_glyph_marketing">Pazarlama</string>
+    <string name="skills_glyph_support">Destek</string>
+    <string name="skills_glyph_teaching">Öğretim</string>
+    <string name="skills_glyph_research">Araştırma</string>
+    <string name="skills_glyph_life">Günlük yaşam</string>
+    <string name="skills_glyph_food">Yemek</string>
+    <string name="skills_glyph_music">Müzik</string>
+    <string name="skills_glyph_photo">Fotoğrafçılık</string>
+    <string name="skills_glyph_product">Ürün</string>
+    <string name="skills_glyph_general">Genel</string>
+    <string name="skills_home_notesRecent">Son düzenlenen</string>
+    <string name="skills_search_noResults">Sonuç yok</string>
+    <string name="generic_error_try_again">Bir sorun oluştu. Tekrar deneyin.</string>
+    <string name="loading_usage_trends">Kullanım eğilimleri yükleniyor…</string>
+    <string name="usage_vs_last_month">geçen ay vs</string>
+    <string name="usage_section_insights">İÇGÖRÜLER</string>
+    <string name="usage_section_budgets">BÜTÇELER</string>
+    <string name="usage_sample_report">Örnek rapor</string>
+    <string name="usage_clear">Temizle</string>
+    <string name="usage_monthly_budget_eyebrow">Aylık bütçe</string>
+    <string name="skills_knowledgeErrorOpenAI">Önce bir OpenAI sağlayıcısı ekleyip yapılandır.</string>
+    <string name="skills_knowledgeErrorEndpoint">Bilgi tabanı yalnızca resmi OpenAI uç noktasıyla çalışır.</string>
+    <string name="skills_knowledgeErrorModelDisabled">Önce OpenAI sağlayıcınızda %1$s modelini ekleyip etkinleştirin.</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">Bilgi tabanı şu anda kullanılamıyor.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">Bilgi tabanı dosyaları 20 MB veya daha küçük olmalıdır.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">Bir Skill en fazla 5 bilgi tabanı dosyasına ve toplamda 100 MB\'a sahip olabilir.</string>
+    <string name="skills_knowledgeErrorExtractFailed">Bu dosyadan metin çıkarılamadı.</string>
+    <string name="skills_knowledgeErrorUploadFailed">Bu dosya yüklenemedi.</string>
+    <string name="skills_knowledgeErrorIndexFailed">Bu dosya dizine eklenemedi.</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">Bu mesaj için bilgi tabanı getirme işlemi başarısız oldu.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">Uzak dosya temizlenemedi. Daha sonra tekrar deneyin.</string>
+    <string name="custom_llm_connection_method">Bağlantı yöntemi</string>
+    <string name="local_compute_pairing_code">Eşleştirme kodu</string>
+    <string name="local_compute_scan_qr">QR kodunu tara</string>
+    <string name="api_endpoint_not_configured">Yapılandırılmadı</string>
+    <string name="contact_support">Destekle İletişime Geç</string>
+    <string name="error_attachment_not_accepted_title">Ek kabul edilmedi</string>
+    <string name="generation_empty_runtime_locked">Bu bağlantıda çalışma zamanı parametreleri değiştirilemez.</string>
+    <string name="legal_consent_notice">Devam ederek aşağıdaki yasal şartları kabul etmiş olursunuz.</string>
+    <string name="price_cache_read">Önbellek okuma</string>
+    <string name="price_cache_write">Önbellek yazma</string>
+    <string name="price_input">Girdi</string>
+    <string name="price_output">Çıktı</string>
+    <string name="settings_report_issue">Sorun Bildir</string>
+    <string name="settings_source_code">Kaynak Kodu</string>
+    <string name="skills_pinToHome">Ana Sayfaya Sabitle</string>
+    <string name="skills_unpin">Ana Sayfadaki sabitlemeyi kaldır</string>
 </resources>

@@ -2,7 +2,6 @@ package ai.oriveo.community.feature.chat.components
 
 import android.net.Uri
 import androidx.compose.foundation.border
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.MenuBook
@@ -177,16 +175,15 @@ private fun CitationRow(
             "google" -> Icons.Outlined.Description
             else -> Icons.Outlined.Public
         }
+        // Bare 14dp tertiary icon in a 16dp slot, no fill behind it; matches iOS CitationRowView.
         Box(
-            modifier = Modifier
-                .size(16.dp)
-                .background(colors.backgroundSecondary, CircleShape),
+            modifier = Modifier.size(16.dp),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = sourceIcon,
                 contentDescription = null,
-                modifier = Modifier.size(12.dp),
+                modifier = Modifier.size(14.dp),
                 tint = colors.textTertiary,
             )
         }

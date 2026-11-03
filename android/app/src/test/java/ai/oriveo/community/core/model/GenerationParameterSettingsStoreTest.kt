@@ -1,6 +1,14 @@
 package ai.oriveo.community.core.model
 
+import android.app.Application
+import android.content.Context
+import android.content.ContextWrapper
+import android.content.SharedPreferences
+import androidx.test.core.app.ApplicationProvider
 import kotlinx.serialization.json.JsonPrimitive
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import java.io.File
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -18,11 +26,71 @@ import java.nio.file.Path
 private const val UPPER_PROVIDER = "9A1195DE-3AF9-5888-ABC8-B8177C458C07"
 private const val UPPER_CONVERSATION = "7C9E6679-7425-40DE-944B-E07FC1F90AE7"
 
+// Tests that do not touch disk need a real Context (SharedPreferences), so the whole class runs under Robolectric.
+@RunWith(RobolectricTestRunner::class)
 class GenerationParameterSettingsStoreTest {
 
     /** One instance for the whole class: building a Json format per call is measurably slow. */
     private val lenientJson = Json { ignoreUnknownKeys = true }
 
+    /** Counts getSharedPreferences / getCacheDir / getFilesDir calls; applicationContext returns itself. */
+    private class DiskCountingContext(base: Context) : ContextWrapper(base) {
+        var diskTouches = 0
+        override fun getApplicationContext(): Context = this
+        override fun getSharedPreferences(name: String?, mode: Int): SharedPreferences {
+            diskTouches += 1
+            return super.getSharedPreferences(name, mode)
+        }
+        override fun getCacheDir(): File {
+            diskTouches += 1
+            return super.getCacheDir()
+        }
+        override fun getFilesDir(): File {
+            diskTouches += 1
+            return super.getFilesDir()
+        }
+    }
+
+    @Test
+    fun settingsFrom_doesNotTouchDiskUntilFirstRead() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val temperature = GenerationParameterOverrides(mapOf(
+            "temperature" to GenerationParameterOverride(GenerationOverrideState.Value, JsonPrimitive(0.4)),
+        ))
+        GenerationParameterSettingsStore.from(app).setModelDefaults(temperature, providerID = UPPER_PROVIDER, modelID = "model-a")
+
+        val counting = DiskCountingContext(app)
+        val store = GenerationParameterSettingsStore.from(counting)
+        assertEquals(0, counting.diskTouches)
+
+        assertEquals(temperature, store.modelDefaults(UPPER_PROVIDER, "model-a"))
+        assertTrue(counting.diskTouches > 0)
+    }
+
+    @Test
+    fun presetFrom_doesNotTouchDiskUntilFirstRead() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val values = GenerationParameterOverrides(mapOf(
+            "temperature" to GenerationParameterOverride(GenerationOverrideState.Value, JsonPrimitive(0.7)),
+        ))
+        val saved = GenerationParameterPresetStore.from(app)
+            .save("Warm", providerID = UPPER_PROVIDER, modelID = "model-a", profileFingerprint = "fp", values = values)
+
+        val counting = DiskCountingContext(app)
+        val store = GenerationParameterPresetStore.from(counting)
+        assertEquals(0, counting.diskTouches)
+
+        val listed = store.list(UPPER_PROVIDER, "model-a", "fp")
+        assertTrue(counting.diskTouches > 0)
+        assertEquals(listOf(saved.id), listed.map { it.id })
+        assertEquals(values, listed.single().values)
+    }
+
+    /**
+     * Reasoning group priority after the scope decision: an explicit session-level reasoning chip > connection-level reasoning default >
+     * profile default. The original case asserted that any scope always skips reasoning; that assertion itself locked in the defect
+     * (the panel could set, save and echo the value, yet outbound injection was zero), so it was rewritten as three priority cases.
+     */
     @Test
     fun `connection scoped reasoning defaults merge only while the chip stays automatic`() {
         var payload: String? = null

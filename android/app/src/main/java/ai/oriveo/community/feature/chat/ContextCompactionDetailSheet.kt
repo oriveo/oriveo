@@ -24,12 +24,12 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
+import ai.oriveo.community.ui.component.rememberCostLocale
 import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.component.markdown.MarkdownMessageView
 import ai.oriveo.community.ui.theme.OriveoTheme
-import java.text.NumberFormat
-import java.util.Currency
 import java.util.Locale
 
 /** Detail sheet buttons; each one dispatches its action, then closes the sheet. */
@@ -133,11 +133,12 @@ fun ContextCompactionDetailSheet(
             DetailRow(stringResource(R.string.context_compaction_detail_model), detail.model)
             DetailRow(
                 stringResource(R.string.context_compaction_detail_cost),
-                when (val cost = detail.cost) {
-                    ContextCompactionCost.NoExtraCost -> stringResource(R.string.context_compaction_detail_no_extra_cost)
-                    ContextCompactionCost.Unavailable -> stringResource(R.string.context_compaction_detail_cost_unavailable)
-                    is ContextCompactionCost.Amount -> formatCompactionCost(cost.value)
-                },
+                compactionCostText(
+                    cost = detail.cost,
+                    locale = rememberCostLocale(),
+                    noExtraCostText = stringResource(R.string.context_compaction_detail_no_extra_cost),
+                    unavailableText = stringResource(R.string.context_compaction_detail_cost_unavailable),
+                ),
             )
             DetailRow(
                 stringResource(R.string.context_compaction_detail_time),
@@ -180,10 +181,24 @@ private fun DetailRow(label: String, value: String) {
     }
 }
 
-/** Compaction calls cost fractions of a cent, so up to four decimals. */
-private fun formatCompactionCost(value: Double): String =
-    NumberFormat.getCurrencyInstance(Locale.getDefault()).apply {
-        currency = Currency.getInstance("USD")
-        minimumFractionDigits = 2
-        maximumFractionDigits = 4
-    }.format(value)
+/**
+ * Cost row text, mirroring iOS ContextCompactionDetailSheet.costText: an amount at or below
+ * CostFormatter.COST_EPSILON (zero and negatives included) shows the same "cost unavailable" text as a
+ * missing cost instead of "$0.00" or an empty row.
+ */
+internal fun compactionCostText(
+    cost: ContextCompactionCost,
+    locale: Locale,
+    noExtraCostText: String,
+    unavailableText: String,
+): String = when (cost) {
+    ContextCompactionCost.NoExtraCost -> noExtraCostText
+    ContextCompactionCost.Unavailable -> unavailableText
+    is ContextCompactionCost.Amount -> formatCompactionCost(cost.value, locale).ifEmpty { unavailableText }
+}
+
+/**
+ * Same 5 / 4 / 2 digit tiers and half-away-from-zero rounding as message costs; empty at or below
+ * CostFormatter.COST_EPSILON so the caller can show the unavailable text.
+ */
+internal fun formatCompactionCost(value: Double, locale: Locale): String = CostFormatter.format(value, locale)

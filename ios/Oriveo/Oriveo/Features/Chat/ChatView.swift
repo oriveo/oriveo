@@ -103,13 +103,64 @@ struct ChatModelRemovedBanner: Equatable {
         context?.connectionState == .removed && providers.isEmpty ? .connectionSetup : .modelPicker
     }
 
-    /// Whether the send button is tappable: never while a banner is showing (including a deleted connection).
+    /// Whether the send button is tappable: while the hint bar shows (including when the connection was deleted) sending is always disabled; also disabled while waiting for the voice catalog.
     static func isSendEnabled(
         hasComposerContent: Bool,
         controlsDisabled: Bool,
-        banner: ChatModelRemovedBanner?
+        banner: ChatModelRemovedBanner?,
+        awaitingVoiceCatalog: Bool = false
     ) -> Bool {
-        hasComposerContent && !controlsDisabled && banner == nil
+        hasComposerContent && !controlsDisabled && banner == nil && !awaitingVoiceCatalog
+    }
+
+    /// Voice catalog not ready and the stored model is not in the text table (it may be a realtime model): the send key shows a loading disabled state and recovers when the catalog arrives.
+    /// The conversation page and the ChatManager send fallback share this one check (the text table only checks whether the stored value hits an enabled model).
+    static func awaitsVoiceCatalog(storedModelID: String, provider: Provider, voiceCatalog: VoiceCatalog?) -> Bool {
+        let stored = storedModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        let storedInTextTable = ProviderSelectionSnapshot.selectedModel(storedModelID: stored, in: provider) != nil
+        let connection = RealtimeModelPolicy.Connection(
+            id: provider.id.uuidString,
+            providerKind: provider.kind.rawValue,
+            auth: provider.realtimeConnectionAuth,
+            textModels: storedInTextTable
+                ? [RealtimeModelPolicy.TextModel(model: stored, webSearch: false, thinking: false)]
+                : []
+        )
+        return RealtimeModelPolicy.awaitsVoiceCatalog(
+            connection: connection,
+            model: stored,
+            realtimeCatalog: voiceCatalog?.realtimePolicyCatalog
+        )
+    }
+
+    /// VoiceOver label of the send key while waiting for the voice catalog (key voice_realtime_model_loading).
+    static var voiceCatalogLoadingLabel: String {
+        L10n.tr("Loading model", table: .voice)
+    }
+}
+
+/// The stored value may be a realtime model and the voice catalog failed to load (with no cache): one row above the input area reads "Can't load realtime voice model" plus "Retry".
+/// The primary key stays disabled while waiting for the catalog but does not spin; when the catalog arrives this row disappears and the primary key recovers (the realtime check takes over).
+struct ChatRealtimeCatalogRetryRow: Equatable {
+    /// Same as the realtime group's failure card on the settings page (key voice_realtime_catalog_unavailable).
+    static let messageKey = "Couldn't load realtime voice models"
+    static let actionKey = "Try Again"
+
+    var message: String { L10n.tr(Self.messageKey, table: .voice) }
+    var actionTitle: String { L10n.tr(Self.actionKey, table: .voice) }
+
+    /// Shows a row only when waiting for the catalog and the catalog state is a load failure; while loading (nil) it is a spinner; ready / no-value shows no row.
+    static func resolve(storedModelID: String, provider: Provider, catalogState: VoiceCatalogState?) -> ChatRealtimeCatalogRetryRow? {
+        guard case .loadFailed = catalogState else { return nil }
+        guard ChatModelRemovedBanner.awaitsVoiceCatalog(
+            storedModelID: storedModelID, provider: provider, voiceCatalog: catalogState?.catalog
+        ) else { return nil }
+        return ChatRealtimeCatalogRetryRow()
+    }
+
+    /// Primary key spinner: waiting for the catalog and not judged a load failure (the failed state is disabled, not spinning).
+    static func showsLoadingIndicator(awaitingVoiceCatalog: Bool, retryRow: ChatRealtimeCatalogRetryRow?) -> Bool {
+        awaitingVoiceCatalog && retryRow == nil
     }
 }
 
@@ -413,9 +464,20 @@ struct ChatView: View {
     @State private var pendingContextUsagePanelID: UUID?
     /// Composer capability selection when the settings sheet opened; the panel reached from it reads the same B as send.
     @State private var conversationSettingsCapabilitySelection = ChatCapabilitySelection()
+    /// Voice in progress and the responder changed, and the old run was already ended with ✕: after collapsing, the same conversation reopens with the new engine using this capability selection.
+    @State private var voiceEngineRestartSelection: ChatCapabilitySelection?
     /// In-flight precompaction; cancelled when the page disappears or the conversation switches.
     @State private var precompactionTask: Task<Void, Never>?
     @State private var pendingModelSelection: ModelPickerSelection?
+    /// Realtime-model disclosure being shown; `realtimeDisclosurePending` keeps it (with its single origin)
+    /// until answered, so a swipe-down (which clears the item first) still resolves as a decline.
+    @State private var realtimeDisclosure: RealtimeModelDisclosureRequest?
+    @State private var realtimeDisclosurePending = RealtimeDisclosurePending()
+    /// The migration sheet shown the first time an existing user taps ≋; before answering, ≋ does not proceed; if interrupted by the system without an answer, the old key is kept and it shows again next time.
+    @State private var realtimeMigrationPrompt: RealtimeMigrationPrompt?
+    /// The ≋ arguments pending on the migration sheet: each show overwrites them and answering takes them; after "switch" shows a notice, the notice source switches over,
+    /// and notice dispatch looks only at the notice source, so a stale value left when the sheet was closed by the system does not send other notices down the migration path.
+    @State private var realtimeMigrationCapabilitySelection: ChatCapabilitySelection?
     @State private var reasoningMode: ReasoningMode = .automatic
     @State private var reasoningIntentSelection: String?
     /// new-conversation default. Legacy persisted ON/OFF values are migrated by the
@@ -442,7 +504,14 @@ struct ChatView: View {
     @State private var expensiveModelHint: ExpensiveModelHintData?
     /// The input is a UIKit view (ComposerTextView) that bridges focus to first responder by hand, not through FocusState.
     @State private var composerFocused = false
+    /// A conversation switched to typed state while in a realtime selection (nil = compose state): kept in memory only; the input bar and capability projection read the same value.
+    @State private var realtimeTypingHosts: Set<UUID?> = []
+    /// A realtime typed sentence that was handed off but not yet settled (shared by the input bar and the resend after notice consent); kept in memory only.
+    @State private var realtimeTypedInFlight: RealtimeTypedInFlight?
     @State private var bootstrapLoadFailed = false
+    /// Voice catalog state (including load failure): AppState.realtimeVoiceCatalog folds failure into nil and a failure does not bump the revision number, so
+    /// the failure row must distinguish "loading" from "load failed"; this page reads the snapshot. nil = no conclusion yet.
+    @State private var voiceCatalogState: VoiceCatalogState?
     @State private var conversationObservation = CurrentConversationObservation()
     @State private var windowLoader = MessageWindowLoader()
     @State private var disclosureProvider: ProviderKind?
@@ -559,6 +628,27 @@ struct ChatView: View {
         return RelayFirstSendTransport.current(provider: context.provider, model: model)
     }
 
+    /// Failure row when the current conversation is waiting for the voice catalog and the catalog load failed.
+    private var realtimeCatalogRetryRow: ChatRealtimeCatalogRetryRow? {
+        guard let conversationID = projection.activeConversationID,
+              let conversation = appState.conversation(for: conversationID),
+              let conversationProvider = appState.provider(for: conversation.providerID)
+        else { return nil }
+        return ChatRealtimeCatalogRetryRow.resolve(
+            storedModelID: conversation.modelID,
+            provider: conversationProvider,
+            catalogState: voiceCatalogState
+        )
+    }
+
+    /// "Retry" of the failure row: same as retryRealtime on the settings page; during the re-fetch it returns to the loading state (primary key spinning), and once fetched it is re-judged by the result.
+    private func retryRealtimeCatalog() {
+        voiceCatalogState = nil
+        Task { @MainActor in
+            voiceCatalogState = await VoiceCatalogClient.shared.refresh()
+        }
+    }
+
     private var resolvedChatContext: ChatScreenContext? {
         let projection = projection
         let cache = pendingModelNameCache
@@ -577,8 +667,55 @@ struct ChatView: View {
         )
     }
 
+    /// The gate, send, and engine switch share one source: first take the current conversation from memory (a model change writes memory synchronously); if unavailable, fall back to the database summary
+    /// (which only updates after the background write lands; mid-change it is still the old provider).
+    static func gateProviderID(inMemory: UUID?, summary: UUID?) -> UUID? {
+        inMemory ?? summary
+    }
+
+    /// Model name for the engine-switch notice (same answer as Android voiceSwitchModelName): realtime takes the selected realtime model;
+    /// text takes the short model name resolved from the current in-memory conversation (without the top bar's cloud-proxy suffix), falling back to the model id if unresolvable.
+    static func engineSwitchModelName(
+        selection: RealtimeModelSelection?,
+        inMemoryModel: AIModel?,
+        inMemoryModelID: String?
+    ) -> String? {
+        selection?.model ?? inMemoryModel?.name ?? inMemoryModelID
+    }
+
+    /// Top-bar model name: while the voice catalog has not arrived and the stored value may be a realtime model, take the conversation's stored value id, so currentModel does not fall back to
+    /// the provider's default text model; once the catalog arrives, take the realtime selected name as before. While waiting for the catalog, no cyan dot (realtime is not yet judged; selection is nil).
+    static func toolbarRealtimeModelName(
+        selection: RealtimeModelSelection?,
+        awaitsCatalog: Bool,
+        storedModelID: String?
+    ) -> String? {
+        guard awaitsCatalog else { return selection?.model }
+        let stored = storedModelID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return stored.isEmpty ? selection?.model : stored
+    }
+
+    /// Whether the top bar is waiting for the voice catalog: same judgment as the input-area send key and the ChatManager send fallback (takes the current conversation in memory and its provider).
+    private var toolbarAwaitsVoiceCatalog: Bool {
+        awaitsVoiceCatalog(conversationID: projection.activeConversationID)
+    }
+
+    /// Whether this conversation is waiting for the voice catalog (shared by the top bar and the message list).
+    private func awaitsVoiceCatalog(conversationID: UUID?) -> Bool {
+        _ = appState.realtimeVoiceCatalogRevision
+        guard let conversation = conversationID.flatMap({ appState.conversation(for: $0) }),
+              let conversationProvider = appState.provider(for: conversation.providerID)
+        else { return false }
+        return ChatModelRemovedBanner.awaitsVoiceCatalog(
+            storedModelID: conversation.modelID,
+            provider: conversationProvider,
+            voiceCatalog: appState.realtimeVoiceCatalog()
+        )
+    }
+
     private var currentProviderKind: ProviderKind? {
-        if let providerID = projection.providerID,
+        let inMemory = projection.activeConversationID.flatMap { appState.conversation(for: $0)?.providerID }
+        if let providerID = Self.gateProviderID(inMemory: inMemory, summary: projection.providerID),
            let provider = appState.provider(for: providerID) {
             return provider.kind
         }
@@ -598,7 +735,19 @@ struct ChatView: View {
         ComposerAttachmentEntries.resolve(
             provider: resolvedChatContext?.provider,
             model: resolvedChatContext?.model,
-            partitionID: appState.sessionPartitionUID
+            partitionID: appState.sessionPartitionUID,
+            realtimeMode: realtimeComposerMode
+        )
+    }
+
+    /// The input-area state when a realtime model is selected (voice stage / typing); nil when none is selected. Same criterion as the input bar's primary button.
+    private var realtimeComposerMode: RealtimeModelPolicy.ComposerMode? {
+        let projection = projection
+        return ComposerRealtimeMode.resolve(
+            realtimeSelected: appState.realtimeModelSelection(for: projection.activeConversationID) != nil,
+            isSending: projection.isSendingMessage,
+            voiceAvailable: !isComposerReadOnly,
+            typing: realtimeTypingHosts.contains(projection.activeConversationID)
         )
     }
 
@@ -904,13 +1053,54 @@ struct ChatView: View {
 
     private func startVoiceConversation(capabilitySelection: ChatCapabilitySelection) {
         pendingVoiceConversationStart = nil
+        switch RealtimeMigration.evaluate(
+            conversationID: projection.activeConversationID,
+            providers: appState.providers,
+            catalog: ReadAloudCatalogSnapshot.shared.state?.catalog
+        ) {
+        case .enterCascade:
+            openVoiceConversation(capabilitySelection: capabilitySelection)
+        case .prompt(let prompt):
+            composerFocused = false
+            realtimeMigrationCapabilitySelection = capabilitySelection
+            realtimeMigrationPrompt = prompt
+        }
+    }
+
+    private func answerRealtimeMigration(_ prompt: RealtimeMigrationPrompt, switchModel: Bool) {
+        realtimeMigrationPrompt = nil
+        let capabilitySelection = realtimeMigrationCapabilitySelection
+        realtimeMigrationCapabilitySelection = nil
+        guard switchModel else {
+            RealtimeMigration.keep(prompt)
+            if let capabilitySelection { openVoiceConversation(capabilitySelection: capabilitySelection) }
+            return
+        }
+        switch RealtimeMigration.switchModel(prompt, appState: appState) {
+        case .selected:
+            return
+        case .needsDisclosure(let request):
+            presentRealtimeDisclosure(request, origin: .migration(capabilitySelection))
+        case .enterCascade:
+            if let capabilitySelection { openVoiceConversation(capabilitySelection: capabilitySelection) }
+        }
+    }
+
+    private func openVoiceConversation(capabilitySelection: ChatCapabilitySelection) {
         composerFocused = false
         let draftSessionID = generationParameterDraftSessionID
         Task {
             await VoiceConversationSession.shared.start(
                 origin: .chat,
                 conversationID: projection.activeConversationID,
-                host: appState
+                host: appState,
+                onNeedsRealtimeDisclosure: { selection in
+                    // The realtime selection has not yet acknowledged the notice: show the notice first; the session opens after consent.
+                    let request = RealtimeModelDisclosureRequest(
+                        selection: selection, conversationID: projection.activeConversationID
+                    )
+                    presentRealtimeDisclosure(request, origin: .voiceStart(capabilitySelection))
+                }
             ) { [appState] text, conversationID in
                 return await appState.sendMessageOutcome(
                     text,
@@ -931,6 +1121,10 @@ struct ChatView: View {
         guard let selection = pendingModelSelection else { return }
         pendingModelSelection = nil
         guard case .chat(let conversationID) = selection.context else { return }
+        if selection.modelKind == .realtime {
+            commitRealtimeModelSelection(selection, conversationID: conversationID)
+            return
+        }
         appState.selectModel(
             modelID: selection.modelID,
             providerID: selection.providerID,
@@ -954,18 +1148,23 @@ struct ChatView: View {
             resolvedChatContext?.provider.id.uuidString ?? "",
             resolvedChatContext?.model?.id ?? "",
             projection.isSendingMessage ? "1" : "0",
+            appState.realtimeModelSelection(for: projection.activeConversationID) != nil ? "rt" : "",
         ].joined(separator: "|")
     }
 
     private func reloadMcpPanelState() {
         let uid = appState.sessionPartitionUID
-        let availability: McpToolAvailability
+        let textAvailability: McpToolAvailability
         if let context = resolvedChatContext, let model = context.model {
-            availability = appState.chatManager.mcpToolAvailability(provider: context.provider, model: model)
+            textAvailability = appState.chatManager.mcpToolAvailability(provider: context.provider, model: model)
         } else {
-            availability = .available
+            textAvailability = .available
         }
-        // When local storage cannot be read the panel is drawn as "no servers"; chat is not blocked.
+        let availability = McpToolAvailability.panel(
+            textModel: textAvailability,
+            realtimeSelected: appState.realtimeModelSelection(for: projection.activeConversationID) != nil
+        )
+        // When local storage cannot be read, draw as "no server", and do not block the chat because of it.
         let loaded = try? McpToolPanelModel.load(
             conversationId: mcpConversationScopeID,
             store: appState.mcpServerDirectory.store(for: uid),
@@ -979,8 +1178,7 @@ struct ChatView: View {
         mcpPanelState = loaded ?? fallback
     }
 
-    /// The switch write awaits the write lock instead of blocking the main thread (the GRDB writer runs calls in
-    /// order, so rapid taps also land in tap order); the panel is reloaded from the database afterwards.
+    /// The toggle write is suspended waiting on the write lock and is not waited on synchronously on the main thread (the GRDB write queue runs in call order, so rapid taps persist in tap order); after persisting, the panel re-reads from the database.
     private func setMcpServer(_ serverId: UUID, enabled: Bool) {
         let uid = appState.sessionPartitionUID
         guard let store = try? appState.mcpServerDirectory.store(for: uid) else {
@@ -1010,6 +1208,86 @@ struct ChatView: View {
     private func openMcpReauthorization(_ serverId: UUID) {
         showsMcpToolPanel = false
         navigation.path.append(.mcpServerDetail(serverID: serverId, intent: .reauthorize))
+    }
+
+    /// Realtime row picked: takes effect only once the provider's realtime disclosure is accepted.
+    private func commitRealtimeModelSelection(_ selection: ModelPickerSelection, conversationID: UUID?) {
+        switch appState.selectRealtimeModel(providerID: selection.providerID, model: selection.modelID, for: conversationID) {
+        case .applied, .pending:
+            return
+        case .unavailable:
+            showRealtimeModelGoneToast(selection.modelID)
+        case .needsDisclosure(let realtime):
+            let request = RealtimeModelDisclosureRequest(selection: realtime, conversationID: conversationID)
+            presentRealtimeDisclosure(request, origin: .picker)
+        }
+    }
+
+    /// The picked realtime model is no longer in the catalog: same text as the realtime model_gone failure.
+    private func showRealtimeModelGoneToast(_ model: String) {
+        ToastManager.shared.show(
+            L10n.format(L10n.tr("%1$@ is no longer available.", table: .voice), model),
+            style: .warning
+        )
+    }
+
+    /// Shows the disclosure. The pending store holds one source: a new presentation overwrites the old origin, and the answer takes it back.
+    private func presentRealtimeDisclosure(_ request: RealtimeModelDisclosureRequest, origin: RealtimeDisclosureOrigin) {
+        realtimeDisclosurePending.present(request, origin: origin)
+        realtimeDisclosure = request
+    }
+
+    private func answerRealtimeDisclosure(accepted: Bool) {
+        guard let (request, action) = realtimeDisclosurePending.take(accepted: accepted) else { return }
+        switch action {
+        case .resolve(let accepted):
+            appState.resolveRealtimeModelDisclosure(request.selection, for: request.conversationID, accepted: accepted)
+        case .resolveThenSendTyped(let text):
+            let resolved = appState.resolveRealtimeModelDisclosure(request.selection, for: request.conversationID, accepted: true)
+            let pending = RealtimeTypedPendingSend(text: text, request: request)
+            if let text = pending.textToSend(accepted: resolved, activeConversationID: projection.activeConversationID) {
+                sendPendingRealtimeTyped(text)
+            }
+        case .resolveThenStartVoice(let capabilitySelection):
+            if appState.resolveRealtimeModelDisclosure(request.selection, for: request.conversationID, accepted: true),
+               let capabilitySelection {
+                openVoiceConversation(capabilitySelection: capabilitySelection)
+            }
+        case .resolveMigration(let accepted, let capabilitySelection):
+            if !RealtimeMigration.resolveDisclosure(request, accepted: accepted, appState: appState),
+               let capabilitySelection {
+                openVoiceConversation(capabilitySelection: capabilitySelection)
+            }
+        }
+    }
+
+    /// Realtime typed send hit a selection without consent: show the disclosure (with the cost line) and hold this text.
+    /// Accepted, it is sent; declined or dismissed, it stays in the input box.
+    private func presentRealtimeTypedDisclosure(_ selection: RealtimeModelSelection, text: String) {
+        let request = RealtimeModelDisclosureRequest(selection: selection, conversationID: projection.activeConversationID)
+        presentRealtimeDisclosure(request, origin: .typedSend(text))
+    }
+
+    /// Sends the held typed text after consent. The text stays in the field; the input bar clears it on the first persisted message.
+    /// If it is not handed off, only the in-flight mark is settled and the text stays in the field.
+    private func sendPendingRealtimeTyped(_ text: String) {
+        let conversationID = projection.activeConversationID
+        let session = VoiceConversationSession.shared
+        guard let inFlight = RealtimeTypedInFlight.begin(
+            realtimeTypedInFlight, text: text, conversationID: conversationID, session: session
+        ) else { return }
+        realtimeTypedInFlight = inFlight
+        Task {
+            let sent = await session.sendRealtimeTyped(
+                text, conversationID: conversationID, host: appState,
+                onNeedsRealtimeDisclosure: { presentRealtimeTypedDisclosure($0, text: text) }
+            )
+            if !sent, realtimeTypedInFlight == inFlight { realtimeTypedInFlight = nil }
+        }
+    }
+
+    private func realtimeDisclosureDismissed() {
+        answerRealtimeDisclosure(accepted: false)
     }
 
     private func presentModelPicker() {
@@ -1192,6 +1470,15 @@ struct ChatView: View {
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
+        .sheet(item: $realtimeDisclosure, onDismiss: realtimeDisclosureDismissed) { request in
+            VoiceDisclosureSheet(
+                provider: request.selection.providerKind,
+                direction: .realtime,
+                onAnswer: { accepted in answerRealtimeDisclosure(accepted: accepted) }
+            )
+                .environment(appState)
+        }
+        .realtimeMigrationAlert($realtimeMigrationPrompt, onAnswer: answerRealtimeMigration)
         .sheet(item: $compactionDetailPresentation) { presentation in
             ContextCompactionDetailSheet(detail: presentation.detail, conversationID: presentation.conversationID)
                 .presentationDragIndicator(.visible)
@@ -1323,7 +1610,21 @@ struct ChatView: View {
                     }
                 }
             }
+            // Only for store screenshots: the voice realtime notice page is shown via the production presentRealtimeDisclosure (VoiceShots.open), and does not record consent.
+            if let request = VoiceShots.takeRealtimeDisclosure(conversationID: conversationID) {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 600_000_000)
+                    presentRealtimeDisclosure(request, origin: .picker)
+                }
+            }
             #endif
+        }
+        // Re-read when the catalog revision number changes (catalog arrives / content changes); on first page entry, the refresh still in flight on the snapshot produces the conclusion (a failure does not push the revision number).
+        .task(id: appState.realtimeVoiceCatalogRevision) {
+            let snapshot = ReadAloudCatalogSnapshot.shared
+            _ = snapshot.current()
+            await snapshot.settle()
+            voiceCatalogState = snapshot.state
         }
         .task(id: conversationID) {
             await bootstrapObservations(for: conversationID)
@@ -1463,7 +1764,7 @@ struct ChatView: View {
                     .font(OriveoTheme.Typography.footnote)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(OriveoTheme.Palette.primary)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .padding(.horizontal, OriveoTheme.Spacing.lg)
             .padding(.vertical, 10)
             .contentShape(Rectangle())
@@ -1585,6 +1886,12 @@ struct ChatView: View {
                 provider: provider,
                 currentModel: currentModel,
                 pendingModelName: resolvedChatContext?.pendingModelName,
+                realtimeSelected: appState.realtimeModelSelection(for: projection.activeConversationID) != nil,
+                realtimeModelName: Self.toolbarRealtimeModelName(
+                    selection: appState.realtimeModelSelection(for: projection.activeConversationID),
+                    awaitsCatalog: toolbarAwaitsVoiceCatalog,
+                    storedModelID: projection.activeConversationID.flatMap { appState.conversation(for: $0)?.modelID }
+                ),
                 isSendingMessage: isSendingMessage,
                 transparentChrome: projection.messages.isEmpty,
                 showModelSwitcher: Binding(
@@ -1630,6 +1937,69 @@ struct ChatView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
 
+        return content
+            // Voice in progress and the responder on this page changed (cascade↔realtime, realtime↔another realtime): end the old run, and after collapsing, reopen with the new engine.
+            .onChange(of: appState.realtimeModelSelection(for: projection.activeConversationID)) { _, selection in
+                // "Switched to <model>" on the transition stage: realtime takes the selected realtime model; text takes the model name of the current in-memory conversation.
+                // Do not use this body's currentModel: it is resolved from the database summary and is still the old provider's default model at this point.
+                let conversation = projection.activeConversationID.flatMap { appState.conversation(for: $0) }
+                guard VoiceConversationSession.shared.endForEngineChange(
+                    in: projection.activeConversationID, newSelection: selection,
+                    newModelName: Self.engineSwitchModelName(
+                        selection: selection,
+                        inMemoryModel: conversation.flatMap { appState.currentModel(for: $0) },
+                        inMemoryModelID: conversation?.modelID
+                    )
+                ) else { return }
+                voiceEngineRestartSelection = capabilitySelection
+            }
+            // A pending realtime selection not accepted after the catalog arrives: the page shows a toast; it is not shown inside AppState.
+            .onChange(of: appState.realtimeSelectionGoneNotice) { _, notice in
+                guard let notice, notice.conversationID == projection.activeConversationID else { return }
+                appState.consumeRealtimeSelectionGoneNotice(notice)
+                showRealtimeModelGoneToast(notice.model)
+            }
+            .onChange(of: VoiceConversationSession.shared.isActive) { _, active in
+                guard !active, let restart = voiceEngineRestartSelection else { return }
+                voiceEngineRestartSelection = nil
+                handleVoiceConversationStart(capabilitySelection: restart)
+            }
+            .modifier(ChatContentModifiers(
+                host: self,
+                projection: projection,
+                provider: provider,
+                currentModel: currentModel,
+                isSendingMessage: isSendingMessage
+            ))
+    }
+
+    /// See `ScreenModifiers`.
+    private struct ChatContentModifiers: ViewModifier {
+        let host: ChatView
+        let projection: ChatScreenProjection
+        let provider: Provider
+        let currentModel: AIModel?
+        let isSendingMessage: Bool
+
+        func body(content: Content) -> some View {
+            host.chatContentModifiers(
+                content,
+                projection: projection,
+                provider: provider,
+                currentModel: currentModel,
+                isSendingMessage: isSendingMessage
+            )
+        }
+    }
+
+    /// The conversation page's styling, lifecycle, and attachment entry. Evaluated on the content proxy of ChatContentModifiers; the reason is in ScreenModifiers.
+    private func chatContentModifiers<Content: View>(
+        _ content: Content,
+        projection: ChatScreenProjection,
+        provider: Provider,
+        currentModel: AIModel?,
+        isSendingMessage: Bool
+    ) -> some View {
         let styledContent = content
         // Clamp the content to 620, the same rule the settings and detail pages follow rather
         // than a second one for the conversation screen. A phone in portrait (402) and the
@@ -1641,8 +2011,28 @@ struct ChatView: View {
         // aurora and the screen background layered after it still span the container and only
         // the content is centred. The other order squeezes the whole backdrop into a stripe.
         .oriveoContentWidth()
-        .background(ChatEmptyStateAurora(prominent: projection.messages.isEmpty))
-        .oriveoScreenBackground()
+        // Aurora glow layer: sandwiched between the shared screen background and the content (base → aurora → content).
+        // Resident ambience base: full strength on the empty state, automatically dimmed when there are messages.
+        // While the voice stage is active, the page glow and aurora fade to 0 (resident; only opacity changes), and the page becomes a plain background color.
+        .background {
+            let glow = VoiceStageChrome.pageGlowOpacity(
+                stageShown: VoiceStageChrome.isShown(
+                    session: .shared,
+                    conversationID: projection.activeConversationID,
+                    realtimeSelected: appState.realtimeModelSelection(for: projection.activeConversationID) != nil
+                )
+            )
+            ChatEmptyStateAurora(prominent: projection.messages.isEmpty)
+                .opacity(glow)
+                .animation(VoiceConversationBar.transitionAnimation(reduceMotion: reduceMotion), value: glow)
+        }
+        .oriveoScreenBackground(glowOpacity: VoiceStageChrome.pageGlowOpacity(
+            stageShown: VoiceStageChrome.isShown(
+                    session: .shared,
+                    conversationID: projection.activeConversationID,
+                    realtimeSelected: appState.realtimeModelSelection(for: projection.activeConversationID) != nil
+                )
+        ))
         .animation(preferredAnimation, value: expensiveModelHint)
 
         let modelObservedContent = styledContent
@@ -1831,6 +2221,7 @@ struct ChatView: View {
                 provider: provider,
                 currentModel: currentModel,
                 modelRemovedBanner: ChatModelRemovedBanner.resolve(resolvedChatContext),
+                realtimeCatalogRetryRow: realtimeCatalogRetryRow,
                 visibleCapabilityKeys: visibleCapabilityKeys,
                 capabilityEvidenceIdentity: capabilityEvidenceIdentity,
                 attachmentEntries: currentAttachmentEntries,
@@ -1842,7 +2233,6 @@ struct ChatView: View {
                 conversationID: projection.activeConversationID,
                 generationParameterScopeID: projection.activeConversationID ?? generationParameterDraftSessionID,
                 isReadOnly: isComposerReadOnly,
-                transparentChrome: projection.messages.isEmpty,
                 // Not `projection.draftText`: it reads "" while the summary is nil (observation not ready
                 // or stopped), and the composer would take "unknown" for "draft cleared".
                 storeDraft: projection.summary?.draftText,
@@ -1856,6 +2246,7 @@ struct ChatView: View {
                 reasoningIntentSelection: $reasoningIntentSelection,
                 webEnabled: $webEnabled,
                 composerFocused: $composerFocused,
+                realtimeTypingHosts: $realtimeTypingHosts,
                 onSend: { text, attachments in
                     handleComposerSend(
                         text: text,
@@ -1864,10 +2255,12 @@ struct ChatView: View {
                     )
                 },
                 onChooseModel: presentModelPicker,
-                // The entry is hidden when the master switch is off or no server has been added; existing configuration is kept.
+                onRetryRealtimeCatalog: retryRealtimeCatalog,
+                // The master switch is off, or no server has been added: the entry is hidden; existing configuration is kept.
                 toolsChip: ComposerToolsChipState.resolve(
                     featureEnabled: MetadataClient.shared.syncMcpRuntimeConfig().enabled,
-                    panelState: mcpPanelState
+                    panelState: mcpPanelState,
+                    realtimeMode: realtimeComposerMode
                 ),
                 onOpenTools: {
                     reloadMcpPanelState()
@@ -1886,7 +2279,9 @@ struct ChatView: View {
                 onOpenContextUsage: { openContextUsage(capabilitySelection: capabilitySelection) },
                 onStartVoiceConversation: {
                     handleVoiceConversationStart(capabilitySelection: capabilitySelection)
-                }
+                },
+                onNeedsRealtimeDisclosure: { presentRealtimeTypedDisclosure($0, text: $1) },
+                realtimeTypedInFlight: $realtimeTypedInFlight
             )
             .overlay {
                 if isDropTargeted {
@@ -1914,8 +2309,12 @@ struct ChatView: View {
             isSendingMessage: isSendingMessage,
             capabilitySelection: capabilitySelection,
             currentVisionInput: currentVisionInput,
+            // Waiting for the voice catalog is the same as a realtime selection: the list collapses retry / regenerate / continue generating / edit.
+            realtimeSelected: appState.realtimeModelSelection(for: conversationID) != nil
+                || awaitsVoiceCatalog(conversationID: conversationID),
             bottomOverlayInset: bottomOverlayInset,
             scrollButtonBottomInset: scrollButtonBottomInset,
+            listFadeOpacity: voiceStageListFadeOpacity(conversationID: conversationID),
             windowLoader: windowLoader,
             isAtBottom: $isAtBottom,
             autoScrollEnabled: $autoScrollEnabled,
@@ -1932,6 +2331,35 @@ struct ChatView: View {
         .equatable()
         .id(conversationID)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .mask { voiceStageListMask(conversationID: conversationID) }
+    }
+
+    /// While the voice stage is active, the top 30% of the message list's visible area fades in from transparent; otherwise nothing is masked.
+    @ViewBuilder
+    private func voiceStageListMask(conversationID: UUID?) -> some View {
+        let session = VoiceConversationSession.shared
+        let showsVoiceStage = (session.isPresented(in: conversationID) && session.surface != nil)
+            || VoiceConversationDemo.status != nil
+        LinearGradient(
+            stops: [
+                .init(color: .black.opacity(showsVoiceStage ? 0 : 1), location: 0),
+                .init(color: .black, location: 0.3),
+                .init(color: .black, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    /// The stage fade-in strength of the list's fade-out mask; the mask itself is attached only to the list content layer by ChatMessageList (the back-to-bottom button sits outside the mask).
+    private func voiceStageListFadeOpacity(conversationID: UUID?) -> Double {
+        VoiceStageChrome.listFadeOpacity(
+            stageShown: VoiceStageChrome.isShown(
+                session: .shared,
+                conversationID: conversationID,
+                realtimeSelected: appState.realtimeModelSelection(for: conversationID) != nil
+            )
+        )
     }
 
     private func handleSelectedPhotoItems(_ items: [PhotosPickerItem]) {

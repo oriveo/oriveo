@@ -250,7 +250,7 @@ struct CapabilityMatrixSubscriptionTests {
     /// A Grok subscription connection + one active library source; only "credential preparation" (truth lives in the Keychain, which the test host cannot access)
     /// is replaced by an injected outbound context; routing, builder and HTTP are all production implementations, with HTTP going into the replay session.
     @MainActor
-    private static func grokHarness() throws -> Harness {
+    private static func grokHarness() async throws -> Harness {
         let uid = "cap-sub-\(UUID().uuidString)"
         let state = AppState(
             seedDemoData: true, providerSession: SubscriptionMatrixProtocol.session(),
@@ -271,8 +271,8 @@ struct CapabilityMatrixSubscriptionTests {
     }
 
     @MainActor
-    private static func tearDown(_ harness: Harness) {
-        try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: harness.uid))
+    private static func tearDown(_ harness: Harness) async {
+        await TestPartitionCleanup.remove(harness.uid)
     }
 
     /// Sends one message starting at `sendMessage`, waits for the assistant message to leave the generating state, and returns the first request body the upstream received.
@@ -389,8 +389,8 @@ struct CapabilityMatrixSubscriptionTests {
         try Self.expectTransport(provider: provider, model: chatModel)
         try Self.expectWebVerdict(provider: provider, model: chatModel)
 
-        let harness = try Self.grokHarness()
-        defer { Self.tearDown(harness) }
+        let harness = try await Self.grokHarness()
+        defer { await Self.tearDown(harness) }
         let sent = try await Self.sendGrok(harness, selection: .init(reasoningMode: .automatic, webSearchEnabled: false))
         let tools = try #require(expected["outboundToolsWithWebPreferenceOff"] as? [[String: Any]])
         let toolList = (sent["tools"] as? [[String: Any]]) ?? []

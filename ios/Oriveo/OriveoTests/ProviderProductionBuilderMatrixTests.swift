@@ -1899,6 +1899,7 @@ struct ProviderProductionBuilderMatrixTests {
             "openrouter.chat.reasoning.v2": "openrouter.chat.reasoning.v1",
             "openrouter.chat.reasoning.v3": "openrouter.chat.reasoning.v1",
             "openrouter.chat.reasoning.v4": "openrouter.chat.reasoning.v1",
+            "mistral.chat.reasoning.v2": "mistral.chat.reasoning.v1",
         ]
         let nonNone = Set(registryRecipes.compactMap { key, value -> String? in
             guard let recipe = value as? [String: Any],

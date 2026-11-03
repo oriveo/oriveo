@@ -76,27 +76,53 @@ struct VoiceEngineSettingsTests {
     }
 
     @Test("Conversation engine: key voice.engine.realtime, stores the voice, and is independent of dictation / read-aloud")
-    func realtimeSelectionRoundTrip() throws {
+    func legacyRealtimeSelectionReadsOldKey() throws {
         let (defaults, suiteName) = Self.makeDefaults()
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let engine = VoiceCloudEngine(providerKind: .gemini, connectionID: "g", model: "gemini-live", voice: "Kore")
+        let settings = VoiceEngineSettings(defaults: defaults)
+        #expect(settings.legacyRealtimeSelection() == .system)
 
-        let writer = VoiceEngineSettings(defaults: defaults)
-        #expect(writer.selection(for: .realtime) == .system)
-        writer.setSelection(.cloud(engine), for: .realtime)
+        // The on-disk shape written by the old settings page.
+        let stored = try JSONSerialization.data(withJSONObject: [
+            "kind": "cloud", "providerKind": "gemini", "connectionID": "g", "model": "gemini-live", "voice": "Kore",
+        ])
+        defaults.set(stored, forKey: "voice.engine.realtime")
+        #expect(settings.legacyRealtimeSelection()
+            == .cloud(VoiceCloudEngine(providerKind: .gemini, connectionID: "g", model: "gemini-live", voice: "Kore")))
+        #expect(settings.selection(for: .stt) == .system)
+        #expect(settings.selection(for: .tts) == .system)
+    }
 
-        #expect(defaults.data(forKey: "voice.engine.realtime") != nil)
-        #expect(defaults.data(forKey: "voice.engine.stt") == nil)
-        #expect(defaults.data(forKey: "voice.engine.tts") == nil)
-        let reader = VoiceEngineSettings(defaults: defaults)
-        #expect(reader.selection(for: .realtime) == .cloud(engine))
-        #expect(reader.selection(for: .stt) == .system)
+    @Test("Deleting the old conversation-engine selection removes the old keys and pendingNotice.*.realtime, and keeps the consent record and the dictation / read-aloud keys")
+    func removeLegacyRealtimeSelectionKeepsDisclosures() throws {
+        let (defaults, suiteName) = Self.makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let settings = VoiceEngineSettings(defaults: defaults)
+        let stored = try JSONSerialization.data(withJSONObject: [
+            "kind": "cloud", "providerKind": "openAI", "connectionID": "c1", "model": "gpt-realtime",
+        ])
+        defaults.set(stored, forKey: "voice.engine.realtime")
+        defaults.set("key_missing", forKey: "voice.engine.pendingNotice.settings.realtime")
+        defaults.set("key_missing", forKey: "voice.engine.pendingNotice.use.realtime")
+        defaults.set("key_missing", forKey: "voice.engine.pendingNotice.use.stt")
+        let stt = VoiceCloudEngine(providerKind: .openAI, connectionID: "c1", model: "whisper-1", voice: nil)
+        settings.setSelection(.cloud(stt), for: .stt)
+        settings.disclosures.markAccepted(.openAI, direction: .realtime)
+        settings.disclosures.markAccepted(.openAI, direction: .stt)
+        let acceptedBefore = defaults.stringArray(forKey: "voice.disclosure.accepted.list")
 
-        // The pending fallback notice is likewise recorded per the realtime direction.
-        reader.apply(.system(fallback: .keyMissing), for: .realtime, site: .use)
-        #expect(reader.selection(for: .realtime) == .system)
-        #expect(defaults.string(forKey: "voice.engine.pendingNotice.settings.realtime") == "key_missing")
-        #expect(reader.takePendingNotice(site: .settings, direction: .realtime) == .keyMissing)
+        settings.removeLegacyRealtimeSelection()
+
+        #expect(defaults.object(forKey: "voice.engine.realtime") == nil)
+        #expect(defaults.object(forKey: "voice.engine.pendingNotice.settings.realtime") == nil)
+        #expect(defaults.object(forKey: "voice.engine.pendingNotice.use.realtime") == nil)
+        #expect(settings.legacyRealtimeSelection() == .system)
+        // Other directions and the consent notice are left untouched.
+        #expect(defaults.string(forKey: "voice.engine.pendingNotice.use.stt") == "key_missing")
+        #expect(settings.selection(for: .stt) == .cloud(stt))
+        #expect(acceptedBefore != nil)
+        #expect(defaults.stringArray(forKey: "voice.disclosure.accepted.list") == acceptedBefore)
+        #expect(settings.disclosures.hasAccepted(.openAI, direction: .realtime))
     }
 
     @Test("When resolve returns persist=system, the selection is rewritten to system")

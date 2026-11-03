@@ -336,7 +336,7 @@ struct SettingsDeveloperMenuView: View {
                 Spacer()
                 Button(L10n.tr("Cancel"), action: onClose)
                     .font(OriveoTheme.Typography.body)
-                    .foregroundStyle(OriveoTheme.Palette.primary)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             }
             .padding(.top, 24)
 

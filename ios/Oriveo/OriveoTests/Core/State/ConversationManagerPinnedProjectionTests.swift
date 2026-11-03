@@ -7,14 +7,9 @@ struct ConversationManagerPinnedProjectionTests {
 
     @Test("pinned list uses a summary projection: no messages, no attachment hydrate")
     @MainActor
-    func pinnedProjectionSkipsMessagesAndAttachments() throws {
+    func pinnedProjectionSkipsMessagesAndAttachments() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "pinned-projection-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let attachment = TestFactories.makeFileAttachment(
@@ -31,6 +26,10 @@ struct ConversationManagerPinnedProjectionTests {
         )
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations([pinned, other], uid: uid)
         state.preferences.pinnedConversationIDs = [pinned.id]
 
@@ -45,14 +44,9 @@ struct ConversationManagerPinnedProjectionTests {
 
     @Test("pinned list returns in pinnedConversationIDs order and filters invisible conversations")
     @MainActor
-    func pinnedProjectionKeepsOrderAndVisibility() throws {
+    func pinnedProjectionKeepsOrderAndVisibility() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "pinned-order-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let first = TestFactories.makeConversation(
@@ -66,6 +60,10 @@ struct ConversationManagerPinnedProjectionTests {
         let emptyDraft = TestFactories.makeConversation(title: "Draft", isDraft: true, messages: [])
 
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations(
             [first, second, emptyDraft],
             uid: uid
@@ -78,14 +76,9 @@ struct ConversationManagerPinnedProjectionTests {
 
     @Test("the same conversationsVersion reuses the cache and does not query again")
     @MainActor
-    func pinnedProjectionCachesUntilVersionChanges() throws {
+    func pinnedProjectionCachesUntilVersionChanges() async throws {
         let previousUID = AppSessionStore.activeUID
         let uid = "pinned-cache-\(UUID().uuidString)"
-        defer {
-            DatabaseManager.shared.close()
-            AppSessionStore.switchToUser(previousUID)
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
-        }
         DatabaseManager.shared.close()
 
         let pinned = TestFactories.makeConversation(
@@ -93,6 +86,10 @@ struct ConversationManagerPinnedProjectionTests {
             messages: [TestFactories.makeMessage(text: "a")]
         )
         let state = AppState(sessionUID: uid)
+        defer {
+            await TestPartitionCleanup.remove(uid)
+            AppSessionStore.switchToUser(previousUID)
+        }
         _ = try state.conversationRuntimeBridge.replaceAllConversations([pinned], uid: uid)
         state.preferences.pinnedConversationIDs = [pinned.id]
 

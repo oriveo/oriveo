@@ -3,7 +3,7 @@
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  background: var(--o-surface-raised, var(--o-bg));
+  background: var(--o-fill-muted, var(--o-bg));
   color: var(--o-text-secondary);
 }
 

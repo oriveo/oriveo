@@ -1,6 +1,7 @@
 package ai.oriveo.community.feature.chat
 
 import androidx.room.Room
+import ai.oriveo.community.R
 import ai.oriveo.community.core.data.database.OriveoDatabase
 import ai.oriveo.community.core.mcp.InMemoryPrefs
 import ai.oriveo.community.core.mcp.McpAuthKind
@@ -26,6 +27,7 @@ import kotlinx.serialization.json.Json
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -35,7 +37,7 @@ import org.robolectric.RuntimeEnvironment
 
 /**
  * Visibility rule of the "Tools" chip in the capability bar: shown only when the master switch is on and at least one server has been added (even if all are off),
- * the same rule as the library chip; hidden when none has been added, and the discovery entry is in "Settings › MCP". Same-named cases exist on iOS / Web.
+ * the same rule as the library chip; hidden when no server has been added, with the discovery entry under "Settings › MCP". Same-named cases exist on iOS / Web.
  * Uses real Room storage and the production entry `McpChatToolRunner`; the coordinator reads the panel state itself.
  */
 @RunWith(RobolectricTestRunner::class)
@@ -69,7 +71,10 @@ class ToolsChipVisibilityTest {
         db.close()
     }
 
-    private fun coordinator(runner: McpChatToolRunner? = this.runner) = ChatMcpCoordinator(
+    private fun coordinator(
+        runner: McpChatToolRunner? = this.runner,
+        realtime: Boolean = false,
+    ) = ChatMcpCoordinator(
         scope = scope,
         runner = runner,
         confirmationCoordinator = null,
@@ -77,6 +82,7 @@ class ToolsChipVisibilityTest {
         currentConversationId = { null },
         activeProvider = { Provider(id = "openai", kind = ProviderKind.OpenAI, apiKey = "k") },
         activeModel = { null },
+        isRealtimeModel = { realtime },
     )
 
     private suspend fun addServer() {
@@ -131,6 +137,23 @@ class ToolsChipVisibilityTest {
         assertFalse("hidden even with servers when mcpRuntimeConfig.enabled=false", off.isToolsChipVisible)
     }
 
+    @Test
+    fun realtime_model_shows_dimmed_tappable_chip() = runBlocking {
+        addServer()
+        val coordinator = coordinator(realtime = true)
+        loaded(coordinator, hasServers = true)
+        assertTrue("Realtime model typing state: the chip stays visible", coordinator.isToolsChipVisible)
+        assertTrue("Realtime model typing state: the chip is dimmed", coordinator.isToolsChipDimmed)
+        assertEquals(R.string.voice_realtime_no_tools, coordinator.onToolsChipTapped())
+        assertFalse("Tapping only explains the reason and does not open the MCP panel", coordinator.showToolPanel)
+
+        val text = coordinator()
+        loaded(text, hasServers = true)
+        assertFalse(text.isToolsChipDimmed)
+        assertNull(text.toolsChipBlockedReasonRes)
+    }
+
+    /** Android-only: when the coordinator is not wired with an MCP runner (tests / previews), the chip is likewise not drawn. */
     @Test
     fun `hidden when the MCP runner is not wired`() {
         assertFalse(coordinator(runner = null).isToolsChipVisible)

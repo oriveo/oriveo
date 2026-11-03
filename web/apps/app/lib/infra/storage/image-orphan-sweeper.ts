@@ -1,5 +1,5 @@
 import type { Conversation } from '@oriveo/shared';
-import { scanConversationsInChunks } from './idb';
+import { getPartitionDB, scanConversationsInChunks } from './idb';
 import { getActiveUIDSync } from './partition';
 import {
   deleteImage,
@@ -86,10 +86,39 @@ function collectReferencedKeys(conversations: Conversation[], keys: Set<string>)
   }
 }
 
-/** Read the reference set in chunks; a read failure, a partition switch in flight or a corrupt record all return null (delete nothing this round). */
+const STUDIO_ASSET_STORES = ['studio_versions', 'studio_round_refs'] as const;
+
+/** Studio row is not an object or its assetId is not a non-empty string: references untrusted, drop the round. */
+class CorruptStudioRecordError extends Error {}
+
+/**
+ * Adds every studio asset id to keys: all studio_versions rows (kept and candidate alike) and all
+ * studio_round_refs rows (studio_data_model.v1 orphanSweep). A missing store contributes nothing;
+ * a corrupt row, a read failure or a partition switch throws so the caller drops the whole round.
+ */
+async function collectStudioAssetKeys(uid: string, keys: Set<string>): Promise<void> {
+  const db = await getPartitionDB(uid);
+  for (const storeName of STUDIO_ASSET_STORES) {
+    if (!db.objectStoreNames.contains(storeName)) continue;
+    const rows: unknown[] = await db.getAll(storeName);
+    for (const row of rows) {
+      if (!isRecord(row)) throw new CorruptStudioRecordError();
+      const assetId = row.assetId;
+      if (typeof assetId !== 'string' || !assetId) throw new CorruptStudioRecordError();
+      keys.add(assetId);
+    }
+  }
+  if (getActiveUIDSync() !== uid) {
+    throw new Error(`Active storage partition changed from ${uid} during studio asset read`);
+  }
+}
+
+/** Reads the reference set in chunks; a read failure, a partition switch in flight, or a corrupt record all return null (nothing is deleted this round). */
 async function readReferencedKeys(uid: string): Promise<Set<string> | null> {
   const keys = new Set<string>();
   try {
+    // Studio stores first: the conversation scan re-checks the partition after its last chunk.
+    await collectStudioAssetKeys(uid, keys);
     await scanConversationsInChunks(uid, (chunk) => collectReferencedKeys(chunk, keys));
     return keys;
   } catch {

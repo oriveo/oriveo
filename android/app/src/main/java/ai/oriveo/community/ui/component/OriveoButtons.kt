@@ -195,9 +195,8 @@ fun OriveoSecondaryButton(
                 Text(
                     text = text,
                     style = OriveoTheme.typography.title3,
-                    color = colors.primary,
-                    // Without maxLines a long label wraps and the second line is then cropped by the
-                    // fixed button height, which reads worse than an ellipsis.
+                    color = colors.primaryTextSafe,
+                    // Without maxLines a long label wraps and then gets cut vertically by the fixed height, which is worse than an ellipsis.
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -206,7 +205,7 @@ fun OriveoSecondaryButton(
             Text(
                 text = text,
                 style = OriveoTheme.typography.title3,
-                color = colors.primary,
+                color = colors.primaryTextSafe,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

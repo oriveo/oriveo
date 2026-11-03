@@ -110,6 +110,9 @@ enum ChatDeliveryAccounting {
                 if !usdSeen {
                     usdSeen = true
                     usdSource = part.costSource
+                } else if usdSource == .managed, part.costSource != .managed {
+                    // A priced part (e.g. retrieval estimate) on a hosted message makes the whole message that source.
+                    usdSource = part.costSource
                 }
             } else {
                 nonUsdCost = mergeNonUsdCost(
@@ -148,9 +151,18 @@ enum ChatDeliveryAccounting {
     /// is unknown, then the continuation's is used) and non-USD merges via `mergeNonUsdCost`.
     static func addMessageCost(_ existing: MessageCostRecord, _ continuation: MessageCostRecord) -> MessageCostRecord {
         let existingHasUsd = existing.costSource != nil && existing.costSource != .unknown
+        let continuationHasUsd = continuation.costSource != nil && continuation.costSource != .unknown
+        let source: CostSource?
+        if !existingHasUsd {
+            source = continuation.costSource
+        } else if existing.costSource == .managed, continuationHasUsd {
+            source = continuation.costSource
+        } else {
+            source = existing.costSource
+        }
         return MessageCostRecord(
             estimatedCost: existing.estimatedCost + continuation.estimatedCost,
-            costSource: existingHasUsd ? existing.costSource : continuation.costSource,
+            costSource: source,
             nonUsdCost: mergeNonUsdCost(existing.nonUsdCost, continuation.nonUsdCost)
         )
     }

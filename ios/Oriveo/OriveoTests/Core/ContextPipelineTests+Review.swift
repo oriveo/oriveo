@@ -106,16 +106,17 @@ extension ContextPipelineTests {
 
     @Test func rho_skipped_for_tool_or_library_legs() async throws {
         let database = try McpTestDatabase.make()
-        defer { database.cleanUp() }
+        let mcpDirectory = McpServerDirectory(
+            credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
+            openStore: { _ in database.store }
+        )
+        defer { database.cleanUp(after: mcpDirectory) }
         let store = database.store
         let state = AppState(
             seedDemoData: true,
             providerSession: ReviewURLProtocol.session(),
-            toolCallMemory: try makeToolLoopMemoryStore(),
-            mcpServerDirectory: McpServerDirectory(
-                credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()),
-                openStore: { _ in store }
-            )
+            toolCallMemory: try makeR4MemoryStore(),
+            mcpServerDirectory: mcpDirectory
         )
         var (relay, model) = makeToolLoopRelayProvider(transport: .openaiChatCompletions)
         model.contextLength = 40_000

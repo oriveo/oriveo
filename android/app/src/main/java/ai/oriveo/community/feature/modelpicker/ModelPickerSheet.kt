@@ -11,6 +11,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +42,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Close
@@ -123,9 +126,20 @@ import ai.oriveo.community.ui.component.visibleMetadataCapabilities
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
 import ai.oriveo.community.core.provider.ToolCallMemoryStore
+import ai.oriveo.community.core.voice.VoiceCatalog
+import ai.oriveo.community.core.voice.VoiceCatalogClient
+import ai.oriveo.community.core.voice.VoiceCatalogState
+import ai.oriveo.community.core.voice.VoiceDirection
+import ai.oriveo.community.core.voice.VoiceDisclosureStore
+import ai.oriveo.community.core.voice.VoiceEngineSettings
+import ai.oriveo.community.core.voice.VoiceRealtimeEntry
+import ai.oriveo.community.core.voice.realtime.RealtimeModel
+import ai.oriveo.community.ui.theme.CapabilityPalette
+import ai.oriveo.community.ui.theme.DetailRowPalette
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.OriveoV2ScreenBackground
 import ai.oriveo.community.ui.theme.opacity
+import ai.oriveo.community.ui.util.modelIdDisplay
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
@@ -230,6 +244,11 @@ fun ModelPickerSheet(
     onModelSelected: (providerId: String, modelId: String) -> Unit,
     onEnableModel: (providerId: String, modelId: String) -> Unit,
     onDismiss: () -> Unit,
+    /**
+     * If the realtime disclosure was never accepted for this provider, the picker has already collapsed and the page shows VoiceDisclosureSheet.
+     * The crosscheck page does not list realtime rows (Crosscheck has no realtime entry), so it keeps the default empty implementation.
+     */
+    onRequestRealtimeDisclosure: (RealtimePickerDisclosure) -> Unit = {},
 ) {
     val isHome = context == ModelPickerContext.Home
     val isCrosscheck = context == ModelPickerContext.Crosscheck
@@ -266,7 +285,17 @@ fun ModelPickerSheet(
     var selectedCapabilityFilters by remember {
         mutableStateOf<Set<ModelPickerCapabilityFilterKind>>(emptySet())
     }
-
+    // Realtime voice rows come from the voice catalog cache (a read-only snapshot, no request); the "realtime voice" filter intersects with the capability filter.
+    val voiceCatalogClient: VoiceCatalogClient = koinInject()
+    val voiceCatalogState by voiceCatalogClient.state.collectAsStateWithLifecycle()
+    val realtimeCatalog = (voiceCatalogState as? VoiceCatalogState.Available)?.catalog
+    // Selected-row check at read time: when the selection is on a realtime row, text rows are not checked, so only one row is checked at a time; while the catalog is not ready, judge by text rows and do not rewrite the selected field.
+    val selectedRealtimeModelId = modelPickerSelectedRealtimeModel(context, currentProvider, activeModelId, realtimeCatalog)
+    var realtimeFilterSelected by remember { mutableStateOf(false) }
+    val disclosureStore: VoiceDisclosureStore = koinInject<VoiceEngineSettings>().disclosure
+    // The expansion state only cares about the provider dimension: which providers exist. Previously it depended on the model.id+groupKey list,
+    // so enabling or disabling any model reset the whole expansion state (expanded state collapsed after a user action).
+    // Now it uses a hash of the stable provider id list.
     val expansionSignature = remember(providers) {
         providers.map { it.id }
     }
@@ -302,7 +331,10 @@ fun ModelPickerSheet(
         searchText,
         selectedCapabilityFilters,
         capabilityObservationRevision,
+        // Filters no longer include tools; reading it here makes the whole sheet recompose when tool memory changes, so the tool badge on each row refreshes.
         toolCallMemoryRevision,
+        realtimeCatalog,
+        realtimeFilterSelected,
     ) {
         value = withContext(Dispatchers.Default) {
             buildModelPickerSectionsResult(
@@ -312,15 +344,13 @@ fun ModelPickerSheet(
                 currentModel = currentModel,
                 searchText = searchText,
                 selectedCapabilityFilters = selectedCapabilityFilters,
-                // Read from a background thread: ToolCallMemoryStore.lookup is synchronized and the
-                // metadata table is a volatile immutable snapshot, so both are safe across threads.
-                toolCallMemoryVerdict = { provider, model ->
-                    providerRepository.toolCallMemoryVerdict(provider, model)
-                },
+                realtimeCatalog = realtimeCatalog,
+                realtimeFilterSelected = realtimeFilterSelected,
             )
         }
     }
     val providerSections = sectionsResult?.providerSections.orEmpty()
+    val homeHeaderCounts = remember(providerSections) { modelPickerHomeHeaderCounts(providerSections) }
     LaunchedEffect(expansionSignature, isHome, activeProviderId, sortedProviders) {
         expandedProviderIds = defaultExpandedModelPickerProviderIds(
             providers = sortedProviders,
@@ -379,13 +409,44 @@ fun ModelPickerSheet(
                             expandedProviderIds = expandedProviderIds.toggle(providerId)
                         }
                     },
+                    showsRealtimeFilter = sectionsResult?.showsRealtimeFilter == true,
+                    realtimeFilterCount = sectionsResult?.realtimeFilterCount ?: 0,
+                    realtimeFilterSelected = realtimeFilterSelected,
+                    onToggleRealtimeFilter = { realtimeFilterSelected = !realtimeFilterSelected },
                     onSelectModel = { providerId, modelId ->
                         haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                        onModelSelected(providerId, modelId)
+                        selectModelAndDismiss(
+                            providerId = providerId,
+                            modelId = modelId,
+                            select = onModelSelected,
+                            dismiss = onDismiss,
+                        )
+                    },
+                    onSelectRealtimeModel = { provider, entry ->
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        // Tapping collapses at once; when a realtime model of a provider is first picked, the page shows the cloud disclosure, and it is selected only after consent.
+                        pickRealtimeModelAndDismiss(
+                            providerId = provider.id,
+                            providerKind = provider.kind,
+                            modelId = entry.model,
+                            store = disclosureStore,
+                            select = onModelSelected,
+                            dismiss = onDismiss,
+                            requestDisclosure = onRequestRealtimeDisclosure,
+                        )
+                    },
+                    isRealtimeModelSelected = { providerId, modelId ->
+                        selectedRealtimeModelId != null && isModelSelected(
+                            activeProviderId = activeProviderId,
+                            activeModelId = activeModelId,
+                            providerId = providerId,
+                            realtimeModelId = modelId,
+                        )
                     },
                     isModelSelected = { providerId, model ->
                         isModelSelected(
                             context = context,
+                            selectedRealtimeModelId = selectedRealtimeModelId,
                             activeProviderId = activeProviderId,
                             activeModelId = activeModelId,
                             currentModelId = currentModelId,
@@ -398,8 +459,9 @@ fun ModelPickerSheet(
                     isSingleProvider = providers.size == 1,
                     isCrosscheck = isCrosscheck,
                     onDismiss = onDismiss,
-                    providerCount = providers.size,
-                    modelCountTotal = remember(providers) { providers.sumOf { it.models.size } },
+                    // "N providers" and "M models" come from the same group set after filtering / search
+                    providerCount = homeHeaderCounts.providerCount,
+                    modelCountTotal = homeHeaderCounts.modelCount,
                     lazyListState = lazyListState,
                     capabilityObservationRevision = capabilityObservationRevision,
                     toolCallMemoryVerdict = toolCallMemoryVerdict,
@@ -421,13 +483,19 @@ private fun ColumnScope.ModelPickerContent(
     isComputing: Boolean,
     selectedCapabilityFilters: Set<ModelPickerCapabilityFilterKind>,
     onToggleCapabilityFilter: (ModelPickerCapabilityFilterKind) -> Unit,
+    showsRealtimeFilter: Boolean,
+    realtimeFilterCount: Int,
+    realtimeFilterSelected: Boolean,
+    onToggleRealtimeFilter: () -> Unit,
     searchText: String,
     onSearchChange: (String) -> Unit,
     onSearchClear: () -> Unit,
     expandedProviderIds: Set<String>,
     onToggleProvider: (String) -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
+    onSelectRealtimeModel: (Provider, VoiceRealtimeEntry) -> Unit,
     isModelSelected: (providerId: String, model: AIModel) -> Boolean,
+    isRealtimeModelSelected: (providerId: String, modelId: String) -> Boolean,
     onOpenCatalog: (providerId: String) -> Unit,
     isSingleProvider: Boolean,
     isCrosscheck: Boolean,
@@ -507,6 +575,10 @@ private fun ColumnScope.ModelPickerContent(
                         counts = capabilityFilterCounts,
                         selected = selectedCapabilityFilters,
                         onToggle = onToggleCapabilityFilter,
+                        showsRealtime = showsRealtimeFilter,
+                        realtimeCount = realtimeFilterCount,
+                        realtimeSelected = realtimeFilterSelected,
+                        onToggleRealtime = onToggleRealtimeFilter,
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                 }
@@ -519,7 +591,7 @@ private fun ColumnScope.ModelPickerContent(
             } else if (providerSections.isEmpty()) {
 
                 item(key = "empty") {
-                    if (selectedCapabilityFilters.isEmpty()) {
+                    if (selectedCapabilityFilters.isEmpty() && !realtimeFilterSelected) {
                         EmptyModelState()
                     } else {
                         CapabilityFilterEmptyState()
@@ -537,7 +609,9 @@ private fun ColumnScope.ModelPickerContent(
                         toolCallMemoryVerdict = toolCallMemoryVerdict,
                         onToggleProvider = onToggleProvider,
                         onSelectModel = onSelectModel,
+                        onSelectRealtimeModel = onSelectRealtimeModel,
                         isModelSelected = isModelSelected,
+                        isRealtimeModelSelected = isRealtimeModelSelected,
                         onOpenCatalog = onOpenCatalog,
                     )
                 }
@@ -786,13 +860,21 @@ private fun ModelPickerCapabilityFilterRow(
     counts: Map<ModelPickerCapabilityFilterKind, Int>?,
     selected: Set<ModelPickerCapabilityFilterKind>,
     onToggle: (ModelPickerCapabilityFilterKind) -> Unit,
+    showsRealtime: Boolean,
+    realtimeCount: Int,
+    realtimeSelected: Boolean,
+    onToggleRealtime: () -> Unit,
 ) {
     val v2 = rememberV2PickerColors()
     if (counts == null) {
         Spacer(modifier = Modifier.height(32.dp))
         return
     }
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    // The fourth "realtime voice" capsule would be pushed off screen on narrow screens: the whole row scrolls horizontally
+    Row(
+        modifier = Modifier.horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         ModelPickerCapabilityFilterKind.entries.forEach { kind ->
             val count = counts[kind] ?: 0
             val isSelected = kind in selected
@@ -826,6 +908,14 @@ private fun ModelPickerCapabilityFilterRow(
                     maxLines = 1,
                 )
             }
+        }
+        // The "realtime voice" capsule appears only when this list actually contains realtime rows; the selected state is a solid cyan-purple gradient
+        if (showsRealtime) {
+            ModelPickerRealtimeFilterChip(
+                count = realtimeCount,
+                selected = realtimeSelected,
+                onToggle = onToggleRealtime,
+            )
         }
     }
 }
@@ -892,6 +982,12 @@ internal sealed interface ModelPickerListContent {
         val groupId: String,
     ) : ModelPickerListContent
 
+    /** Under an official apiKey connection, one row of voice catalog realtime[], listed after that connection's text models. */
+    data class RealtimeRow(
+        val provider: Provider,
+        val entry: VoiceRealtimeEntry,
+    ) : ModelPickerListContent
+
     data class AddModels(val providerId: String) : ModelPickerListContent
     data class Gap(val providerId: String) : ModelPickerListContent
 }
@@ -921,7 +1017,8 @@ internal fun buildModelPickerListEntries(
                 add(
                     "provider/$providerId" to ModelPickerListContent.ProviderHeader(
                         provider = provider,
-                        modelCount = section.models.size,
+                        // Count the rows the user can see: text + realtime (same basis as iOS visibleRowCount)
+                        modelCount = section.visibleRowCount,
                         isExpanded = isExpanded,
                         isCollapsible = true,
                     ),
@@ -938,6 +1035,13 @@ internal fun buildModelPickerListEntries(
                                 model = model,
                                 groupId = groupId,
                             ),
+                    )
+                }
+
+                section.realtimeModels.forEach { entry ->
+                    add(
+                        "provider/$providerId/realtime/${entry.model}" to
+                            ModelPickerListContent.RealtimeRow(provider = provider, entry = entry),
                     )
                 }
 
@@ -980,6 +1084,7 @@ private val ModelPickerListContent.contentType: String
     get() = when (this) {
         is ModelPickerListContent.ProviderHeader -> "provider_header"
         is ModelPickerListContent.ModelRow -> "model_row"
+        is ModelPickerListContent.RealtimeRow -> "realtime_row"
         is ModelPickerListContent.AddModels -> "add_models"
         is ModelPickerListContent.Gap -> "gap"
     }
@@ -999,7 +1104,9 @@ private fun ModelPickerListEntryRow(
     modifier: Modifier = Modifier,
     onToggleProvider: (String) -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
+    onSelectRealtimeModel: (Provider, VoiceRealtimeEntry) -> Unit,
     isModelSelected: (providerId: String, model: AIModel) -> Boolean,
+    isRealtimeModelSelected: (providerId: String, modelId: String) -> Boolean,
     onOpenCatalog: (providerId: String) -> Unit,
 ) {
     val content = positionedEntry.content
@@ -1019,6 +1126,10 @@ private fun ModelPickerListEntryRow(
             positionedEntry.position == ModelPickerRowPosition.Last
         ) {
             if (content is ModelPickerListContent.ModelRow) {
+                IndentedHairline(
+                    startIndent = 16.dp,
+                )
+            } else if (content is ModelPickerListContent.RealtimeRow) {
                 IndentedHairline(startIndent = 16.dp)
             } else {
                 HairlineDivider()
@@ -1040,6 +1151,12 @@ private fun ModelPickerListEntryRow(
                 toolCallMemoryVerdict = toolCallMemoryVerdict(content.provider, content.model),
                 isSelected = isModelSelected(content.provider.id, content.model),
                 onClick = { onSelectModel(content.provider.id, content.model.id) },
+            )
+            is ModelPickerListContent.RealtimeRow -> ModelPickerRealtimeRow(
+                entry = content.entry,
+                isSelected = isRealtimeModelSelected(content.provider.id, content.entry.model),
+                onClick = { onSelectRealtimeModel(content.provider, content.entry) },
+                sentryTag = "model_picker_realtime_model_row",
             )
             is ModelPickerListContent.AddModels -> AddModelsRow(
                 onClick = { onOpenCatalog(content.providerId) },
@@ -1278,7 +1395,9 @@ private fun ModelPickerRow(
         val priced = model.pricedForConnection(provider)
         priced.model.modelPickerPricePresentation(priced.currencyCode, priceLocale)
     }
-    val title = model.modelPickerDisplayTitle()
+    val rawTitle = model.modelPickerDisplayTitle()
+    // Separator breakpoints for display only; screen readers use the original title
+    val title = modelIdDisplay(rawTitle)
     val contextLengthLabel = remember(model.contextLength) {
         formatModelPickerContextLength(model.contextLength)
     }
@@ -1348,6 +1467,7 @@ private fun ModelPickerRow(
             ) {
                 Text(
                     text = title,
+                    modifier = Modifier.semantics { contentDescription = rawTitle },
                     style = OriveoTheme.typography.title3.copy(
                         fontSize = 15.sp,
                         lineHeight = 18.sp,
@@ -1577,6 +1697,7 @@ fun buildProviderSections(
     currentProviderId: String?,
     currentModel: AIModel?,
     searchText: String,
+    realtimeCatalog: VoiceCatalog? = null,
 ): List<ModelPickerSection> {
     val query = searchText.trim()
     val isHome = context == ModelPickerContext.Home
@@ -1627,10 +1748,18 @@ fun buildProviderSections(
                 }
             }
 
-        if (shouldRenderModelPickerProviderSection(provider, query, models)) {
+        val realtimeModels = modelPickerRealtimeEntries(context, provider, realtimeCatalog)
+            .filter { entry ->
+                query.isBlank() ||
+                    entry.model.contains(query, ignoreCase = true) ||
+                    provider.displayName.contains(query, ignoreCase = true)
+            }
+
+        if (realtimeModels.isNotEmpty() || shouldRenderModelPickerProviderSection(provider, query, models)) {
             ModelPickerSection(
                 provider = provider,
                 models = models,
+                realtimeModels = realtimeModels,
             )
         } else {
             null
@@ -1646,12 +1775,51 @@ fun shouldRenderModelPickerProviderSection(
     models.isNotEmpty() || (query.isBlank() && provider.canAddModelsInModelPicker())
 
 /**
- * The output of one sheet recompute. Sections and chip counts must come from the same input and the
- * same pass; a separate count and filter is how the screen ends up saying 358 while the list shows 12.
+ * The realtime rows this connection lists in the picker (catalog realtime[] x official apiKey connections; Crosscheck does not list them);
+ * ordering and visibility all go through [RealtimeModel.pickerRows]: isDefault first, the rest in catalog order.
+ */
+internal fun modelPickerRealtimeEntries(
+    context: ModelPickerContext,
+    provider: Provider,
+    catalog: VoiceCatalog?,
+): List<VoiceRealtimeEntry> {
+    val entries = catalog?.entries(provider.kind, VoiceDirection.Realtime)
+        ?.filterIsInstance<VoiceRealtimeEntry>()
+        .orEmpty()
+    if (entries.isEmpty()) return emptyList()
+    val pickerContext = when (context) {
+        ModelPickerContext.Home -> RealtimeModel.CONTEXT_HOME
+        ModelPickerContext.Chat -> RealtimeModel.CONTEXT_CHAT
+        ModelPickerContext.Crosscheck -> RealtimeModel.CONTEXT_CROSSCHECK
+    }
+    val rows = RealtimeModel.pickerRows(
+        context = pickerContext,
+        connections = listOf(
+            RealtimeModel.Connection(
+                id = provider.id,
+                providerKind = provider.kind.rawValue,
+                auth = RealtimeModel.connectionAuth(provider.kind, provider.authMode),
+            ),
+        ),
+        realtimeCatalog = mapOf(
+            provider.kind.rawValue to entries.map { RealtimeModel.RealtimeCatalogEntry(it.model, it.isDefault) },
+        ),
+    ).groups.flatMap { it.rows }
+    val byModel = entries.associateBy { it.model }
+    return rows.mapNotNull { row -> byModel[row.model] }
+}
+
+/**
+ * The output of one sheet recomputation. Group results and chip counts must come from the same input and the same computation,
+ * one count with one filter is exactly the source of "358 on screen, 12 after tapping in".
  */
 internal data class ModelPickerSectionsResult(
     val providerSections: List<ModelPickerSection>,
     val capabilityFilterCounts: Map<ModelPickerCapabilityFilterKind, Int>,
+    /** The "realtime voice" capsule appears only when this list (before filtering) has realtime rows. */
+    val showsRealtimeFilter: Boolean = false,
+    /** Hit count of the "realtime voice" capsule = total realtime rows before filtering. */
+    val realtimeFilterCount: Int = 0,
 )
 
 /**
@@ -1675,7 +1843,8 @@ internal fun buildModelPickerSectionsResult(
     currentModel: AIModel?,
     searchText: String,
     selectedCapabilityFilters: Set<ModelPickerCapabilityFilterKind>,
-    toolCallMemoryVerdict: (Provider, AIModel) -> Boolean?,
+    realtimeCatalog: VoiceCatalog? = null,
+    realtimeFilterSelected: Boolean = false,
 ): ModelPickerSectionsResult {
     val unfiltered = buildProviderSections(
         context = context,
@@ -1683,17 +1852,17 @@ internal fun buildModelPickerSectionsResult(
         currentProviderId = activeProviderId,
         currentModel = currentModel,
         searchText = searchText,
+        realtimeCatalog = realtimeCatalog,
     )
     return ModelPickerSectionsResult(
         providerSections = applyModelPickerCapabilityFilter(
             unfiltered,
             selectedCapabilityFilters,
-            toolCallMemoryVerdict = toolCallMemoryVerdict,
+            realtimeSelected = realtimeFilterSelected,
         ),
-        capabilityFilterCounts = modelPickerCapabilityFilterCounts(
-            unfiltered,
-            toolCallMemoryVerdict = toolCallMemoryVerdict,
-        ),
+        capabilityFilterCounts = modelPickerCapabilityFilterCounts(unfiltered),
+        showsRealtimeFilter = unfiltered.any { it.realtimeModels.isNotEmpty() },
+        realtimeFilterCount = modelPickerRealtimeFilterCount(unfiltered),
     )
 }
 
@@ -1714,8 +1883,9 @@ private fun Provider.canAddModelsInModelPicker(): Boolean =
         kind.isAggregatedProvider
     }
 
-private fun isModelSelected(
+internal fun isModelSelected(
     context: ModelPickerContext,
+    selectedRealtimeModelId: String?,
     activeProviderId: String?,
     activeModelId: String?,
     currentModelId: String?,
@@ -1723,6 +1893,8 @@ private fun isModelSelected(
     providerKind: ProviderKind?,
     model: AIModel,
 ): Boolean {
+    // A realtime row is selected: text rows are never checked
+    if (selectedRealtimeModelId != null) return false
     return when (context) {
         ModelPickerContext.Home -> {
             providerId == activeProviderId &&
@@ -1736,6 +1908,96 @@ private fun isModelSelected(
     }
 }
 
+/** Realtime rows are checked by providerId + catalog model (realtime models are not in the enabled list, so they do not go through the stored-value lookup). */
+internal fun isModelSelected(
+    activeProviderId: String?,
+    activeModelId: String?,
+    providerId: String,
+    realtimeModelId: String,
+): Boolean = providerId == activeProviderId && activeModelId?.trim() == realtimeModelId
+
+/**
+ * The selected-row judgment shared by both row kinds (isomorphic to RealtimeModel.pickerRows' selectedRow): when the selection is on a realtime row listed by the active connection,
+ * and that connection has no text row with the same id (text rows come first and match first), return that realtime model; otherwise null, and judge by text rows. Null while the catalog is not ready.
+ */
+internal fun modelPickerSelectedRealtimeModel(
+    context: ModelPickerContext,
+    activeProvider: Provider?,
+    activeModelId: String?,
+    catalog: VoiceCatalog?,
+): String? {
+    val provider = activeProvider ?: return null
+    val target = activeModelId?.trim().orEmpty()
+    if (target.isEmpty() || provider.models.any { it.id == target }) return null
+    return modelPickerRealtimeEntries(context, provider, catalog)
+        .firstOrNull { isModelSelected(provider.id, activeModelId, provider.id, it.model) }
+        ?.model
+}
+
+/** Tapping a text row: select that model and then collapse the picker (tap to select closes it). */
+internal fun selectModelAndDismiss(
+    providerId: String,
+    modelId: String,
+    select: (providerId: String, modelId: String) -> Unit,
+    dismiss: () -> Unit,
+) {
+    select(providerId, modelId)
+    dismiss()
+}
+
+/** The realtime model selection that is waiting for the cloud disclosure conclusion. */
+data class RealtimePickerDisclosure(
+    val providerId: String,
+    val providerKind: ProviderKind,
+    val modelId: String,
+)
+
+/**
+ * Selecting a realtime row: if this provider's Realtime direction was already accepted -> [select] directly and return null;
+ * if not accepted -> do not select, return the pending selection, and the caller shows VoiceDisclosureSheet.
+ */
+internal fun pickRealtimeModel(
+    providerId: String,
+    providerKind: ProviderKind,
+    modelId: String,
+    store: VoiceDisclosureStore,
+    select: (providerId: String, modelId: String) -> Unit,
+): RealtimePickerDisclosure? {
+    if (!store.isAccepted(providerKind, VoiceDirection.Realtime)) {
+        return RealtimePickerDisclosure(providerId, providerKind, modelId)
+    }
+    select(providerId, modelId)
+    return null
+}
+
+/**
+ * Tapping a realtime row collapses the picker: if already accepted -> select first, then collapse;
+ * if not accepted -> do not select, collapse first, then [requestDisclosure], and the page shows the disclosure.
+ */
+internal fun pickRealtimeModelAndDismiss(
+    providerId: String,
+    providerKind: ProviderKind,
+    modelId: String,
+    store: VoiceDisclosureStore,
+    select: (providerId: String, modelId: String) -> Unit,
+    dismiss: () -> Unit,
+    requestDisclosure: (RealtimePickerDisclosure) -> Unit,
+) {
+    val pending = pickRealtimeModel(providerId, providerKind, modelId, store, select)
+    dismiss()
+    pending?.let(requestDisclosure)
+}
+
+/** The user tapped accept on the disclosure: record consent first, then select. Rejecting calls nothing. */
+internal fun acceptRealtimeDisclosure(
+    pending: RealtimePickerDisclosure,
+    store: VoiceDisclosureStore,
+    select: (providerId: String, modelId: String) -> Unit,
+) {
+    store.markAccepted(pending.providerKind, VoiceDirection.Realtime)
+    select(pending.providerId, pending.modelId)
+}
+
 private fun Set<String>.toggle(value: String): Set<String> {
     return if (contains(value)) this - value else this + value
 }
@@ -1743,7 +2005,24 @@ private fun Set<String>.toggle(value: String): Set<String> {
 data class ModelPickerSection(
     val provider: Provider,
     val models: List<AIModel>,
+    /** Realtime voice models this connection lists after its text models (catalog order, isDefault first). */
+    val realtimeModels: List<VoiceRealtimeEntry> = emptyList(),
+) {
+    /** Group header "N models": the number of rows currently shown for this group (text + realtime). */
+    val visibleRowCount: Int get() = models.size + realtimeModels.size
+}
+
+/** Home header "N providers · M models"; both come from the same (filtered / searched) groups. */
+internal data class ModelPickerHomeHeaderCounts(
+    val providerCount: Int,
+    val modelCount: Int,
 )
+
+internal fun modelPickerHomeHeaderCounts(sections: List<ModelPickerSection>): ModelPickerHomeHeaderCounts =
+    ModelPickerHomeHeaderCounts(
+        providerCount = sections.size,
+        modelCount = sections.sumOf { it.visibleRowCount },
+    )
 
 data class ModelPickerVendorGroup(
     val id: String,
@@ -1800,4 +2079,132 @@ fun isModelTransportSupportedForModelPicker(provider: Provider, model: AIModel):
         ?.takeIf { it.isNotEmpty() }
         ?: return true
     return TransportKind.fromWireValue(rawTransport) != null
+}
+
+/** Attribution name of each capability filter chip for analytics, hard-coded one by one and not built from [ModelPickerCapabilityFilterKind.owner] (the tag is a primary key in live data). */
+private fun capabilityFilterSentryTag(kind: ModelPickerCapabilityFilterKind): String = when (kind) {
+    ModelPickerCapabilityFilterKind.Web -> "model_picker_filter_web_option"
+    ModelPickerCapabilityFilterKind.Reasoning -> "model_picker_filter_reasoning_option"
+}
+
+/**
+ * Realtime voice model row, minimum 64dp. A 36dp cyan-purple gradient rounded block with a waveform on the left; the name is the catalog model, at most two lines;
+ * the subtitle is "Realtime voice"; no capability badge and no price; the selected mark matches text rows (primary-colored CheckCircle).
+ * The Settings > Voice "realtime voice" group reuses this row: the subtitle appends " · connection name", and the testTag / tap attribution is supplied separately.
+ */
+@Composable
+internal fun ModelPickerRealtimeRow(
+    entry: VoiceRealtimeEntry,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    connectionName: String? = null,
+    tag: String = "model_picker_realtime_row",
+    sentryTag: String = "model_picker_realtime_model_row",
+) {
+    val v2 = rememberV2PickerColors()
+    val tileStops = listOf(DetailRowPalette.cyan, CapabilityPalette.reasoning)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .testTag(tag)
+            .semantics { selected = isSelected }
+            .background(v2.primary.copy(alpha = if (isSelected) 0.08f else 0f))
+            
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(Brush.linearGradient(tileStops)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.GraphicEq,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp),
+                tint = Color.White,
+            )
+        }
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(
+                text = modelIdDisplay(entry.model),
+                modifier = Modifier.semantics { contentDescription = entry.model },
+                style = OriveoTheme.typography.title3.copy(
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                ),
+                color = v2.textPrimary,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = listOfNotNull(stringResource(R.string.voice_realtime_model_subtitle), connectionName)
+                    .joinToString(" · "),
+                style = OriveoTheme.typography.footnote.copy(fontSize = 13.sp, lineHeight = 16.sp),
+                color = v2.textSecondary,
+                maxLines = 1,
+            )
+        }
+        Box(modifier = Modifier.size(18.dp), contentAlignment = Alignment.Center) {
+            if (isSelected) {
+                Icon(
+                    imageVector = Icons.Filled.CheckCircle,
+                    contentDescription = null,
+                    modifier = Modifier.size(17.dp),
+                    tint = v2.primary,
+                )
+            }
+        }
+    }
+}
+
+/** The "realtime voice" filter capsule; the selected state is a solid cyan-purple gradient, and unselected matches the capability chips' background color. */
+@Composable
+private fun ModelPickerRealtimeFilterChip(
+    count: Int,
+    selected: Boolean,
+    onToggle: () -> Unit,
+) {
+    val v2 = rememberV2PickerColors()
+    // Like the capability chips, it carries a hit count (count = total realtime rows before filtering)
+    val label = stringResource(R.string.voice_realtime_filter_count, count)
+    val stateText = stringResource(
+        if (selected) R.string.selected_state else R.string.model_control_not_selected,
+    )
+    val fill = if (selected) {
+        Brush.linearGradient(listOf(DetailRowPalette.cyan, CapabilityPalette.reasoning))
+    } else {
+        SolidColor(v2.textPrimary.copy(alpha = 0.06f))
+    }
+    Box(
+        modifier = Modifier
+            .heightIn(min = 32.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(fill)
+            
+            .clickable { onToggle() }
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .semantics {
+                role = Role.Checkbox
+                contentDescription = label
+                stateDescription = stateText
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.Medium),
+            color = if (selected) Color.White else v2.textPrimary,
+            maxLines = 1,
+        )
+    }
 }

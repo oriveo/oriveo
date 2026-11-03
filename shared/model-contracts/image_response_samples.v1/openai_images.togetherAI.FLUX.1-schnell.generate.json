@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "route": "openai_images",
+    "provider": "togetherAI",
+    "op": "generate",
+    "http": 400,
+    "seconds": 1.7,
+    "captured_at": "2026-10-28T01:17:17.305Z",
+    "endpoint": "https://api.together.xyz/v1/images/generations"
+  },
+  "observed": {
+    "shapes": [],
+    "images": []
+  },
+  "response": {
+    "id": "p6yYfix-2kFHot-a516198d38e6fd7d-PDX",
+    "error": {
+      "message": "Unable to access non-serverless model black-forest-labs/FLUX.1-schnell. Please visit https://api.together.ai/models/black-forest-labs/FLUX.1-schnell to create and start a new dedicated endpoint for the model.",
+      "type": "invalid_request_error",
+      "param": null,
+      "code": "model_not_available"
+    }
+  }
+}

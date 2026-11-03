@@ -191,8 +191,8 @@ struct ComposerTextView: UIViewRepresentable {
 
         // MARK: Content
 
-        /// Source text pushed from outside: replace the whole string, move the caret to the end and clear the undo
-        /// stack (its steps point into content that no longer exists).
+        /// Source text pushed from outside: replace the whole string, move the caret to the end and clear the undo stack (its old steps point at content that no longer exists).
+        /// Dictation does not go through here: setting attributedText makes UITextView clear its own undo stack, and dictation must keep its undo history; see `applyDictationLive`.
         func apply(_ source: String, to textView: ComposerUITextView) {
             isApplying = true
             defer { isApplying = false }
@@ -204,6 +204,11 @@ struct ComposerTextView: UIViewRepresentable {
             textView.typingAttributes = textAttributes(parent)
             textView.selectedRange = NSRange(location: (display as NSString).length, length: 0)
             textView.undoManager?.removeAllActions()
+            didApply(source, to: textView)
+        }
+
+        /// Common tail after a whole-string push: clear pending edits, record the source text, reset the length-limit state, notify the content change and publish the selection.
+        private func didApply(_ source: String, to textView: ComposerUITextView) {
             pendingEdit = nil
             pendingPasteDisplay = nil
             lastDisplayLength = textView.textStorage.length
@@ -270,11 +275,129 @@ struct ComposerTextView: UIViewRepresentable {
         /// and inside the selection are not counted.
         private func publishSelection(of textView: UITextView) {
             guard let probe = parent.selectionProbe else { return }
+            probe.update(range: Self.sourceSelection(of: textView))
+        }
+
+        /// The current selection converted to a UTF-16 range in the source text (soft line breaks excluded).
+        private static func sourceSelection(of textView: UITextView) -> NSRange {
             let text = textView.textStorage.string as NSString
-            let selection = Self.clamped(textView.selectedRange, to: text.length)
-            let start = Self.sourceLength(of: text, in: NSRange(location: 0, length: selection.location))
-            let length = selection.length == 0 ? 0 : Self.sourceLength(of: text, in: selection)
-            probe.update(range: NSRange(location: start, length: length))
+            let selection = clamped(textView.selectedRange, to: text.length)
+            let start = sourceLength(of: text, in: NSRange(location: 0, length: selection.location))
+            let length = selection.length == 0 ? 0 : sourceLength(of: text, in: selection)
+            return NSRange(location: start, length: length)
+        }
+
+        /// The source text and selection at the moment dictation starts (source UTF-16).
+        func sourceTextAndSelection(of textView: ComposerUITextView) -> (text: String, selection: NSRange) {
+            (SoftParagraphBreaks.source(fromDisplay: textView.textStorage.string), Self.sourceSelection(of: textView))
+        }
+
+        /// Live dictation text: the whole source text is written into the view like an external push (no truncation or notice; the limit was already applied by `DictationRules.liveInsert`),
+        /// The selection is placed by source offset and published. `volatile` (a source range) is the not-yet-final fragment, shown in a light color.
+        ///
+        /// Writes stay out of the undo stack and do not clear existing steps: setting attributedText or changing stored characters directly makes UITextView clear its own undo stack;
+        /// So only the span that differs from the current display string is replaced through UITextInput (with undo registration off), and color goes through attribute-only storage edits (which keep the stack).
+        func applyDictationLive(_ source: String, selection: NSRange, volatile: NSRange? = nil, to textView: ComposerUITextView) {
+            isApplying = true
+            defer { isApplying = false }
+            if textView.markedTextRange != nil {
+                textView.unmarkText()
+            }
+            let display = SoftParagraphBreaks.display(forSource: source) as NSString
+            let storage = textView.textStorage
+            let changed = Self.differingSpan(from: storage.string as NSString, to: display)
+            if let changed, let undoManager = textView.textUndoManager {
+                undoManager.disableUndoRegistration()
+                replace(changed.old, with: display.substring(with: changed.new), in: textView)
+                // UIKit may clear the stack during the replacement (which also re-enables registration), so re-enable only if it is still off.
+                if !undoManager.isUndoRegistrationEnabled { undoManager.enableUndoRegistration() }
+            } else if let changed {
+                replace(changed.old, with: display.substring(with: changed.new), in: textView)
+            }
+            let whole = NSRange(location: 0, length: storage.length)
+            storage.beginEditing()
+            storage.addAttributes(textAttributes(parent), range: whole)
+            if let volatile, volatile.length > 0 {
+                let from = Self.displayOffset(ofSource: volatile.location, in: display)
+                let to = Self.displayOffset(ofSource: NSMaxRange(volatile), in: display, from: (from, volatile.location))
+                if to > from {
+                    storage.addAttribute(
+                        .foregroundColor, value: Self.dictationVolatileColor, range: NSRange(location: from, length: to - from)
+                    )
+                }
+            }
+            storage.endEditing()
+            textView.typingAttributes = textAttributes(parent)
+            didApply(source, to: textView)
+            let start = Self.displayOffset(ofSource: selection.location, in: display)
+            let end = Self.displayOffset(ofSource: NSMaxRange(selection), in: display, from: (start, selection.location))
+            textView.selectedRange = NSRange(location: start, length: end - start)
+            textView.scrollRangeToVisible(textView.selectedRange)
+            publishSelection(of: textView)
+        }
+
+        /// Foreground color of the not-yet-final dictation fragment: light #71717A / dark #8E8E96.
+        static let dictationVolatileColor = UIColor { trait in
+            UIColor(oriveoHex: trait.userInterfaceStyle == .dark ? 0x8E8E96 : 0x71717A, alpha: 1)
+        }
+
+        /// When one dictation ends, register one undo step (back to the source text and selection from before recording); the undo in turn registers a redo (back to the dictation result). No action name is set.
+        func registerDictationUndo(
+            restoring before: (text: String, selection: NSRange),
+            redoing after: (text: String, selection: NSRange),
+            in textView: ComposerUITextView
+        ) {
+            guard let undoManager = textView.textUndoManager else { return }
+            undoManager.registerUndo(withTarget: self) { [weak textView] coordinator in
+                guard let textView else { return }
+                coordinator.registerDictationUndo(restoring: after, redoing: before, in: textView)
+                coordinator.applyDictationLive(before.text, selection: before.selection, to: textView)
+                if coordinator.parent.text != before.text {
+                    coordinator.parent.text = before.text
+                }
+            }
+        }
+
+        /// The span where two strings differ (common prefix and suffix removed, boundaries backed off to grapheme cluster boundaries): the range in the old string and the range in the new one. nil when they are equal.
+        static func differingSpan(from old: NSString, to new: NSString) -> (old: NSRange, new: NSRange)? {
+            guard !old.isEqual(to: new as String) else { return nil }
+            let shorter = min(old.length, new.length)
+            var prefix = 0
+            while prefix < shorter, old.character(at: prefix) == new.character(at: prefix) { prefix += 1 }
+            if prefix < old.length { prefix = min(prefix, old.rangeOfComposedCharacterSequence(at: prefix).location) }
+            if prefix < new.length { prefix = min(prefix, new.rangeOfComposedCharacterSequence(at: prefix).location) }
+            var suffix = 0
+            while suffix < shorter - prefix,
+                  old.character(at: old.length - 1 - suffix) == new.character(at: new.length - 1 - suffix) { suffix += 1 }
+            // The suffix start must also fall on a grapheme cluster boundary in both strings; if it does not, shorten the suffix.
+            while suffix > 0 {
+                let oldEnd = old.length - suffix
+                let newEnd = new.length - suffix
+                if old.rangeOfComposedCharacterSequence(at: oldEnd).location == oldEnd,
+                   new.rangeOfComposedCharacterSequence(at: newEnd).location == newEnd { break }
+                suffix -= 1
+            }
+            return (NSRange(location: prefix, length: old.length - suffix - prefix),
+                    NSRange(location: prefix, length: new.length - suffix - prefix))
+        }
+
+        /// Replaces a span of the display string through UITextInput (the same entry point as user edits, so UITextView does not clear its undo stack).
+        private func replace(_ range: NSRange, with text: String, in textView: ComposerUITextView) {
+            guard let start = textView.position(from: textView.beginningOfDocument, offset: range.location),
+                  let end = textView.position(from: start, offset: range.length),
+                  let textRange = textView.textRange(from: start, to: end) else { return }
+            textView.replace(textRange, withText: text)
+        }
+
+        /// Source offset -> display offset: skips soft line breaks; `from` is a known (display offset, source offset) pair to count on from.
+        static func displayOffset(ofSource offset: Int, in display: NSString, from known: (display: Int, source: Int) = (0, 0)) -> Int {
+            var index = known.display
+            var remaining = offset - known.source
+            while remaining > 0, index < display.length {
+                if display.character(at: index) != SoftParagraphBreaks.separator { remaining -= 1 }
+                index += 1
+            }
+            return index
         }
 
         private static func clamped(_ range: NSRange, to length: Int) -> NSRange {
@@ -355,6 +478,8 @@ struct ComposerTextView: UIViewRepresentable {
         /// Returns true when this insertion has been handled here (written to storage or blocked outright) and the
         /// caller must drop the original insertion.
         func interceptInsertion(_ text: String, in range: NSRange, of textView: ComposerUITextView) -> Bool {
+            // Dictation writes its own display string (already split and already limited); let it through unchanged.
+            guard !isApplying else { return false }
             guard let kept = lengthLimitedInsertion(text, in: range, of: textView) else {
                 return replaceIfOverlong(text, in: range, of: textView)
             }
@@ -977,6 +1102,21 @@ final class ComposerUITextView: UITextView {
     /// character (natural); keep doing that.
     override func setBaseWritingDirection(_ writingDirection: NSWritingDirection, for range: UITextRange) {}
 
+    /// While dictation records (live text is in the box), an empty stack is exposed externally: undo / redo do nothing and register nothing,
+    /// so old steps cannot act on text that contains live dictation text. The UITextView undo stack cannot be replaced wholesale, because typing registers on its private one.
+    private let suspendedUndoManager: UndoManager = {
+        let manager = UndoManager()
+        manager.disableUndoRegistration()
+        return manager
+    }()
+
+    override var undoManager: UndoManager? {
+        coordinator?.parent.selectionProbe?.isWritingLive == true ? suspendedUndoManager : super.undoManager
+    }
+
+    /// UITextView's own undo stack (it is also the one used while recording): dictation writes turn registration off and register its one step on this stack when it ends.
+    var textUndoManager: UndoManager? { super.undoManager }
+
     override var typingAttributes: [NSAttributedString.Key: Any] {
         get { Self.naturalized(super.typingAttributes) }
         set { super.typingAttributes = Self.naturalized(newValue) }
@@ -1171,3 +1311,4 @@ nonisolated final class ComposerTextLayoutManager: NSTextLayoutManager {
         return pieces.isEmpty ? nil : pieces
     }
 }
+

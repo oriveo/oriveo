@@ -22,7 +22,7 @@ struct RelaySecurityModeSummaryRow: View {
                             .fixedSize(horizontal: false, vertical: true)
                         Text(L10n.tr("Change", table: .providers))
                             .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                            .foregroundStyle(OriveoTheme.Palette.primary)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                 } else {
@@ -34,7 +34,7 @@ struct RelaySecurityModeSummaryRow: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                         Text(L10n.tr("Change", table: .providers))
                             .font(OriveoTheme.Typography.footnote.weight(.semibold))
-                            .foregroundStyle(OriveoTheme.Palette.primary)
+                            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                     }
                 }
             }
@@ -168,7 +168,7 @@ struct RelaySecurityModePickerSheet: View {
                         if isSuggested {
                             Text(L10n.tr("Suggested", table: .providers))
                                 .font(OriveoTheme.Typography.caption.weight(.semibold))
-                                .foregroundStyle(OriveoTheme.Palette.primary)
+                                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         }
                     }
                     Text(RelaySecurityModeSummaryRow.detail(for: mode))

@@ -20,4 +20,11 @@
     <string name="voice_conversation_notification_end">إنهاء</string>
     <string name="voice_conversation_start_failed_toast">تعذّر بدء المحادثة الصوتية. يُرجى المحاولة مرة أخرى.</string>
     <string name="voice_conversation_background_paused_toast">أُوقفت المحادثة الصوتية مؤقتًا لأن Oriveo في الخلفية.</string>
+    <string name="voice_conversation_status_say_again">لم أسمعك جيدًا، يُرجى الإعادة</string>
+    <string name="voice_conversation_status_check_language">لم أسمعك جيدًا</string>
+    <string name="voice_conversation_prompt_say_again">لم أسمعك جيدًا. هل يمكن الإعادة مرة أخرى؟</string>
+    <string name="voice_conversation_prompt_check_language">ما زلت لا أسمعك جيدًا. إذا كان الكلام بلغة أخرى، فاضغط على «لغة التعرّف» لتغييرها.</string>
+    <string name="voice_conversation_prompt_echo_hint">يُحدث مكبّر الصوت صدى. ستكون التجربة أفضل مع سماعات الأذن.</string>
+    <string name="voice_conversation_language_chip">لغة التعرّف: %1$s</string>
+    <string name="voice_conversation_language_chip_a11y_hint">يغيّر لغة التعرّف</string>
 </resources>

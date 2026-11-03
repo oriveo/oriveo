@@ -1,0 +1,3319 @@
+{
+  "schema": "oriveo.voice.realtime-model",
+  "version": 1,
+  "$comment": "Realtime voice models as chat models (S4b, E-255 / E-450..E-457 / E-490..). Picker realtime rows, capability projection while a realtime model is selected, failure classification into six categories with copy keys and actions, the one-time migration from the retired conversation-engine setting, and lifecycle (background) behaviour. scripts/voice-contracts-check.mjs recomputes every expected with scripts/lib/realtime-model.mjs; each client implements the same functions in production code and replays this fixture. Reducer-side behaviour (caption, reveal, persistence on interrupt, showError codes) lives in realtime-conversation.v1.json. U4a (S4b·U4): selectionCases / catalogSequenceCases (E-598), afterDropCases (E-522), typingResetCases / typedSendCases / backToStageCases (E-524 / E-528), picker selectedRow, capability panel tiles, failure buttonCopyKeys.",
+  "sources": {
+    "openai": [
+      "https://developers.openai.com/api/reference/resources/realtime/server-events",
+      "https://developers.openai.com/api/docs/guides/realtime-transcription",
+      "https://developers.openai.com/api/docs/guides/error-codes",
+      "https://developers.openai.com/api/docs/guides/realtime-conversations"
+    ],
+    "xai": [
+      "https://docs.x.ai/developers/model-capabilities/audio/speech-to-speech",
+      "https://docs.x.ai/developers/models/voice-agent-api",
+      "https://docs.x.ai/developers/rate-limits"
+    ],
+    "gemini": [
+      "https://ai.google.dev/api/live",
+      "https://ai.google.dev/gemini-api/docs/live-session",
+      "https://ai.google.dev/gemini-api/docs/api-errors"
+    ],
+    "recordings": [
+      "recordings/gemini-live-home-two-turn.v1.json",
+      "recordings/gemini-live-barge-in.v1.json"
+    ]
+  },
+  "constants": {
+    "connectTimeoutMs": 10000,
+    "uplinkBacklogMs": 8000,
+    "autoReopenAttempts": 1,
+    "geminiHandleReconnects": 4
+  },
+  "copy": {
+    "failure": {
+      "auth": "voice_realtime_failure_auth",
+      "quota": "voice_realtime_failure_quota",
+      "model_gone": "voice_realtime_failure_model_gone",
+      "max_duration": "voice_realtime_failure_max_duration",
+      "network": "voice_realtime_failure_network",
+      "unknown": "voice_realtime_failure_unknown"
+    },
+    "failureArg": {
+      "auth": "provider",
+      "quota": "provider",
+      "model_gone": "model",
+      "max_duration": "none",
+      "network": "model",
+      "unknown": "model"
+    },
+    "actions": {
+      "openConnection": "voice_realtime_action_open_connection",
+      "retry": "voice_realtime_action_retry",
+      "switchModel": "voice_realtime_action_switch_model",
+      "continueWithHistory": null
+    },
+    "capability": [
+      "voice_realtime_no_attachments",
+      "voice_realtime_no_web_search",
+      "voice_realtime_no_thinking",
+      "voice_realtime_no_tools"
+    ],
+    "picker": [
+      "voice_realtime_model_tag",
+      "voice_realtime_model_subtitle",
+      "voice_realtime_filter_count"
+    ],
+    "migration": [
+      "voice_realtime_moved_title",
+      "voice_realtime_moved_switch",
+      "voice_realtime_moved_keep"
+    ],
+    "composer": [
+      "voice_realtime_back_to_stage",
+      "voice_realtime_tap_to_start",
+      "voice_realtime_switch_to_keyboard",
+      "voice_realtime_switched_to",
+      "voice_realtime_model_loading"
+    ],
+    "disclosure": [
+      "voice_realtime_disclosure_title",
+      "voice_realtime_disclosure_body"
+    ],
+    "settings": [
+      "voice_realtime_settings_footer",
+      "voice_realtime_settings_empty",
+      "voice_realtime_catalog_unavailable"
+    ],
+    "retiredKeys": [
+      "voice_realtime_group_header",
+      "voice_realtime_engine_title",
+      "voice_realtime_follow_model",
+      "voice_realtime_follow_model_subtitle",
+      "voice_realtime_group_footer",
+      "voice_realtime_engine_fallback_toast",
+      "voice_realtime_engine_fallback_settings"
+    ]
+  },
+  "rules": {
+    "failure": [
+      "The host classifies only when the connection fails or the session ends unexpectedly; the unified error event stays non-fatal, but its code is kept as signal.errorCode for a close that follows.",
+      "Signal fields (all optional): httpStatus (handshake HTTP status), errorCode (last provider error code), endedReason (sessionEnded reason), catalogHasModel (false when the refreshed voice catalog no longer lists the model), elapsedSec and maxSessionSec (connected time and the catalog limit, null = no limit), connectError (network error before the handshake completed), connectTimedOut (no handshake within connectTimeoutMs), reopenFailed (unexpected close and the automatic reopen with history also failed), uplinkBacklogMs (unsent uplink audio). Unknown fields are ignored.",
+      "First match in order auth > quota > model_gone > max_duration > network > unknown. The host then sends failed {code: category} to the realtime-conversation reducer; sessionEnded max_duration / timeout is mapped by the reducer itself.",
+      "Shown inside the voice stage as status text (copy.failure[category], argument copy.failureArg: provider display name or catalog model) plus one button per action (copy.actions; continueWithHistory is a tap on the orb). Never a toast, never a URL or key. Never fall back to the cascade conversation, never switch model silently. model_gone switchModel restores the last text model as the selection.",
+      "After an unexpected close the host reopens once with history (autoReopenAttempts; gemini keeps its handle reconnect, up to geminiHandleReconnects) before classifying with reopenFailed = true; the orb stays in the dimmed listening state while reopening. No network-change monitor.",
+      "Failure buttons left to right follow buttonCopyKeys: secondary first, the primary action (actions[0]) last; max_duration has no button (tap the orb). Shown in the voice stage failure card (E-527)."
+    ],
+    "picker": [
+      "Rows come from the voice catalog realtime[] of the connection provider kind for official apiKey connections only (relay, managed and free are not listed); each connection group lists them again. They follow that connection text models, isDefault first then catalog order; the row name is the catalog model with the copy.picker tag as badge.",
+      "context chat and home list realtime rows; crosscheck never does. showsRealtimeFilter is true when any connection lists a realtime row in this context, regardless of active filters; a realtime filter while hidden is ignored.",
+      "Filters intersect: a realtime row matches only the realtime filter, a text row never matches it; webSearch / thinking match text rows by capability. Groups left empty are removed.",
+      "First selection of a provider realtime model shows the cloud disclosure (copy.disclosure, body with the E-258 cost sentence) unless the (providerKind, realtime) consent exists.",
+      "selected (optional {connectionId, model}, text or realtime) is the current selection; selectedRow is the listed row that shows the check mark, null when that row is not listed (filtered out or not a row). Only one row is ever checked: with a realtime selection no text row (for example the last-used text model on home) is checked (E-598)."
+    ],
+    "capability": [
+      "Projection while a model is selected; mode stage = voice stage composer, typing = text composer sending to the same realtime model. hidden means the control does not exist (never a greyed-out option); statusLine = one line of status text plus a switch-model route in the model options panel; disabledWithReason = the attachment items are present, disabled, with the reason text; disabledTappable = the tools chip is shown dimmed and tapping it explains why.",
+      "Realtime sessions never send tools; memory, pinned notes and knowledge go only into the opening instructions (unchanged). Selecting a realtime model never writes the last-used model, so a new chat or cold start returns to the last text model; a realtime model can never be the default.",
+      "Model options panel with a realtime model: only the web search and thinking status lines (visionTile, fileTile and panelSummary hidden). The tools chip tapped in typing mode explains with toolsReasonKey in the same presentation as the existing tools-unavailable explanation (E-529). Starting or reopening a realtime session never writes the last-used model either (E-599)."
+    ],
+    "migration": [
+      "Runs on the first tap on the cascade entry after upgrade while the old engine keys exist (ios voice.engine.realtime, android oriveo_voice_settings oriveo.voice.realtime.*). oldChoice null = the old setting followed the current model.",
+      "Resolvable = the old connection still exists, is the same provider kind, is an official apiKey connection, and the catalog still lists the model. Unresolvable: no prompt, enter the cascade, delete the old keys and the realtime pendingNotice.",
+      "Resolvable: prompt once (copy.migration). switch selects that realtime model for the current chat / home pill and enters the voice stage, showing the disclosure only when no (providerKind, realtime) consent exists (declining it enters the cascade instead, keys still deleted); keep enters the cascade. Both delete the old keys. A prompt dismissed by the system without an answer keeps the keys and asks again on the next tap. Consent records are never deleted."
+    ],
+    "lifecycle": [
+      "Going to background or locking the screen keeps the session (ios UIBackgroundModes audio for a session started in the foreground; android the microphone foreground service shared with the cascade, notification with End). A phone call, Siri or permanent audio focus loss ends it through the reducer systemInterruption. The reducer idle end (idleEndMs) applies in background too."
+    ],
+    "selection": [
+      "realtimeSelection: a stored selection (conversation providerId / providerKind / modelId, or the home selection) is a realtime selection when the voice catalog is ready, the connection still exists with auth apiKey (relay, managed, free and subscription logins never) and catalog realtime[connection providerKind] lists the model. It is judged on every read, home included; the result is never stored. Catalog not ready = not realtime, and the stored fields are never rewritten or cleared because of it (E-500, E-598).",
+      "catalogSequence: whenever the catalog state changes content (null to available, or available with different content) the selection is judged again and observers see the change at once; the same content again triggers nothing. No polling, no timers, no disk read on the main thread (E-596, E-598).",
+      "Selecting a model while the catalog is not ready never writes the last-used model for a model the catalog later lists as realtime: the last-used write waits until the catalog is ready and the model is judged a text model (E-598)."
+    ],
+    "reconnect": [
+      "afterDrop: an unexpected close of a connection that reached ready. gemini keeps its handle reconnect (geminiHandleReconnects) and is not decided here. Otherwise the close is classified first (classifyFailure without reopenFailed): auth / quota / model_gone / max_duration end the session with that code, never reopen. network / unknown: if this connection is itself an automatic reopen and made no progress since its ready (no user or assistant turn event), end with unknown; else if muted go dormant (reopen when unmuted, same as reducer dormant); else reopen once with history (autoReopenAttempts). Each reopen that makes progress earns one more reopen for the next close (E-587, E-517, E-522).",
+      "While reopening the host sends sessionExpired to the reducer (a finished reply is persisted, the orb shows the dimmed listening state); the turn in flight is never left in speaking or thinking, so the 120 s idle end keeps working (E-523).",
+      "stage reopenFailed: the handshake of the automatic reopen failed: end with network (classifyFailure reopenFailed = true: a 404 or model_not_found on that handshake is network, not model_gone; only catalogHasModel false stays model_gone, E-605). The voice catalog is refetched only for a session that never reached ready (E-592), never for a reopen."
+    ],
+    "composer": [
+      "typingAfterSelectionChange: typing mode is kept per conversation (home is its own) in memory only; any change of that page's selection (another realtime model, a text model, or none) leaves typing mode (E-591).",
+      "typedSendOutcome: a typed message leaves the field when handed to the realtime session; it comes back to the field unless it is persisted (the session ended before it was sent and persisted, the session could not open, the disclosure was declined or closed, or the page was left before answering). Home creates the conversation only when this first message is persisted; nothing else creates it (E-590, E-597).",
+      "backToStage: the orb button in typing mode (one shared view on chat and home, 36 pt orb) resumes capture on the same connection when a typing-opened session is running (a reply being played is interrupted like a tap on the orb); with no session it shows the idle stage (E-514, E-528).",
+      "Typed text enters the realtime-conversation reducer only when it is actually sent on a connection that is ready: userSpeechStarted, userSpeechStopped, then userTranscript final (cases rt_typed_*). Text typed while connecting, reopening or dormant is queued without reducing or persisting; dormant wakes the reopen (the host reduces realtime-conversation wake; mute is kept, E-634); on ready the queue is sent in order. GA: with a response in progress, response.cancel first, then conversation.item.create, then response.create after that response.done (E-589, E-593, E-524).",
+      "engineSwitchMidSession: picking a model whose answering engine differs (text to realtime, realtime to text, or another realtime model) while a voice conversation is running ends that session on the spot (transcripts already shown are kept) and continues the same conversation with the new engine on the same stage without collapsing it; the stage status line shows voice_realtime_switched_to with the new model name once for about 1.6 s and the top bar name updates at the same moment; a realtime model not yet accepted stops at the disclosure. Picking while idle only changes the input area and never opens the microphone; text to text keeps the running session and the next turn uses the new model. Realtime selection is read from the current selection plus the catalog, not from the persisted conversation; a voice-delivery send carrying a realtime model id is refused (E-690)."
+    ]
+  },
+  "failureCases": [
+    {
+      "id": "failure_handshake_401_auth",
+      "input": {
+        "httpStatus": 401
+      },
+      "expected": {
+        "category": "auth",
+        "copyKey": "voice_realtime_failure_auth",
+        "copyArg": "provider",
+        "actions": [
+          "openConnection"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_open_connection"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_open_connection"
+        ]
+      }
+    },
+    {
+      "id": "failure_handshake_403_auth",
+      "input": {
+        "httpStatus": 403
+      },
+      "expected": {
+        "category": "auth",
+        "copyKey": "voice_realtime_failure_auth",
+        "copyArg": "provider",
+        "actions": [
+          "openConnection"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_open_connection"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_open_connection"
+        ]
+      }
+    },
+    {
+      "id": "failure_invalid_api_key_auth",
+      "input": {
+        "errorCode": "invalid_api_key"
+      },
+      "expected": {
+        "category": "auth",
+        "copyKey": "voice_realtime_failure_auth",
+        "copyArg": "provider",
+        "actions": [
+          "openConnection"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_open_connection"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_open_connection"
+        ]
+      }
+    },
+    {
+      "id": "failure_handshake_429_quota",
+      "input": {
+        "httpStatus": 429
+      },
+      "expected": {
+        "category": "quota",
+        "copyKey": "voice_realtime_failure_quota",
+        "copyArg": "provider",
+        "actions": [
+          "retry",
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry",
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model",
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_insufficient_quota",
+      "input": {
+        "errorCode": "insufficient_quota"
+      },
+      "expected": {
+        "category": "quota",
+        "copyKey": "voice_realtime_failure_quota",
+        "copyArg": "provider",
+        "actions": [
+          "retry",
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry",
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model",
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_rate_limit_exceeded_quota",
+      "input": {
+        "errorCode": "rate_limit_exceeded"
+      },
+      "expected": {
+        "category": "quota",
+        "copyKey": "voice_realtime_failure_quota",
+        "copyArg": "provider",
+        "actions": [
+          "retry",
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry",
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model",
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_handshake_404_model_gone",
+      "input": {
+        "httpStatus": 404
+      },
+      "expected": {
+        "category": "model_gone",
+        "copyKey": "voice_realtime_failure_model_gone",
+        "copyArg": "model",
+        "actions": [
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model"
+        ]
+      }
+    },
+    {
+      "id": "failure_model_not_found",
+      "input": {
+        "errorCode": "model_not_found"
+      },
+      "expected": {
+        "category": "model_gone",
+        "copyKey": "voice_realtime_failure_model_gone",
+        "copyArg": "model",
+        "actions": [
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model"
+        ]
+      }
+    },
+    {
+      "id": "failure_reopen_handshake_404_is_network",
+      "input": {
+        "httpStatus": 404,
+        "reopenFailed": true
+      },
+      "expected": {
+        "category": "network",
+        "copyKey": "voice_realtime_failure_network",
+        "copyArg": "model",
+        "actions": [
+          "retry"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_reopen_model_not_found_is_network",
+      "input": {
+        "errorCode": "model_not_found",
+        "reopenFailed": true
+      },
+      "expected": {
+        "category": "network",
+        "copyKey": "voice_realtime_failure_network",
+        "copyArg": "model",
+        "actions": [
+          "retry"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_reopen_catalog_removed_still_model_gone",
+      "input": {
+        "catalogHasModel": false,
+        "reopenFailed": true
+      },
+      "expected": {
+        "category": "model_gone",
+        "copyKey": "voice_realtime_failure_model_gone",
+        "copyArg": "model",
+        "actions": [
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model"
+        ]
+      }
+    },
+    {
+      "id": "failure_catalog_removed_model_gone",
+      "input": {
+        "catalogHasModel": false,
+        "connectError": true
+      },
+      "expected": {
+        "category": "model_gone",
+        "copyKey": "voice_realtime_failure_model_gone",
+        "copyArg": "model",
+        "actions": [
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model"
+        ]
+      }
+    },
+    {
+      "id": "failure_session_ended_max_duration",
+      "input": {
+        "endedReason": "max_duration"
+      },
+      "expected": {
+        "category": "max_duration",
+        "copyKey": "voice_realtime_failure_max_duration",
+        "copyArg": "none",
+        "actions": [
+          "continueWithHistory"
+        ],
+        "actionCopyKeys": [
+          null
+        ],
+        "buttonCopyKeys": []
+      }
+    },
+    {
+      "id": "failure_session_ended_timeout_max_duration",
+      "input": {
+        "endedReason": "timeout"
+      },
+      "expected": {
+        "category": "max_duration",
+        "copyKey": "voice_realtime_failure_max_duration",
+        "copyArg": "none",
+        "actions": [
+          "continueWithHistory"
+        ],
+        "actionCopyKeys": [
+          null
+        ],
+        "buttonCopyKeys": []
+      }
+    },
+    {
+      "id": "failure_elapsed_reaches_max_session",
+      "input": {
+        "elapsedSec": 3600,
+        "maxSessionSec": 3600,
+        "reopenFailed": true
+      },
+      "expected": {
+        "category": "max_duration",
+        "copyKey": "voice_realtime_failure_max_duration",
+        "copyArg": "none",
+        "actions": [
+          "continueWithHistory"
+        ],
+        "actionCopyKeys": [
+          null
+        ],
+        "buttonCopyKeys": []
+      }
+    },
+    {
+      "id": "failure_elapsed_below_max_session_is_network",
+      "input": {
+        "elapsedSec": 3599,
+        "maxSessionSec": 3600,
+        "reopenFailed": true
+      },
+      "expected": {
+        "category": "network",
+        "copyKey": "voice_realtime_failure_network",
+        "copyArg": "model",
+        "actions": [
+          "retry"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_no_max_session_is_network",
+      "input": {
+        "elapsedSec": 99999,
+        "maxSessionSec": null,
+        "reopenFailed": true
+      },
+      "expected": {
+        "category": "network",
+        "copyKey": "voice_realtime_failure_network",
+        "copyArg": "model",
+        "actions": [
+          "retry"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_connect_error_network",
+      "input": {
+        "connectError": true
+      },
+      "expected": {
+        "category": "network",
+        "copyKey": "voice_realtime_failure_network",
+        "copyArg": "model",
+        "actions": [
+          "retry"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_connect_timeout_network",
+      "input": {
+        "connectTimedOut": true
+      },
+      "expected": {
+        "category": "network",
+        "copyKey": "voice_realtime_failure_network",
+        "copyArg": "model",
+        "actions": [
+          "retry"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_uplink_backlog_over_limit_network",
+      "input": {
+        "uplinkBacklogMs": 8001
+      },
+      "expected": {
+        "category": "network",
+        "copyKey": "voice_realtime_failure_network",
+        "copyArg": "model",
+        "actions": [
+          "retry"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_uplink_backlog_at_limit_unknown",
+      "input": {
+        "uplinkBacklogMs": 8000
+      },
+      "expected": {
+        "category": "unknown",
+        "copyKey": "voice_realtime_failure_unknown",
+        "copyArg": "model",
+        "actions": [
+          "retry",
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry",
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model",
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_auth_wins_over_quota",
+      "input": {
+        "httpStatus": 401,
+        "errorCode": "insufficient_quota"
+      },
+      "expected": {
+        "category": "auth",
+        "copyKey": "voice_realtime_failure_auth",
+        "copyArg": "provider",
+        "actions": [
+          "openConnection"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_open_connection"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_open_connection"
+        ]
+      }
+    },
+    {
+      "id": "failure_quota_wins_over_network",
+      "input": {
+        "httpStatus": 429,
+        "connectError": true
+      },
+      "expected": {
+        "category": "quota",
+        "copyKey": "voice_realtime_failure_quota",
+        "copyArg": "provider",
+        "actions": [
+          "retry",
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry",
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model",
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_gemini_undocumented_close_unknown",
+      "input": {
+        "closeCode": 1011
+      },
+      "expected": {
+        "category": "unknown",
+        "copyKey": "voice_realtime_failure_unknown",
+        "copyArg": "model",
+        "actions": [
+          "retry",
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry",
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model",
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_empty_signal_unknown",
+      "input": {},
+      "expected": {
+        "category": "unknown",
+        "copyKey": "voice_realtime_failure_unknown",
+        "copyArg": "model",
+        "actions": [
+          "retry",
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry",
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model",
+          "voice_realtime_action_retry"
+        ]
+      }
+    },
+    {
+      "id": "failure_http_500_unknown",
+      "input": {
+        "httpStatus": 500
+      },
+      "expected": {
+        "category": "unknown",
+        "copyKey": "voice_realtime_failure_unknown",
+        "copyArg": "model",
+        "actions": [
+          "retry",
+          "switchModel"
+        ],
+        "actionCopyKeys": [
+          "voice_realtime_action_retry",
+          "voice_realtime_action_switch_model"
+        ],
+        "buttonCopyKeys": [
+          "voice_realtime_action_switch_model",
+          "voice_realtime_action_retry"
+        ]
+      }
+    }
+  ],
+  "pickerCases": [
+    {
+      "id": "picker_chat_lists_realtime_after_text_default_first",
+      "input": {
+        "context": "chat",
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_anthropic",
+            "providerKind": "anthropic",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "claude-opus-5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [
+          {
+            "connectionId": "conn_openai",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-realtime-2.1",
+                "kind": "realtime"
+              },
+              {
+                "model": "gpt-realtime-2.1-mini",
+                "kind": "realtime"
+              }
+            ]
+          },
+          {
+            "connectionId": "conn_anthropic",
+            "rows": [
+              {
+                "model": "claude-opus-5",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_home_lists_realtime",
+      "input": {
+        "context": "home",
+        "connections": [
+          {
+            "id": "conn_gemini",
+            "providerKind": "gemini",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gemini-3.5-pro",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [
+          {
+            "connectionId": "conn_gemini",
+            "rows": [
+              {
+                "model": "gemini-3.5-pro",
+                "kind": "text"
+              },
+              {
+                "model": "gemini-3.8-live",
+                "kind": "realtime"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_crosscheck_never_lists_realtime",
+      "input": {
+        "context": "crosscheck",
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": false,
+        "groups": [
+          {
+            "connectionId": "conn_openai",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_relay_managed_free_not_listed",
+      "input": {
+        "context": "chat",
+        "connections": [
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_managed",
+            "providerKind": "openAI",
+            "auth": "managed",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_free",
+            "providerKind": "openAI",
+            "auth": "free",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": false,
+        "groups": [
+          {
+            "connectionId": "conn_relay",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "kind": "text"
+              }
+            ]
+          },
+          {
+            "connectionId": "conn_managed",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "kind": "text"
+              }
+            ]
+          },
+          {
+            "connectionId": "conn_free",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_two_openai_connections_each_list",
+      "input": {
+        "context": "chat",
+        "connections": [
+          {
+            "id": "conn_openai_a",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_openai_b",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [
+          {
+            "connectionId": "conn_openai_a",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-realtime-2.1",
+                "kind": "realtime"
+              },
+              {
+                "model": "gpt-realtime-2.1-mini",
+                "kind": "realtime"
+              }
+            ]
+          },
+          {
+            "connectionId": "conn_openai_b",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-realtime-2.1",
+                "kind": "realtime"
+              },
+              {
+                "model": "gpt-realtime-2.1-mini",
+                "kind": "realtime"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_no_realtime_connection_hides_filter",
+      "input": {
+        "context": "chat",
+        "connections": [
+          {
+            "id": "conn_anthropic",
+            "providerKind": "anthropic",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "claude-opus-5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": false,
+        "groups": [
+          {
+            "connectionId": "conn_anthropic",
+            "rows": [
+              {
+                "model": "claude-opus-5",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_realtime_filter_only_realtime_rows",
+      "input": {
+        "context": "chat",
+        "filters": [
+          "realtime"
+        ],
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_anthropic",
+            "providerKind": "anthropic",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "claude-opus-5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [
+          {
+            "connectionId": "conn_openai",
+            "rows": [
+              {
+                "model": "gpt-realtime-2.1",
+                "kind": "realtime"
+              },
+              {
+                "model": "gpt-realtime-2.1-mini",
+                "kind": "realtime"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_realtime_and_web_search_is_empty",
+      "input": {
+        "context": "chat",
+        "filters": [
+          "realtime",
+          "webSearch"
+        ],
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_anthropic",
+            "providerKind": "anthropic",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "claude-opus-5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_web_search_filter_drops_realtime",
+      "input": {
+        "context": "chat",
+        "filters": [
+          "webSearch"
+        ],
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [
+          {
+            "connectionId": "conn_openai",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_realtime_filter_ignored_when_hidden",
+      "input": {
+        "context": "chat",
+        "filters": [
+          "realtime"
+        ],
+        "connections": [
+          {
+            "id": "conn_anthropic",
+            "providerKind": "anthropic",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "claude-opus-5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": false,
+        "groups": [
+          {
+            "connectionId": "conn_anthropic",
+            "rows": [
+              {
+                "model": "claude-opus-5",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_provider_without_catalog_entry",
+      "input": {
+        "context": "chat",
+        "connections": [
+          {
+            "id": "conn_anthropic",
+            "providerKind": "anthropic",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "claude-opus-5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_gemini",
+            "providerKind": "gemini",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gemini-3.5-pro",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": false,
+        "groups": [
+          {
+            "connectionId": "conn_anthropic",
+            "rows": [
+              {
+                "model": "claude-opus-5",
+                "kind": "text"
+              }
+            ]
+          },
+          {
+            "connectionId": "conn_gemini",
+            "rows": [
+              {
+                "model": "gemini-3.5-pro",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_subscription_official_not_listed",
+      "input": {
+        "context": "chat",
+        "connections": [
+          {
+            "id": "conn_sub",
+            "providerKind": "openAI",
+            "auth": "subscription",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": false,
+        "groups": [
+          {
+            "connectionId": "conn_sub",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    },
+    {
+      "id": "picker_realtime_selected_checks_only_that_row",
+      "input": {
+        "context": "home",
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        },
+        "selected": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [
+          {
+            "connectionId": "conn_openai",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-realtime-2.1",
+                "kind": "realtime"
+              }
+            ]
+          }
+        ],
+        "selectedRow": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1",
+          "kind": "realtime"
+        }
+      }
+    },
+    {
+      "id": "picker_text_selected_checks_text_row",
+      "input": {
+        "context": "chat",
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        },
+        "selected": {
+          "connectionId": "conn_openai",
+          "model": "gpt-5.5"
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [
+          {
+            "connectionId": "conn_openai",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              },
+              {
+                "model": "gpt-realtime-2.1",
+                "kind": "realtime"
+              }
+            ]
+          }
+        ],
+        "selectedRow": {
+          "connectionId": "conn_openai",
+          "model": "gpt-5.5",
+          "kind": "text"
+        }
+      }
+    },
+    {
+      "id": "picker_selected_realtime_filtered_out_checks_nothing",
+      "input": {
+        "context": "chat",
+        "filters": [
+          "webSearch"
+        ],
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        },
+        "selected": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        }
+      },
+      "expected": {
+        "showsRealtimeFilter": true,
+        "groups": [
+          {
+            "connectionId": "conn_openai",
+            "rows": [
+              {
+                "model": "gpt-5.5",
+                "kind": "text"
+              }
+            ]
+          }
+        ],
+        "selectedRow": null
+      }
+    }
+  ],
+  "capabilityCases": [
+    {
+      "id": "capability_realtime_stage",
+      "input": {
+        "modelKind": "realtime",
+        "mode": "stage"
+      },
+      "expected": {
+        "attachments": "hidden",
+        "attachmentsReasonKey": null,
+        "webSearch": "statusLine",
+        "webSearchReasonKey": "voice_realtime_no_web_search",
+        "thinking": "statusLine",
+        "thinkingReasonKey": "voice_realtime_no_thinking",
+        "tools": "hidden",
+        "toolsReasonKey": null,
+        "sendsTools": false,
+        "regenerateEdit": "hidden",
+        "setAsDefault": "notOffered",
+        "writesLastUsedModel": false,
+        "dictation": "hidden",
+        "voiceEntry": "stage",
+        "visionTile": "hidden",
+        "fileTile": "hidden",
+        "panelSummary": "hidden"
+      }
+    },
+    {
+      "id": "capability_realtime_typing",
+      "input": {
+        "modelKind": "realtime",
+        "mode": "typing"
+      },
+      "expected": {
+        "attachments": "disabledWithReason",
+        "attachmentsReasonKey": "voice_realtime_no_attachments",
+        "webSearch": "statusLine",
+        "webSearchReasonKey": "voice_realtime_no_web_search",
+        "thinking": "statusLine",
+        "thinkingReasonKey": "voice_realtime_no_thinking",
+        "tools": "disabledTappable",
+        "toolsReasonKey": "voice_realtime_no_tools",
+        "sendsTools": false,
+        "regenerateEdit": "hidden",
+        "setAsDefault": "notOffered",
+        "writesLastUsedModel": false,
+        "dictation": "available",
+        "voiceEntry": "backToStage",
+        "visionTile": "hidden",
+        "fileTile": "hidden",
+        "panelSummary": "hidden"
+      }
+    },
+    {
+      "id": "capability_text_model_unchanged",
+      "input": {
+        "modelKind": "text",
+        "mode": "typing"
+      },
+      "expected": {
+        "attachments": "default",
+        "attachmentsReasonKey": null,
+        "webSearch": "default",
+        "webSearchReasonKey": null,
+        "thinking": "default",
+        "thinkingReasonKey": null,
+        "tools": "default",
+        "toolsReasonKey": null,
+        "sendsTools": true,
+        "regenerateEdit": "default",
+        "setAsDefault": "default",
+        "writesLastUsedModel": true,
+        "dictation": "available",
+        "voiceEntry": "cascade",
+        "visionTile": "default",
+        "fileTile": "default",
+        "panelSummary": "default"
+      }
+    }
+  ],
+  "migrationCases": [
+    {
+      "id": "migration_no_old_key_enters_cascade",
+      "input": {
+        "oldKeyPresent": false,
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showPrompt": false,
+        "result": "enterCascade",
+        "deleteOldKeys": false,
+        "showDisclosure": false
+      }
+    },
+    {
+      "id": "migration_old_key_unresolvable_model_deletes_silently",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": {
+          "providerKind": "openAI",
+          "model": "gpt-realtime-1",
+          "connectionId": "conn_openai"
+        },
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showPrompt": false,
+        "result": "enterCascade",
+        "deleteOldKeys": true,
+        "showDisclosure": false
+      }
+    },
+    {
+      "id": "migration_old_key_connection_gone_deletes_silently",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": {
+          "providerKind": "openAI",
+          "model": "gpt-realtime-2.1",
+          "connectionId": "conn_deleted"
+        },
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showPrompt": false,
+        "result": "enterCascade",
+        "deleteOldKeys": true,
+        "showDisclosure": false
+      }
+    },
+    {
+      "id": "migration_old_key_relay_connection_deletes_silently",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": {
+          "providerKind": "openAI",
+          "model": "gpt-realtime-2.1",
+          "connectionId": "conn_relay"
+        },
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showPrompt": false,
+        "result": "enterCascade",
+        "deleteOldKeys": true,
+        "showDisclosure": false
+      }
+    },
+    {
+      "id": "migration_old_key_follow_model_deletes_silently",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": null,
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "showPrompt": false,
+        "result": "enterCascade",
+        "deleteOldKeys": true,
+        "showDisclosure": false
+      }
+    },
+    {
+      "id": "migration_prompt_switch_consented_no_disclosure",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": {
+          "providerKind": "openAI",
+          "model": "gpt-realtime-2.1",
+          "connectionId": "conn_openai"
+        },
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        },
+        "consented": true,
+        "answer": "switch"
+      },
+      "expected": {
+        "showPrompt": true,
+        "result": "selectRealtime",
+        "deleteOldKeys": true,
+        "showDisclosure": false
+      }
+    },
+    {
+      "id": "migration_prompt_switch_not_consented_shows_disclosure",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": {
+          "providerKind": "openAI",
+          "model": "gpt-realtime-2.1",
+          "connectionId": "conn_openai"
+        },
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        },
+        "consented": false,
+        "answer": "switch"
+      },
+      "expected": {
+        "showPrompt": true,
+        "result": "selectRealtime",
+        "deleteOldKeys": true,
+        "showDisclosure": true
+      }
+    },
+    {
+      "id": "migration_prompt_keep_enters_cascade",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": {
+          "providerKind": "openAI",
+          "model": "gpt-realtime-2.1",
+          "connectionId": "conn_openai"
+        },
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        },
+        "consented": true,
+        "answer": "keep"
+      },
+      "expected": {
+        "showPrompt": true,
+        "result": "enterCascade",
+        "deleteOldKeys": true,
+        "showDisclosure": false
+      }
+    },
+    {
+      "id": "migration_prompt_dismissed_keeps_keys",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": {
+          "providerKind": "openAI",
+          "model": "gpt-realtime-2.1",
+          "connectionId": "conn_openai"
+        },
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        },
+        "consented": true,
+        "answer": "dismissed"
+      },
+      "expected": {
+        "showPrompt": true,
+        "result": "none",
+        "deleteOldKeys": false,
+        "showDisclosure": false
+      }
+    },
+    {
+      "id": "migration_prompt_switch_disclosure_declined_enters_cascade",
+      "input": {
+        "oldKeyPresent": true,
+        "oldChoice": {
+          "providerKind": "openAI",
+          "model": "gpt-realtime-2.1",
+          "connectionId": "conn_openai"
+        },
+        "connections": [
+          {
+            "id": "conn_openai",
+            "providerKind": "openAI",
+            "auth": "apiKey",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          },
+          {
+            "id": "conn_relay",
+            "providerKind": "openAI",
+            "auth": "relay",
+            "textModels": [
+              {
+                "model": "gpt-5.5",
+                "webSearch": true,
+                "thinking": true
+              },
+              {
+                "model": "gpt-5.5-mini",
+                "webSearch": false,
+                "thinking": true
+              }
+            ]
+          }
+        ],
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1-mini",
+              "isDefault": false
+            },
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        },
+        "consented": false,
+        "answer": "switch",
+        "disclosureDeclined": true
+      },
+      "expected": {
+        "showPrompt": true,
+        "result": "enterCascade",
+        "deleteOldKeys": true,
+        "showDisclosure": true
+      }
+    }
+  ],
+  "lifecycleCases": [
+    {
+      "id": "lifecycle_enter_background",
+      "input": {
+        "event": "enterBackground"
+      },
+      "expected": {
+        "action": "continue",
+        "reducerInput": null
+      }
+    },
+    {
+      "id": "lifecycle_screen_lock",
+      "input": {
+        "event": "screenLock"
+      },
+      "expected": {
+        "action": "continue",
+        "reducerInput": null
+      }
+    },
+    {
+      "id": "lifecycle_return_foreground",
+      "input": {
+        "event": "returnForeground"
+      },
+      "expected": {
+        "action": "continue",
+        "reducerInput": null
+      }
+    },
+    {
+      "id": "lifecycle_phone_call",
+      "input": {
+        "event": "phoneCall"
+      },
+      "expected": {
+        "action": "end",
+        "reducerInput": "systemInterruption"
+      }
+    },
+    {
+      "id": "lifecycle_siri",
+      "input": {
+        "event": "siri"
+      },
+      "expected": {
+        "action": "end",
+        "reducerInput": "systemInterruption"
+      }
+    },
+    {
+      "id": "lifecycle_audio_focus_loss_permanent",
+      "input": {
+        "event": "audioFocusLossPermanent"
+      },
+      "expected": {
+        "action": "end",
+        "reducerInput": "systemInterruption"
+      }
+    }
+  ],
+  "selectionCases": [
+    {
+      "id": "selection_official_api_key_listed",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "apiKey"
+        },
+        "model": "gpt-realtime-2.1",
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "isRealtime": true,
+        "catalogReady": true
+      }
+    },
+    {
+      "id": "selection_subscription_not_realtime",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "subscription"
+        },
+        "model": "gpt-realtime-2.1",
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "isRealtime": false,
+        "catalogReady": true
+      }
+    },
+    {
+      "id": "selection_relay_not_realtime",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "relay"
+        },
+        "model": "gpt-realtime-2.1",
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "isRealtime": false,
+        "catalogReady": true
+      }
+    },
+    {
+      "id": "selection_managed_free_not_realtime",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "free"
+        },
+        "model": "gpt-realtime-2.1",
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "isRealtime": false,
+        "catalogReady": true
+      }
+    },
+    {
+      "id": "selection_catalog_not_ready",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "apiKey"
+        },
+        "model": "gpt-realtime-2.1",
+        "realtimeCatalog": null
+      },
+      "expected": {
+        "isRealtime": false,
+        "catalogReady": false
+      }
+    },
+    {
+      "id": "selection_connection_deleted",
+      "input": {
+        "connection": null,
+        "model": "gpt-realtime-2.1",
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "isRealtime": false,
+        "catalogReady": true
+      }
+    },
+    {
+      "id": "selection_model_of_other_provider",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "apiKey"
+        },
+        "model": "gemini-3.8-live",
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "isRealtime": false,
+        "catalogReady": true
+      }
+    },
+    {
+      "id": "selection_text_model_not_realtime",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "apiKey"
+        },
+        "model": "gpt-5.5",
+        "realtimeCatalog": {
+          "openAI": [
+            {
+              "model": "gpt-realtime-2.1",
+              "isDefault": true
+            }
+          ],
+          "gemini": [
+            {
+              "model": "gemini-3.8-live",
+              "isDefault": true
+            }
+          ]
+        }
+      },
+      "expected": {
+        "isRealtime": false,
+        "catalogReady": true
+      }
+    }
+  ],
+  "catalogSequenceCases": [
+    {
+      "id": "catalog_late_then_same_then_removed",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "apiKey"
+        },
+        "model": "gpt-realtime-2.1",
+        "catalogs": [
+          null,
+          {
+            "openAI": [
+              {
+                "model": "gpt-realtime-2.1",
+                "isDefault": true
+              }
+            ],
+            "gemini": [
+              {
+                "model": "gemini-3.8-live",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "openAI": [
+              {
+                "model": "gpt-realtime-2.1",
+                "isDefault": true
+              }
+            ],
+            "gemini": [
+              {
+                "model": "gemini-3.8-live",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "openAI": [
+              {
+                "model": "gpt-realtime-2.1-mini",
+                "isDefault": true
+              }
+            ],
+            "gemini": [
+              {
+                "model": "gemini-3.8-live",
+                "isDefault": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "recompute": true,
+          "isRealtime": false
+        },
+        {
+          "recompute": true,
+          "isRealtime": true
+        },
+        {
+          "recompute": false,
+          "isRealtime": true
+        },
+        {
+          "recompute": true,
+          "isRealtime": false
+        }
+      ]
+    },
+    {
+      "id": "catalog_ready_from_start_then_unchanged",
+      "input": {
+        "connection": {
+          "providerKind": "openAI",
+          "auth": "apiKey"
+        },
+        "model": "gpt-realtime-2.1",
+        "catalogs": [
+          {
+            "openAI": [
+              {
+                "model": "gpt-realtime-2.1",
+                "isDefault": true
+              }
+            ],
+            "gemini": [
+              {
+                "model": "gemini-3.8-live",
+                "isDefault": true
+              }
+            ]
+          },
+          {
+            "openAI": [
+              {
+                "model": "gpt-realtime-2.1",
+                "isDefault": true
+              }
+            ],
+            "gemini": [
+              {
+                "model": "gemini-3.8-live",
+                "isDefault": true
+              }
+            ]
+          }
+        ]
+      },
+      "expected": [
+        {
+          "recompute": true,
+          "isRealtime": true
+        },
+        {
+          "recompute": false,
+          "isRealtime": true
+        }
+      ]
+    }
+  ],
+  "afterDropCases": [
+    {
+      "id": "drop_network_reopens",
+      "input": {
+        "provider": "openAI",
+        "category": "network"
+      },
+      "expected": {
+        "action": "reopen",
+        "code": null,
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_unknown_reopens",
+      "input": {
+        "provider": "xai",
+        "category": "unknown"
+      },
+      "expected": {
+        "action": "reopen",
+        "code": null,
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_auth_ends",
+      "input": {
+        "provider": "openAI",
+        "category": "auth"
+      },
+      "expected": {
+        "action": "end",
+        "code": "auth",
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_quota_ends",
+      "input": {
+        "provider": "openAI",
+        "category": "quota"
+      },
+      "expected": {
+        "action": "end",
+        "code": "quota",
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_model_gone_ends",
+      "input": {
+        "provider": "openAI",
+        "category": "model_gone"
+      },
+      "expected": {
+        "action": "end",
+        "code": "model_gone",
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_max_duration_ends",
+      "input": {
+        "provider": "openAI",
+        "category": "max_duration"
+      },
+      "expected": {
+        "action": "end",
+        "code": "max_duration",
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_after_reopen_without_progress_ends_unknown",
+      "input": {
+        "provider": "openAI",
+        "category": "network",
+        "reopenedWithoutProgress": true
+      },
+      "expected": {
+        "action": "end",
+        "code": "unknown",
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_after_reopen_with_progress_reopens",
+      "input": {
+        "provider": "openAI",
+        "category": "network",
+        "reopenedWithoutProgress": false
+      },
+      "expected": {
+        "action": "reopen",
+        "code": null,
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_while_muted_goes_dormant",
+      "input": {
+        "provider": "openAI",
+        "category": "network",
+        "muted": true
+      },
+      "expected": {
+        "action": "dormant",
+        "code": null,
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_while_muted_after_reopen_without_progress_ends",
+      "input": {
+        "provider": "openAI",
+        "category": "unknown",
+        "muted": true,
+        "reopenedWithoutProgress": true
+      },
+      "expected": {
+        "action": "end",
+        "code": "unknown",
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "drop_gemini_handle_reconnect",
+      "input": {
+        "provider": "gemini",
+        "category": "network"
+      },
+      "expected": {
+        "action": "handleReconnect",
+        "code": null,
+        "refetchCatalog": false
+      }
+    },
+    {
+      "id": "reopen_handshake_failed_network_no_catalog_refetch",
+      "input": {
+        "stage": "reopenFailed",
+        "provider": "openAI",
+        "category": "model_gone"
+      },
+      "expected": {
+        "action": "end",
+        "code": "network",
+        "refetchCatalog": false
+      }
+    }
+  ],
+  "typingResetCases": [
+    {
+      "id": "typing_same_selection_kept",
+      "input": {
+        "typing": true,
+        "before": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        },
+        "after": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        }
+      },
+      "expected": {
+        "typing": true
+      }
+    },
+    {
+      "id": "typing_other_realtime_model_resets",
+      "input": {
+        "typing": true,
+        "before": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        },
+        "after": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1-mini"
+        }
+      },
+      "expected": {
+        "typing": false
+      }
+    },
+    {
+      "id": "typing_back_to_text_model_resets",
+      "input": {
+        "typing": true,
+        "before": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        },
+        "after": {
+          "connectionId": "conn_openai",
+          "model": "gpt-5.5"
+        }
+      },
+      "expected": {
+        "typing": false
+      }
+    },
+    {
+      "id": "typing_selection_cleared_resets",
+      "input": {
+        "typing": true,
+        "before": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        },
+        "after": null
+      },
+      "expected": {
+        "typing": false
+      }
+    },
+    {
+      "id": "typing_not_typing_stays_off",
+      "input": {
+        "typing": false,
+        "before": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        },
+        "after": {
+          "connectionId": "conn_openai",
+          "model": "gpt-realtime-2.1"
+        }
+      },
+      "expected": {
+        "typing": false
+      }
+    }
+  ],
+  "typedSendCases": [
+    {
+      "id": "typed_home_persisted_creates_conversation",
+      "input": {
+        "context": "home",
+        "outcome": "persisted"
+      },
+      "expected": {
+        "inputKeepsText": false,
+        "conversationCreated": true
+      }
+    },
+    {
+      "id": "typed_home_ended_before_persist_returns_text",
+      "input": {
+        "context": "home",
+        "outcome": "endedBeforePersist"
+      },
+      "expected": {
+        "inputKeepsText": true,
+        "conversationCreated": false
+      }
+    },
+    {
+      "id": "typed_home_open_failed_keeps_text",
+      "input": {
+        "context": "home",
+        "outcome": "openFailed"
+      },
+      "expected": {
+        "inputKeepsText": true,
+        "conversationCreated": false
+      }
+    },
+    {
+      "id": "typed_disclosure_declined_keeps_text",
+      "input": {
+        "context": "chat",
+        "outcome": "disclosureDeclined"
+      },
+      "expected": {
+        "inputKeepsText": true,
+        "conversationCreated": false
+      }
+    },
+    {
+      "id": "typed_host_left_keeps_text",
+      "input": {
+        "context": "chat",
+        "outcome": "hostLeft"
+      },
+      "expected": {
+        "inputKeepsText": true,
+        "conversationCreated": false
+      }
+    },
+    {
+      "id": "typed_chat_persisted_clears",
+      "input": {
+        "context": "chat",
+        "outcome": "persisted"
+      },
+      "expected": {
+        "inputKeepsText": false,
+        "conversationCreated": false
+      }
+    },
+    {
+      "id": "typed_chat_ended_before_persist_returns_text",
+      "input": {
+        "context": "chat",
+        "outcome": "endedBeforePersist"
+      },
+      "expected": {
+        "inputKeepsText": true,
+        "conversationCreated": false
+      }
+    }
+  ],
+  "backToStageCases": [
+    {
+      "id": "back_to_stage_typing_opened_resumes_capture",
+      "input": {
+        "session": "typingOpened",
+        "assistantSpeaking": false
+      },
+      "expected": {
+        "action": "resumeCapture",
+        "interruptsPlayback": false
+      }
+    },
+    {
+      "id": "back_to_stage_typing_opened_while_speaking_interrupts",
+      "input": {
+        "session": "typingOpened",
+        "assistantSpeaking": true
+      },
+      "expected": {
+        "action": "resumeCapture",
+        "interruptsPlayback": true
+      }
+    },
+    {
+      "id": "back_to_stage_no_session_idle_stage",
+      "input": {
+        "session": "none"
+      },
+      "expected": {
+        "action": "idleStage",
+        "interruptsPlayback": false
+      }
+    }
+  ],
+  "pendingEvidence": [
+    {
+      "id": "T1",
+      "question": "gemini interimInputTranscription while speaking",
+      "model": "gemini-3.8-live",
+      "runs": "3 sessions x <=30 s",
+      "estimateUsd": 0.05,
+      "capUsd": 0.1,
+      "status": "blocked",
+      "unlock": "if deltas arrive while speaking, change only the profile transcription model / setup field; reducer and UI stay",
+      "authority": "设计.md §6.10"
+    },
+    {
+      "id": "T2",
+      "question": "openai in-session gpt-live-transcribe / gpt-realtime-whisper deltas while speaking",
+      "model": "gpt-realtime-2.1-mini",
+      "runs": "3 sessions x <=30 s per transcription model",
+      "estimateUsd": 0.05,
+      "capUsd": 0.15,
+      "status": "blocked",
+      "note": "transcription models not registered and unpriced",
+      "unlock": "if deltas arrive while speaking, change only the profile transcription model / setup field; reducer and UI stay",
+      "authority": "设计.md §6.10"
+    },
+    {
+      "id": "T3",
+      "question": "handshake failure shapes (401 / 404 / 429)",
+      "model": "invalid key / missing model",
+      "runs": "2 per provider",
+      "estimateUsd": 0,
+      "capUsd": 0,
+      "status": "blocked",
+      "unlock": "refine failure signals (gemini close codes, xai handshake status) and add cases",
+      "authority": "设计.md §6.10"
+    }
+  ]
+}

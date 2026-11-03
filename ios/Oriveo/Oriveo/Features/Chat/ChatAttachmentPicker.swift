@@ -159,7 +159,7 @@ struct ChatAttachmentPicker {
                             Button(action: onTapKnowledgeCTA) {
                                 Text(L10n.tr("file_extraction_truncated_cta_knowledge", table: .chat))
                                     .font(.system(size: 8.5, weight: .semibold))
-                                    .foregroundStyle(OriveoTheme.Palette.primary)
+                                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                                     .lineLimit(2)
                                     .truncationMode(.tail)
                                     .multilineTextAlignment(.leading)

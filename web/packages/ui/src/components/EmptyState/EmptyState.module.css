@@ -15,7 +15,7 @@
   height: 56px;
   border-radius: var(--o-radius-lg);
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   margin-bottom: var(--o-space-md);
   box-shadow:
     inset 0 0 0 1px var(--o-hairline),

@@ -51,10 +51,6 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
-    "  •  " : {
-      "extractionState" : "manual",
-      "shouldTranslate" : false
-    },
     "?" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -105,10 +101,6 @@
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
-    "%@ - %@" : {
-      "extractionState" : "manual",
-      "shouldTranslate" : false
-    },
     "%@ · %@" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -138,10 +130,6 @@
       "shouldTranslate" : false
     },
     "%@ / 4000" : {
-      "extractionState" : "manual",
-      "shouldTranslate" : false
-    },
-    "%@ • %@" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
     },
@@ -1069,48 +1057,6 @@
         }
       }
     },
-    "•" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "•"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "•"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "•"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "•"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "•"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "•"
-          }
-        }
-      },
-      "shouldTranslate" : false
-    },
     "+%@" : {
       "extractionState" : "manual",
       "shouldTranslate" : false
@@ -1946,208 +1892,6 @@
         }
       }
     },
-    "Add a provider API key to send messages." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "أضف مفتاح API لمزوّد حتى تتمكن من إرسال الرسائل."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Füge einen Anbieter-API-Schlüssel hinzu, um Nachrichten zu senden."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add a provider API key to send messages."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Añade la clave de API de un proveedor para enviar mensajes."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajoutez une clé API de fournisseur pour envoyer des messages."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "संदेश भेजने के लिए किसी प्रोवाइडर की API कुंजी जोड़ें।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tambahkan kunci API penyedia untuk mengirim pesan."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "メッセージを送信するには、プロバイダーの API キーを追加してください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "메시지를 보내려면 제공사 API 키를 추가하세요."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adicione a chave de API de um provedor para enviar mensagens."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавьте API-ключ провайдера, чтобы отправлять сообщения."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "เพิ่มคีย์ API ของผู้ให้บริการเพื่อส่งข้อความ"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mesaj göndermek için bir sağlayıcı API anahtarı ekleyin."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thêm khóa API của nhà cung cấp để gửi tin nhắn."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加服务商 API Key 后即可发送消息。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增服務商 API Key 後即可傳送訊息。"
-          }
-        }
-      }
-    },
-    "Add an API Key" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "إضافة مفتاح API"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API-Schlüssel hinzufügen"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Add an API Key"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Añadir una clave de API"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ajouter une clé API"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API कुंजी जोड़ें"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tambahkan kunci API"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API キーを追加"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API 키 추가"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Adicionar uma chave de API"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Добавить API-ключ"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "เพิ่มคีย์ API"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "API anahtarı ekle"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Thêm khóa API"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "添加 API Key"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新增 API Key"
-          }
-        }
-      }
-    },
     "Add Models" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2350,7 +2094,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Füge einen Anbieter hinzu, um diesen Skill zu nutzen"
+            "value" : "Füge einen Anbieter hinzu, um diese Fähigkeit zu nutzen"
           }
         },
         "en" : {
@@ -4513,7 +4257,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Können Sie mir bei der Analyse dieses Datensatzes für meinen Quartalsbericht helfen? Ich muss die drei wichtigsten Wachstumstreiber der letzten sechs Monate identifizieren."
+            "value" : "Kannst du mir bei der Analyse dieses Datensatzes für meinen Quartalsbericht helfen? Ich muss die drei wichtigsten Wachstumstreiber der letzten sechs Monate identifizieren."
           }
         },
         "es" : {
@@ -7175,13 +6919,13 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kopiert"
+            "value" : "Chat"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Copiado"
+            "value" : "Chat"
           }
         },
         "fr" : {
@@ -11940,7 +11684,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wie kann ich Sie heute bei deiner Produktivität unterstützen? Ich kann Daten analysieren, Code schreiben oder Ihnen bei der Organisation Ihres Zeitplans helfen."
+            "value" : "Wie kann ich dich heute bei deiner Produktivität unterstützen? Ich kann Daten analysieren, Code schreiben oder dir bei der Organisation deines Zeitplans helfen."
           }
         },
         "es" : {
@@ -12136,7 +11880,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ich habe eine Antwort basierend auf dem aktuellen Kontext von %@ entworfen, die Sie weiter verbessern können:\n\n- Unterteilen Sie das Problem zuerst in die drei wichtigsten Entscheidungen.\n- Beginne mit einem umsetzbaren ersten Schritt.\n- Wenn Sie möchten, kann ich es in eine detaillierte Checkliste, Text oder Code umwandeln.\n\ndeine letzte Nachricht war: %@"
+            "value" : "Ich habe eine Antwort basierend auf dem aktuellen Kontext von %@ entworfen, die du weiter verbessern kannst:\n\n- Unterteile das Problem zuerst in die drei wichtigsten Entscheidungen.\n- Beginne mit einem umsetzbaren ersten Schritt.\n- Wenn du möchtest, kann ich es in eine detaillierte Checkliste, Text oder Code umwandeln.\n\nDeine letzte Nachricht war: %@"
           }
         },
         "es" : {
@@ -12926,7 +12670,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Remote-Datei konnte nicht bereinigt werden. Versuchen Sie es später noch einmal."
+            "value" : "Die Remote-Datei konnte nicht bereinigt werden. Versuche es später noch einmal."
           }
         },
         "en" : {
@@ -12950,13 +12694,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "रिमोट नॉलेज बेस फ़ाइल साफ़ नहीं हो सकी। बाद में फिर कोशिश करें।"
+            "value" : "रिमोट नॉलेज बेस फ़ाइल साफ़ नहीं हो सकी। बाद में फिर से कोशिश करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gagal membersihkan berkas Basis Pengetahuan jarak jauh. Coba lagi nanti."
+            "value" : "Gagal membersihkan file Basis Pengetahuan di server. Coba lagi nanti."
           }
         },
         "ja" : {
@@ -12980,25 +12724,25 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Не удалось удалить удалённый файл базы знаний. Повторите попытку позже."
+            "value" : "Не удалось очистить файл базы знаний на сервере. Повторите попытку позже."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ล้างไฟล์ฐานความรู้ระยะไกลไม่สำเร็จ โปรดลองอีกครั้งภายหลัง"
+            "value" : "ล้างไฟล์ฐานความรู้บนเซิร์ฟเวอร์ไม่สำเร็จ โปรดลองอีกครั้งภายหลัง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Uzak Bilgi Bankası dosyası temizlenemedi. Daha sonra tekrar deneyin."
+            "value" : "Sunucudaki bilgi tabanı dosyası temizlenemedi. Daha sonra tekrar deneyin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Không thể dọn dẹp tệp Cơ sở tri thức từ xa. Vui lòng thử lại sau."
+            "value" : "Không thể dọn tệp Cơ sở tri thức trên máy chủ. Vui lòng thử lại sau."
           }
         },
         "zh-Hans" : {
@@ -13122,7 +12866,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يجب أن يكون حجم ملفات قاعدة المعارف 20 ميغابايت أو أصغر."
+            "value" : "يجب أن يكون حجم ملفات قاعدة المعرفة 20 ميغابايت أو أصغر."
           }
         },
         "de" : {
@@ -13152,13 +12896,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "नॉलेज बेस फ़ाइलें 20 MB या उससे छोटी होनी चाहिए।"
+            "value" : "नॉलेज बेस फ़ाइल 20 MB या उससे छोटी होनी चाहिए।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Berkas Basis Pengetahuan harus berukuran 20 MB atau lebih kecil."
+            "value" : "Ukuran file Basis Pengetahuan maksimal 20 MB."
           }
         },
         "ja" : {
@@ -13182,7 +12926,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Файлы базы знаний должны быть не больше 20 МБ."
+            "value" : "Файл базы знаний должен быть не больше 20 МБ."
           }
         },
         "th" : {
@@ -13194,13 +12938,13 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bilgi Bankası dosyaları en fazla 20 MB olmalıdır."
+            "value" : "Bilgi tabanı dosyaları en fazla 20 MB olabilir."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tệp Cơ sở tri thức phải có dung lượng 20 MB trở xuống."
+            "value" : "Tệp Cơ sở tri thức không được vượt quá 20 MB."
           }
         },
         "zh-Hans" : {
@@ -13425,13 +13169,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "قاعدة المعرفة غير متاحة مؤقتًا. لا يزال بإمكانك تعديل هذه المهارة وحفظها."
+            "value" : "قاعدة المعرفة غير متاحة حاليًا."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Wissensdatenbank ist vorübergehend nicht verfügbar. Sie können diesen Skill weiterhin bearbeiten und speichern."
+            "value" : "Die Wissensdatenbank ist derzeit nicht verfügbar."
           }
         },
         "en" : {
@@ -13443,13 +13187,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La base de conocimientos no está disponible temporalmente. Aún puedes editar y guardar esta habilidad."
+            "value" : "La base de conocimientos no está disponible en este momento."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La base de connaissances est temporairement indisponible. Vous pouvez toujours modifier et enregistrer cette compétence."
+            "value" : "La base de connaissances est indisponible pour le moment."
           }
         },
         "hi" : {
@@ -13461,25 +13205,25 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Basis Pengetahuan sedang tidak tersedia."
+            "value" : "Basis Pengetahuan saat ini tidak tersedia."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ナレッジベースは一時的に利用できなくなります。このスキルは引き続き編集して保存できます。"
+            "value" : "ナレッジベースは現在利用できません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기술 자료를 일시적으로 사용할 수 없습니다. 이 스킬을 계속 편집하고 저장할 수 있습니다."
+            "value" : "지금은 지식 베이스를 사용할 수 없습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "A Base de Conhecimento está temporariamente indisponível. Você ainda pode editar e salvar esta habilidade."
+            "value" : "A base de conhecimento está indisponível no momento."
           }
         },
         "ru" : {
@@ -13497,7 +13241,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bilgi Bankası şu anda kullanılamıyor."
+            "value" : "Bilgi tabanı şu anda kullanılamıyor."
           }
         },
         "vi" : {
@@ -13509,13 +13253,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Skill 知识库暂时不可用，你仍可继续编辑并保存这个 Skill。"
+            "value" : "知识库暂时不可用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Skill 知識庫暫時不可用，你仍可繼續編輯並儲存這個 Skill。"
+            "value" : "知識庫暫時無法使用。"
           }
         }
       }
@@ -13526,13 +13270,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يمكن أن تحتوي المهارة على ما يصل إلى 5 ملفات قاعدة معارف ويبلغ إجمالي حجمها 100 ميجابايت."
+            "value" : "يمكن أن تحتوي المهارة على ما يصل إلى 5 ملفات قاعدة المعرفة ويبلغ إجمالي حجمها 100 ميجابايت."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ein Skill kann bis zu 5 Wissensdatenbankdateien und insgesamt 100 MB haben."
+            "value" : "Eine Fähigkeit kann bis zu 5 Wissensdatenbankdateien und insgesamt 100 MB haben."
           }
         },
         "en" : {
@@ -13556,13 +13300,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "एक Skill में अधिकतम 5 नॉलेज बेस फ़ाइलें और कुल 100 MB हो सकते हैं।"
+            "value" : "एक कौशल में ज़्यादा से ज़्यादा 5 नॉलेज बेस फ़ाइलें हो सकती हैं, और कुल आकार 100 MB से ज़्यादा नहीं हो सकता।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Satu Skill dapat memiliki hingga 5 berkas Basis Pengetahuan dan total 100 MB."
+            "value" : "Satu keterampilan bisa memiliki maksimal 5 file Basis Pengetahuan dengan total 100 MB."
           }
         },
         "ja" : {
@@ -13586,25 +13330,25 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "В одном Skill может быть до 5 файлов базы знаний общим объёмом до 100 МБ."
+            "value" : "В одном навыке может быть не больше 5 файлов базы знаний общим объёмом до 100 МБ."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "หนึ่ง Skill มีไฟล์ฐานความรู้ได้สูงสุด 5 ไฟล์ และรวมกันไม่เกิน 100 MB"
+            "value" : "ทักษะหนึ่งมีไฟล์ฐานความรู้ได้สูงสุด 5 ไฟล์ และขนาดรวมไม่เกิน 100 MB"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bir Skill en fazla 5 Bilgi Bankası dosyası ve toplam 100 MB içerebilir."
+            "value" : "Bir beceride en fazla 5 bilgi tabanı dosyası olabilir ve toplam boyut 100 MB’ı geçemez."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mỗi Skill có thể có tối đa 5 tệp Cơ sở tri thức và tổng cộng 100 MB."
+            "value" : "Mỗi kỹ năng có tối đa 5 tệp Cơ sở tri thức, tổng dung lượng không quá 100 MB."
           }
         },
         "zh-Hans" : {
@@ -17940,7 +17684,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Oriveo konnte die lokalen Daten auf diesem Gerät nicht öffnen. Versuchen Sie es erneut oder wenden Sie sich an den Support, falls das Problem bestehen bleibt."
+            "value" : "Oriveo konnte die lokalen Daten auf diesem Gerät nicht öffnen. Versuche es erneut oder wende dich an den Support, falls das Problem bestehen bleibt."
           }
         },
         "es" : {
@@ -18982,107 +18726,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Giá không rõ"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "价格未知"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "價格未知"
-          }
-        }
-      }
-    },
-    "Pricing Unknown" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "التسعير غير معروف"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preis unbekannt"
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Pricing Unknown"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Precio desconocido"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tarif inconnu"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "मूल्य अज्ञात"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Harga tidak diketahui"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "料金不明"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "가격 알 수 없음"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Preço desconhecido"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Цена неизвестна"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ไม่ทราบราคา"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Fiyat bilinmiyor"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Chưa rõ giá"
           }
         },
         "zh-Hans" : {
@@ -21148,7 +20791,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fügen Sie zuerst {model} in Ihrem OpenAI-Anbieter hinzu und aktivieren Sie es."
+            "value" : "Füge zuerst {model} in deinem OpenAI-Anbieter hinzu und aktiviere es."
           }
         },
         "en" : {
@@ -21172,13 +20815,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "पहले अपने OpenAI provider में आवश्यक मॉडल जोड़ें और सक्षम करें।"
+            "value" : "पहले अपने OpenAI प्रदाता में {model} जोड़ें और उसे चालू करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tambahkan dan aktifkan model yang diperlukan di provider OpenAI Anda terlebih dahulu."
+            "value" : "Tambahkan dan aktifkan {model} di penyedia OpenAI Anda terlebih dahulu."
           }
         },
         "ja" : {
@@ -21202,25 +20845,25 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сначала добавьте и включите нужную модель в вашем провайдере OpenAI."
+            "value" : "Сначала добавьте и включите {model} в провайдере OpenAI."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "โปรดเพิ่มและเปิดใช้งานโมเดลที่จำเป็นในผู้ให้บริการ OpenAI ของคุณก่อน"
+            "value" : "โปรดเพิ่มและเปิดใช้ {model} ในผู้ให้บริการ OpenAI ก่อน"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Önce OpenAI sağlayıcınıza gerekli modeli ekleyip etkinleştirin."
+            "value" : "Önce OpenAI sağlayıcınızda {model} modelini ekleyip etkinleştirin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Trước tiên, hãy thêm và bật mô hình cần thiết trong provider OpenAI của bạn."
+            "value" : "Hãy thêm và bật {model} trong nhà cung cấp OpenAI trước."
           }
         },
         "zh-Hans" : {
@@ -21822,107 +21465,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "搜尋對話"
-          }
-        }
-      }
-    },
-    "Search every message requires an official recipe for this connection." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يتطلب خيار \"في كل مرة\" وصفة رسمية لهذا الاتصال."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "„Jedes Mal“ erfordert ein offizielles Rezept für diese Verbindung."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search every message requires an official recipe for this connection."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "«Siempre» requiere una receta oficial para esta conexión."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "« À chaque fois » nécessite une recette officielle pour cette connexion."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"हर बार\" के लिए इस कनेक्शन की आधिकारिक रेसिपी आवश्यक है।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"Setiap kali\" memerlukan resep resmi untuk koneksi ini."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「毎回」にはこの接続の公式レシピが必要です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"항상\"을 사용하려면 이 연결의 공식 레시피가 필요합니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"Sempre\" requer uma receita oficial para esta conexão."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "«Каждый раз» требует официального рецепта для этого подключения."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"ทุกครั้ง\" ต้องใช้สูตรอย่างเป็นทางการสำหรับการเชื่อมต่อนี้"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"Her seferinde\" bu bağlantı için resmi bir tarif gerektirir."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\"Mỗi lần\" cần có công thức chính thức cho kết nối này."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「每条消息都搜索」需要此连接的官方配方。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "「每則訊息都搜尋」需要此連線的官方配方。"
           }
         }
       }
@@ -30394,7 +29936,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hilf mir bei der Frage ‚Erzählen Sie von sich'"
+            "value" : "Hilf mir bei der Frage ‚Erzählen Sie etwas über sich‘"
           }
         },
         "en" : {
@@ -39164,7 +38706,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fassen Sie die häufigsten Beschwerden aus der Benutzerforschung zusammen ..."
+            "value" : "Fasse die häufigsten Beschwerden aus der Benutzerforschung zusammen ..."
           }
         },
         "es" : {
@@ -41575,107 +41117,6 @@
         }
       }
     },
-    "The selected provider is no longer available." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "لم يعد المزوّد المحدد متاحًا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Der ausgewählte Anbieter ist nicht mehr verfügbar."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The selected provider is no longer available."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "El proveedor seleccionado ya no está disponible."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le fournisseur sélectionné n'est plus disponible."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "चयनित प्रोवाइडर अब उपलब्ध नहीं है।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Penyedia yang dipilih tidak lagi tersedia."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "選択したプロバイダーは利用できなくなりました。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "선택한 제공업체를 더 이상 사용할 수 없습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O provedor selecionado não está mais disponível."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Выбранный провайдер больше недоступен."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ผู้ให้บริการที่เลือกไม่พร้อมใช้งานอีกต่อไป"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Seçilen sağlayıcı artık kullanılamıyor."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nhà cung cấp đã chọn không còn khả dụng."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所选供应商已不可用。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "所選供應商已不可用。"
-          }
-        }
-      }
-    },
     "The world is quieter now." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -42074,6 +41515,107 @@
         }
       }
     },
+    "This image hasn't downloaded yet. Connect to the internet and try again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لم يتم تنزيل الصورة بعد. اتصل بالإنترنت ثم حاول مرة أخرى."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Bild wurde noch nicht heruntergeladen. Verbinde dich mit dem Internet und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This image hasn't downloaded yet. Connect to the internet and try again."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La imagen todavía no se ha descargado. Conéctate a internet y vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L'image n'est pas encore téléchargée. Connectez-vous à Internet, puis réessayez."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "यह इमेज अभी डाउनलोड नहीं हुई है। इंटरनेट से कनेक्ट करके फिर से कोशिश करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gambar ini belum terunduh. Sambungkan ke internet, lalu coba lagi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "画像をまだダウンロードできていません。インターネットに接続して、もう一度お試しください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미지를 아직 내려받지 못했습니다. 인터넷에 연결한 뒤 다시 시도해 주세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A imagem ainda não foi baixada. Conecte-se à internet e tente de novo."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Изображение ещё не загрузилось. Подключитесь к интернету и попробуйте снова."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ยังดาวน์โหลดรูปภาพนี้ไม่ได้ โปรดเชื่อมต่ออินเทอร์เน็ตแล้วลองอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu görsel henüz indirilmedi. İnternete bağlanıp tekrar deneyin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ảnh này chưa tải xuống được. Hãy kết nối Internet rồi thử lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片还没下载下来，联网后再试一次。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片還沒下載下來，連上網路後再試一次。"
+          }
+        }
+      }
+    },
     "This model is currently unavailable from the provider. Switch models or try again later." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -42169,107 +41711,6 @@
         }
       }
     },
-    "This Skill could not be updated." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تعذّر تحديث هذه المهارة."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dieser Skill konnte nicht aktualisiert werden."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This Skill could not be updated."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No se pudo actualizar esta habilidad."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Impossible de mettre à jour cette compétence."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "यह स्किल अपडेट नहीं की जा सकी।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Skill ini tidak dapat diperbarui."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このスキルを更新できませんでした。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 스킬을 업데이트할 수 없습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Não foi possível atualizar esta Skill."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Не удалось обновить этот навык."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ไม่สามารถอัปเดตสกิลนี้ได้"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu Skill güncellenemedi."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Không thể cập nhật Skill này."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "无法更新这个技能。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "無法更新這個技能。"
-          }
-        }
-      }
-    },
     "This Skill needs an available AI provider before it can start a conversation." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -42282,7 +41723,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieser Skill benötigt einen verfügbaren KI-Anbieter, bevor eine Unterhaltung gestartet werden kann."
+            "value" : "Diese Fähigkeit benötigt einen verfügbaren KI-Anbieter, bevor eine Unterhaltung gestartet werden kann."
           }
         },
         "en" : {
@@ -42686,7 +42127,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Versuchen Sie es erneut"
+            "value" : "Erneut versuchen"
           }
         },
         "en" : {
@@ -43262,7 +42703,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "نوع الملف هذا غير مدعوم لقاعدة المعارف."
+            "value" : "نوع الملف هذا غير مدعوم لقاعدة المعرفة."
           }
         },
         "de" : {
@@ -43292,13 +42733,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह फ़ाइल प्रकार नॉलेज बेस के लिए समर्थित नहीं है।"
+            "value" : "इस तरह की फ़ाइल नॉलेज बेस में इस्तेमाल नहीं की जा सकती।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Jenis berkas ini tidak didukung untuk Basis Pengetahuan."
+            "value" : "Jenis file ini belum didukung untuk Basis Pengetahuan."
           }
         },
         "ja" : {
@@ -43322,25 +42763,25 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Этот тип файла не поддерживается базой знаний."
+            "value" : "Этот тип файлов не поддерживается для базы знаний."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไม่รองรับไฟล์ประเภทนี้สำหรับฐานความรู้"
+            "value" : "ไฟล์ประเภทนี้ยังใช้กับฐานความรู้ไม่ได้"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu dosya türü Bilgi Bankası için desteklenmiyor."
+            "value" : "Bu dosya türü bilgi tabanı için desteklenmiyor."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Loại tệp này không được hỗ trợ cho Cơ sở tri thức."
+            "value" : "Loại tệp này chưa được hỗ trợ cho Cơ sở tri thức."
           }
         },
         "zh-Hans" : {
@@ -43767,7 +43208,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Die Verbindung konnte nicht verifiziert werden. Sie können es in den Anbieterdetails erneut versuchen."
+            "value" : "Die Verbindung konnte nicht verifiziert werden. Du kannst es in den Anbieterdetails erneut versuchen."
           }
         },
         "es" : {
@@ -44559,7 +44000,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Auf Ihrem Gerät ist kein Speicherplatz mehr frei, daher kann Oriveo seine lokalen Daten nicht öffnen. Schaffen Sie etwas Platz und versuchen Sie es erneut – Ihre Chats sind weiterhin auf diesem Gerät gespeichert."
+            "value" : "Auf deinem Gerät ist kein Speicherplatz mehr frei, daher kann Oriveo seine lokalen Daten nicht öffnen. Schaffe etwas Platz und versuche es erneut – deine Chats sind weiterhin auf diesem Gerät gespeichert."
           }
         },
         "es" : {
@@ -44643,7 +44084,7 @@
       }
     },
     "Your device is out of space. New messages might not be saved — free up space to keep this conversation." : {
-      "comment" : "Persistent banner for the soft failure: the database opens but writes fail. It must not claim chats are still saved — new messages really may not be.",
+      "comment" : "软失败持久横幅：库能开但写不进去。⚠️ 不能照抄 Android 的「chats are still saved」——新消息确实可能存不上。",
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
@@ -44655,7 +44096,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Auf Ihrem Gerät ist kein Speicherplatz mehr frei. Neue Nachrichten werden möglicherweise nicht gespeichert – schaffen Sie Platz, damit diese Unterhaltung erhalten bleibt."
+            "value" : "Auf deinem Gerät ist kein Speicherplatz mehr frei. Neue Nachrichten werden möglicherweise nicht gespeichert – schaffe Platz, damit diese Unterhaltung erhalten bleibt."
           }
         },
         "es" : {

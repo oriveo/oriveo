@@ -223,7 +223,7 @@ struct ModelControlScopeUpgradeRow: View {
                 } label: {
                     Text(L10n.tr("Set as default for this model", table: .chat))
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                         .frame(minHeight: 44)
                         .contentShape(Rectangle())
                 }
@@ -267,9 +267,9 @@ struct ModelControlNote: View {
 struct ModelControlInlineActionLabel: View {
     let title: String
     let systemImage: String
-    /// The default color has the same source as the selected level and the toggle. As **text**, the plain `primary` reaches only 4.11:1 in light mode,
-    /// and this row is a tappable piece of text.
-    var tint: Color = OriveoTheme.Palette.primaryTextSafe
+    /// Default color shares its source with the selected tier and the toggle. The raw `primary` value used as **text** on light only reaches 4.11:1,
+    /// and this row is itself tappable text.
+    var tint: Color = OriveoTheme.Palette.primaryTextOnSurface
     var detail: String?
 
     var body: some View {
@@ -398,7 +398,7 @@ struct ModelOptionLinkLabel: View {
     var body: some View {
         Text(title)
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .frame(minHeight: 32, alignment: .leading)
@@ -630,7 +630,7 @@ struct ModelOptionSettingChip: View {
             Text(value)
                 .font(.system(.footnote, design: .rounded).weight(.semibold).monospacedDigit())
         }
-        .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+        .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
         .lineLimit(1)
         .padding(.horizontal, 10)
         .frame(minHeight: 26)
@@ -771,7 +771,7 @@ struct ModelOptionTurnSummary: View {
                 .accessibilityHidden(true)
             Text(text)
                 .font(.footnote)
-                .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 16)

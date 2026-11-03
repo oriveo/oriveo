@@ -536,7 +536,7 @@ button.stepRow:hover strong {
 }
 
 .stepStatus[data-status='running'] {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .stepStatus[data-status='failed'] {
@@ -776,7 +776,7 @@ button.stepRow:hover strong {
 .busyRow {
   display: grid;
   min-height: 56px;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   place-items: center;
 }
 
@@ -952,7 +952,7 @@ button.stepRow:hover strong {
 }
 
 .checklist li[data-state='active'] .checkIcon {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .checklist li[data-state='waiting'] .checkIcon {

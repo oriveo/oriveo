@@ -378,7 +378,111 @@ class HomeRecompositionScopeTest {
         titleCollector.cancel()
     }
 
-    // ── helpers ──
+    // ── 3: derived cache for the review prompt gate ────────────────────────────
+
+    @Test
+    fun `review prompt blocked returns false only when every blocker is clear`() {
+        assertFalse(reviewPromptBlockedWith())
+        assertTrue(reviewPromptBlockedWith(allowAutomaticReviewPrompt = false))
+        assertTrue(reviewPromptBlockedWith(reviewPromptHomeReturnedAtMillis = null))
+        assertTrue(reviewPromptBlockedWith(initialContentLoaded = false))
+        assertTrue(reviewPromptBlockedWith(imeVisible = true))
+        assertTrue(reviewPromptBlockedWith(hasStreamingConversations = true))
+        assertTrue(reviewPromptBlockedWith(hasConversationToRename = true))
+        assertTrue(reviewPromptBlockedWith(hasConversationToDelete = true))
+        assertTrue(reviewPromptBlockedWith(showBatchDeleteConfirm = true))
+        assertTrue(reviewPromptBlockedWith(showModelPicker = true))
+        assertTrue(reviewPromptBlockedWith(showFolderPaywall = true))
+        assertTrue(reviewPromptBlockedWith(showPinnedConversationPaywall = true))
+        assertTrue(reviewPromptBlockedWith(showMoveSheet = true))
+        assertTrue(reviewPromptBlockedWith(showNewFolderDialog = true))
+        assertTrue(reviewPromptBlockedWith(hasColorPickerFolder = true))
+        assertTrue(reviewPromptBlockedWith(hasFolderToRename = true))
+        assertTrue(reviewPromptBlockedWith(hasFolderToDelete = true))
+    }
+
+    /**
+     * Scope-narrowing proof (A/B): `SnapshotStateObserver` is the mechanism Compose uses to decide whether a recomposition scope must be invalidated.
+     *
+     * - B (old form): the boolean expression is expanded directly in the scope, which records reads of all 16 states,
+     *   so opening any dialog invalidates the scope once.
+     * - A (current form): the gate is wrapped in `derivedStateOf`, so the scope only depends on the derived result,
+     *   so it is not invalidated unless the result flips; when the result really flips it must still be invalidated.
+     */
+    @Test
+    fun `derived review prompt gate narrows scope invalidation`() {
+        val streaming = mutableStateOf(true)
+        val modelPicker = mutableStateOf(false)
+
+        fun evaluate(): Boolean = homeReviewPromptBlocked(
+            allowAutomaticReviewPrompt = true,
+            reviewPromptHomeReturnedAtMillis = now,
+            initialContentLoaded = true,
+            imeVisible = false,
+            hasStreamingConversations = streaming.value,
+            hasConversationToRename = false,
+            hasConversationToDelete = false,
+            showBatchDeleteConfirm = false,
+            showModelPicker = modelPicker.value,
+            showFolderPaywall = false,
+            showPinnedConversationPaywall = false,
+            showMoveSheet = false,
+            showNewFolderDialog = false,
+            hasColorPickerFolder = false,
+            hasFolderToRename = false,
+            hasFolderToDelete = false,
+        )
+
+        // B: without derivedStateOf -- opening an unrelated dialog still invalidates
+        assertEquals(
+            "Control group: reading the 16 states directly always lets an unrelated dialog break the scope (this is exactly the behaviour being fixed)",
+            1,
+            countInvalidations({ evaluate() }) { modelPicker.value = true },
+        )
+
+        modelPicker.value = false
+        Snapshot.sendApplyNotifications()
+
+        // A: with derivedStateOf -- not invalidated unless the result flips
+        val gate = derivedStateOf { evaluate() }
+        assertEquals(
+            "While streaming is still on the gate is always true, so toggling a dialog must not invalidate the home scope",
+            0,
+            countInvalidations({ gate.value }) { modelPicker.value = true },
+        )
+
+        // Reset that dialog, otherwise it becomes a new blocker itself and the next section cannot observe a flip
+        modelPicker.value = false
+        Snapshot.sendApplyNotifications()
+
+        // But when the result really flips it must be invalidated, otherwise the review prompt would never get its chance
+        assertEquals(
+            "When the only remaining blocker goes away, the scope must be notified",
+            1,
+            countInvalidations({ gate.value }) { streaming.value = false },
+        )
+        assertFalse(gate.value)
+    }
+
+    /** Counts with Compose's real mechanism: observe one read, then write to the state, and count how many times the scope is notified. */
+    private fun countInvalidations(read: () -> Any?, mutate: () -> Unit): Int {
+        var invalidations = 0
+        val observer = SnapshotStateObserver { runnable -> runnable() }
+        observer.start()
+        try {
+            observer.observeReads(scope = Unit, onValueChangedForScope = { invalidations++ }) {
+                read()
+            }
+            mutate()
+            Snapshot.sendApplyNotifications()
+        } finally {
+            observer.stop()
+            observer.clear()
+        }
+        return invalidations
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────────
 
     private fun createViewModel() = HomeViewModel(
         appPreferencesRepository = appPreferencesRepository,

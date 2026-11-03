@@ -28,16 +28,39 @@ struct ProvidersCostSummaryCard: View {
     }
 
     private var fullCostText: String {
-        let formatted = CostFormatter.format(summary.totalCost)
-        return formatted.isEmpty ? "$0" : formatted
+        // Per-currency totals: a month with only non-USD amounts does not show $0.
+        let formatted = CostFormatter.totalsText(usd: summary.totalCost, nonUsdTotals: summary.nonUsdTotals)
+        return Self.costTextOrZero(formatted)
+    }
+
+    /// Falls back to a locale-formatted zero (de: "0 $") instead of a hard-coded US string.
+    static func costTextOrZero(_ formatted: String, locale: Locale = AppLocalization.currentLocale) -> String {
+        formatted.isEmpty ? CostFormatter.usd(0, minFraction: 0, maxFraction: 0, locale: locale) : formatted
+    }
+
+    /// The cost text with bidi marks (LRM / RLM / ALM) removed before it is split into symbol and number.
+    private var splittableCostText: String {
+        CostFormatter.strippingBidiMarks(fullCostText)
     }
 
     private var hasDollarPrefix: Bool {
-        fullCostText.hasPrefix("$")
+        splittableCostText.hasPrefix("$")
     }
 
+    /// Locales such as de place the symbol after the number ("1,20 $").
+    private var hasDollarSuffix: Bool {
+        !hasDollarPrefix && splittableCostText.hasSuffix("$")
+    }
+
+    /// The number part with the "$" (and its adjacent spacing) split off, so the symbol is typeset separately.
     private var costAmountBody: String {
-        hasDollarPrefix ? String(fullCostText.dropFirst()) : fullCostText
+        if hasDollarPrefix {
+            return String(splittableCostText.dropFirst()).trimmingCharacters(in: .whitespaces)
+        }
+        if hasDollarSuffix {
+            return String(splittableCostText.dropLast()).trimmingCharacters(in: .whitespaces)
+        }
+        return splittableCostText
     }
 
     var body: some View {
@@ -152,7 +175,7 @@ struct ProvidersCostSummaryCard: View {
             Text(monthLabel)
                 .font(.system(size: 10, weight: .bold))
                 .tracking(1.4)
-                .foregroundStyle(OriveoTheme.Palette.primary.opacity(colorScheme == .dark ? 0.95 : 0.85))
+                .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface.opacity(colorScheme == .dark ? 0.95 : 0.85))
                 .lineLimit(1)
         }
         .padding(.horizontal, 9)
@@ -183,6 +206,13 @@ struct ProvidersCostSummaryCard: View {
                 .monospacedDigit()
                 .lineLimit(1)
                 .minimumScaleFactor(0.7)
+
+            if hasDollarSuffix {
+                Text("$")
+                    .font(dollarFont)
+                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                    .accessibilityHidden(true)
+            }
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(fullCostText)

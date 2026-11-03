@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from shared ui-assets/skill-glyphs/health.svg (glyphs.v1.json glyph:health, hue #10B981); gradient coords = path bounding box (SVG objectBoundingBox 0,0 -> 1,1). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M12 21s-8.5-5.2-8.5-11.2A4.8 4.8 0 0 1 12 6.7a4.8 4.8 0 0 1 8.5 3.1C20.5 15.8 12 21 12 21Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="3.5"
+                android:startY="4.96"
+                android:endX="20.5"
+                android:endY="21">
+                <item android:offset="0" android:color="#86EFC1" />
+                <item android:offset="1" android:color="#10B981" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M6.6 12.4h2.6l1.4-2.4 2 4.4 1.4-2h3.4"
+        android:strokeColor="#FFFFFF"
+        android:strokeAlpha="0.92"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

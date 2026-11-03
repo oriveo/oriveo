@@ -653,6 +653,13 @@ class MetadataClientR3BTest {
             listOf("metadata_client", "unknown", "unknown"),
             metadataFailureFingerprint(emptyMap()),
         )
+
+        // Within one phase, R8-renamed exception class names must not change the grouping:
+        // the two failures have different exception_class values, so the keys must stay equal.
+        assertEquals(
+            metadataFailureFingerprint(mapOf("phase" to "fetch", "exception_class" to "IOException")),
+            metadataFailureFingerprint(mapOf("phase" to "fetch", "exception_class" to "h55")),
+        )
     }
 
     /**

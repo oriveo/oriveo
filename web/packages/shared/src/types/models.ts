@@ -592,6 +592,15 @@ export type StopReason =
   | 'error'
   | 'unknown';
 
+/** One skill an assistant reply used; name is kept so the chip still renders after the skill is deleted. */
+export interface UsedSkill {
+  id: string;
+  name: string;
+  via: 'auto' | 'manual';
+  /** Only for via auto; omitted when empty. */
+  reason?: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -638,7 +647,15 @@ export interface ChatMessage {
    * Stored on this device only: not backed up, stripped from backup exports, dropped on import; the field is not written when nothing was injected.
    */
   memoryItemIds?: string[];
-  /** Local-only CTA gate; never synced. Means exact custom + pre-token upstream 400 only. */
+  /**
+   * Server-acknowledgement marker (milliseconds; stored locally only: never uploaded, not in the field golden samples, not in backup exports).
+   * Missing key / null = legacy (messages from before the marker existed); 0 = created locally and never seen in an authoritative server snapshot;
+   * >0 = seen in an authoritative server snapshot. Reconciliation uses this to tell "never uploaded" apart from "uploaded, then deleted by another device".
+   */
+  remoteConfirmedAt?: number | null;
+  /** Local-only estimated skill list overhead for this turn (positive integer tokens); never synced, not in backups. Missing = not recorded. */
+  skillManifestTokens?: number;
+  /** Local-only P5 CTA gate; never synced. It means exact custom + pre-token upstream 400 only. */
   capabilityCustomRetryEligible?: boolean;
   /** Local-only explicit resend descriptor. Saved preferences are retained dormant. */
   capabilityRecovery?: {
@@ -711,7 +728,14 @@ export interface ChatMessage {
   researchSteps?: ResearchStep[];
   /** Summaries of remote MCP tool steps. A step that is still `running` when the message is loaded is presented as `interrupted`. */
   toolSteps?: McpToolStep[];
-  /** This reply's MCP tool loop hit the step limit; the last row of the steps block says so. */
+  /** Skills attached when this user message was sent, in order (skill_sync_fields.v1). User messages only. */
+  attachedSkillIds?: string[];
+  /** Skills this assistant reply used (skill_sync_fields.v1). Assistant messages only. */
+  usedSkills?: UsedSkill[];
+  /**
+   * The MCP tool loop of this answer hit its step limit (the step block's trailing line explains it). Stored locally only: the contract §4.3
+   * sync fields do not include it, so other devices do not show that line for this message.
+   */
   toolStepLimitReached?: boolean;
   /** ISO 8601 UTC set at creation. Optional so older backups still import. */
   createdAt?: string;
@@ -742,7 +766,7 @@ export interface ChatMessage {
    * (OpenRouter, Grok), `localEstimate` is computed locally from metadata pricing, and
    * `unknown` means it could not be estimated.
    */
-  costSource?: 'upstream' | 'localEstimate' | 'unknown' | 'subscription';
+  costSource?: 'upstream' | 'localEstimate' | 'unknown' | 'subscription' | 'managed';
   /**
    * The only non-USD cost part (contract section 5.7): amount in the original currency, no conversion; estimatedCost / costSource describe the USD part only.
    * When costSource is 'unknown' the amount is unusable (a second non-USD currency appeared on the same message). Absent when there is no non-USD part.
@@ -750,7 +774,7 @@ export interface ChatMessage {
   nonUsdCost?: {
     currencyCode: string;
     amount: number;
-    costSource: 'upstream' | 'localEstimate' | 'unknown' | 'subscription';
+    costSource: 'upstream' | 'localEstimate' | 'unknown' | 'subscription' | 'managed';
   };
 }
 
@@ -801,6 +825,13 @@ export interface Conversation {
   instructions?: string;
   /** Per-conversation context cap (wire value, see conversation-context-cap.v1.json); absent = follow the global setting. */
   contextCap?: 'auto' | 'unlimited' | number;
+  /**
+   * Selected skills in selection order (at most 3, skill_sync_fields.v1). Written together with the legacy
+   * skillId = skillIds[0]; read through conversationSkillIds so old local objects fall back to [skillId].
+   */
+  skillIds?: string[];
+  /** Skills the user turned off for automatic use in this conversation (at most 30). */
+  disabledAutoSkillIds?: string[];
   /**
    * Local "thread complete" marker: kept in local IDB only, never cloud-synced. True after a local create or after every page of a whole-thread backfill succeeded;
    * set to false when messages are written by window / fragment / mid-backfill or after a failure; absent counts as false. When true the conversation totals are recomputed from all local messages.
@@ -988,4 +1019,20 @@ export interface AppPreference {
 export interface LastUsedModelRef {
   providerID: string;
   modelID: string;
+}
+
+/**
+ * Selected skills of a conversation: skillIds when non-empty, else the legacy single skillId, else [].
+ * Objects written before the Skills revamp only carry skillId.
+ */
+export function conversationSkillIds(conv: Pick<Conversation, 'skillIds' | 'skillId'>): string[] {
+  if (conv.skillIds && conv.skillIds.length > 0) return conv.skillIds;
+  return conv.skillId && conv.skillId.trim() ? [conv.skillId] : [];
+}
+
+/** Local patch that writes skillIds together with the legacy skillId = skillIds[0] (dual write, undefined when empty). */
+export function conversationSkillFields(skillIds: readonly string[]): Pick<Conversation, 'skillIds' | 'skillId'> {
+  return skillIds.length > 0
+    ? { skillIds: [...skillIds], skillId: skillIds[0] }
+    : { skillIds: undefined, skillId: undefined };
 }

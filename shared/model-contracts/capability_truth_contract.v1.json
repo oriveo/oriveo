@@ -1,5 +1,5 @@
 {
-  "$comment": "Capability truth contract: for each connection form (official, relay, subscription), the truth source -> projection table and the recorded production fixtures. A recorded response is never edited by hand; change the table first and let each end's contract test go red.",
+  "$comment": "Capability truth table (contract C5): for each access form, the mapping from truth source to projection, and the production-recorded fixtures. Hosted provider: catalog-driven rules. Form table and out-of-catalog model expectations. Free and subscription decision tables. Official fixtures, relay decision table, edition and cross-form candidate and identity rules. Subscription fixtures are not recorded yet; see pending_fixtures. Relay gateway fixture fixtures.relay_gateway (OpenRouter public /models trimmed by selection; expected.relay_gateway is computed by the reference implementation of rules.relay.gateway_declaration). The raw new-api data lives in shared/test-fixtures/relay/gateway-models.v1.json (probe candidates only, not a capability source). To change a decision, edit this file first; the three-end contract tests must go red first. Fixtures may only be re-recorded from production entry points via scripts/capability-truth-smoke.mjs --write-fixture; hand-editing a response is forbidden. Hosted and Free catalogs publish explicit booleans; rules.managed / rules.free read the explicit boolean first and fall back to legacy fields only when it is missing. Server test catalog shapes are in server_shapes and are replaced by production recordings after release.",
   "version": 1,
   "keys": [
     "vision_input",
@@ -8,42 +8,50 @@
     "reasoning_tiers"
   ],
   "forms": {
-    "$comment": "Form derivation table: ProviderForm is derived once from the Provider, in a fixed order, first hit wins. Each end's contract test runs every case row.",
+    "$comment": "Form derivation table (contract C5 section 1): ProviderForm is derived once from the Provider, in a fixed order, and the first match wins. The three-end ProviderForm contract tests run each row of cases; rows with edition=commercial do not run in the community edition.",
     "order": [
       "relay",
       "subscription",
       "official"
     ],
+    "hosted": [],
+    "hosted_comment": "Only the kind decides these forms (independent of the credential form). Call sites that hold only a kind ask the same-named entry point on each end whether it is a hosted form: iOS ProviderForm.hosted(kind:), Android ProviderForm.hosted(kind), Web hostedProviderFormOf(kind); it returns empty for any other kind. Do not hard-code an authMode in order to call ProviderForm.of. The community edition has no hosted forms, so hosted is empty.",
     "cases": [
       {
         "kind": "relay",
         "authMode": "apiKey",
-        "form": "relay"
+        "form": "relay",
+        "edition": "all"
       },
       {
         "kind": "relay",
         "authMode": "subscription",
-        "form": "relay"
+        "form": "relay",
+        "edition": "all"
       },
       {
         "kind": "openAI",
         "authMode": "subscription",
-        "form": "subscription"
+        "form": "subscription",
+        "edition": "all"
       },
       {
         "kind": "grok",
         "authMode": "subscription",
-        "form": "subscription"
+        "form": "subscription",
+        "edition": "all"
       },
       {
         "kind": "openAI",
         "authMode": "apiKey",
-        "form": "official"
+        "form": "official",
+        "edition": "all"
       },
       {
         "kind": "anthropic",
         "authMode": "apiKey",
-        "form": "official"
+        "form": "official",
+        "edition": "all"
       }
     ],
     "adapters": {
@@ -51,13 +59,1789 @@
       "relay": "RelayTruthAdapter",
       "official": "OfficialTruthAdapter"
     },
-    "adapters_comment": "The adapter the registry hands each form to; each end's contract test checks it row by row.",
-    "identity": "The authMode produced by the production identity constructor must equal the connection's authMode raw value (apiKey | subscription). Each end's contract test asserts every row of cases. The query fixture of capability_evidence_contract.v1.json carries no authMode and defaults to apiKey."
+    "adapters_comment": "Adapter each form currently uses; the three-end contract tests reconcile it row by row. Since 2026-10-10, free and subscription each have their own adapter; before that they shared the official adapter.",
+    "identity": "The authMode produced by the production identity constructors (iOS CapabilityEvidenceRequestIdentity.make, Android QueryIdentity inside capabilityProjection, Web modelCapabilityEvidenceQuery) must equal the raw authMode of the connection (apiKey | subscription). The three-end contract tests assert every row of cases that this edition can run. The query fixture in capability_evidence_contract.v1.json carries no authMode and defaults to apiKey; that file is not changed."
+  },
+  "rules": {
+    "managed": {
+      "source": "managed_catalog",
+      "grade": "machine_verified",
+      "transport": "managed_chat",
+      "vision_input": "capabilities.vision is a boolean: true gives supported, false gives unsupported. Missing gives no candidate (unknown, see expected.managed_field_absent). The legacy fields attachments / attachment_types are not read (derived_cases.managed_legacy_only).",
+      "file_input": "capabilities.file is a boolean: true gives supported, false gives unsupported. Missing gives unknown. The legacy fields attachments / attachment_types are not read.",
+      "web_search": "capabilities.web_search is a boolean: true gives supported, false gives unsupported. A missing key gives no candidate (unknown, no outbound request; before the explicit-boolean switch it was unsupported).",
+      "reasoning_tiers": "reasoning_tiers is used as-is. When non-empty, reasoning_level/* is supported for those tiers. When empty, no tier is supported.",
+      "absent": "Catalog fetched but the model is absent: the adapter emits, for each key the catalog manages (vision_input / web_search / reasoning_level/*), a candidate with source=catalog_absent and support=unknown. A key the catalog does not declare (tool_call) produces no candidate and the decision is unchanged. The decision is in expected.managed_absent.resolution; the user's explicit intent does not send the request either.",
+      "tool_call": "capabilities.tool_call is explicitly false in the catalog (product decision: hosted does not carry tools). The adapter still produces no candidate. The decision is in expected.catalog_silent_key.",
+      "image_generation": "capabilities.image_generation is explicitly false in the catalog (product decision). It is not in keys; image dispatch has its own contract.",
+      "probed_at": "capabilities.probed_at = the RFC 3339 time at which the most recent probe matrix finished for a routable endpoint of this model. The client does not read it; the reference checks read it from production entry points.",
+      "compat": "Compatibility window closed: the daily truth check of 2026-10-21 reported explicit booleans fully covered for 7 consecutive days (hosted 27/27, Free 10/10). The three ends, desktop and the reference implementation have deleted the legacy fallback. A missing field is always unknown."
+    },
+    "free": {
+      "source": "free_catalog",
+      "grade": "declared",
+      "transport": "free_chat",
+      "snapshot": "Free catalog snapshot = provider.catalogModels (free catalog endpoint, mapped by production). The catalog has no revision field; the identity's metadataRevision reuses the official metadata ETag (same as hosted).",
+      "vision_input": "capabilityFlags.vision is a boolean: true gives supported, false gives unsupported (the server always sends false, a product decision). Missing capabilityFlags gives unknown; the legacy string array capabilities is not read (derived_cases.free_legacy_only).",
+      "file_input": "Always unsupported. The catalog explicitly says false; text attachments are injected by the client. The three ends have no projection key for this yet, so the contract records the expectation only; an assertion will be added later.",
+      "web_search": "Always unsupported. The catalog explicitly says false, consistent with the zero-capability outbound payload of Free chat. The reference check verifies the Free catalog per model.",
+      "reasoning_tiers": "Always []. The catalog reasoning field only means the thinking process is shown; there are no adjustable tiers, so no reasoning_level/* is supported.",
+      "tool_call": "Not declared by the catalog: no candidate, decision unchanged.",
+      "unfetched": "State 1: provider.catalogModels is empty (catalog not fetched, or the fetch failed and cleared it). The adapter produces no candidate, and the projection fails closed on incomplete identity (unknown / missing_evidence, no outbound request). It must not conclude catalog_absent.",
+      "absent": "State 2: catalog fetched but the model is absent. For each key the catalog manages (vision_input / web_search / reasoning_level/*), emit a candidate with source=catalog_absent and support=unknown. The decision is in expected.free_absent.resolution.",
+      "capability_flags": "Each Free catalog model gains an object capabilityFlags = {text:true, vision:false, file:false, web_search:false, tool_call:false, image_generation:false, reasoning:<true|false|null>, probed_at:<RFC 3339|null>}. The legacy string array capabilities is kept as-is: old clients decode it as [String], and reusing the name with a different type would fail decoding the whole catalog, hence the new key for the object. When reasoning is probed as true, \"reasoning\" is appended to the old array.",
+      "reasoning": "capabilityFlags.reasoning only says whether the thinking process is shown (written back by the probe; null means not probed yet). It produces no adjustable tier; reasoning_tiers is always [].",
+      "compat": "Same window and same removal condition as rules.managed.compat."
+    },
+    "subscription": {
+      "source": "upstream_declaration",
+      "grade": "declared",
+      "transport": "subscriptionFinalTransport(provider, model): Codex is always openai_responses; Grok follows upstream api_backend, then seed, then openai_responses.",
+      "snapshot": "Subscription snapshot = provider.catalogModels (per-model declarations from the upstream /models, mapped by production onto AIModel: capabilities contains web or image, upstreamReasoningLevels, toolCall). No revision field; the identity's metadataRevision reuses the official metadata ETag. Web exception (measured 2026-10-10): Web subscription sync only writes provider.models and leaves catalogModels always empty, so the Web adapter takes catalogModels when non-empty and models otherwise. Remove this fallback once sync writes catalogModels.",
+      "vision_input": "capabilities contains image (upstream input_modalities) gives supported; otherwise unsupported.",
+      "web_search": "capabilities contains web (Codex web_search_tool_type non-empty, or Grok supports_backend_search) gives supported; otherwise unsupported. For Grok on a non-Responses protocol, the \"unavailable\" result stays in the CapabilityControlResolution layer.",
+      "reasoning_tiers": "Tiers = subscriptionDeclaredReasoningLevels (upstreamReasoningLevels first-hand, then model_facts cold start), filtered through the same codexReasoningEffort used for outbound. When the first-hand list is non-empty the source is upstream_declaration; when it falls back to the dictionary the source is model_facts. Tiers that fail the filter are unsupported.",
+      "tool_call": "Only when the snapshot model carries its own toolCall boolean (first-hand upstream declaration) do we emit a supported or unsupported candidate (upstream_declaration). With no declaration, no candidate. Android has a model_facts fallback, unchanged from before.",
+      "unfetched": "State 1: catalogModels empty gives no candidate, fail-closed.",
+      "absent": "State 2: catalog fetched but the model is absent. vision_input / web_search / reasoning_level/* each give catalog_absent; tool_call is not emitted.",
+      "fixture": "No production-recorded Codex / Grok /models shape exists in the repo; none is hand-made in this round. Recording and expected.subscription are pending: a real run needs ORIVEO_G3_CODEX_TOKEN, otherwise the SUB check reports skipped."
+    },
+    "official": {
+      "source": "Source by key: tool_call = server_typed; web_search = server_profile; vision_input = legacy_metadata; reasoning_level/* sources currently differ across the three ends (iOS server_profile, Android and Web legacy_metadata). This contract only aligns the supported tier set.",
+      "transport": "The model entry's transport (the final dispatch transport). A candidate's transport must be the same canonical name as the query's transport.",
+      "snapshot": "Official snapshot = the local /api/metadata?view=lean snapshot; the identity's metadataRevision = the response ETag.",
+      "vision_input": "capabilities contains image gives supported (legacy_metadata / legacy_unverified); otherwise unknown. The server has not published typed vision candidates yet, so absence must not be read as unsupported.",
+      "file_input": "Refers to the native file route: nativeFileMimes contains application/pdf gives supported; otherwise unsupported (files are then injected as text, which does not mean they cannot be sent). The three ends have no file_input projection key; each end's attachment routing function asserts it. Sampling uses scanned PDFs (no text layer, so routing only has \"native or cannot read\"). PDFs with a text layer are injected as text by default on most official routes, so this cell cannot be measured that way.",
+      "web_search": "Recipe verdict only: capabilityControls.web.state = auto_available or managed_only gives supported; unavailable gives unsupported; custom_only, unknown or missing gives unknown. Source server_profile, grade declared. Whether capabilities mentions \"web\" plays no part.",
+      "reasoning_tiers": "profiles.reasoning[model's reasoning profile].levels, with fast counted as low; off is not a tier. A model without a reasoning profile gives []. reasoning_level/* is supported for these tiers.",
+      "tool_call": "The typed candidate with key=tool_call in capabilityEvidenceView.candidates, as-is (supported / unsupported, server_typed / declared). No typed candidate gives unknown.",
+      "absent": "A model outside the official catalog produces no catalog_absent: if the model cannot be resolved in the snapshot, the identity is incomplete and the whole projection fails closed. Android and Web keep the model_facts fallback for tool_call, unchanged from before.",
+      "clock": "Typed candidates carry observedAt / expiresAt (production TTL about 7 days). The contract test's decision clock must be pinned to fixtures.official_metadata.recorded_at, not wall-clock time; otherwise tool_call candidates would expire 7 days after recording and fall to unknown."
+    },
+    "relay": {
+      "source": "Source: user_override (including tested) > gateway_declaration (capability fields only, not the protocol-derived value of new-api) > model_facts > official_inherit (same family first, cross-family later) > catalog_absent. Protocol sources reachable / observed do not take part in capability ordering.",
+      "transport": "Model protocol (connection generation + model protocol + endpoint fingerprint form the identity; if any one is missing, it is read-only and sends nothing).",
+      "snapshot": "The truth lives on the user's machine: the connection object and the model object (relayRequested, the model's capabilities / toolCall / reasoningProfile / webSearchProfile). There is no production entry point for read-only reconciliation.",
+      "current": "The three ends' RelayTruthAdapter currently reads the local connection and model declarations; candidate source relay_declaration (unsupported gives declared, the rest give accepted_unverified). The five-level source above is the target shape for phase 1; this unit does not change relay decisions.",
+      "fixture": "Relay gateway capability declaration: fixtures.relay_gateway is a recording of the public OpenRouter GET https://openrouter.ai/api/v1/models, trimmed by selection (delete only, no edits). expected.relay_gateway is computed by relayGatewayTruth in capability-truth-smoke.mjs, and daily drift self-heals (--write-fixture --only=relay_gateway). new-api /v1/models is recorded by scripts/relay-gateway-record.mjs from a fixed-tag source built locally; the raw data is in shared/test-fixtures/relay/gateway-models.v1.json. It only has supported_endpoint_types (protocol candidates) and no capability fields, so it is not in this contract's expected. The local engine declaration is in shared/test-fixtures/local-engine/engine-declarations.v1.json.",
+      "gateway_declaration": "OpenRouter per model: vision = architecture.input_modalities contains image (array present without image gives unsupported; field missing gives unknown); tools = supported_parameters contains tools (same three states); web search is always unknown (a gateway declaration does not authorize web search); reasoning tiers are always empty (supported_parameters can only veto, not grant; see the OpenRouter reasoning-profile rule in the capability spec). No file_input: the native file allowlist is granted only by observed or user protocols."
+    },
+    "candidate_schema": {
+      "absent": "catalog_absent candidates are identical on the three ends: support=unknown, source=catalog_absent, grade=none. (The Web candidate type used to disallow none and filled machine_verified; now unified.)",
+      "silent_key": "For hosted-catalog forms, the adapter produces no candidate for a key the catalog does not declare (tool_call). For this kind the decision is closed-world: even when the user explicitly expressed intent, it is unknown and not sent, and it does not use allow_explicit_unverified. Expectation in expected.catalog_silent_key. Subscription is excluded: its tools follow the upstream declaration, then the facts fallback; the alignment is left to the capability matrix."
+    }
   },
   "fixtures": {
+    "managed_catalog": {
+      "edition": "commercial",
+      "recorded_at": "2026-11-02T02:00:16.232Z",
+      "source_url": "",
+      "response": {
+        "groups": [
+          {
+            "display_name": "OpenAI",
+            "group_id": "openai",
+            "models": [
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-28T05:21:34.948563Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "GPT-6.1 Terra",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1050000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 128000,
+                  "max_request_charge_microusd": 4000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 50000,
+                  "cache_write_microusd_per_1m_tokens": 1250000,
+                  "display": "$1 / 1M input · $5 / 1M output · $0.05 / 1M cache-read · $1.25 / 1M cache-write · from $0.035 / web search",
+                  "input_microusd_per_1m_tokens": 1000000,
+                  "output_microusd_per_1m_tokens": 5000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 35000
+                },
+                "public_model_id": "gpt-6.1-terra",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-29T23:16:04.290304Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "GPT-6.1 Sol",
+                "free_quota_eligible": false,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1050000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 128000,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 100000,
+                  "cache_write_microusd_per_1m_tokens": 2500000,
+                  "display": "$2 / 1M input · $10 / 1M output · $0.1 / 1M cache-read · $2.5 / 1M cache-write · from $0.045 / web search",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 10000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 45000
+                },
+                "public_model_id": "gpt-6.1-sol",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-11-01T23:11:30.48647Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "GPT-6 Astra",
+                "free_quota_eligible": false,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1050000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 128000,
+                  "max_request_charge_microusd": 80000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 1000000,
+                  "cache_write_microusd_per_1m_tokens": 12500000,
+                  "display": "$10 / 1M input · $50 / 1M output · $1 / 1M cache-read · $12.5 / 1M cache-write · from $0.125 / web search",
+                  "input_microusd_per_1m_tokens": 10000000,
+                  "output_microusd_per_1m_tokens": 50000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 125000
+                },
+                "public_model_id": "gpt-6-astra",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-30T23:06:13.897449Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "GPT-6 Sol",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1050000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 128000,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 200000,
+                  "cache_write_microusd_per_1m_tokens": 2500000,
+                  "display": "$2 / 1M input · $10 / 1M output · $0.2 / 1M cache-read · $2.5 / 1M cache-write · from $0.045 / web search",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 10000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 45000
+                },
+                "public_model_id": "gpt-6-sol",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-27T23:06:07.618852Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "GPT-6 Luna",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1050000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 128000,
+                  "max_request_charge_microusd": 2000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 10000,
+                  "cache_write_microusd_per_1m_tokens": 125000,
+                  "display": "$0.1 / 1M input · $0.5 / 1M output · $0.01 / 1M cache-read · $0.125 / 1M cache-write · from $0.026 / web search",
+                  "input_microusd_per_1m_tokens": 100000,
+                  "output_microusd_per_1m_tokens": 500000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 26000
+                },
+                "public_model_id": "gpt-6-luna",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-29T23:05:57.133639Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "OpenAI: GPT-5.6 Terra",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1050000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 200000,
+                  "cache_write_microusd_per_1m_tokens": 2500000,
+                  "display": "$2 / 1M input · $12 / 1M output · $0.2 / 1M cache-read · $2.5 / 1M cache-write · from $0.045 / web search",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 12000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 45000
+                },
+                "public_model_id": "gpt-5.6-terra",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-30T23:05:01.514704Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "OpenAI: GPT-5.6 Sol",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1050000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 400000,
+                  "cache_write_microusd_per_1m_tokens": 5000000,
+                  "display": "$4 / 1M input · $20 / 1M output · $0.4 / 1M cache-read · $5 / 1M cache-write · from $0.065 / web search",
+                  "input_microusd_per_1m_tokens": 4000000,
+                  "output_microusd_per_1m_tokens": 20000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 65000
+                },
+                "public_model_id": "gpt-5.6-sol",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-27T23:06:19.978945Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "OpenAI: GPT-5.6 Luna",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1050000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 20000,
+                  "cache_write_microusd_per_1m_tokens": 250000,
+                  "display": "$0.2 / 1M input · $1.2 / 1M output · $0.02 / 1M cache-read · $0.25 / 1M cache-write · from $0.027 / web search",
+                  "input_microusd_per_1m_tokens": 200000,
+                  "output_microusd_per_1m_tokens": 1200000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 27000
+                },
+                "public_model_id": "gpt-5.6-luna",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-11-01T23:04:56.280876Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "GPT-5.5",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 400000,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 400000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 500000,
+                  "cache_write_microusd_per_1m_tokens": 0,
+                  "display": "$5 / 1M input · $30 / 1M output · $0.5 / 1M cache-read · from $0.075 / web search",
+                  "input_microusd_per_1m_tokens": 5000000,
+                  "output_microusd_per_1m_tokens": 30000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 75000
+                },
+                "public_model_id": "gpt-5.5",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              }
+            ],
+            "sort_order": 10
+          },
+          {
+            "display_name": "Anthropic",
+            "group_id": "anthropic",
+            "models": [
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-31T23:04:44.937565Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Opus 5.5",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1000000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 200000,
+                  "cache_write_microusd_per_1m_tokens": 5000000,
+                  "display": "$4 / 1M input · $20 / 1M output · $0.2 / 1M cache-read · $5 / 1M cache-write · from $0.05 / web search",
+                  "input_microusd_per_1m_tokens": 4000000,
+                  "output_microusd_per_1m_tokens": 20000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 50000
+                },
+                "public_model_id": "claude-opus-5-5",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-31T23:05:45.712547Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Sonnet 5.5",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1000000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 128000,
+                  "max_request_charge_microusd": 4000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 100000,
+                  "cache_write_microusd_per_1m_tokens": 2500000,
+                  "display": "$2 / 1M input · $10 / 1M output · $0.1 / 1M cache-read · $2.5 / 1M cache-write · from $0.03 / web search",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 10000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 30000
+                },
+                "public_model_id": "claude-sonnet-5-5",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-29T23:09:08.120087Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": false,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Haiku 5.5",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 100000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 128000,
+                  "max_request_charge_microusd": 200000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 10000,
+                  "cache_write_microusd_per_1m_tokens": 125000,
+                  "display": "$0.1 / 1M input · $0.5 / 1M output · $0.01 / 1M cache-read · $0.125 / 1M cache-write · from $0.011 / web search",
+                  "input_microusd_per_1m_tokens": 100000,
+                  "output_microusd_per_1m_tokens": 500000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 11000
+                },
+                "public_model_id": "claude-haiku-5-5",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-11-01T23:13:00.252714Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Fable 5.1",
+                "free_quota_eligible": false,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1000000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 128000,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 250000,
+                  "cache_write_microusd_per_1m_tokens": 12500000,
+                  "display": "$10 / 1M input · $50 / 1M output · $0.25 / 1M cache-read · $12.5 / 1M cache-write · from $0.11 / web search",
+                  "input_microusd_per_1m_tokens": 10000000,
+                  "output_microusd_per_1m_tokens": 50000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 110000
+                },
+                "public_model_id": "claude-fable-5-1",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-11-01T23:04:43.702725Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Opus 5",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1000000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 500000,
+                  "cache_write_microusd_per_1m_tokens": 6250000,
+                  "display": "$5 / 1M input · $25 / 1M output · $0.5 / 1M cache-read · $6.25 / 1M cache-write · from $0.06 / web search",
+                  "input_microusd_per_1m_tokens": 5000000,
+                  "output_microusd_per_1m_tokens": 25000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 60000
+                },
+                "public_model_id": "claude-opus-5",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-11-01T23:04:50.226305Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Fable 5",
+                "free_quota_eligible": false,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 200000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 1000000,
+                  "cache_write_microusd_per_1m_tokens": 12500000,
+                  "display": "$10 / 1M input · $50 / 1M output · $1 / 1M cache-read · $12.5 / 1M cache-write · from $0.11 / web search",
+                  "input_microusd_per_1m_tokens": 10000000,
+                  "output_microusd_per_1m_tokens": 50000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 110000
+                },
+                "public_model_id": "claude-fable-5",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-31T23:07:30.256493Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Sonnet 5",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 200000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 2000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 200000,
+                  "cache_write_microusd_per_1m_tokens": 2500000,
+                  "display": "$2 / 1M input · $10 / 1M output · $0.2 / 1M cache-read · $2.5 / 1M cache-write · from $0.03 / web search",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 10000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 30000
+                },
+                "public_model_id": "claude-sonnet-5",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-11-01T23:04:20.322904Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Opus 4.8",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 200000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 500000,
+                  "cache_write_microusd_per_1m_tokens": 6250000,
+                  "display": "$5 / 1M input · $25 / 1M output · $0.5 / 1M cache-read · $6.25 / 1M cache-write · from $0.06 / web search",
+                  "input_microusd_per_1m_tokens": 5000000,
+                  "output_microusd_per_1m_tokens": 25000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 60000
+                },
+                "public_model_id": "claude-opus-4-8",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-11-01T23:05:16.23334Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Opus 4.6",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 200000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 500000,
+                  "cache_write_microusd_per_1m_tokens": 6250000,
+                  "display": "$5 / 1M input · $25 / 1M output · $0.5 / 1M cache-read · $6.25 / 1M cache-write · from $0.06 / web search",
+                  "input_microusd_per_1m_tokens": 5000000,
+                  "output_microusd_per_1m_tokens": 25000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 60000
+                },
+                "public_model_id": "claude-opus-4-6",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-31T23:07:03.123586Z",
+                  "prompt_caching": true,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Claude Sonnet 4.6",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 200000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 2000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 300000,
+                  "cache_write_microusd_per_1m_tokens": 3750000,
+                  "display": "$3 / 1M input · $15 / 1M output · $0.3 / 1M cache-read · $3.75 / 1M cache-write · from $0.04 / web search",
+                  "input_microusd_per_1m_tokens": 3000000,
+                  "output_microusd_per_1m_tokens": 15000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 40000
+                },
+                "public_model_id": "claude-sonnet-4-6",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              }
+            ],
+            "sort_order": 20
+          },
+          {
+            "display_name": "Google Gemini",
+            "group_id": "google-gemini",
+            "models": [
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": false,
+                  "probed_at": "2026-10-28T05:16:32.174628Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": false,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": false
+                },
+                "display_name": "Gemini 4 Argon",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1048576,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 6000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 100000,
+                  "cache_write_microusd_per_1m_tokens": 187500,
+                  "display": "$2 / 1M input · $10 / 1M output · $0.1 / 1M cache-read · $0.1875 / 1M cache-write",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 10000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 0
+                },
+                "public_model_id": "gemini-4-argon",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-31T23:05:18.570147Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Gemini 3.8 Flash",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1048576,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 82500,
+                  "cache_write_microusd_per_1m_tokens": 41667,
+                  "display": "$0.825 / 1M input · $4.125 / 1M output · $0.0825 / 1M cache-read · $0.041667 / 1M cache-write · from $0.04325 / web search",
+                  "input_microusd_per_1m_tokens": 825000,
+                  "output_microusd_per_1m_tokens": 4125000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 43250
+                },
+                "public_model_id": "gemini-3.8-flash",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-28T05:14:24.487924Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": false
+                },
+                "display_name": "Gemini 3.5 Flash Lite",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1048576,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 2000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 30000,
+                  "cache_write_microusd_per_1m_tokens": 83333,
+                  "display": "$0.3 / 1M input · $2.5 / 1M output · $0.03 / 1M cache-read · $0.083333 / 1M cache-write",
+                  "input_microusd_per_1m_tokens": 300000,
+                  "output_microusd_per_1m_tokens": 2500000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 0
+                },
+                "public_model_id": "gemini-3.5-flash-lite",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "application/pdf",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": true,
+                  "probed_at": "2026-10-31T23:06:30.830559Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "Gemini 3.1 Pro",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 614400,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 1048576,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 200000,
+                  "cache_write_microusd_per_1m_tokens": 375000,
+                  "display": "$2 / 1M input · $12 / 1M output · $0.2 / 1M cache-read · $0.375 / 1M cache-write · from $0.055 / web search",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 12000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 55000
+                },
+                "public_model_id": "gemini-3.1-pro-preview",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              }
+            ],
+            "sort_order": 30
+          },
+          {
+            "display_name": "xAI Grok",
+            "group_id": "xai-grok",
+            "models": [
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": false,
+                  "probed_at": "2026-10-29T23:09:34.345223Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": false
+                },
+                "display_name": "Grok 4.7",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 500000,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 500000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 500000,
+                  "cache_write_microusd_per_1m_tokens": 0,
+                  "display": "$2 / 1M input · $6 / 1M output · $0.5 / 1M cache-read",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 6000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 0
+                },
+                "public_model_id": "grok-4.7",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "image/webp",
+                    "image/gif",
+                    "text/plain",
+                    "text/markdown"
+                  ],
+                  "pdf_native_default": false,
+                  "probed_at": "2026-11-01T23:12:26.113082Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": false
+                },
+                "display_name": "SpaceXAI: Grok 4.6",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 500000,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 500000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 500000,
+                  "cache_write_microusd_per_1m_tokens": 0,
+                  "display": "$2 / 1M input · $6 / 1M output · $0.5 / 1M cache-read",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 6000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 0
+                },
+                "public_model_id": "grok-4.6",
+                "reasoning_tiers": [
+                  "low",
+                  "balanced",
+                  "deep",
+                  "max"
+                ],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [],
+                  "attachments": false,
+                  "file": false,
+                  "image_generation": false,
+                  "native_file_mimes": [],
+                  "pdf_native_default": false,
+                  "probed_at": "2026-10-29T23:09:22.257432Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": false,
+                  "web_search": false
+                },
+                "display_name": "Grok 4.5",
+                "free_quota_eligible": true,
+                "limits": {
+                  "max_attachment_text_bytes": 256000,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 256000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 65536,
+                  "max_request_charge_microusd": 8000000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 300000,
+                  "cache_write_microusd_per_1m_tokens": 0,
+                  "display": "$2 / 1M input · $6 / 1M output · $0.3 / 1M cache-read",
+                  "input_microusd_per_1m_tokens": 2000000,
+                  "output_microusd_per_1m_tokens": 6000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 0
+                },
+                "public_model_id": "grok-4.5",
+                "reasoning_tiers": [
+                  "low",
+                  "deep"
+                ],
+                "status": "available"
+              }
+            ],
+            "sort_order": 40
+          }
+        ],
+        "protection_mode": {
+          "mode": "off",
+          "purchase_disabled": false
+        },
+        "provider": {
+          "display_name": "",
+          "mode": "managed",
+          "provider_id": "oriveo-ai",
+          "requires_login_to_use": true
+        },
+        "updated_at": "2026-11-02T02:00:16.675732667Z",
+        "weekly_quota_offer": {
+          "enabled": true,
+          "limit": 3,
+          "period": "weekly"
+        }
+      }
+    },
+    "free_catalog": {
+      "edition": "commercial",
+      "recorded_at": "2026-11-02T02:00:16.926Z",
+      "source_url": "",
+      "response": {
+        "code": 0,
+        "data": {
+          "models": [
+            {
+              "id": 30,
+              "sourceModelId": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+              "displayName": "NVIDIA: Nemotron 3 Nano Omni (free)",
+              "vendorGroup": "nvidia",
+              "description": "NVIDIA Nemotron™ 3 Nano Omni is a 30B-A3B open multimodal model designed to function as a perception and context sub-agent in enterprise agent systems. It accepts text, image, video, and...",
+              "capabilities": [
+                "text",
+                "reasoning"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": true,
+                "probed_at": "2026-11-02T01:08:54.84027Z"
+              },
+              "contextLength": 256000,
+              "maxOutputTokens": 65536
+            },
+            {
+              "id": 35,
+              "sourceModelId": "nvidia/nemotron-3-ultra-550b-a55b:free",
+              "displayName": "NVIDIA: Nemotron 3 Ultra (free)",
+              "vendorGroup": "nvidia",
+              "description": "NVIDIA Nemotron 3 Ultra is an open frontier-reasoning and orchestration model from NVIDIA, with 55B active parameters out of 550B total (MoE). Built on a hybrid Transformer-Mamba mixture-of-experts architecture, it...",
+              "capabilities": [
+                "text",
+                "reasoning"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": true,
+                "probed_at": "2026-11-01T01:07:56.852882Z"
+              },
+              "contextLength": 1000000,
+              "maxOutputTokens": 65536
+            },
+            {
+              "id": 37,
+              "sourceModelId": "cohere/north-mini-code:free",
+              "displayName": "Cohere: North Mini Code (free)",
+              "vendorGroup": "cohere",
+              "description": "North Mini Code is Cohere's first agentic coding model and the debut of its North family. A sparse mixture-of-experts model with 30B total parameters and 3B active, it is optimized...",
+              "capabilities": [
+                "text",
+                "reasoning"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": true,
+                "probed_at": "2026-11-02T01:09:34.89643Z"
+              },
+              "contextLength": 256000,
+              "maxOutputTokens": 64000
+            },
+            {
+              "id": 44,
+              "sourceModelId": "nvidia/nemotron-3.5-lightning:free",
+              "displayName": "NVIDIA: Nemotron 3.5 Lightning (free)",
+              "vendorGroup": "nvidia",
+              "description": "NVIDIA Nemotron 3.5 Lightning is an open mixture-of-experts model from NVIDIA, with 3B active parameters out of 30B total. It is suited for high-throughput agentic workloads and specialized tasks that...",
+              "capabilities": [
+                "text",
+                "reasoning"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": true,
+                "probed_at": "2026-11-02T01:08:34.844412Z"
+              },
+              "contextLength": 1000000,
+              "maxOutputTokens": 65536
+            },
+            {
+              "id": 45,
+              "sourceModelId": "dots-studio/dots-3-note-preview:free",
+              "displayName": "Dots Studio: Dots3-Note Preview (free)",
+              "vendorGroup": "dots-studio",
+              "description": "Dots3-Note Preview is an open-weight mixture-of-experts model from Dots Studio, with 16B active parameters out of 280B total. It is the lightest model in the Dots 3 family and is...",
+              "capabilities": [
+                "text",
+                "reasoning"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": true,
+                "probed_at": "2026-11-01T01:09:36.516511Z"
+              },
+              "contextLength": 512000,
+              "maxOutputTokens": 460800
+            },
+            {
+              "id": 59,
+              "sourceModelId": "nvidia/nemotron-3.5-super-vl:free",
+              "displayName": "NVIDIA: Nemotron 3.5 Super VL (free)",
+              "vendorGroup": "nvidia",
+              "description": "NVIDIA Nemotron 3.5 Super VL is an open multimodal mixture-of-experts model from NVIDIA, with 12B active parameters out of 120B total. It takes text, images, documents, GUI screenshots, and video...",
+              "capabilities": [
+                "text",
+                "reasoning"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": true,
+                "probed_at": "2026-11-02T01:09:15.028691Z"
+              },
+              "contextLength": 1000000,
+              "maxOutputTokens": 131072
+            }
+          ],
+          "loginRequired": false
+        },
+        "message": "ok"
+      }
+    },
     "official_metadata": {
+      "edition": "all",
       "recorded_at": "2026-10-15T07:06:35.365Z",
-      "source_url": "GET /api/metadata?view=lean",
+      "source_url": "GET https://api.oriveoai.com/api/metadata?view=lean",
       "etag": "\"dfa63d60e2fa6d48\"",
       "selection": [
         {
@@ -77,7 +1861,7 @@
           "modelId": "lyria-3-pro-preview"
         }
       ],
-      "trim": "Trimmed, never rewritten: providers keep only the models in selection and the resolveMap rows that point to them; profiles.reasoning / webSearch / imageGen and generationParameterTables keep only the entries those models reference; providerConfigs keep only those providers; runtimeConfig / relayRuntimeConfig / libraryRuntimeConfig / mcpRuntimeConfig are removed (every end decodes them as optional). capabilityRuntime is kept as recorded.",
+      "trim": "Trim only: providers keeps only the models in selection and the resolveMap rows that point to them; profiles.reasoning / webSearch / imageGen and generationParameterTables keep only the entries those models reference; providerConfigs keeps only these providers; runtimeConfig / relayRuntimeConfig / libraryRuntimeConfig / mcpRuntimeConfig are removed (all three ends' decoders treat them as optional). capabilityRuntime is kept as-is.",
       "response": {
         "code": 0,
         "data": {
@@ -4726,9 +6510,756 @@
         },
         "message": "ok"
       }
+    },
+    "relay_gateway": {
+      "edition": "all",
+      "recorded_at": "2026-10-10T15:25:34.642Z",
+      "source_url": "GET https://openrouter.ai/api/v1/models",
+      "selection": [
+        "openai/gpt-4o-mini",
+        "anthropic/claude-sonnet-4.5",
+        "deepseek/deepseek-chat",
+        "tencent/hy-mt2-7b"
+      ],
+      "trim": "Trim only: data keeps only the models in selection (in recorded order); each model object and the remaining top-level keys are the recorded originals.",
+      "response": {
+        "data": [
+          {
+            "id": "tencent/hy-mt2-7b",
+            "canonical_slug": "tencent/hy-mt2-7b-20260521",
+            "hugging_face_id": "tencent/Hy-MT2-7B",
+            "name": "Tencent: Hy-MT2-7B",
+            "created": 1787148797,
+            "description": "Hy-MT2-7B is a 7B-parameter translation model from Tencent. It supports 33 language pairs and five Chinese dialect and minority-language pairs, with workflows for structured, delimiter-based, contextual, glossary-based, and style-guided translation.",
+            "context_length": 8192,
+            "architecture": {
+              "modality": "text->text",
+              "input_modalities": [
+                "text"
+              ],
+              "output_modalities": [
+                "text"
+              ],
+              "tokenizer": "Other",
+              "instruct_type": null
+            },
+            "pricing": {
+              "prompt": "0.000000074",
+              "completion": "0.000000295"
+            },
+            "top_provider": {
+              "context_length": 8192,
+              "max_completion_tokens": 4096,
+              "is_moderated": false
+            },
+            "per_request_limits": null,
+            "supported_parameters": [
+              "max_completion_tokens",
+              "max_tokens",
+              "response_format",
+              "stop",
+              "structured_outputs",
+              "temperature"
+            ],
+            "default_parameters": {},
+            "supported_voices": null,
+            "knowledge_cutoff": null,
+            "expiration_date": null,
+            "links": {
+              "details": "/api/v1/models/tencent/hy-mt2-7b-20260521/endpoints"
+            }
+          },
+          {
+            "id": "anthropic/claude-sonnet-4.5",
+            "canonical_slug": "anthropic/claude-4.5-sonnet-20250929",
+            "hugging_face_id": "",
+            "name": "Anthropic: Claude Sonnet 4.5",
+            "created": 1759161676,
+            "description": "Claude Sonnet 4.5 is Anthropic’s most advanced Sonnet model to date, optimized for real-world agents and coding workflows. It delivers state-of-the-art performance on coding benchmarks such as SWE-bench Verified, with...",
+            "context_length": 1000000,
+            "architecture": {
+              "modality": "text+image+file->text",
+              "input_modalities": [
+                "text",
+                "image",
+                "file"
+              ],
+              "output_modalities": [
+                "text"
+              ],
+              "tokenizer": "Claude",
+              "instruct_type": null
+            },
+            "pricing": {
+              "prompt": "0.000003",
+              "completion": "0.000015",
+              "web_search": "0.01",
+              "input_cache_read": "0.0000003",
+              "input_cache_write": "0.00000375",
+              "input_cache_write_1h": "0.000006",
+              "overrides": [
+                {
+                  "min_prompt_tokens": 200000,
+                  "prompt": "0.000006",
+                  "completion": "0.0000225",
+                  "input_cache_read": "0.0000006",
+                  "input_cache_write": "0.0000075",
+                  "input_cache_write_1h": "0.000012"
+                }
+              ]
+            },
+            "top_provider": {
+              "context_length": 1000000,
+              "max_completion_tokens": 64000,
+              "is_moderated": true
+            },
+            "per_request_limits": null,
+            "supported_parameters": [
+              "include_reasoning",
+              "max_completion_tokens",
+              "max_tokens",
+              "reasoning",
+              "response_format",
+              "stop",
+              "structured_outputs",
+              "temperature",
+              "tool_choice",
+              "tools",
+              "top_k",
+              "top_p"
+            ],
+            "default_parameters": {
+              "temperature": 1,
+              "top_p": 1,
+              "top_k": null,
+              "frequency_penalty": null,
+              "presence_penalty": null,
+              "repetition_penalty": null
+            },
+            "supported_voices": null,
+            "knowledge_cutoff": "2025-01-31",
+            "expiration_date": null,
+            "links": {
+              "details": "/api/v1/models/anthropic/claude-4.5-sonnet-20250929/endpoints"
+            },
+            "benchmarks": {
+              "design_arena": [
+                {
+                  "arena": "models",
+                  "category": "3d",
+                  "elo": 1163,
+                  "win_rate": 51,
+                  "rank": 60
+                },
+                {
+                  "arena": "models",
+                  "category": "asciiart",
+                  "elo": 1210,
+                  "win_rate": 56.1,
+                  "rank": 21
+                },
+                {
+                  "arena": "models",
+                  "category": "codecategories",
+                  "elo": 1187,
+                  "win_rate": 51.5,
+                  "rank": 59
+                },
+                {
+                  "arena": "models",
+                  "category": "dataviz",
+                  "elo": 1170,
+                  "win_rate": 47.4,
+                  "rank": 67
+                },
+                {
+                  "arena": "models",
+                  "category": "gamedev",
+                  "elo": 1173,
+                  "win_rate": 51.1,
+                  "rank": 63
+                },
+                {
+                  "arena": "models",
+                  "category": "svg",
+                  "elo": 1114,
+                  "win_rate": 52.2,
+                  "rank": 56
+                },
+                {
+                  "arena": "models",
+                  "category": "uicomponent",
+                  "elo": 1176,
+                  "win_rate": 49.5,
+                  "rank": 62
+                },
+                {
+                  "arena": "models",
+                  "category": "website",
+                  "elo": 1193,
+                  "win_rate": 51.8,
+                  "rank": 64
+                },
+                {
+                  "arena": "agents",
+                  "category": "fullstack",
+                  "elo": 1049,
+                  "win_rate": 43.7,
+                  "rank": 36
+                },
+                {
+                  "arena": "agents",
+                  "category": "mobileapps",
+                  "elo": 1134,
+                  "win_rate": 52.9,
+                  "rank": 31
+                },
+                {
+                  "arena": "agents",
+                  "category": "webapps",
+                  "elo": 1053,
+                  "win_rate": 43.2,
+                  "rank": 37
+                }
+              ],
+              "artificial_analysis": {
+                "intelligence_index": 20.7,
+                "coding_index": 52.1,
+                "agentic_index": 15.8
+              }
+            },
+            "reasoning": {
+              "mandatory": false
+            }
+          },
+          {
+            "id": "deepseek/deepseek-chat",
+            "canonical_slug": "deepseek/deepseek-chat-v3",
+            "hugging_face_id": "deepseek-ai/DeepSeek-V3",
+            "name": "DeepSeek: DeepSeek V3",
+            "created": 1735241320,
+            "description": "DeepSeek-V3 is the latest model from the DeepSeek team, building upon the instruction following and coding abilities of the previous versions. Pre-trained on nearly 15 trillion tokens, the reported evaluations...",
+            "context_length": 163840,
+            "architecture": {
+              "modality": "text->text",
+              "input_modalities": [
+                "text"
+              ],
+              "output_modalities": [
+                "text"
+              ],
+              "tokenizer": "DeepSeek",
+              "instruct_type": null
+            },
+            "pricing": {
+              "prompt": "0.00000032",
+              "completion": "0.00000089"
+            },
+            "top_provider": {
+              "context_length": 163840,
+              "max_completion_tokens": 16384,
+              "is_moderated": false
+            },
+            "per_request_limits": null,
+            "supported_parameters": [
+              "frequency_penalty",
+              "logit_bias",
+              "max_tokens",
+              "min_p",
+              "presence_penalty",
+              "repetition_penalty",
+              "response_format",
+              "seed",
+              "stop",
+              "structured_outputs",
+              "temperature",
+              "tool_choice",
+              "tools",
+              "top_k",
+              "top_p"
+            ],
+            "default_parameters": {},
+            "supported_voices": null,
+            "knowledge_cutoff": "2024-07-31",
+            "expiration_date": null,
+            "links": {
+              "details": "/api/v1/models/deepseek/deepseek-chat-v3/endpoints"
+            },
+            "benchmarks": {
+              "design_arena": [
+                {
+                  "arena": "models",
+                  "category": "3d",
+                  "elo": 1092,
+                  "win_rate": 50.5,
+                  "rank": 84
+                },
+                {
+                  "arena": "models",
+                  "category": "codecategories",
+                  "elo": 1112,
+                  "win_rate": 48.4,
+                  "rank": 95
+                },
+                {
+                  "arena": "models",
+                  "category": "dataviz",
+                  "elo": 1092,
+                  "win_rate": 50,
+                  "rank": 97
+                },
+                {
+                  "arena": "models",
+                  "category": "gamedev",
+                  "elo": 1059,
+                  "win_rate": 43.7,
+                  "rank": 102
+                },
+                {
+                  "arena": "models",
+                  "category": "svg",
+                  "elo": 975,
+                  "win_rate": 38.8,
+                  "rank": 88
+                },
+                {
+                  "arena": "models",
+                  "category": "uicomponent",
+                  "elo": 1097,
+                  "win_rate": 52.7,
+                  "rank": 90
+                },
+                {
+                  "arena": "models",
+                  "category": "website",
+                  "elo": 1124,
+                  "win_rate": 48.5,
+                  "rank": 96
+                }
+              ]
+            }
+          },
+          {
+            "id": "openai/gpt-4o-mini",
+            "canonical_slug": "openai/gpt-4o-mini",
+            "hugging_face_id": null,
+            "name": "OpenAI: GPT-4o-mini",
+            "created": 1721260800,
+            "description": "GPT-4o mini is OpenAI's newest model after [GPT-4 Omni](/models/openai/gpt-4o), supporting both text and image inputs with text outputs. As their most advanced small model, it is many multiples more affordable...",
+            "context_length": 128000,
+            "architecture": {
+              "modality": "text+image+file->text",
+              "input_modalities": [
+                "text",
+                "image",
+                "file"
+              ],
+              "output_modalities": [
+                "text"
+              ],
+              "tokenizer": "GPT",
+              "instruct_type": null
+            },
+            "pricing": {
+              "prompt": "0.00000015",
+              "completion": "0.0000006",
+              "input_cache_read": "0.000000075"
+            },
+            "top_provider": {
+              "context_length": 128000,
+              "max_completion_tokens": 16384,
+              "is_moderated": true
+            },
+            "per_request_limits": null,
+            "supported_parameters": [
+              "frequency_penalty",
+              "logit_bias",
+              "logprobs",
+              "max_completion_tokens",
+              "max_tokens",
+              "prediction",
+              "presence_penalty",
+              "response_format",
+              "seed",
+              "stop",
+              "structured_outputs",
+              "temperature",
+              "tool_choice",
+              "tools",
+              "top_logprobs",
+              "top_p",
+              "web_search_options"
+            ],
+            "default_parameters": {},
+            "supported_voices": null,
+            "knowledge_cutoff": "2023-10-31",
+            "expiration_date": null,
+            "links": {
+              "details": "/api/v1/models/openai/gpt-4o-mini/endpoints"
+            },
+            "benchmarks": {
+              "design_arena": [],
+              "artificial_analysis": {
+                "intelligence_index": 6.7,
+                "coding_index": 11.4,
+                "agentic_index": null
+              }
+            }
+          }
+        ],
+        "total_count": 458,
+        "links": {
+          "next": null
+        }
+      }
     }
   },
   "expected": {
+    "managed": {
+      "gpt-6.1-terra": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "gpt-6.1-sol": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "gpt-6-astra": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "gpt-6-sol": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "gpt-6-luna": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "gpt-5.6-terra": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "gpt-5.6-sol": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "gpt-5.6-luna": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "gpt-5.5": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "claude-opus-5-5": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-sonnet-5-5": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-haiku-5-5": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-fable-5-1": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-opus-5": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-fable-5": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-sonnet-5": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-opus-4-8": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-opus-4-6": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "claude-sonnet-4-6": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "gemini-4-argon": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "unsupported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "gemini-3.8-flash": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "gemini-3.5-flash-lite": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "unsupported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "gemini-3.1-pro-preview": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "grok-4.7": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "unsupported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep"
+        ]
+      },
+      "grok-4.6": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "unsupported",
+        "reasoning_tiers": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "grok-4.5": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": [
+          "low",
+          "deep"
+        ]
+      }
+    },
+    "managed_absent": {
+      "model_id": "not-in-managed-catalog",
+      "truth": {
+        "vision_input": "unknown",
+        "file_input": "unknown",
+        "web_search": "unknown",
+        "reasoning_tiers": []
+      },
+      "resolution": {
+        "support": "unknown",
+        "source": "catalog_absent",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "catalog_absent",
+        "permitsOutbound": false,
+        "sameWhenExplicit": true
+      }
+    },
+    "free_absent": {
+      "model_id": "oriveo-free-model-not-in-catalog",
+      "truth": {
+        "vision_input": "unknown",
+        "file_input": "unknown",
+        "web_search": "unknown",
+        "reasoning_tiers": []
+      },
+      "resolution": {
+        "support": "unknown",
+        "source": "catalog_absent",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "catalog_absent",
+        "permitsOutbound": false,
+        "sameWhenExplicit": true
+      }
+    },
+    "free": {
+      "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "nvidia/nemotron-3-ultra-550b-a55b:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "cohere/north-mini-code:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "nvidia/nemotron-3.5-lightning:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "dots-studio/dots-3-note-preview:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "nvidia/nemotron-3.5-super-vl:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      }
+    },
     "official": {
       "openAI/o3": {
         "vision_input": "supported",
@@ -4781,7 +7312,7 @@
         "source": "legacy_metadata",
         "grade": "legacy_unverified"
       },
-      "$comment": "For every cell whose support is not unknown, the verdict's source / grade must be the ones written here; reasoning_level/* is not covered (the ends do not yet agree on its source)."
+      "$comment": "A grade other than unknown: the decision's source and grade must be the ones written here. reasoning_level/* is not in this list (the sources differ across the ends for now)."
     },
     "official_wire": [
       {
@@ -4790,7 +7321,7 @@
         "body_must_not_contain": [
           "web_search"
         ],
-        "why": "A model whose web is unavailable gets no web tool in the request even when the user forces web."
+        "why": "Web search unavailable: even when the user forces web search, no web search tool is sent."
       },
       {
         "model": "openAI/o3",
@@ -4798,7 +7329,7 @@
         "body_must_contain": [
           "web_search"
         ],
-        "why": "A model with web available and a recipe that carries force gets the Responses web_search tool when web is forced."
+        "why": "Web search available and the recipe has force: when web search is forced, the request body carries the Responses web_search tool. (On 2026-10-15 o3 was re-judged web-capable from the model page's Supported tools; it used to be the counterexample here.)"
       },
       {
         "model": "anthropic/claude-opus-5-5",
@@ -4806,8 +7337,501 @@
         "body_must_contain": [
           "web_search_20250305"
         ],
-        "why": "A model with web available gets the web tool the recipe provides in the request body."
+        "why": "Web search available: the request body carries the web tool given by the recipe."
       }
-    ]
+    ],
+    "catalog_silent_key": {
+      "key": "tool_call",
+      "forms": [
+        "managed",
+        "free"
+      ],
+      "explicit": true,
+      "resolution": {
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "missing_evidence",
+        "permitsOutbound": false
+      }
+    },
+    "managed_explicit": {
+      "shape-vision-file-web": {
+        "vision_input": "supported",
+        "file_input": "supported",
+        "web_search": "supported",
+        "reasoning_tiers": []
+      },
+      "shape-image-route-unobserved": {
+        "vision_input": "unsupported",
+        "file_input": "supported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "shape-text-only": {
+        "vision_input": "unsupported",
+        "file_input": "supported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "shape-no-attachments": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      }
+    },
+    "free_explicit": {
+      "google/gemma-3-4b-it:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "meta-llama/llama-3.3-8b-instruct:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      },
+      "shape/unprobed:free": {
+        "vision_input": "unsupported",
+        "file_input": "unsupported",
+        "web_search": "unsupported",
+        "reasoning_tiers": []
+      }
+    },
+    "managed_field_absent": {
+      "$comment": "Derived case derived_cases.managed_field_absent: the catalog has this model, but the capability keys are entirely missing. vision_input / web_search produce no candidate; the decision matches the closed-world keys.",
+      "truth": {
+        "vision_input": "unknown",
+        "file_input": "unknown",
+        "web_search": "unknown"
+      },
+      "resolution": {
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "missing_evidence",
+        "permitsOutbound": false,
+        "sameWhenExplicit": true
+      }
+    },
+    "relay_gateway": {
+      "openai/gpt-4o-mini": {
+        "vision_input": "supported",
+        "web_search": "unknown",
+        "reasoning_tiers": [],
+        "tool_call": "supported"
+      },
+      "anthropic/claude-sonnet-4.5": {
+        "vision_input": "supported",
+        "web_search": "unknown",
+        "reasoning_tiers": [],
+        "tool_call": "supported"
+      },
+      "deepseek/deepseek-chat": {
+        "vision_input": "unsupported",
+        "web_search": "unknown",
+        "reasoning_tiers": [],
+        "tool_call": "supported"
+      },
+      "tencent/hy-mt2-7b": {
+        "vision_input": "unsupported",
+        "web_search": "unknown",
+        "reasoning_tiers": [],
+        "tool_call": "unsupported"
+      }
+    }
+  },
+  "tests": {
+    "ios": {
+      "file": "ios/Oriveo/OriveoTests/Core/Capability/CapabilityTruthContractTests.swift",
+      "min_cases": 17
+    },
+    "android": {
+      "file": "android/app/src/test/java/ai/oriveo/community/core/capability/CapabilityTruthContractTest.kt",
+      "min_cases": 17
+    },
+    "web": {
+      "file": "web/apps/app/lib/core/capability/capability-truth-contract.test.ts",
+      "min_cases": 17
+    },
+    "desktop": {
+      "file": "desktop/crates/provider/tests/capability_truth_contract.rs",
+      "min_cases": 17
+    },
+    "$comment": "min_cases are equal across the four ends. Desktop follows its registry entry: while not started only the path is registered; once started it is judged like the other three ends. From T-4 onward there are 12 cases: hosted 4, Free 3, forms 2 (out of the floor of 7 from T-3 and earlier, 9 cases), plus the new official per-cell, official request body, official file route, the closed-world keys not managed by the catalog, and the identity authMode. From T-6 onward there are 17 cases (on top of the 12 from T-4; extra cases already present in each end are not counted): new hosted explicit booleans (server shape), hosted explicit-only (derived_cases.managed_explicit_only), and hosted capability key missing (managed_field_absent). The Free explicit object may be folded into the existing Free case or added as its own case."
+  },
+  "keys_comment": "keys are the four cells every hosted (managed / Free) model has. Official has an extra tool_call cell (server typed candidate); see expected.official.",
+  "pending_fixtures": {
+    "$comment": "Fixture not yet recorded. This only lists its destination and recording entry point; no hand-written response bodies. When recorded, move it into fixtures and add expected.",
+    "subscription_models": {
+      "edition": "all",
+      "source_url": "GET https://chatgpt.com/backend-api/codex/models",
+      "source_url_from": "production /api/metadata providerConfigs[openAI].protocolFeatures.subscriptionAuth.resourceBaseURL + modelsPath (Grok likewise: https://cli-chat-proxy.grok.com/v1/models)",
+      "record_with": "ORIVEO_G3_CODEX_TOKEN=<subscription access token> node scripts/capability-truth-smoke.mjs --write-fixture --only=subscription",
+      "status": "As of 2026-10-10 this machine has no ORIVEO_G3_CODEX_TOKEN, so nothing was recorded; the check prints SUB skipped and does not count as green. The recording entry point has not been run against a real upstream.",
+      "expected_shape": {
+        "<modelId>": {
+          "vision_input": "supported | unsupported",
+          "web_search": "supported | unsupported",
+          "reasoning_tiers": [
+            "low",
+            "balanced",
+            "deep"
+          ],
+          "tool_call": "supported | unsupported | unknown"
+        }
+      }
+    }
+  },
+  "editions": {
+    "$comment": "Community edition has only official / relay / subscription and runs only \"all\". Commercial fixtures and expectations run only in the commercial edition. A fixture's edition is written in the fixture itself, forms.cases on each row, and expected here (an entry like expected.managed is a dictionary from model to expectation; no metadata fields are added to it).",
+    "expected": {
+      "managed": "commercial",
+      "managed_absent": "commercial",
+      "free": "commercial",
+      "free_absent": "commercial",
+      "official": "all",
+      "official_sources": "all",
+      "official_wire": "all",
+      "catalog_silent_key": "commercial",
+      "managed_explicit": "commercial",
+      "free_explicit": "commercial",
+      "managed_field_absent": "commercial",
+      "relay_gateway": "all"
+    }
+  },
+  "server_shapes": {
+    "$comment": "Shapes that Server unit tests produce through the production serialization path (the explicit-boolean path). Production does not carry these fields before release, so these are not production recordings and are not stored in fixtures; the go test keeps them equal (a mismatch is red). Regeneration commands are in each produced_by. After release, re-recording the fixtures carries explicit booleans; then delete this section and expected.*_explicit. Hand-editing a response is forbidden. managed_catalog.response has only groups (the production envelope fields such as provider and updated_at are unrelated to capabilities and carry wall-clock times). Decoders that need the whole envelope get these groups wrapped into the envelope of fixtures.managed_catalog.response before decoding.",
+    "managed_catalog": {
+      "edition": "commercial",
+      "produced_by": "cd <server repo> && ORIVEO_WRITE_TRUTH_SHAPES=1 go test ./internal/handler/managed -run TestCapabilityTruthServerShape",
+      "response": {
+        "groups": [
+          {
+            "display_name": "Shape",
+            "group_id": "shape",
+            "models": [
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "image",
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "image/png",
+                    "image/jpeg",
+                    "application/pdf",
+                    "text/plain"
+                  ],
+                  "pdf_native_default": false,
+                  "probed_at": "2026-10-09T08:00:00Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": true,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": true,
+                  "web_search": true
+                },
+                "display_name": "shape-vision-file-web",
+                "free_quota_eligible": false,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 128000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 4096,
+                  "max_request_charge_microusd": 100000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 0,
+                  "cache_write_microusd_per_1m_tokens": 0,
+                  "display": "$1 / 1M input · $2 / 1M output · from $0.035 / web search",
+                  "input_microusd_per_1m_tokens": 1000000,
+                  "output_microusd_per_1m_tokens": 2000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 35000
+                },
+                "public_model_id": "shape-vision-file-web",
+                "reasoning_tiers": [],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "pdf",
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "application/pdf",
+                    "text/plain"
+                  ],
+                  "pdf_native_default": false,
+                  "probed_at": "2026-10-09T08:00:00Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": false,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": false,
+                  "web_search": false
+                },
+                "display_name": "shape-image-route-unobserved",
+                "free_quota_eligible": false,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 128000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 4096,
+                  "max_request_charge_microusd": 100000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 0,
+                  "cache_write_microusd_per_1m_tokens": 0,
+                  "display": "$1 / 1M input · $2 / 1M output",
+                  "input_microusd_per_1m_tokens": 1000000,
+                  "output_microusd_per_1m_tokens": 2000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 0
+                },
+                "public_model_id": "shape-image-route-unobserved",
+                "reasoning_tiers": [],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [
+                    "text"
+                  ],
+                  "attachments": true,
+                  "file": true,
+                  "image_generation": false,
+                  "native_file_mimes": [
+                    "text/plain"
+                  ],
+                  "pdf_native_default": false,
+                  "probed_at": "2026-10-09T08:00:00Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": false,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": false,
+                  "web_search": false
+                },
+                "display_name": "shape-text-only",
+                "free_quota_eligible": false,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 128000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 4096,
+                  "max_request_charge_microusd": 100000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 0,
+                  "cache_write_microusd_per_1m_tokens": 0,
+                  "display": "$1 / 1M input · $2 / 1M output",
+                  "input_microusd_per_1m_tokens": 1000000,
+                  "output_microusd_per_1m_tokens": 2000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 0
+                },
+                "public_model_id": "shape-text-only",
+                "reasoning_tiers": [],
+                "status": "available"
+              },
+              {
+                "capabilities": {
+                  "attachment_types": [],
+                  "attachments": false,
+                  "file": false,
+                  "image_generation": false,
+                  "native_file_mimes": [],
+                  "pdf_native_default": false,
+                  "probed_at": "2026-10-09T08:00:00Z",
+                  "prompt_caching": false,
+                  "reasoning_supported": false,
+                  "reasoning_tokens": false,
+                  "streaming": true,
+                  "tool_call": false,
+                  "vision": false,
+                  "web_search": false
+                },
+                "display_name": "shape-no-attachments",
+                "free_quota_eligible": false,
+                "limits": {
+                  "max_attachment_text_bytes": 204800,
+                  "max_attachments": 3,
+                  "max_file_bytes": 20971520,
+                  "max_input_tokens": 128000,
+                  "max_message_attachment_bytes": 26214400,
+                  "max_output_tokens": 4096,
+                  "max_request_charge_microusd": 100000,
+                  "max_total_attachment_bytes": 41943040
+                },
+                "price": {
+                  "cache_read_microusd_per_1m_tokens": 0,
+                  "cache_write_microusd_per_1m_tokens": 0,
+                  "display": "$1 / 1M input · $2 / 1M output",
+                  "input_microusd_per_1m_tokens": 1000000,
+                  "output_microusd_per_1m_tokens": 2000000,
+                  "reasoning_microusd_per_1m_tokens": 0,
+                  "web_search_microusd_per_call": 0
+                },
+                "public_model_id": "shape-no-attachments",
+                "reasoning_tiers": [],
+                "status": "available"
+              }
+            ],
+            "sort_order": 10
+          }
+        ]
+      }
+    },
+    "free_catalog": {
+      "edition": "commercial",
+      "produced_by": "cd <server repo> && ORIVEO_WRITE_TRUTH_SHAPES=1 go test ./internal/service/free -run TestCapabilityTruthServerShape",
+      "response": {
+        "code": 0,
+        "data": {
+          "models": [
+            {
+              "id": 1,
+              "sourceModelId": "google/gemma-3-4b-it:free",
+              "displayName": "Gemma 3 4B IT",
+              "vendorGroup": "google",
+              "description": "Fast free text model",
+              "capabilities": [
+                "text",
+                "reasoning"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": true,
+                "probed_at": "2026-10-09T08:00:00Z"
+              }
+            },
+            {
+              "id": 2,
+              "sourceModelId": "meta-llama/llama-3.3-8b-instruct:free",
+              "displayName": "Llama 3.3 8B Instruct",
+              "vendorGroup": "meta",
+              "description": "General free text model",
+              "capabilities": [
+                "text"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": false,
+                "probed_at": "2026-10-09T08:00:00Z"
+              }
+            },
+            {
+              "id": 3,
+              "sourceModelId": "shape/unprobed:free",
+              "displayName": "Shape Unprobed",
+              "vendorGroup": "shape",
+              "description": "",
+              "capabilities": [
+                "text"
+              ],
+              "capabilityFlags": {
+                "text": true,
+                "vision": false,
+                "file": false,
+                "web_search": false,
+                "tool_call": false,
+                "image_generation": false,
+                "reasoning": null,
+                "probed_at": null
+              }
+            }
+          ],
+          "loginRequired": false
+        },
+        "message": "ok"
+      }
+    }
+  },
+  "derived_cases": {
+    "$comment": "Derived by test code from the fixture / Server shapes, by deleting the key paths listed in drop; not hand-written catalog JSON (the G2 guard). append (optional) adds a value to each model's array key after deletion (no duplicate if already present), for values that are absent from production recordings but that fallback logic reads. After derivation each model's array must contain the appended value, so that an end ignoring append cannot pass vacuously. Deletion and appending both act on the catalog JSON; then production decoding and production adapters run.",
+    "managed_explicit_only": {
+      "from": "server_shapes.managed_catalog",
+      "drop": [
+        "capabilities.attachments",
+        "capabilities.attachment_types"
+      ],
+      "expect": "expected.managed_explicit: each model's vision_input / web_search / reasoning_tiers is unchanged. This proves the explicit boolean is read, not attachment_types."
+    },
+    "managed_recorded": {
+      "from": "fixtures.managed_catalog",
+      "drop": [],
+      "expect": "expected.managed: the production-recorded catalog (re-recorded 2026-10-16) carries explicit booleans for each model."
+    },
+    "managed_legacy_only": {
+      "from": "server_shapes.managed_catalog",
+      "drop": [
+        "capabilities.vision",
+        "capabilities.file"
+      ],
+      "expect": "For each model in the shape: vision_input / file_input = unknown, with the decision as in expected.managed_field_absent.resolution (legacy attachments / attachment_types still present, no fallback). web_search / reasoning_tiers match expected.managed_explicit."
+    },
+    "managed_field_absent": {
+      "from": "server_shapes.managed_catalog",
+      "drop": [
+        "capabilities.vision",
+        "capabilities.file",
+        "capabilities.attachments",
+        "capabilities.attachment_types",
+        "capabilities.web_search"
+      ],
+      "expect": "expected.managed_field_absent (for each model in the shape)."
+    },
+    "free_recorded": {
+      "from": "fixtures.free_catalog",
+      "drop": [],
+      "expect": "expected.free: the production-recorded catalog carries capabilityFlags for each model."
+    },
+    "free_legacy_only": {
+      "from": "fixtures.free_catalog",
+      "drop": [
+        "capabilityFlags"
+      ],
+      "append": {
+        "capabilities": "image"
+      },
+      "expect": "For each model in the catalog: vision_input = unknown (even if the old array capabilities contains image after append, there is no fallback). The production Free catalog publicCapabilities only yields text / reasoning and the recording has no image, so append synthesizes it. Other keys are not asserted by this case."
+    }
   }
 }

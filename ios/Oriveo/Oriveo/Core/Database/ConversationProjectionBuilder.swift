@@ -22,8 +22,8 @@ enum ConversationProjectionBuilder {
         )
         conversation.hasCustomTitle = summary.hasCustomTitle
         conversation.useMemory = summary.useMemory
-        conversation.skillId = summary.skillId
-        conversation.metadataUpdatedAt = summary.metadataUpdatedAt
+        conversation.skillIds = summary.resolvedSkillIds
+        conversation.disabledAutoSkillIds = summary.disabledAutoSkillIds
         conversation.messageCountOverride = max(summary.messageCount, summary.remoteMessageCount)
         conversation.instructions = summary.instructions
         conversation.contextCap = summary.contextCap

@@ -232,7 +232,7 @@
 .subHeaderCountBadge {
   border: none;
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-variant-numeric: tabular-nums;
 }
 
@@ -525,7 +525,7 @@
 
 .providerToggle:hover .providerChevron,
 .providerSection[data-expanded='true'] .providerChevron {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .providerMark {
@@ -809,7 +809,7 @@
   border: none;
   background: transparent;
   box-shadow: none;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   animation: selectedBadgeIn 220ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -936,7 +936,7 @@
 
 .emptyAction {
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .emptyActionList {
@@ -1242,7 +1242,7 @@
 }
 
 .catalogCompactRow:hover .modelName {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .catalogCompactBody {
@@ -1279,7 +1279,7 @@
 
 .catalogCompactRow:hover .catalogAddButton {
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 /* -- Focus visibility ---------------------------------------- */

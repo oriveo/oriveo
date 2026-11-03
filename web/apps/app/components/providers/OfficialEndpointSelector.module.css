@@ -28,7 +28,7 @@
   border-radius: 18px;
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--o-primary) 12%, transparent) 0%, transparent 42%),
-    linear-gradient(180deg, color-mix(in srgb, var(--o-surface) 98%, var(--o-bg-subtle)) 0%, color-mix(in srgb, var(--o-surface-raised) 80%, var(--o-surface)) 100%);
+    linear-gradient(180deg, color-mix(in srgb, var(--o-surface) 98%, var(--o-bg-subtle)) 0%, color-mix(in srgb, var(--o-fill-muted) 80%, var(--o-surface)) 100%);
   color: var(--o-text);
   text-align: left;
   font: inherit;
@@ -59,7 +59,7 @@
   border-color: color-mix(in srgb, var(--o-primary) 34%, var(--o-border));
   background:
     radial-gradient(circle at top right, color-mix(in srgb, var(--o-primary) 16%, transparent) 0%, transparent 44%),
-    linear-gradient(180deg, color-mix(in srgb, var(--o-primary) 8%, var(--o-surface)) 0%, color-mix(in srgb, var(--o-surface-raised) 82%, var(--o-surface)) 100%);
+    linear-gradient(180deg, color-mix(in srgb, var(--o-primary) 8%, var(--o-surface)) 0%, color-mix(in srgb, var(--o-surface-hover) 82%, var(--o-surface)) 100%);
   box-shadow:
     0 0 0 4px color-mix(in srgb, var(--o-primary) 10%, transparent),
     0 16px 28px color-mix(in srgb, var(--o-primary) 12%, transparent);
@@ -87,7 +87,7 @@
   height: 24px;
   padding: 0 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--o-surface) 68%, var(--o-surface-raised));
+  background: color-mix(in srgb, var(--o-surface) 68%, var(--o-fill-muted));
   border: 1px solid color-mix(in srgb, var(--o-border) 86%, transparent);
   color: var(--o-text-secondary);
   font-size: 11px;
@@ -108,7 +108,7 @@
   min-height: 36px;
   padding: 8px 10px;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--o-surface-raised) 90%, var(--o-surface));
+  background: color-mix(in srgb, var(--o-fill-muted) 90%, var(--o-surface));
   border: 1px solid color-mix(in srgb, var(--o-border) 82%, transparent);
   color: var(--o-text-secondary);
   font-size: 12px;
@@ -133,7 +133,7 @@
   height: 26px;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--o-border-strong) 76%, transparent);
-  background: color-mix(in srgb, var(--o-surface) 94%, var(--o-surface-raised));
+  background: color-mix(in srgb, var(--o-surface) 94%, var(--o-fill-muted));
   color: transparent;
   transition:
     border-color var(--o-transition-fast),

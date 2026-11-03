@@ -8,6 +8,8 @@
 
 .card {
   --brand-color: var(--o-primary);
+  /* Overridden inline by the TS-computed pill label (brand 65% + black 35%, then the text tint). */
+  --hero-label-color: color-mix(in srgb, var(--brand-color) 65%, black 35%);
 
   position: relative;
   display: flex;
@@ -328,8 +330,9 @@
 .primaryAction {
   border: 0.5px solid rgba(255, 255, 255, 0.42);
   background: rgba(255, 255, 255, 0.96);
-  /* Text color: a darker version of the brand color on the white background, for contrast. */
-  color: color-mix(in srgb, var(--brand-color) 65%, black 35%);
+  /* Text color: a darker version of the brand color on white (to guarantee contrast) */
+  /* Label colour is computed in TS (brand 65% + black 35%, then the shared text tint). */
+  color: var(--hero-label-color);
 }
 
 .primaryAction:hover {

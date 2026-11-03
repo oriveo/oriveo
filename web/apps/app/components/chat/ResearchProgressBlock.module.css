@@ -6,14 +6,14 @@
 .header svg[data-expanded='true'] { transform: rotate(180deg); }
 .steps { display: grid; gap: 3px; margin: 0; padding: 2px 8px 8px 10px; list-style: none; }
 .steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr) 18px; align-items: center; gap: 5px; min-height: 28px; font-size: 12px; }
-.toolIcon { display: grid; place-items: center; color: var(--o-primary); }
+.toolIcon { display: grid; place-items: center; color: var(--o-primary-text-on-surface); }
 .label { display: flex; min-width: 0; gap: 5px; }
 .label strong { flex: 0 0 auto; color: var(--o-text-secondary); }
 .label span { overflow: hidden; color: var(--o-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
 .stateIcon { display: grid; place-items: center; color: var(--o-success); }
 li[data-status='failed'] .stateIcon { color: var(--o-error); }
 li[data-status='running'] .stateIcon,
-li[data-status='pending'] .stateIcon { color: var(--o-primary); }
+li[data-status='pending'] .stateIcon { color: var(--o-primary-text-on-surface); }
 .spinner { animation: researchSpin 900ms linear infinite; }
 @keyframes researchSpin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

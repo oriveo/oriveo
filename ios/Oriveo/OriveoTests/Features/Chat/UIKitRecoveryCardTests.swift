@@ -122,6 +122,76 @@ struct UIKitRecoveryCardTests {
         #expect(!didRunPrimaryAction)
     }
 
+    private func makeEditMessageCard(tone: StatusTone = .danger) -> UIKitRecoveryCard {
+        UIKitRecoveryCard(
+            config: .init(
+                title: L10n.tr("Empty Provider Response"),
+                message: localizedMessageRecoveryBody(for: .failed, errorTitle: emptyReplyErrorTitleKey),
+                primaryTitle: L10n.tr("Retry"),
+                secondaryTitle: L10n.tr("Edit Message", table: .chat),
+                tertiaryTitle: nil,
+                tone: tone,
+                technicalDetail: "The provider chat completion finished without any text content.",
+                actionsEnabled: true,
+                primaryAction: {},
+                secondaryAction: {},
+                tertiaryAction: nil,
+                onDismiss: nil
+            )
+        )
+    }
+
+    @Test("empty reply card body is the prescribed localized sentence, not the generic fallback")
+    func emptyReplyBodyUsesPrescribedKey() {
+        let body = localizedMessageRecoveryBody(for: .failed, errorTitle: emptyReplyErrorTitleKey)
+        #expect(emptyReplyErrorTitleKey == ProviderServiceError.emptyResponse.titleKey)
+        #expect(body == L10n.tr("The provider returned no assistant content for this message."))
+        #expect(body != localizedMessageRecoveryBody(for: .failed))
+        let label = collectLabels(in: makeEditMessageCard()).first { $0.text == body }
+        #expect(label != nil, "the card renders the prescribed sentence as its body")
+    }
+
+    @Test("header icon is the Phosphor warning-circle glyph for every tone")
+    func headerIconIsPhosphorWarningCircle() throws {
+        #expect(UIKitRecoveryCard.headerIcon == .warningCircle)
+        #expect(UIImage(named: PhosphorIcon.warningCircle.assetName(.regular)) != nil)
+        for tone in [StatusTone.danger, .warning] {
+            let iconView = try #require(collectImageViews(in: makeEditMessageCard(tone: tone)).first)
+            let image = try #require(iconView.image)
+            #expect(!image.isSymbolImage, "the SF Symbol circle glyphs are replaced by Phosphor")
+            #expect(image.renderingMode == .alwaysTemplate)
+        }
+    }
+
+    @Test("Edit Message is a neutral secondary button with brand text on surface")
+    func editMessageButtonUsesNeutralFillAndBrandText() throws {
+        let title = L10n.tr("Edit Message", table: .chat)
+        let button = try #require(collectButtons(in: makeEditMessageCard()).first { $0.configuration?.title == title })
+        let configuration = try #require(button.configuration)
+        #expect(configuration.baseForegroundColor == OriveoTheme.Palette.primaryTextOnSurfaceUIColor)
+        #expect(configuration.baseBackgroundColor == OriveoTheme.Palette.neutralFillUIColor)
+    }
+
+    @Test("Technical details toggle title starts with a capital letter")
+    func technicalDetailsTitleIsSentenceCase() throws {
+        let title = L10n.tr("Technical details")
+        let button = try #require(collectButtons(in: makeEditMessageCard()).first { $0.configuration?.title == title })
+        let rendered = try #require(button.configuration?.title)
+        let first = String(rendered.prefix(1))
+        #expect(first == first.uppercased(), "got \(rendered)")
+    }
+
+    private func collectImageViews(in root: UIView) -> [UIImageView] {
+        var views: [UIImageView] = []
+        if let imageView = root as? UIImageView, !(root.superview is UIButton) {
+            views.append(imageView)
+        }
+        for subview in root.subviews where !(subview is UIButton) {
+            views.append(contentsOf: collectImageViews(in: subview))
+        }
+        return views
+    }
+
     private func collectButtons(in root: UIView) -> [UIButton] {
         var buttons: [UIButton] = []
         if let button = root as? UIButton {

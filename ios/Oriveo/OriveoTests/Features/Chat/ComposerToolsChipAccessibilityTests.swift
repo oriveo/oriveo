@@ -22,4 +22,13 @@ struct ComposerToolsChipAccessibilityTests {
         #expect(ComposerToolsChipState(enabledServerCount: 3, isAvailable: true).accessibilityValue == "3")
         #expect(ComposerToolsChipState(enabledServerCount: 0, isAvailable: true).accessibilityValue == L10n.tr("Disabled"))
     }
+
+    @Test("Selected realtime model: screen reader reads the voice_realtime_no_tools copy, not the generic MCP reason")
+    func realtimeReadsRealtimeReason() {
+        let reason = RealtimeCapabilityCopy.reason("voice_realtime_no_tools")
+        #expect(reason == L10n.tr("Realtime voice models can't use tools.", table: .voice))
+        #expect(reason != L10n.tr("This model can't use tools", table: .mcp))
+        let chip = ComposerToolsChipState(enabledServerCount: 1, isAvailable: false, unavailableReason: reason)
+        #expect(chip.accessibilityValue == reason)
+    }
 }

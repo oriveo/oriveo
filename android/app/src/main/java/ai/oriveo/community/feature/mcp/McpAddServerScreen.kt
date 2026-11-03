@@ -29,6 +29,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.semantics.Role
@@ -50,6 +51,8 @@ import ai.oriveo.community.feature.chat.mcp.McpFootnote
 import ai.oriveo.community.feature.chat.mcp.McpHairline
 import ai.oriveo.community.feature.chat.mcp.McpQuietButton
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
+import ai.oriveo.community.ui.component.lightOpaqueContainerColor
+import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import org.koin.androidx.compose.koinViewModel
 
@@ -458,7 +461,7 @@ private fun PermissionGroupRow(
                 Text(text = mcpPermissionText(permission), style = OriveoTheme.typography.body.copy(fontSize = 15.sp), color = colors.textSecondary)
                 Icon(Icons.Outlined.UnfoldMore, contentDescription = null, modifier = Modifier.size(16.dp), tint = colors.textTertiary)
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = colors.surface) {
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, containerColor = mcpPermissionMenuContainerColor(OriveoTheme.isDark, colors)) {
                 McpToolPermission.entries.forEach { option ->
                     DropdownMenuItem(
                         text = { Text(mcpPermissionText(option), style = OriveoTheme.typography.body, color = colors.textPrimary) },
@@ -573,3 +576,7 @@ private fun ColumnScope.FailureActions(state: McpAddUiState, screen: McpAddScree
             McpQuietButton(stringResource(R.string.close), actions.onLeave)
     }
 }
+
+/** Light `surface` is 94% alpha; flatten it so the permission menu stays opaque over the form. */
+internal fun mcpPermissionMenuContainerColor(isDark: Boolean, colors: OriveoColors): Color =
+    lightOpaqueContainerColor(colors.surface, isDark, colors)

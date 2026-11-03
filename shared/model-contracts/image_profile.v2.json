@@ -1,0 +1,475 @@
+{
+  "$comment": "ImageProfile v2: the single description of whether a model can output images, which operations it supports, its parameter ranges, and which wire route it uses. The server is the only authority (/api/metadata profiles.image plus per-model imageProfile / imageProfileOverride; the hosted image catalog is served by the server). Clients only read the resolved profile and never infer capability from model id or providerKind. Enums below are closed: an unknown route / editTransport / sizeParam value makes the profile unusable (fail closed, never fall back to chat). Every enum value must have cases in the shared fixtures (reverse check in scripts/studio-contracts-check.mjs). Legacy capabilities[imageGeneration] and profiles.imageGen keep shipping for old app versions; new clients do not read them.",
+  "contractId": "image_profile.v2",
+  "version": 2,
+  "wire": {
+    "profilesKey": "profiles.image",
+    "modelProfileRefKey": "imageProfile",
+    "modelOverrideKey": "imageProfileOverride",
+    "providerImageOnlyModelsKey": "imageModels",
+    "providerImageOnlyModelsComment": "providers.<kind>.imageModels: { <wire model id>: { displayName, imageProfile, imageProfileOverride? } }. Image-only models (edit-only, or image endpoints with no chat form) never enter providers.<kind>.models, so old app versions never list them; new clients merge them into the studio model list. In the split form they live in the catalog, never the index.",
+    "views": [
+      "full",
+      "lean",
+      "index",
+      "catalog",
+      "lite"
+    ],
+    "viewsComment": "profiles.image ships in full / lean / index / lite. Per-model imageProfile and providers.<kind>.imageModels ship in full / lean / catalog; lite stays model-id only (Admin image routes come from the managed image catalog).",
+    "legacyFieldsStillShipped": [
+      "capabilities[imageGeneration]",
+      "profiles.imageGen",
+      "imageGenProfile"
+    ],
+    "legacyRouteMap": {
+      "$comment": "Old profiles.imageGen route → v2 route. images_api splits by provider: xAI → xai_images, others → openai_images. chat_api: gemini provider → gemini_generate_content, otherwise chat_modalities. predict_api (Imagen) is retired and has no v2 value. Keys are the route strings the legacy profiles.imageGen table actually ships.",
+      "images_api": [
+        "openai_images",
+        "xai_images"
+      ],
+      "chat_api": [
+        "gemini_generate_content",
+        "chat_modalities"
+      ],
+      "dashscope_multimodal": [
+        "dashscope_multimodal"
+      ],
+      "minimax_image_generation": [
+        "minimax_image_generation"
+      ]
+    }
+  },
+  "enums": {
+    "operations": [
+      "generate",
+      "edit"
+    ],
+    "routes": [
+      "openai_images",
+      "xai_images",
+      "gemini_generate_content",
+      "chat_modalities",
+      "openrouter_images",
+      "dashscope_multimodal",
+      "minimax_image_generation"
+    ],
+    "editTransports": [
+      "multipart",
+      "json_image",
+      "json_image_url",
+      "json_image_object",
+      "input_references",
+      "inline"
+    ],
+    "sizeParams": [
+      "wxh",
+      "aspect_resolution",
+      "gemini_image_config",
+      "dashscope_wxh",
+      "chat_image_config",
+      "aspect_only"
+    ],
+    "qualityTiers": [
+      "draft",
+      "standard",
+      "fine"
+    ],
+    "resolutionTiers": [
+      "1K",
+      "2K",
+      "4K"
+    ],
+    "sources": [
+      "official_api",
+      "verified_allowlist",
+      "models_dev",
+      "openrouter",
+      "relay_probe",
+      "user_declared",
+      "managed_catalog"
+    ],
+    "pricingUnits": [
+      "per_image"
+    ]
+  },
+  "fields": {
+    "required": [
+      "imageOutput",
+      "operations",
+      "route",
+      "aspectRatios",
+      "sizeParam",
+      "resolutions",
+      "maxNPerCall",
+      "timeoutSeconds",
+      "source"
+    ],
+    "optional": [
+      "editTransport",
+      "maxReferenceImages",
+      "sizeConstraints",
+      "qualityMap",
+      "params",
+      "nParam",
+      "nativeMultiTurn",
+      "typicalSeconds",
+      "pricing",
+      "maxPromptChars",
+      "verifiedAt",
+      "resolutionValues"
+    ],
+    "rules": [
+      "operations is a non-empty subset of enums.operations; an edit-only model has [\"edit\"] and is listed only when a base or reference image exists (E-04).",
+      "editTransport is required when operations contains edit, and must be absent otherwise.",
+      "editTransport must be one of routes[route].allowedEditTransports.",
+      "sizeParam must be one of routes[route].allowedSizeParams.",
+      "sizeConstraints is required when sizeParam is wxh or dashscope_wxh.",
+      "resolutionValues maps resolution tier → wire string and is required when sizeParam is aspect_resolution or gemini_image_config.",
+      "aspectRatios lists ratios the model accepts natively; the client never sends a ratio outside it.",
+      "qualityMap maps draft|standard|fine → wire value; a missing tier is never sent.",
+      "nParam false means the route cannot take n: the pipeline sends n single-image requests.",
+      "nativeMultiTurn is informational only; multi-turn is always stateless (E-05).",
+      "Unknown fields are ignored; unknown enum values make the whole profile unusable."
+    ]
+  },
+  "routes": {
+    "$comment": "Wire shape per route. Paths are relative to the connection base URL. Generate shapes follow request_shape_contract.v1 (live). Edit shapes are the ones that passed the P0 golden samples (research note F, 2026-10-28) or the official API reference where noted in evidence.",
+    "openai_images": {
+      "generate": {
+        "method": "POST",
+        "path": "/images/generations",
+        "contentType": "application/json"
+      },
+      "edit": {
+        "multipart": {
+          "method": "POST",
+          "path": "/images/edits",
+          "contentType": "multipart/form-data",
+          "imagePart": "image[]"
+        },
+        "json_image": {
+          "method": "POST",
+          "path": "/images/generations",
+          "contentType": "application/json",
+          "imageField": "image",
+          "imageEncoding": "data_uri"
+        },
+        "json_image_url": {
+          "method": "POST",
+          "path": "/images/generations",
+          "contentType": "application/json",
+          "imageField": "image_url",
+          "imageEncoding": "data_uri"
+        }
+      },
+      "allowedEditTransports": [
+        "multipart",
+        "json_image",
+        "json_image_url"
+      ],
+      "allowedSizeParams": [
+        "wxh"
+      ],
+      "bodyKeys": {
+        "n": "n",
+        "quality": "quality"
+      },
+      "evidence": [
+        "golden sample openai_images.openai.gpt-image-2.edit (multipart image[])",
+        "golden sample openai_images.siliconFlow.Qwen-Image-Edit.edit (JSON image data URI)",
+        "golden sample openai_images.togetherAI.FLUX.1-kontext-pro.edit (JSON image_url data URI)"
+      ]
+    },
+    "xai_images": {
+      "generate": {
+        "method": "POST",
+        "path": "/images/generations",
+        "contentType": "application/json"
+      },
+      "edit": {
+        "json_image_object": {
+          "method": "POST",
+          "path": "/images/edits",
+          "contentType": "application/json",
+          "imageField": "image",
+          "multiImageField": "images",
+          "imageObject": {
+            "url": "<data_uri>"
+          },
+          "maxImages": 5
+        }
+      },
+      "allowedEditTransports": [
+        "json_image_object"
+      ],
+      "allowedSizeParams": [
+        "aspect_resolution"
+      ],
+      "bodyKeys": {
+        "n": "n",
+        "quality": null
+      },
+      "evidence": [
+        "golden sample xai_images.grok.grok-imagine-image.edit",
+        "https://docs.x.ai/developers/rest-api-reference/inference/images (aspect_ratio, resolution 1k|1.5k|2k, image vs images mutually exclusive)"
+      ]
+    },
+    "gemini_generate_content": {
+      "generate": {
+        "method": "POST",
+        "path": "/models/{model}:generateContent",
+        "contentType": "application/json"
+      },
+      "edit": {
+        "inline": {
+          "method": "POST",
+          "path": "/models/{model}:generateContent",
+          "contentType": "application/json",
+          "imagePart": "contents[0].parts[].inline_data"
+        }
+      },
+      "allowedEditTransports": [
+        "inline"
+      ],
+      "allowedSizeParams": [
+        "gemini_image_config"
+      ],
+      "bodyKeys": {
+        "n": null,
+        "quality": null
+      },
+      "evidence": [
+        "golden sample gemini_generate_content.gemini.gemini-3.1-flash-lite-image.edit",
+        "scripts/managed-image-upstream-probe.mjs CASES.gemini_generate_content (imageSize 1K/2K/4K)"
+      ]
+    },
+    "chat_modalities": {
+      "generate": {
+        "method": "POST",
+        "path": "/chat/completions",
+        "contentType": "application/json"
+      },
+      "edit": {
+        "inline": {
+          "method": "POST",
+          "path": "/chat/completions",
+          "contentType": "application/json",
+          "imagePart": "messages[-1].content[].image_url"
+        }
+      },
+      "allowedEditTransports": [
+        "inline"
+      ],
+      "allowedSizeParams": [
+        "chat_image_config"
+      ],
+      "bodyKeys": {
+        "n": null,
+        "quality": null
+      },
+      "evidence": [
+        "golden sample chat_modalities.openRouter.gemini-3.1-flash-lite-image.edit",
+        "OpenRouter chat completion reference: modalities [text,image], image_config.aspect_ratio"
+      ]
+    },
+    "openrouter_images": {
+      "generate": {
+        "method": "POST",
+        "path": "/images",
+        "contentType": "application/json"
+      },
+      "edit": {
+        "input_references": {
+          "method": "POST",
+          "path": "/images",
+          "contentType": "application/json",
+          "imageField": "input_references",
+          "imageObject": {
+            "type": "image_url",
+            "image_url": {
+              "url": "<data_uri>"
+            }
+          }
+        }
+      },
+      "allowedEditTransports": [
+        "input_references"
+      ],
+      "allowedSizeParams": [
+        "wxh"
+      ],
+      "bodyKeys": {
+        "n": "n",
+        "quality": "quality"
+      },
+      "evidence": [
+        "golden sample openrouter_images.openRouter.gpt-image-2.edit",
+        "OpenRouter Image API guide: size \"2048x2048\", quality, n 1-10, input_references"
+      ]
+    },
+    "dashscope_multimodal": {
+      "generate": {
+        "method": "POST",
+        "path": "/services/aigc/multimodal-generation/generation",
+        "contentType": "application/json"
+      },
+      "edit": {
+        "inline": {
+          "method": "POST",
+          "path": "/services/aigc/multimodal-generation/generation",
+          "contentType": "application/json",
+          "imagePart": "input.messages[0].content[].image"
+        }
+      },
+      "allowedEditTransports": [
+        "inline"
+      ],
+      "allowedSizeParams": [
+        "dashscope_wxh"
+      ],
+      "bodyKeys": {
+        "n": "parameters.n",
+        "quality": null
+      },
+      "evidence": [
+        "golden sample dashscope_multimodal.qwen.qwen-image-2.0.edit",
+        "request_shape_contract.v1 qwen.images.route"
+      ]
+    },
+    "minimax_image_generation": {
+      "generate": {
+        "method": "POST",
+        "path": "/image_generation",
+        "contentType": "application/json"
+      },
+      "edit": {},
+      "allowedEditTransports": [],
+      "allowedSizeParams": [
+        "aspect_only"
+      ],
+      "bodyKeys": {
+        "n": "n",
+        "quality": null
+      },
+      "evidence": [
+        "golden sample minimax_image_generation.miniMax.image-01.generate",
+        "https://platform.minimax.io/docs/api-reference/image-generation-t2i (aspect_ratio 1:1 16:9 4:3 3:2 2:3 3:4 9:16 21:9; n 1-9; response_format url|base64)"
+      ]
+    }
+  },
+  "sizeParamWire": {
+    "$comment": "How the normalized size reaches the wire. image_param_normalization.v1.json carries the cases.",
+    "wxh": {
+      "bodyKeys": [
+        "size"
+      ],
+      "format": "{w}x{h}"
+    },
+    "dashscope_wxh": {
+      "bodyKeys": [
+        "parameters.size"
+      ],
+      "format": "{w}*{h}"
+    },
+    "aspect_resolution": {
+      "bodyKeys": [
+        "aspect_ratio",
+        "resolution"
+      ],
+      "resolutionFrom": "resolutionValues"
+    },
+    "gemini_image_config": {
+      "bodyKeys": [
+        "generationConfig.imageConfig.aspectRatio",
+        "generationConfig.imageConfig.imageSize"
+      ],
+      "resolutionFrom": "resolutionValues"
+    },
+    "chat_image_config": {
+      "bodyKeys": [
+        "image_config.aspect_ratio"
+      ],
+      "resolutionSent": false
+    },
+    "aspect_only": {
+      "bodyKeys": [
+        "aspect_ratio"
+      ],
+      "resolutionSent": false
+    }
+  },
+  "explicitAspect": {
+    "$comment": "The client always sends an aspect ratio and never relies on the provider default: xAI defaults to 3:2 (1248x832) and OpenRouter chat to about 16:9 (1408x768) when none is sent (research note F, golden samples). A request without a user choice sends 1:1.",
+    "defaultAspect": "1:1"
+  },
+  "example": {
+    "imageOutput": true,
+    "operations": [
+      "generate",
+      "edit"
+    ],
+    "route": "openai_images",
+    "editTransport": "multipart",
+    "maxReferenceImages": 16,
+    "aspectRatios": [
+      "1:1",
+      "3:2",
+      "2:3",
+      "4:3",
+      "3:4",
+      "16:9",
+      "9:16"
+    ],
+    "sizeParam": "wxh",
+    "resolutions": {
+      "1K": 1024,
+      "2K": 2048,
+      "4K": 3840
+    },
+    "sizeConstraints": {
+      "multipleOf": 16,
+      "minPixels": 655360,
+      "maxPixels": 8294400,
+      "maxLongEdge": 3840,
+      "ratioRange": [
+        0.333,
+        3
+      ]
+    },
+    "qualityMap": {
+      "draft": "low",
+      "standard": "medium",
+      "fine": "high"
+    },
+    "maxNPerCall": 10,
+    "nParam": true,
+    "params": {
+      "negativePrompt": false,
+      "seed": false,
+      "transparentBackground": true,
+      "outputFormat": true,
+      "promptExtend": null
+    },
+    "nativeMultiTurn": true,
+    "timeoutSeconds": 180,
+    "typicalSeconds": [
+      15,
+      60
+    ],
+    "maxPromptChars": 32000,
+    "pricing": {
+      "unit": "per_image",
+      "currency": "USD",
+      "byResolution": {
+        "1K": {
+          "draft": 0.006,
+          "standard": 0.053,
+          "fine": 0.211
+        }
+      },
+      "source": "official"
+    },
+    "source": "verified_allowlist",
+    "verifiedAt": "2026-10-28"
+  }
+}

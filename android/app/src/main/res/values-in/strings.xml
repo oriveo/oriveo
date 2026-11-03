@@ -1,7 +1,6 @@
 <resources>
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">Semua Model Anda, Satu Aplikasi</string>
-    <string name="provider_disclosure_ack_failed">Pemberitahuan penyedia tidak dapat dikonfirmasi. Periksa koneksi Anda dan coba lagi.</string>
     <string name="tab_home">Beranda</string>
     <string name="tab_providers">Penyedia</string>
     <string name="tab_settings">Pengaturan</string>
@@ -21,7 +20,6 @@
     <string name="copy">Salin</string>
     <string name="copied">Disalin</string>
     <string name="share">Bagikan</string>
-    <string name="legal_consent_notice">Dengan melanjutkan, Anda menyetujui persyaratan hukum di bawah ini.</string>
     <string name="get_started">Memulai</string>
     <string name="api_key">API key</string>
     <string name="validating">Memvalidasi…</string>
@@ -60,6 +58,7 @@
     <string name="new_chat">Percakapan Baru</string>
     <string name="send">Kirim</string>
     <string name="stop">Berhenti</string>
+    <string name="generation_parameter_name_stop">Teks penghenti</string>
     <string name="type_a_message">Ketik pesan…</string>
     <string name="ai_is_answering">AI menjawab…</string>
     <string name="regenerate">Buat ulang</string>
@@ -101,6 +100,7 @@
     <string name="chat_model_removed_choose">Pilih model</string>
     <string name="chat_model_retired_banner">%1$s sudah dihentikan.</string>
     <string name="chat_model_retired_switch_to">Beralih ke %1$s</string>
+    <string name="chat_last_used_model_retired_hint">Model yang terakhir Anda pakai sudah dihentikan. Sekarang memakai %1$s.</string>
     <string name="conversations">Percakapan</string>
     <string name="no_conversations">Belum ada percakapan</string>
     <string name="search_conversation_titles_or_content">Cari judul atau konten percakapan</string>
@@ -150,6 +150,7 @@
     <string name="provider_detail_add_model_finish_setup">Tambahkan ID model untuk menyelesaikan penyiapan</string>
     <string name="provider_detail_add_model_manually">+ Tambahkan ID model secara manual</string>
     <string name="provider_detail_available_models">%d model yang tersedia</string>
+    <string name="default_model_short">Bawaan</string>
     <string name="provider_detail_relay_empty_description">Belum ada model yang ditambahkan. Gunakan tombol di bawah untuk menambahkan ID model.</string>
     <string name="provider_detail_badge_recent">Terkini</string>
     <string name="provider_detail_removed_model">%s dihapus</string>
@@ -164,7 +165,6 @@
     <string name="theme_light">Terang</string>
     <string name="theme_dark">Gelap</string>
     <string name="theme_section_palettes">Palet</string>
-    <string name="default_model_short">Bawaan</string>
     <string name="theme_palette_purple">Ungu</string>
     <string name="theme_palette_graphite">Grafit</string>
     <string name="theme_palette_black">Hitam</string>
@@ -201,8 +201,6 @@
     <string name="backup_and_export">Cadangkan &amp; Ekspor</string>
     <string name="privacy_policy">Kebijakan Privasi</string>
     <string name="terms_of_service">Ketentuan Layanan</string>
-    <string name="settings_source_code">Kode Sumber</string>
-    <string name="settings_report_issue">Laporkan Masalah</string>
     <string name="snackbar_provider_ready">Penyedia sudah siap. Anda dapat mulai mengobrol sekarang.</string>
     <string name="snackbar_model_added">%1$s ditambahkan</string>
     <string name="snackbar_model_enable_failed">Gagal mengaktifkan model. Silakan coba lagi.</string>
@@ -390,7 +388,7 @@
     <string name="share_failed">Gagal membagikan gambar</string>
     <string name="file">Mengajukan</string>
     <string name="file_unavailable">Hanya tersedia di perangkat asli</string>
-        <string name="error_generic_title">Ada yang Salah</string>
+    <string name="error_generic_title">Ada yang Salah</string>
     <string name="error_generic_message">Terjadi kesalahan yang tidak terduga.</string>
     <string name="hide_details">Sembunyikan Detail</string>
     <string name="manual_model_save_failed_title">Simpan Gagal</string>
@@ -459,20 +457,18 @@
     <string name="skills_newSkill">Keterampilan Baru</string>
     <string name="skills_editSkill">Sunting Keterampilan</string>
     <string name="skills_useSkill">Gunakan Keterampilan ini</string>
-    <string name="skills_pinToHome">Sematkan ke Beranda</string>
     <string name="pin_conversation">Pin</string>
     <string name="unpin_conversation">Membuka peniti</string>
     <string name="pinned_section">Disematkan</string>
-    <string name="skills_unpin">Lepas sematan dari Rumah</string>
     <string name="skills_instructions">Mengingatkan</string>
     <string name="skills_knowledgeFiles">Bahan Referensi</string>
     <string name="skills_advancedSettings">Pengaturan Lanjutan</string>
     <string name="skills_useMemory">Ingat Preferensi</string>
     <string name="skills_noCustomSkills">Belum ada Keterampilan khusus</string>
     <string name="skills_deleteConfirmTitle">Hapus %s?</string>
-    <string name="skills_discardChanges">Hapus perubahan?</string>
+    <string name="skills_discardChanges">Buang Perubahan?</string>
     <string name="skills_needProviderMessage">Anda memerlukan setidaknya satu penyedia AI untuk memulai percakapan.</string>
-    <string name="skills_addProvider">Tambahkan Penyedia</string>
+    <string name="skills_addProvider">Tambahkan penyedia</string>
     <string name="skills_providerRequiredMessage">Skill ini memerlukan penyedia AI yang tersedia sebelum memulai percakapan.</string>
     <string name="skills_providerRequiredTitle">Tambahkan penyedia untuk memakai Skill ini</string>
     <string name="skills_systemPromptPlaceholder">misalnya Anda adalah peninjau kode senior. Tinjau kode untuk keamanan, kinerja, dan keterbacaan. Balasan dalam bahasa pengguna.</string>
@@ -483,16 +479,16 @@
     <string name="skills_capabilityVision">Penglihatan</string>
     <string name="skills_capabilityFast">Cepat</string>
     <string name="skills_capabilityLargeContext">Konteks Besar</string>
-    <string name="skills_addFile">Tambahkan Berkas</string>
+    <string name="skills_addFile">Tambahkan berkas</string>
     <string name="skills_noKnowledgeFiles">Belum ada bahan referensi</string>
     <string name="skills_useMemoryDescription">Sertakan preferensi pribadi Anda dalam percakapan</string>
     <string name="skills_tipInstructions">Tulis instruksi yang menjelaskan bagaimana AI berperilaku — kepribadian, keahlian, dan gaya responsnya. Hanya AI yang melihat ini, pengguna tidak.</string>
-    <string name="skills_tipKnowledgeFiles">AI membaca file-file ini secara lengkap setiap kali membalas — seperti catatan yang selalu terbuka di mejanya. Cocok untuk dokumen pendek dan penting (panduan gaya, glosarium, aturan utama). File yang lebih besar akan meningkatkan biaya respons.</string>
+    <string name="skills_tipKnowledgeFiles">AI membaca file-file ini secara lengkap setiap kali membalas — seperti catatan yang selalu terbuka di mejanya. Paling cocok untuk dokumen singkat dan penting (panduan gaya, glosarium, aturan utama). File yang lebih besar akan meningkatkan biaya respons.</string>
     <string name="skills_tipAdvanced">Konfigurasikan preferensi model dan injeksi memori.</string>
     <string name="skills_filesQuota">%1$d / %2$d</string>
     <string name="skills_fileTooLarge">Konten file melebihi batas 8.000 karakter</string>
     <string name="skills_emojiIcon">Ikon Emoji</string>
-    <string name="skills_nChars">karakter %d</string>
+    <string name="skills_nChars">%1$d karakter</string>
     <string name="skills_skillName">Nama Keterampilan</string>
     <string name="skills_briefDescription">Deskripsi singkat</string>
     <string name="skills_discardMessage">Anda memiliki perubahan yang belum disimpan. Apakah Anda yakin ingin membuangnya?</string>
@@ -705,18 +701,24 @@
     <string name="relay_auth_x_api_key">x-api-key</string>
     <string name="relay_auth_x_goog_api_key">x-goog-api-key</string>
     <string name="relay_auth_query_key">Query kunci parameter</string>
+
+    <!-- Provider 数据披露同意 (Apple 5.1.2(i) / Google Play GenAI 合规) -->
     <string name="provider_disclosure_title">Anda akan menggunakan %1$s</string>
     <string name="provider_disclosure_body_default">Pesan Anda akan dikirim ke %1$s untuk menghasilkan tanggapan. Oriveo tidak menyimpan pesan atau API key Anda di server kami.</string>
     <string name="provider_disclosure_body_relay">Pesan Anda akan dikirim ke layanan model yang telah dikonfigurasi. Oriveo tidak dapat memverifikasi praktik privasi layanan tersebut.</string>
     <string name="provider_disclosure_view_policy">Lihat %1$s kebijakan privasi</string>
     <string name="provider_disclosure_continue">Melanjutkan</string>
     <string name="provider_disclosure_cancel">Membatalkan</string>
+    <string name="provider_disclosure_ack_failed">Pemberitahuan penyedia tidak dapat dikonfirmasi. Periksa koneksi Anda dan coba lagi.</string>
+    <!-- Provider 能力规范 v2 §5.2.6 — Relay 能力声明扩展 -->
     <string name="relay_advanced_has_web_search">Mendukung pencarian web</string>
     <string name="relay_advanced_web_search_profile">Profil pencarian web</string>
     <string name="relay_profile_auto">Otomatis</string>
     <string name="relay_test_connection">Uji koneksi</string>
     <string name="relay_test_connection_missing_fields">Gunakan URL permintaan dan API key Anda sendiri</string>
     <string name="relay_value_label">Nilai</string>
+
+    <!-- Relay setup v4.4: 步骤标头 + 模型能力 + 图片生成提示 -->
     <string name="relay_setup_invalid_endpoint_message">Masukkan URL permintaan HTTPS yang valid.</string>
     <string name="greeting_morning">Selamat pagi</string>
     <string name="greeting_afternoon">Apa kabar?</string>
@@ -726,22 +728,22 @@
     <string name="greeting_afternoon_with_name">Apa kabar, %1$s?</string>
     <string name="greeting_evening_with_name">Selamat malam, %1$s</string>
     <string name="greeting_still_up_with_name">%1$s, belum tidur?</string>
-<string name="greeting_morning_2">Pagi</string>
-<string name="greeting_morning_3">Halo</string>
-<string name="greeting_morning_4">Hai</string>
-<string name="greeting_morning_5">Senang kamu mampir</string>
-<string name="greeting_afternoon_2">Gimana harimu?</string>
-<string name="greeting_afternoon_3">Hai</string>
-<string name="greeting_afternoon_4">Senang kamu mampir</string>
-<string name="greeting_afternoon_5">Halo</string>
-<string name="greeting_evening_2">Malam</string>
-<string name="greeting_evening_3">Senang kamu mampir</string>
-<string name="greeting_evening_4">Halo</string>
-<string name="greeting_evening_5">Hai</string>
-<string name="greeting_night_2">Lagi begadang?</string>
-<string name="greeting_night_3">Hai</string>
-<string name="greeting_night_4">Senang kamu mampir</string>
-<string name="greeting_night_5">Halo</string>
+    <string name="greeting_morning_2">Pagi</string>
+    <string name="greeting_morning_3">Halo</string>
+    <string name="greeting_morning_4">Hai</string>
+    <string name="greeting_morning_5">Senang kamu mampir</string>
+    <string name="greeting_afternoon_2">Gimana harimu?</string>
+    <string name="greeting_afternoon_3">Hai</string>
+    <string name="greeting_afternoon_4">Senang kamu mampir</string>
+    <string name="greeting_afternoon_5">Halo</string>
+    <string name="greeting_evening_2">Malam</string>
+    <string name="greeting_evening_3">Senang kamu mampir</string>
+    <string name="greeting_evening_4">Halo</string>
+    <string name="greeting_evening_5">Hai</string>
+    <string name="greeting_night_2">Lagi begadang?</string>
+    <string name="greeting_night_3">Hai</string>
+    <string name="greeting_night_4">Senang kamu mampir</string>
+    <string name="greeting_night_5">Halo</string>
     <string name="tagline_morning_1">Pelan-pelan saja.</string>
     <string name="tagline_morning_2">Jalani hari dengan ritmemu.</string>
     <string name="tagline_morning_3">Pertanyaan kecil pun boleh.</string>
@@ -758,23 +760,25 @@
     <string name="tagline_night_2">Kalau belum bisa tidur, yuk ngobrol.</string>
     <string name="tagline_night_3">Dunia sudah lebih tenang.</string>
     <string name="tagline_night_4">Santai, pikir sepuasnya.</string>
-<string name="tagline_morning_5">Hari yang pas untuk coba hal baru.</string>
-<string name="tagline_morning_6">Ngobrol sambil berpikir juga boleh.</string>
-<string name="tagline_morning_7">Satu per satu saja.</string>
-<string name="tagline_morning_8">Yuk, rapikan isi pikiranmu.</string>
-<string name="tagline_afternoon_5">Lanjutkan dari yang terakhir.</string>
-<string name="tagline_afternoon_6">Tanya kapan pun kamu siap.</string>
-<string name="tagline_afternoon_7">Coba lihat dari sudut lain.</string>
-<string name="tagline_afternoon_8">Tidak harus sempurna.</string>
-<string name="tagline_evening_5">Sisanya bisa besok.</string>
-<string name="tagline_evening_6">Sekadar ngobrol juga boleh.</string>
-<string name="tagline_evening_7">Malam yang tenang untuk berpikir.</string>
-<string name="tagline_evening_8">Tutup hari dengan tenang.</string>
-<string name="tagline_night_5">Tuliskan apa yang ada di benakmu.</string>
-<string name="tagline_night_6">Jangan lupa istirahat, ya.</string>
-<string name="tagline_night_7">Malam sunyi, pikiran jernih.</string>
-<string name="tagline_night_8">Malam ini tak perlu terburu-buru.</string>
+    <string name="tagline_morning_5">Hari yang pas untuk coba hal baru.</string>
+    <string name="tagline_morning_6">Ngobrol sambil berpikir juga boleh.</string>
+    <string name="tagline_morning_7">Satu per satu saja.</string>
+    <string name="tagline_morning_8">Yuk, rapikan isi pikiranmu.</string>
+    <string name="tagline_afternoon_5">Lanjutkan dari yang terakhir.</string>
+    <string name="tagline_afternoon_6">Tanya kapan pun kamu siap.</string>
+    <string name="tagline_afternoon_7">Coba lihat dari sudut lain.</string>
+    <string name="tagline_afternoon_8">Tidak harus sempurna.</string>
+    <string name="tagline_evening_5">Sisanya bisa besok.</string>
+    <string name="tagline_evening_6">Sekadar ngobrol juga boleh.</string>
+    <string name="tagline_evening_7">Malam yang tenang untuk berpikir.</string>
+    <string name="tagline_evening_8">Tutup hari dengan tenang.</string>
+    <string name="tagline_night_5">Tuliskan apa yang ada di benakmu.</string>
+    <string name="tagline_night_6">Jangan lupa istirahat, ya.</string>
+    <string name="tagline_night_7">Malam sunyi, pikiran jernih.</string>
+    <string name="tagline_night_8">Malam ini tak perlu terburu-buru.</string>
     <string name="aurora_placeholder_what_can_i_help">Ada yang bisa aku bantu?</string>
+    <!-- Subscription Editorial Page (mirrors iOS SubscriptionView) -->
+    <!-- Subscription Entry Card (Pro / Lifetime states) -->
     <string name="relay_advanced_user_agent_placeholder">auto / kosongkan</string>
     <string name="relay_disable_response_storage_footnote">Hanya OpenAI Responses · setel store: false</string>
     <string name="relay_disable_response_storage_short">Jangan simpan respons di cloud</string>
@@ -830,10 +834,16 @@
     <string name="relay_security_mode_option_unknown_disabled">Masukkan alamat lokal, LAN, atau VPN pribadi sebelum memilih jenis koneksi ini.</string>
     <string name="relay_connection_no_key_required_cleartext">Koneksi ini tidak memerlukan kunci · Koneksi yang tidak terenkripsi tidak pernah mengirim kredensial.</string>
     <string name="relay_remove_api_key">Hapus kunci</string>
-<string name="streaming_pulse_a11y">Menghasilkan</string>
+
+    <!-- Paywall (付费墙) -->
+
+    <!-- 流式脉冲圆点的无障碍标签 — 会话列表项正在生成时朗读 -->
+    <string name="streaming_pulse_a11y">Menghasilkan</string>
 
     <!-- Usage Insights demo card -->
-<string name="providers_active_this_month">Aktif bulan ini</string>
+
+    <!-- Providers list redesign (aligned with iOS) -->
+    <string name="providers_active_this_month">Aktif bulan ini</string>
     <string name="providers_all_providers">Semua penyedia</string>
     <string name="providers_today">Hari ini</string>
     <string name="providers_all_synced">Semua tersinkron</string>
@@ -842,6 +852,8 @@
     <string name="providers_delete_this_question">Hapus penyedia ini?</string>
     <string name="providers_delete_this_message">Menghapus penyedia ini juga menghapus percakapan terkait dan konfigurasi model defaultnya.</string>
     <string name="manual_model_clear">Hapus</string>
+
+    <!-- Provider detail rebuild - effective status & key prompts -->
     <string name="needs_api_key">Perlu API key</string>
     <string name="tap_to_view">Ketuk untuk lihat</string>
     <string name="tap_to_set">Ketuk untuk atur</string>
@@ -857,6 +869,8 @@
     <string name="code_block_expand">Perluas</string>
     <string name="chat_show_full_message">Lihat pesan lengkap</string>
     <string name="code_block_lines">%d baris</string>
+
+    <!-- Service Reachability Banner — 对齐 iOS ServiceReachabilityBannerView -->
     <string name="no_internet_connection">Tidak ada koneksi internet</string>
 
     <!-- Reasoning / Thinking display (v5) -->
@@ -866,6 +880,7 @@
     <string name="reasoning_hide">Sembunyikan pemikiran</string>
 
     <!-- Usage Insights v4 Quartz -->
+    <!-- Smart Insight 4 类模板（与 iOS UsageInsightPresentation 对齐） -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">Tidak dapat mengekstrak teks dari %1$s (sepertinya PDF hasil pindaian).</string>
@@ -877,7 +892,6 @@
     <string name="file_extraction_error_generic">Tidak dapat memproses %1$s. Coba lagi atau pilih file lain.</string>
     <string name="file_extraction_truncated_notice">%1$s panjang, sehingga hanya %2$d baris pertama dari %3$d baris yang ditambahkan.</string>
     <string name="file_extraction_send_blocked_text_budget">Tidak terkirim: dengan %1$s, teks lampiran melebihi batas model ini. Hapus salah satu file atau ganti model.</string>
-    <string name="error_attachment_not_accepted_title">Lampiran tidak diterima</string>
     <string name="file_extraction_text_budget_exceeded">%1$s tidak ditambahkan: dengan file ini, teks yang dilampirkan pada pesan akan melebihi batas.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d baris diekstrak</string>
     <string name="file_attachment_count_limit_reached">Anda dapat melampirkan hingga %1$d berkas untuk model ini.</string>
@@ -887,6 +901,8 @@
     <string name="empty_greeting_mind">Lagi mikirin apa?</string>
     <string name="empty_greeting_together">Mau pecahkan apa bareng?</string>
     <string name="empty_chat_ask_anything">Tanya apa saja, atau langsung ketik.</string>
+
+    <!-- Provider 添加页橱窗卡标语（对齐 iOS ProviderShowcaseCard tagline） -->
     <string name="provider_tagline_openai">Model GPT unggulan</string>
     <string name="provider_tagline_anthropic">Model Claude</string>
     <string name="provider_tagline_gemini">Teks, gambar &amp; video</string>
@@ -902,6 +918,8 @@
     <string name="provider_tagline_groq">Inferensi sangat cepat</string>
     <string name="provider_tagline_together">Model sumber terbuka</string>
     <string name="provider_tagline_fireworks">Cepat &amp; terjangkau</string>
+
+    <!-- Provider 添加页：Hero / 分类 chips / inline key（对齐 iOS ProviderSetupView） -->
     <string name="provider_setup_hero_title">Hubungkan Penyedia</string>
     <string name="provider_setup_hero_subtitle">Pilih penyedia AI Anda, lalu masukkan API key Anda</string>
     <string name="provider_category_all">Semua</string>
@@ -914,12 +932,13 @@
     <string name="provider_already_connected_subtitle">Kelola koneksi yang ada, atau tambahkan akun lain dengan API key berbeda.</string>
     <string name="provider_manage_existing">Kelola yang ada</string>
     <string name="provider_add_another_account">Tambah akun lain</string>
+    <!-- PAYWALL_FOCUS_BEGIN -->
+    <!-- PAYWALL_FOCUS_END -->
     <string name="capability_video">Video</string>
     <string name="citations_section_title">Sumber</string>
     <string name="citations_view_all">Lihat semua %1$d sumber</string>
     <string name="citations_collapse">Tampilkan lebih sedikit</string>
     <string name="api_endpoint">Titik Akhir API</string>
-    <string name="api_endpoint_not_configured">Belum dikonfigurasi</string>
     <string name="relay_guidance_codex_identity_switch_type">Koneksi ini memerlukan identitas klien Codex. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, ubah protokol ke OpenAI Responses, lalu coba lagi.</string>
     <string name="relay_guidance_codex_identity_still_rejected">Koneksi ini masih menolak identitas klien Codex milik Oriveo. Buka Penyedia → koneksi ini → Edit koneksi → Header &amp; parameter kueri, atur User-Agent atau header kustom, atau beralih ke koneksi lain.</string>
     <string name="relay_guidance_responses_only_endpoint">Koneksi ini hanya menyediakan /v1/responses dan menolak /chat/completions. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, ubah protokol ke OpenAI Responses, lalu coba lagi.</string>
@@ -951,9 +970,9 @@
     <string name="result_merged_note_folders">%d folder catatan digabungkan</string>
     <string name="result_skipped_note_folders">%d folder catatan dilewati</string>
     <string name="video">Video</string>
-    <string name="skills_knowledgeImportEmpty">File kosong</string>
+    <string name="skills_knowledgeImportEmpty">Berkas kosong</string>
     <string name="skills_knowledgeImportFailed">Gagal mengimpor file</string>
-    <string name="skills_knowledgeErrorUnsupportedType">Tipe file ini tidak didukung untuk Basis Pengetahuan.</string>
+    <string name="skills_knowledgeErrorUnsupportedType">Jenis file ini tidak didukung untuk Basis Pengetahuan.</string>
     <string name="provider_balance_title">Saldo Akun</string>
     <string name="provider_balance_refresh">Segarkan</string>
     <string name="provider_balance_granted_label">Diberikan</string>
@@ -970,10 +989,16 @@
     <string name="outline_nav_label">Kerangka percakapan</string>
     <string name="outline_jump_to">Lompat ke: %1$s</string>
     <string name="outline_attachment_only">(Lampiran)</string>
+
+    <!-- Notes — 笔记功能（镜像 iOS Notes.xcstrings / Web notes.*） -->
+    <!-- Notes — 镜像 Web notes.* / pages.chat.* 文案 -->
     <string name="notes_title">Catatan</string>
     <string name="notes_subtitle">Simpan isi percakapan sebagai catatan</string>
     <string name="notes_untitled">Catatan tanpa judul</string>
-<!-- Tabs -->
+    <plurals name="notes_count">
+        <item quantity="other">%1$d catatan</item>
+    </plurals>
+    <!-- Tabs -->
     <string name="notes_tab_notes">Catatan</string>
     <string name="notes_tab_trash">Sampah</string>
     <!-- Actions -->
@@ -1036,7 +1061,7 @@
     <string name="notes_toast_export_failed">Ekspor gagal</string>
     <string name="notes_toast_folder_created">Folder \"%1$s\" dibuat</string>
     <!-- Sync banner -->
-<!-- Chat side -->
+    <!-- Chat side -->
     <string name="notes_chat_save_as_note">Simpan sebagai catatan</string>
     <string name="notes_chat_replace_current_note">Perbarui catatan dengan pilihan</string>
     <string name="notes_chat_return_to_note">Kembali ke catatan</string>
@@ -1068,13 +1093,19 @@
     <string name="notes_detail_delete_this">Hapus catatan ini</string>
     <string name="notes_nothing_written">Belum ada isi.</string>
     <!-- Periksa pembaruan (hanya Android · Play In-App Updates) -->
+    <!-- 同步状态可视化（spec §6.5） -->
+    <!-- Managed AI balance -->
     <string name="price_unknown">Harga tidak diketahui</string>
     <string name="pricing_non_standard">Penagihan non-standar</string>
     <string name="pricing_free">Bebas</string>
     <string name="enabled_models_help">Model yang ditambahkan muncul di pemilih model pada layar Beranda.</string>
+
+    <!-- 会话加载停滞 / 云端历史只读回填（L1+L2） -->
     <string name="chat_load_stalled_title">Tidak dapat memuat percakapan ini</string>
     <string name="chat_load_stalled_message">Pesan percakapan ini belum ada di perangkat ini. Coba lagi untuk mengambilnya dari cloud.</string>
     <string name="chat_bootstrap_in_progress">Memuat percakapan…</string>
+
+    <!-- 四幕「星轨」引导（文案 ground truth 同步自 iOS Onboarding.xcstrings） -->
     <string name="onboarding_title_brand">Semua model Anda, {satu aplikasi}</string>
     <string name="onboarding_title_models">Untuk setiap pertanyaan, {model yang tepat}</string>
     <string name="onboarding_title_byok">Kunci Anda, {tagihan Anda}</string>
@@ -1091,6 +1122,8 @@
     <string name="onboarding_legal">Dengan melanjutkan, Anda menyetujui [Ketentuan Layanan](oriveo://terms) dan [Kebijakan Privasi](oriveo://privacy).</string>
     <string name="developer_options">Opsi Pengembang</string>
     <string name="replay_onboarding">Putar Ulang Perkenalan</string>
+    <!-- Library -->
+    <!-- 账号级封禁遮罩（Server migrations/0061） -->
     <string name="relay_quick_title">Pengaturan Cepat</string>
     <string name="relay_quick_subtitle">Masukkan URL permintaan dan API key. Oriveo akan mendeteksi pengaturan koneksi untuk Anda.</string>
     <string name="relay_models_found">Menemukan model %1$d di katalog.</string>
@@ -1158,9 +1191,8 @@
     <string name="generation_empty_not_verified">Belum ada parameter yang dapat disesuaikan untuk model ini</string>
     <string name="generation_empty_not_verified_detail">Kami baru mengaktifkan kontrol setelah memastikan sebuah parameter benar-benar berpengaruh, dan kami belum menguji model ini pada koneksi ini. Kemampuan penalarannya tidak terpengaruh.</string>
     <string name="generation_empty_catalog_managed">Parameter model ini sekarang dikelola oleh katalog resmi dan tidak dapat disesuaikan di sini.</string>
-    <string name="generation_empty_runtime_locked">Parameter runtime tidak dapat diubah pada koneksi ini.</string>
     <string name="generation_empty_all_unsupported">Model ini tidak menerima parameter yang dapat disesuaikan pada koneksi ini.</string>
-<string name="generation_parameter_unverified_badge">Belum diverifikasi</string>
+    <string name="generation_parameter_unverified_badge">Belum diverifikasi</string>
     <string name="generation_parameter_unverified_group_note">Parameter ini disimpulkan dari protokol yang kamu pilih. Oriveo belum memverifikasi bahwa parameter ini berpengaruh pada koneksi ini.</string>
     <string name="generation_parameter_dormant_summary">%1$d parameter yang Anda atur tetap tersimpan dan saat ini tidak dikirim.</string>
     <string name="generation_parameter_dormant_view">Lihat</string>
@@ -1178,6 +1210,8 @@
     <string name="chat_token_usage_cache_write">Tulis cache</string>
     <string name="chat_token_usage_total">Total</string>
     <string name="chat_token_usage_unavailable">Tidak ada data</string>
+    <string name="chat_token_usage_cost">Biaya</string>
+    <string name="chat_token_usage_estimated">Perkiraan</string>
     <string name="generation_conversation_scope_hint">Hanya berlaku selama model ini dipakai dalam percakapan ini. Mengganti model tidak menyalin nilainya; kembali lagi akan memulihkannya.</string>
     <string name="generation_parameter_self_healed">Model ini menolak %1$s. Dicoba lagi dengan pengaturan default.</string>
     <string name="relay_transport_llamacpp_native">Completion native llama.cpp</string>
@@ -1377,27 +1411,22 @@
     <string name="tool_call_unhandled_multiple">Model mencoba memakai alat (%1$s) yang tidak tersedia pada koneksi ini.</string>
     <string name="tool_call_arguments_truncated">Dipotong pada 2 KB</string>
     <string name="tool_fallback_library_not_searched">Koneksi ini tidak mendukung alat, sehingga pustaka tidak ditelusuri.</string>
+    <!-- 本机数据不可用阻断页（ORIVEO-ANDROID-1R/1S/1T） -->
     <string name="storage_blocked_title">Penyimpanan Penuh</string>
     <string name="storage_blocked_message">Perangkat Anda tidak punya sisa ruang kosong, sehingga Oriveo tidak dapat membuka data lokalnya. Kosongkan sebagian ruang lalu coba lagi — percakapan Anda tetap tersimpan di perangkat ini dan tidak hilang.</string>
     <string name="storage_blocked_action_free_space">Kosongkan Ruang</string>
     <string name="database_unavailable_title">Tidak Bisa Membuka Data Lokal</string>
     <string name="database_unavailable_message">Oriveo tidak dapat membuka data lokalnya di perangkat ini. Coba lagi, atau hubungi dukungan jika terus terjadi.</string>
     <string name="link_open_failed_message">Tidak dapat membuka tautan. Aktifkan browser lalu coba lagi.</string>
-    <string name="contact_support">Hubungi Dukungan</string>
-    <string name="price_input">Masukan</string>
-    <string name="price_output">Keluaran</string>
-    <string name="price_cache_read">Baca cache</string>
-    <string name="price_cache_write">Tulis cache</string>
     <string name="external_app_unavailable">Tidak ada aplikasi yang dapat membukanya. Instal atau aktifkan satu.</string>
-    <plurals name="notes_count">
-        <item quantity="other">%1$d catatan</item>
-    </plurals>
     <string name="secure_field_show">Tampilkan karakter</string>
     <string name="secure_field_hide">Sembunyikan karakter</string>
-    <string name="generation_parameter_name_stop">Teks penghenti</string>
     <string name="generation_diagnostics_section">Diagnostik pengaturan pembuatan</string>
     <string name="generation_diagnostics_empty">Belum ada catatan diagnostik</string>
+    <!-- BEGIN notices-feedback -->
     <string name="feedback_blocked">Akun ini tidak dapat mengirim masukan.</string>
+    <!-- END notices-feedback -->
+    <!-- BEGIN mcp-chat -->
     <string name="mcp_tools_chip">Alat</string>
     <string name="mcp_tools_chip_state_on">%d server aktif</string>
     <string name="mcp_tools_chip_state_off">Nonaktif</string>
@@ -1472,6 +1501,8 @@
     <string name="mcp_detail_seconds">%s dtk</string>
     <string name="mcp_detail_third_party_note">Hasil berasal dari server pihak ketiga. Hanya 2 KB pertama yang ditampilkan. Isinya belum diperiksa Oriveo.</string>
     <string name="mcp_detail_not_on_device">Detail hanya tersimpan di perangkat yang menjalankan langkah ini.</string>
+    <!-- END mcp-chat -->
+    <!-- BEGIN mcp-servers -->
     <string name="mcp_settings_section">Alat dan koneksi</string>
     <string name="mcp_servers_title">Server MCP</string>
     <plurals name="mcp_settings_entry_count">
@@ -1604,116 +1635,168 @@
     <string name="mcp_changes_still_pending">Ada alat yang berubah lagi saat Anda mengonfirmasi. Silakan periksa sekali lagi.</string>
     <string name="mcp_changes_failed_auth">Otorisasi server ini kedaluwarsa. Lakukan otorisasi ulang, lalu konfirmasi.</string>
     <string name="mcp_remove_title">Hapus %s?</string>
-    <string name="mcp_remove_body">Kredensial login yang tersimpan di perangkat ini akan dihapus, dan server ini dikeluarkan dari daftar. Catatan alat di chat yang sudah ada tetap disimpan.</string>
+    <string name="mcp_remove_body">Kredensial login yang tersimpan di perangkat ini akan dihapus, dan server ini dikeluarkan dari daftar di semua perangkat Anda. Catatan alat di percakapan yang sudah ada tetap disimpan.</string>
     <string name="mcp_remove_failed">Server ini tidak bisa dihapus. Coba lagi.</string>
     <string name="mcp_reauth_checking">Memeriksa cara masuk…</string>
     <string name="mcp_reauth_failed_title">Proses masuk belum selesai</string>
     <string name="mcp_reauth_failed_body">Halaman masuk ditutup, atau layanan tidak menyetujui permintaannya. Tidak ada yang berubah.</string>
     <string name="mcp_reauth_unreachable_body">Pastikan perangkat ini bisa menjangkaunya sekarang, lalu coba lagi.</string>
     <string name="mcp_reauth_token_title">Tempel token akses baru</string>
-    <string name="additional_body_attachments_filled">Lampiran diisi oleh Oriveo.</string>
-    <string name="additional_body_cannot_change">Tidak bisa diubah</string>
-    <string name="additional_body_check">Periksa isi permintaan tambahan</string>
-    <string name="additional_body_conversation_filled">Percakapan diisi oleh Oriveo.</string>
-    <string name="additional_body_device_only">Hanya disimpan di perangkat ini, tidak disinkronkan</string>
-    <string name="additional_body_docs_link">Lihat kolom yang didukung %1$s</string>
-    <string name="additional_body_field_filled">Kolom ini diisi oleh Oriveo.</string>
-    <string name="additional_body_field_name_invalid">Nama ini tidak bisa dipakai sebagai nama kolom.</string>
-    <string name="additional_body_footer">Kolom di sini ditambahkan ke permintaan apa adanya; Oriveo tidak memeriksa apakah server Anda menerimanya. Jika ada yang namanya sama dengan pengaturan lanjutan, yang di sini yang dipakai, dan pengaturan lain tetap dikirim seperti biasa.</string>
-    <string name="additional_body_included">Disertakan</string>
-    <string name="additional_body_model_chosen">Modelnya adalah yang Anda pilih di Oriveo.</string>
-    <string name="additional_body_paste">Tempel</string>
-    <string name="additional_body_paste_replace_body">Menempel akan mengganti konten saat ini dengan isi papan klip.</string>
-    <string name="additional_body_paste_replace_title">Ganti konten yang ada?</string>
-    <string name="additional_body_reason_blocked_segment">“%1$s” tidak bisa dipakai sebagai nama kolom di isi permintaan tambahan.</string>
-    <string name="additional_body_reason_invalid_json">Isi permintaan tambahan bukan JSON yang valid.</string>
-    <string name="additional_body_reason_not_object">Isi permintaan tambahan harus berupa objek JSON yang diapit { }.</string>
-    <string name="additional_body_reason_protected_field">“%1$s” diisi oleh Oriveo dan tidak bisa diatur di isi permintaan tambahan.</string>
-    <string name="additional_body_reason_too_deep">Isi permintaan tambahan bertingkat lebih dari 32 lapis.</string>
-    <string name="additional_body_reason_too_large">Isi permintaan tambahan lebih dari 64 KB.</string>
-    <string name="additional_body_rejected_upstream">Permintaan dengan isi permintaan tambahan ditolak</string>
-    <string name="additional_body_remove_line">%1$s Hapus baris %2$d agar bisa dikirim.</string>
-    <string name="additional_body_retry_without">Coba lagi tanpa isi permintaan tambahan</string>
-    <string name="additional_body_send_toggle">Kirim bersama permintaan</string>
-    <string name="additional_body_send_toggle_note">Saat nonaktif, kontennya tetap disimpan tetapi tidak dikirim</string>
-    <string name="additional_body_switch_blocked_invalid">Ada masalah di isi permintaan tambahan, jadi sakelar ini tidak bisa mengubahnya. Perbaiki di sana dulu.</string>
-    <string name="additional_body_switch_blocked_off">Isi permintaan tambahan saat ini tidak dikirim bersama permintaan. Aktifkan di sana dulu.</string>
-    <string name="additional_body_system_prompt_filled">Prompt sistem diisi oleh Oriveo.</string>
-    <string name="additional_body_tidy">Rapikan</string>
-    <string name="additional_body_tidy_invalid">Belum menjadi JSON yang valid, jadi tidak ada yang diubah.</string>
-    <string name="additional_body_title">Isi permintaan tambahan</string>
-    <string name="additional_body_when_sending">Saat mengirim</string>
+    <!-- END mcp-servers -->
+    <string name="model_options_capabilities">Kemampuan</string>
+    <string name="model_options_local">Lokal</string>
+    <string name="model_options_web_note">Mencari di web dulu jika pertanyaannya memerlukan</string>
+    <string name="model_options_always_thinks">Selalu berpikir sebelum menjawab</string>
+    <string name="model_options_thinks_first_note">Berpikir matang dulu, jadi jawabannya sedikit lebih lama</string>
+    <string name="model_options_higher_levels_note">Tingkat yang lebih tinggi lebih lama dan bisa lebih mahal.</string>
+    <string name="model_options_template_thinking_note">Menyalakan atau mematikan berpikir lewat template chat. Berhasil atau tidaknya tergantung server Anda.</string>
+    <string name="model_options_connection_cannot">Koneksi ini tidak bisa melakukannya</string>
+    <string name="model_options_uses_model_default">Mengikuti bawaan model</string>
+    <string name="model_options_reasoning_not_catalogued">Oriveo belum punya pengaturan berpikir untuk model ini, jadi model memakai bawaannya sendiri.</string>
+    <string name="model_options_web_not_catalogued">Oriveo belum punya pengaturan pencarian web untuk model ini, jadi belum bisa diaktifkan di sini.</string>
+    <string name="model_options_see_adjustable_models">Lihat model yang bisa diatur</string>
+    <string name="model_options_no_thinking_mode">Model ini tidak punya mode berpikir</string>
+    <string name="model_options_shows_thinking_fixed">Menampilkan proses berpikir · tidak bisa diatur</string>
+    <string name="model_options_cannot_search">Model ini tidak bisa mencari di web</string>
+    <string name="model_options_always_on">Selalu aktif</string>
+    <string name="model_options_subscription_always_searches">Dengan langganan ini, model ini selalu mencari di web.</string>
+    <string name="model_options_web_when_needed">Saat diperlukan</string>
+    <string name="model_options_web_every_message">Setiap pesan</string>
+    <string name="model_options_needs_manual_setup">Perlu diatur manual</string>
+    <string name="model_options_reasoning_no_generic_switch">Penyedia ini tidak punya sakelar standar untuk berpikir. Tambahkan kolomnya di isi permintaan tambahan.</string>
+    <string name="model_options_web_no_generic_switch">Penyedia ini tidak punya sakelar standar untuk pencarian web. Tambahkan kolomnya di isi permintaan tambahan.</string>
+    <string name="model_options_open_additional_body">Buka isi permintaan tambahan</string>
+    <string name="model_options_choose_protocol_first">Pilih protokol koneksi ini dulu</string>
+    <string name="model_options_protocol_auto_note">Protokol masih “Otomatis”, jadi Oriveo tidak tahu cara mengirim pengaturan pencarian web dan berpikir.</string>
+    <string name="model_options_choose_protocol">Pilih protokol</string>
+    <string name="model_options_tier_rejected_title">“%1$s” ditolak</string>
+    <string name="model_options_tier_rejected_body">Model ini sedang tidak menerima “%1$s”, jadi kembali ke “%2$s”. Tingkat tersebut akan kembali sendiri saat model mendukungnya lagi.</string>
+    <string name="model_options_more_count">%1$d lainnya</string>
+    <string name="model_options_cant_switch_here">Belum bisa diganti di sini</string>
+    <string name="model_options_not_available_yet">Belum tersedia</string>
+    <string name="model_options_web_and_thinking_fields">Kolom pencarian web dan berpikir</string>
+    <string name="model_options_vision_available">Tersedia · pemilih foto ditampilkan</string>
+    <string name="model_options_vision_unknown">Belum diketahui · diingat setelah dikirim</string>
+    <string name="model_options_vision_hidden">Tidak tersedia · pemilih foto disembunyikan</string>
+    <string name="model_options_file_pdf_native">PDF langsung · lainnya sebagai teks</string>
+    <string name="model_options_file_native_when_supported">Format yang didukung langsung · lainnya sebagai teks</string>
+    <string name="model_options_file_text">Dikirim sebagai teks</string>
+    <string name="model_options_turn_summary">Kali ini dikirim: %1$s</string>
+    <string name="model_options_summary_web_on">Pencarian web aktif</string>
+    <string name="model_options_summary_thinking_level">Berpikir: %1$s</string>
+    <string name="model_options_summary_thinking_on">Berpikir aktif</string>
+    <plurals name="model_options_reasoning_level_count">
+        <item quantity="other">%d tingkat</item>
+    </plurals>
+    <string name="advanced_this_conversation_only">Hanya percakapan ini</string>
+    <string name="advanced_reset">Atur ulang</string>
+    <string name="advanced_reset_conversation_title">Atur ulang pengaturan percakapan ini?</string>
+    <string name="advanced_reset_conversation_body">Hanya parameter yang Anda ubah di percakapan ini yang dihapus. Bawaan model dan isi permintaan tambahan tetap seperti semula.</string>
+    <string name="advanced_reset_conversation_action">Atur ulang perubahan di percakapan ini</string>
+    <string name="advanced_reset_model_title">Atur ulang bawaan model ini?</string>
+    <string name="advanced_reset_model_body">Menghapus parameter bawaan yang Anda atur untuk model ini di koneksi ini. Perubahan di masing-masing percakapan tetap seperti semula.</string>
+    <string name="advanced_reset_model_action">Atur ulang bawaan model</string>
+    <string name="advanced_more">Lainnya</string>
+    <string name="advanced_not_adjusted">Belum diubah</string>
+    <string name="advanced_entries_count">Entri: %1$d</string>
+    <string name="advanced_fields_count">Kolom: %1$d</string>
+    <string name="advanced_random_each_time">Acak setiap kali</string>
+    <string name="advanced_plain_text">Teks biasa</string>
+    <string name="advanced_write_your_own">Tulis sendiri</string>
     <string name="advanced_additional_body_subtitle">Tambahkan kolom yang tidak ada di atas, dalam format JSON</string>
+    <string name="advanced_not_in_use">Tidak dipakai</string>
+    <string name="advanced_changed_in_conversation">Diubah di percakapan ini</string>
+    <string name="advanced_using_your_default">Memakai bawaan model yang Anda atur</string>
+    <string name="advanced_model_defaults">Bawaan model</string>
+    <string name="advanced_your_default">Bawaan Anda</string>
+    <string name="advanced_state_set">Sudah diatur</string>
+    <string name="advanced_state_on">Aktif</string>
+    <string name="advanced_use_model_default">Pakai bawaan model</string>
+    <string name="advanced_dont_send">Jangan kirim pengaturan ini</string>
     <string name="advanced_allowed_range">Rentang yang diizinkan: %1$s</string>
     <string name="advanced_also_covers">Juga mencakup %1$s</string>
-    <string name="advanced_changed_in_conversation">Diubah di percakapan ini</string>
-    <string name="advanced_crossed_out_legend">Pengaturan yang dicoret sedang diatur oleh %1$s.</string>
-    <string name="advanced_diagnostics_delete_body">Catatan diagnostik yang ditampilkan untuk model ini akan dihapus. Catatan model lain tetap disimpan.</string>
-    <string name="advanced_diagnostics_delete_title">Hapus catatan diagnostik ini?</string>
-    <string name="advanced_dont_send">Jangan kirim pengaturan ini</string>
+    <string name="advanced_no_limit">Tanpa batas</string>
+    <string name="advanced_stop_sequences">Teks penghenti</string>
+    <string name="advanced_new_stop_sequence">Teks penghenti baru</string>
+    <string name="advanced_stop_sequences_note">Model berhenti begitu menulis salah satunya. Satu teks penghenti boleh berisi koma, spasi, dan baris baru.</string>
+    <string name="advanced_remove_item">Hapus %1$s</string>
+    <string name="advanced_error_max_tokens">Model ini paling banyak menulis %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_error_number">Masukkan angka. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_error_integer">Masukkan bilangan bulat. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_error_highest">Nilai tertinggi yang diterima model ini adalah %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_error_lowest">Nilai terendah yang diterima model ini adalah %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_error_greater_than">Nilainya harus lebih besar dari %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_error_less_than">Nilainya harus lebih kecil dari %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_error_json_schema">Ini bukan JSON Schema yang valid. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_error_value_rejected">Model ini tidak menerima nilai ini. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
+    <string name="advanced_dropped_thinking">Model tidak menerima ini saat berpikir aktif, jadi tidak dikirim.</string>
     <string name="advanced_dropped_conflict">Bentrok dengan pengaturan lain, jadi pengaturan ini tidak disertakan.</string>
     <string name="advanced_dropped_conflict_with">Tidak bisa dikirim bersama %1$s, jadi pengaturan ini tidak disertakan.</string>
     <string name="advanced_dropped_depends">Bergantung pada pengaturan lain yang belum diatur, jadi tidak dikirim.</string>
-    <string name="advanced_dropped_reasoning_budget">Lebih kecil dari anggaran penalaran, jadi nilai bawaan yang dikirim.</string>
-    <string name="advanced_dropped_required_default">Model ini mewajibkan kolom ini, jadi nilai bawaan tetap dikirim.</string>
     <string name="advanced_dropped_requires">Hanya dikirim jika %1$s juga diatur.</string>
-    <string name="advanced_dropped_thinking">Model tidak menerima ini saat berpikir aktif, jadi tidak dikirim.</string>
     <string name="advanced_dropped_value">Model ini tidak menerima nilai ini, jadi pengaturan ini tidak dikirim.</string>
+    <string name="advanced_dropped_required_default">Model ini mewajibkan kolom ini, jadi nilai bawaan tetap dikirim.</string>
+    <string name="advanced_dropped_reasoning_budget">Lebih kecil dari anggaran penalaran, jadi nilai bawaan yang dikirim.</string>
+    <string name="advanced_taken_over">%1$s sedang aktif, jadi pengaturan ini tidak dipakai.</string>
+    <string name="advanced_crossed_out_legend">Pengaturan yang dicoret sedang diatur oleh %1$s.</string>
+    <string name="advanced_grey_defaults_legend">Angka abu-abu adalah nilai bawaan %1$s sendiri. Angka ini tidak dikirim kecuali Anda mengubahnya.</string>
+    <string name="advanced_mirostat_note">Menjaga tingkat keacakan output tetap stabil di sekitar target, sebagai pengganti Top K dan Top P.</string>
+    <string name="advanced_target_entropy">Entropi target</string>
+    <string name="advanced_learning_rate">Laju pembelajaran</string>
+    <string name="advanced_repetition">Pengulangan</string>
     <string name="advanced_dry_note">Mencegah pengulangan bagian utuh dari teks sebelumnya</string>
+    <string name="advanced_more_sampling">Sampling lainnya</string>
+    <string name="advanced_xtc_note">Sesekali melewatkan kata yang paling mungkin agar pilihan kata lebih beragam</string>
     <string name="advanced_dynamic_temperature">Suhu dinamis</string>
     <string name="advanced_dynamic_temperature_note">Suhu berubah sesuai tingkat keyakinan model</string>
-    <string name="advanced_entries_count">Entri: %1$d</string>
-    <string name="advanced_error_greater_than">Nilainya harus lebih besar dari %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_error_highest">Nilai tertinggi yang diterima model ini adalah %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_error_integer">Masukkan bilangan bulat. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_error_json_schema">Ini bukan JSON Schema yang valid. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_error_less_than">Nilainya harus lebih kecil dari %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_error_lowest">Nilai terendah yang diterima model ini adalah %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_error_max_tokens">Model ini paling banyak menulis %1$s. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_error_number">Masukkan angka. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_error_value_rejected">Model ini tidak menerima nilai ini. Pengaturan ini tidak akan dikirim sampai diperbaiki; pengaturan lain tidak terpengaruh.</string>
-    <string name="advanced_fields_count">Kolom: %1$d</string>
-    <string name="advanced_grey_defaults_legend">Angka abu-abu adalah nilai bawaan %1$s sendiri. Angka ini tidak dikirim kecuali Anda mengubahnya.</string>
-    <string name="advanced_learning_rate">Laju pembelajaran</string>
-    <string name="advanced_mirostat_note">Menjaga tingkat keacakan output tetap stabil di sekitar target, sebagai pengganti Top K dan Top P.</string>
-    <string name="advanced_model_defaults">Bawaan model</string>
-    <string name="advanced_more">Lainnya</string>
-    <string name="advanced_more_sampling">Sampling lainnya</string>
-    <string name="advanced_new_stop_sequence">Teks penghenti baru</string>
-    <string name="advanced_no_limit">Tanpa batas</string>
-    <string name="advanced_not_adjusted">Belum diubah</string>
-    <string name="advanced_not_in_use">Tidak dipakai</string>
-    <string name="advanced_plain_text">Teks biasa</string>
-    <string name="advanced_preset_apply">Terapkan preset</string>
-    <string name="advanced_preset_apply_body">“%1$s” akan mengganti semua yang Anda atur untuk model ini: %2$s.</string>
-    <string name="advanced_preset_apply_title">Terapkan preset ini?</string>
-    <string name="advanced_random_each_time">Acak setiap kali</string>
-    <string name="advanced_reasoning_set_by_thinking">Untuk model ini, mode berpikir diatur di \"Opsi Model\" › \"Berpikir\". Agar satu level jadi default, pilih di sana lalu ketuk \"Jadikan default model ini\". Baris ini tidak ikut dikirim.</string>
-    <string name="advanced_remove_item">Hapus %1$s</string>
-    <string name="advanced_repetition">Pengulangan</string>
-    <string name="advanced_reset">Atur ulang</string>
-    <string name="advanced_reset_conversation_action">Atur ulang perubahan di percakapan ini</string>
-    <string name="advanced_reset_conversation_body">Hanya parameter yang Anda ubah di percakapan ini yang dihapus. Bawaan model dan isi permintaan tambahan tetap seperti semula.</string>
-    <string name="advanced_reset_conversation_title">Atur ulang pengaturan percakapan ini?</string>
-    <string name="advanced_reset_model_action">Atur ulang bawaan model</string>
-    <string name="advanced_reset_model_body">Menghapus parameter bawaan yang Anda atur untuk model ini di koneksi ini. Perubahan di masing-masing percakapan tetap seperti semula.</string>
-    <string name="advanced_reset_model_title">Atur ulang bawaan model ini?</string>
-    <string name="advanced_state_on">Aktif</string>
-    <string name="advanced_state_set">Sudah diatur</string>
-    <string name="advanced_stop_sequences">Teks penghenti</string>
-    <string name="advanced_stop_sequences_note">Model berhenti begitu menulis salah satunya. Satu teks penghenti boleh berisi koma, spasi, dan baris baru.</string>
-    <string name="advanced_taken_over">%1$s sedang aktif, jadi pengaturan ini tidak dipakai.</string>
-    <string name="advanced_target_entropy">Entropi target</string>
-    <string name="advanced_this_conversation_only">Hanya percakapan ini</string>
-    <string name="advanced_use_model_default">Pakai bawaan model</string>
-    <string name="advanced_using_your_default">Memakai bawaan model yang Anda atur</string>
-    <string name="advanced_write_your_own">Tulis sendiri</string>
-    <string name="advanced_xtc_note">Sesekali melewatkan kata yang paling mungkin agar pilihan kata lebih beragam</string>
-    <string name="advanced_your_default">Bawaan Anda</string>
+    <string name="additional_body_title">Isi permintaan tambahan</string>
+    <string name="additional_body_send_toggle">Kirim bersama permintaan</string>
+    <string name="additional_body_send_toggle_note">Saat nonaktif, kontennya tetap disimpan tetapi tidak dikirim</string>
+    <string name="additional_body_device_only">Hanya disimpan di perangkat ini, tidak disinkronkan</string>
+    <string name="additional_body_paste">Tempel</string>
+    <string name="additional_body_tidy">Rapikan</string>
+    <string name="additional_body_when_sending">Saat mengirim</string>
+    <string name="additional_body_included">Disertakan</string>
+    <string name="additional_body_cannot_change">Tidak bisa diubah</string>
+    <string name="additional_body_footer">Kolom di sini ditambahkan ke permintaan apa adanya; Oriveo tidak memeriksa apakah server Anda menerimanya. Jika ada yang namanya sama dengan pengaturan lanjutan, yang di sini yang dipakai, dan pengaturan lain tetap dikirim seperti biasa.</string>
+    <string name="additional_body_docs_link">Lihat kolom yang didukung %1$s</string>
+    <string name="additional_body_remove_line">%1$s Hapus baris %2$d agar bisa dikirim.</string>
+    <string name="additional_body_conversation_filled">Percakapan diisi oleh Oriveo.</string>
+    <string name="additional_body_attachments_filled">Lampiran diisi oleh Oriveo.</string>
+    <string name="additional_body_system_prompt_filled">Prompt sistem diisi oleh Oriveo.</string>
+    <string name="additional_body_tools_managed">Alat dikelola oleh Oriveo.</string>
+    <string name="additional_body_model_chosen">Modelnya adalah yang Anda pilih di Oriveo.</string>
+    <string name="additional_body_streaming_by_oriveo">Cara balasan dialirkan ditentukan oleh Oriveo.</string>
+    <string name="additional_body_field_filled">Kolom ini diisi oleh Oriveo.</string>
+    <string name="additional_body_field_name_invalid">Nama ini tidak bisa dipakai sebagai nama kolom.</string>
+    <string name="additional_body_paste_replace_title">Ganti konten yang ada?</string>
+    <string name="additional_body_paste_replace_body">Menempel akan mengganti konten saat ini dengan isi papan klip.</string>
+    <string name="additional_body_tidy_invalid">Belum menjadi JSON yang valid, jadi tidak ada yang diubah.</string>
+    <string name="additional_body_switch_blocked_invalid">Ada masalah di isi permintaan tambahan, jadi sakelar ini tidak bisa mengubahnya. Perbaiki di sana dulu.</string>
+    <string name="additional_body_switch_blocked_off">Isi permintaan tambahan saat ini tidak dikirim bersama permintaan. Aktifkan di sana dulu.</string>
+    <string name="additional_body_check">Periksa isi permintaan tambahan</string>
+    <string name="additional_body_rejected_upstream">Permintaan dengan isi permintaan tambahan ditolak</string>
+    <string name="additional_body_reason_too_large">Isi permintaan tambahan lebih dari 64 KB.</string>
+    <string name="additional_body_reason_invalid_json">Isi permintaan tambahan bukan JSON yang valid.</string>
+    <string name="additional_body_reason_not_object">Isi permintaan tambahan harus berupa objek JSON yang diapit { }.</string>
+    <string name="additional_body_reason_too_deep">Isi permintaan tambahan bertingkat lebih dari 32 lapis.</string>
+    <string name="additional_body_reason_blocked_segment">“%1$s” tidak bisa dipakai sebagai nama kolom di isi permintaan tambahan.</string>
+    <string name="additional_body_reason_protected_field">“%1$s” diisi oleh Oriveo dan tidak bisa diatur di isi permintaan tambahan.</string>
+    <string name="additional_body_retry_without">Coba lagi tanpa isi permintaan tambahan</string>
+    <string name="local_request_line_format">Baris %1$d: %2$s</string>
+    <string name="local_request_custom_line_format">Kolom %1$s, baris %2$d: %3$s</string>
+    <string name="local_request_custom_format">Kolom %1$s: %2$s</string>
+    <string name="local_request_not_sent">Pesan ini tidak terkirim.</string>
     <string name="generation_parameter_name_grammar">Tata bahasa (GBNF)</string>
     <string name="generation_parameter_name_min_tokens">Token keluaran minimum</string>
     <string name="generation_parameter_name_skip_special_tokens">Sembunyikan token khusus di keluaran</string>
     <string name="generation_parameter_omitted_value">Abaikan</string>
+    <string name="advanced_reasoning_set_by_thinking">Untuk model ini, mode berpikir diatur di \"Opsi Model\" › \"Berpikir\". Agar satu level jadi default, pilih di sana lalu ketuk \"Jadikan default model ini\". Baris ini tidak ikut dikirim.</string>
+    <string name="advanced_preset_apply">Terapkan preset</string>
+    <string name="advanced_preset_apply_title">Terapkan preset ini?</string>
+    <string name="advanced_preset_apply_body">“%1$s” akan mengganti semua yang Anda atur untuk model ini: %2$s.</string>
+    <string name="advanced_diagnostics_delete_title">Hapus catatan diagnostik ini?</string>
+    <string name="advanced_diagnostics_delete_body">Catatan diagnostik yang ditampilkan untuk model ini akan dihapus. Catatan model lain tetap disimpan.</string>
     <string name="local_request_body_format">%1$s %2$s</string>
     <string name="relay_setup_hero_label">LLM kustom · Relai khusus</string>
     <string name="relay_setup_hero_title">Hubungkan relai khusus</string>
@@ -1784,6 +1867,7 @@
     <string name="relay_relative_minutes_ago">%d menit yang lalu</string>
     <string name="relay_relative_hours_ago">%d jam yang lalu</string>
     <string name="relay_detail_default_model">Model Bawaan</string>
+    <!-- Relay setup · two-step -->
     <string name="relay_setup_hero_subtitle_two_step">Masukkan alamat dan kunci, lalu pilih model di langkah berikutnya. Protokol dan kemampuan dideteksi untuk setiap model.</string>
     <string name="relay_setup_will_request">Permintaan ke %1$s</string>
     <string name="relay_setup_key_name">Nama (opsional)</string>
@@ -1873,6 +1957,14 @@
     <string name="relay_catalog_status_denied">Kunci saat ini tidak punya akses</string>
     <string name="relay_catalog_unreachable_title">Mengapa tidak terhubung</string>
     <string name="relay_catalog_enable_hint">Saat diaktifkan, 1 permintaan sangat kecil dikirim untuk memastikan model berfungsi. Ketuk model di katalog untuk melihat “Lanjutan” terlebih dahulu tanpa mengirim permintaan.</string>
+    <string name="relay_catalog_add_all">Tambahkan Semua</string>
+    <string name="relay_catalog_enable_hint_explicit">Ketuk model di katalog untuk melihat “Lanjutan” terlebih dahulu tanpa mengirim permintaan.</string>
+    <string name="relay_catalog_remove_last_reason">Koneksi ini memerlukan setidaknya satu model.</string>
+    <string name="relay_model_advanced_auto_equals_connection">Otomatis = protokol bawaan koneksi ini (%1$s)</string>
+    <string name="relay_model_advanced_changes_apply">Perubahan langsung berlaku dan hanya disimpan di perangkat ini.</string>
+    <plurals name="relay_catalog_added_models">
+        <item quantity="other">%1$d model ditambahkan</item>
+    </plurals>
     <string name="relay_catalog_fetch_failed_title">Daftar model tidak dapat diambil</string>
     <string name="relay_catalog_group_other">Lainnya</string>
     <string name="relay_advanced_key_section">Kunci</string>
@@ -1961,6 +2053,7 @@
     <string name="relay_web_chat_note">Chat Completions tidak punya kolom standar untuk pencarian web. Templat hanya berfungsi dengan model pencarian; lihat dokumentasi layanan.</string>
     <string name="relay_web_other_protocols">Protokol lainnya</string>
     <string name="relay_web_template_replace_body">Templat akan menggantikan isi yang sudah Anda masukkan untuk protokol ini.</string>
+    <!-- 6-2 添加流程：手动设置并成一页 / 手动添加模型页（iOS 定稿逐字取，D-79 / D-83） -->
     <string name="relay_manual_group_auth_headers">Autentikasi, header &amp; parameter kueri</string>
     <string name="relay_manual_connection_name">Nama koneksi</string>
     <string name="relay_manual_model_footnote">Masukkan ID model persis seperti yang tercantum di relai khusus Anda. Model lain bisa ditambahkan nanti dari perpustakaan model.</string>
@@ -1974,64 +2067,6 @@
     <string name="relay_manual_model_entry_note_exact">Masukkan ID model persis seperti yang tercantum di relai khusus Anda.</string>
     <string name="relay_manual_model_entry_note_capabilities">Kemampuannya akan diingat setelah Anda mengirim pesan. Anda juga bisa mengujinya di “Lanjutan”.</string>
     <string name="relay_connection_not_verified">Koneksi belum diverifikasi.</string>
-    <string name="local_request_custom_format">Kolom %1$s: %2$s</string>
-    <string name="local_request_custom_line_format">Kolom %1$s, baris %2$d: %3$s</string>
-    <string name="local_request_line_format">Baris %1$d: %2$s</string>
-    <string name="local_request_not_sent">Pesan ini tidak terkirim.</string>
-    <string name="model_options_always_thinks">Selalu berpikir sebelum menjawab</string>
-    <string name="model_options_cannot_search">Model ini tidak bisa mencari di web</string>
-    <string name="model_options_always_on">Selalu aktif</string>
-    <string name="model_options_subscription_always_searches">Dengan langganan ini, model ini selalu mencari di web.</string>
-    <string name="model_options_cant_switch_here">Belum bisa diganti di sini</string>
-    <string name="model_options_capabilities">Kemampuan</string>
-    <string name="model_options_choose_protocol">Pilih protokol</string>
-    <string name="model_options_choose_protocol_first">Pilih protokol koneksi ini dulu</string>
-    <string name="model_options_connection_cannot">Koneksi ini tidak bisa melakukannya</string>
-    <string name="model_options_higher_levels_note">Tingkat yang lebih tinggi lebih lama dan bisa lebih mahal.</string>
-    <string name="model_options_local">Lokal</string>
-    <string name="model_options_more_count">%1$d lainnya</string>
-    <string name="model_options_needs_manual_setup">Perlu diatur manual</string>
-    <string name="model_options_no_thinking_mode">Model ini tidak punya mode berpikir</string>
-    <string name="model_options_not_available_yet">Belum tersedia</string>
-    <string name="model_options_open_additional_body">Buka isi permintaan tambahan</string>
-    <string name="model_options_protocol_auto_note">Protokol masih “Otomatis”, jadi Oriveo tidak tahu cara mengirim pengaturan pencarian web dan berpikir.</string>
-    <string name="model_options_reasoning_no_generic_switch">Penyedia ini tidak punya sakelar standar untuk berpikir. Tambahkan kolomnya di isi permintaan tambahan.</string>
-    <string name="model_options_reasoning_not_catalogued">Oriveo belum punya pengaturan berpikir untuk model ini, jadi model memakai bawaannya sendiri.</string>
-    <string name="model_options_see_adjustable_models">Lihat model yang bisa diatur</string>
-    <string name="model_options_template_thinking_note">Menyalakan atau mematikan berpikir lewat template chat. Berhasil atau tidaknya tergantung server Anda.</string>
-    <string name="model_options_thinks_first_note">Berpikir matang dulu, jadi jawabannya sedikit lebih lama</string>
-    <string name="model_options_tier_rejected_body">Model ini sedang tidak menerima “%1$s”, jadi kembali ke “%2$s”. Tingkat tersebut akan kembali sendiri saat model mendukungnya lagi.</string>
-    <string name="model_options_tier_rejected_title">“%1$s” ditolak</string>
-    <string name="model_options_uses_model_default">Mengikuti bawaan model</string>
-    <string name="model_options_web_and_thinking_fields">Kolom pencarian web dan berpikir</string>
-    <string name="model_options_vision_available">Tersedia · pemilih foto ditampilkan</string>
-    <string name="model_options_vision_unknown">Belum diketahui · diingat setelah dikirim</string>
-    <string name="model_options_vision_hidden">Tidak tersedia · pemilih foto disembunyikan</string>
-    <string name="model_options_file_pdf_native">PDF langsung · lainnya sebagai teks</string>
-    <string name="model_options_file_native_when_supported">Format yang didukung langsung · lainnya sebagai teks</string>
-    <string name="model_options_file_text">Dikirim sebagai teks</string>
-    <string name="model_options_turn_summary">Kali ini dikirim: %1$s</string>
-    <string name="model_options_summary_web_on">Pencarian web aktif</string>
-    <string name="model_options_summary_thinking_level">Berpikir: %1$s</string>
-    <string name="model_options_summary_thinking_on">Berpikir aktif</string>
-    <plurals name="model_options_reasoning_level_count">
-        <item quantity="other">%d tingkat</item>
-    </plurals>
-    <string name="model_options_web_every_message">Setiap pesan</string>
-    <string name="model_options_web_no_generic_switch">Penyedia ini tidak punya sakelar standar untuk pencarian web. Tambahkan kolomnya di isi permintaan tambahan.</string>
-    <string name="model_options_web_not_catalogued">Oriveo belum punya pengaturan pencarian web untuk model ini, jadi belum bisa diaktifkan di sini.</string>
-    <string name="model_options_web_note">Mencari di web dulu jika pertanyaannya memerlukan</string>
-    <string name="model_options_web_when_needed">Saat diperlukan</string>
-    <string name="additional_body_tools_managed">Alat dikelola oleh Oriveo.</string>
-    <string name="additional_body_streaming_by_oriveo">Cara balasan dialirkan ditentukan oleh Oriveo.</string>
-    <string name="relay_catalog_add_all">Tambahkan Semua</string>
-    <plurals name="relay_catalog_added_models">
-        <item quantity="other">%1$d model ditambahkan</item>
-    </plurals>
-    <string name="relay_catalog_remove_last_reason">Koneksi ini memerlukan setidaknya satu model.</string>
-    <string name="relay_catalog_enable_hint_explicit">Ketuk model di katalog untuk melihat “Lanjutan” terlebih dahulu tanpa mengirim permintaan.</string>
-    <string name="relay_model_advanced_changes_apply">Perubahan langsung berlaku dan hanya disimpan di perangkat ini.</string>
-    <string name="relay_model_advanced_auto_equals_connection">Otomatis = protokol bawaan koneksi ini (%1$s)</string>
     <string name="relay_avatar_change_icon">Ubah ikon</string>
     <string name="relay_avatar_letter">Huruf</string>
     <string name="relay_avatar_icon_paper_plane">Pesawat kertas</string>
@@ -2243,7 +2278,7 @@
     <string name="memory_editor_category">Kategori</string>
     <string name="memory_editor_too_long">Maksimal 2.000 karakter</string>
     <string name="memory_delete_confirm_title">Hapus memori ini?</string>
-    <string name="memory_delete_confirm_body">Memori ini akan dihapus permanen dari perangkat ini.</string>
+    <string name="memory_delete_confirm_body">Memori ini akan dihapus dari semua perangkat Anda.</string>
     <string name="memory_action_organize">Pecah menjadi entri</string>
     <string name="memory_raw_view">Teks biasa</string>
     <string name="memory_raw_view_hint">Pisahkan setiap entri dengan baris yang hanya berisi ---.</string>
@@ -2273,8 +2308,165 @@
     <string name="context_confirm_also_price_line">Permintaan ini juga melewati ambang harga %1$s di %2$s, sehingga seluruh permintaan dikenai harga konteks panjang.</string>
     <string name="context_confirm_dont_ask">Jangan tanya lagi di percakapan ini</string>
     <string name="context_confirm_send">Tetap kirim</string>
-    <string name="chat_last_used_model_retired_hint">Model yang terakhir Anda pakai sudah dihentikan. Sekarang memakai %1$s.</string>
-    <string name="model_options_shows_thinking_fixed">Menampilkan proses berpikir · tidak bisa diatur</string>
     <string name="settings_section_general">Umum</string>
     <string name="settings_section_help_about">Bantuan &amp; Tentang</string>
+    <string name="settings_footer_poem">Di antara ribuan model, ada satu jawaban yang memang untuk Anda.</string>
+    <string name="skills_home_autoCount">Otomatis · %1$d</string>
+    <string name="skills_home_slashHint">Ketik / untuk memakai</string>
+    <string name="skills_home_empty">Simpan cara kerja pilihan Anda</string>
+    <string name="skills_list_subtitle">Simpan cara yang Anda sukai, dan AI akan memakainya saat cocok.</string>
+    <string name="skills_create_describePlaceholder">Jelaskan caranya, AI akan menuliskannya</string>
+    <string name="skills_create_fromChat">Dari percakapan</string>
+    <string name="skills_create_manual">Buat manual</string>
+    <string name="skills_segment_mine">Milik saya</string>
+    <string name="skills_segment_templates">Template</string>
+    <string name="skills_group_auto">Otomatis</string>
+    <string name="skills_group_manual">Hanya manual</string>
+    <string name="skills_card_usageCount">Dipakai %1$d kali</string>
+    <string name="skills_row_slashHint">Dipakai saat Anda mengetik %1$s</string>
+    <string name="skills_auto_needWhenTitle">Tulis dulu kapan dipakai</string>
+    <string name="skills_auto_suggest">Sarankan</string>
+    <string name="skills_auto_limitReached">Penggunaan otomatis sudah mencapai batas (%1$d). Matikan salah satu dulu.</string>
+    <string name="skills_search_placeholder">Cari keterampilan</string>
+    <string name="skills_empty_title">Belum ada keterampilan</string>
+    <string name="skills_empty_body">Simpan cara yang sering Anda pakai agar tidak perlu menjelaskannya setiap kali.</string>
+    <string name="skills_empty_browseTemplates">Lihat template</string>
+    <string name="skills_migrate_banner">Keterampilan tanpa “Kapan digunakan”: %1$d. Tambahkan satu kalimat agar bisa dipakai otomatis.</string>
+    <string name="skills_migrate_review">Lengkapi satu per satu</string>
+    <string name="skills_templates_note">Template baru dipakai otomatis setelah ditambahkan ke “Milik saya”.</string>
+    <string name="skills_templates_featured">Pilihan</string>
+    <string name="skills_templates_addToMine">Tambah ke Milik saya</string>
+    <string name="skills_templates_add">Tambah</string>
+    <string name="skills_templates_added">Ditambahkan</string>
+    <string name="skills_templates_tryOnce">Coba sekali</string>
+    <string name="skills_detail_useInNewChat">Pakai di percakapan baru</string>
+    <string name="skills_detail_orSlash">Atau ketik %1$s di kolom pesan</string>
+    <string name="skills_detail_usage">Dipakai %1$d kali · Terakhir %2$s</string>
+    <string name="skills_detail_neverUsed">Belum pernah dipakai</string>
+    <string name="skills_detail_autoInvoke">Gunakan otomatis</string>
+    <string name="skills_detail_whenToUse">Kapan digunakan</string>
+    <string name="skills_detail_whenToUseNote">AI memutuskan berdasarkan ini</string>
+    <string name="skills_detail_instructions">Instruksi</string>
+    <string name="skills_detail_showAll">Tampilkan semua</string>
+    <string name="skills_detail_references">Bahan referensi</string>
+    <string name="skills_detail_starters">Pembuka percakapan</string>
+    <string name="skills_detail_recentChats">Percakapan terbaru</string>
+    <string name="skills_detail_try">Coba</string>
+    <string name="skills_edit_changeIcon">Ganti ikon</string>
+    <string name="skills_edit_name">Nama</string>
+    <string name="skills_edit_whenBadge">Menentukan pemakaian otomatis</string>
+    <string name="skills_edit_whenPlaceholder">mis. Saat saya minta catatan dijadikan laporan mingguan. Bukan untuk laporan harian.</string>
+    <string name="skills_edit_keywordsCaption">Terpicu oleh kata-kata ini · cukup jelaskan situasinya</string>
+    <string name="skills_edit_whenTip">Tulis apa fungsinya, kapan dipakai, dan bagaimana Anda biasanya memintanya. Tambahkan “Bukan untuk …” agar tidak salah dipakai. Kata dalam tanda kutip akan disorot.</string>
+    <string name="skills_edit_polish">Rapikan dengan AI</string>
+    <string name="skills_edit_addStarter">Tambah pembuka</string>
+    <string name="skills_edit_modelAndFeatures">Model dan fitur</string>
+    <string name="skills_edit_followChat">Ikuti percakapan</string>
+    <string name="skills_edit_needWhenForAuto">Isi “Kapan digunakan” atau matikan penggunaan otomatis.</string>
+    <string name="skills_draft_askScenarios">Sebutkan satu atau dua situasi saat Anda akan memakainya</string>
+    <string name="skills_draft_askQuality">Hasil yang bagus itu seperti apa?</string>
+    <string name="skills_draft_skip">Lewati</string>
+    <string name="skills_draft_generating">Menulis draf…</string>
+    <string name="skills_draft_title">Draf</string>
+    <string name="skills_draft_editFirst">Edit dulu</string>
+    <string name="skills_draft_suggestedIcon">Ikon yang disarankan</string>
+    <string name="skills_draft_failed">Draf belum bisa diselesaikan. Bagian yang sudah jadi telah diisikan untuk Anda.</string>
+    <string name="skills_fromChat_menuConversation">Simpan sebagai keterampilan</string>
+    <string name="skills_fromChat_menuMessage">Simpan cara ini sebagai keterampilan</string>
+    <string name="skills_fromChat_messages">%1$d pesan</string>
+    <string name="skills_fromChat_extracting">Merangkum…</string>
+    <string name="skills_limit_upgrade">Upgrade untuk lebih banyak</string>
+    <string name="skills_limit_draftKept">Draf Anda tetap tersimpan di perangkat ini.</string>
+    <string name="skills_composer_placeholder">Ketik / untuk memakai keterampilan</string>
+    <string name="skills_picker_title">Keterampilan saya</string>
+    <string name="skills_picker_multi">Bisa pilih beberapa</string>
+    <string name="skills_picker_auto">Otomatis</string>
+    <string name="skills_picker_manual">Manual</string>
+    <string name="skills_picker_manage">Kelola keterampilan</string>
+    <string name="skills_picker_maxReached">Maksimal %1$d sekaligus</string>
+    <string name="skills_chip_deleted">Dihapus</string>
+    <string name="skills_message_attached">Memakai %1$s</string>
+    <string name="skills_used_chip">Dipakai: %1$s</string>
+    <string name="skills_used_loading">Memakai %1$s…</string>
+    <string name="skills_used_byChoice">Dipakai karena Anda memilihnya</string>
+    <string name="skills_used_why">Alasan dipakai</string>
+    <string name="skills_used_disableHere">Jangan pakai otomatis di percakapan ini</string>
+    <string name="skills_used_view">Lihat keterampilan</string>
+    <string name="skills_settings_autoToggle">Gunakan keterampilan otomatis</string>
+    <string name="skills_settings_autoToggleFooter">Jika dimatikan, model tidak akan memilih keterampilan sendiri. Anda tetap bisa mengetik / untuk memakainya.</string>
+    <string name="skills_try_banner">Sedang dicoba · Tidak disimpan ke riwayat</string>
+    <string name="skills_try_saveToSkill">Simpan ke keterampilan</string>
+    <string name="skills_try_adjust">Ubah instruksi</string>
+    <string name="skills_try_saved">Disimpan ke “%1$s”</string>
+    <string name="skills_try_savedToDraft">Disalin ke editor. Simpan di sana agar tidak hilang.</string>
+    <string name="skills_improve_prompt">Tambahkan ini ke “%1$s”?</string>
+    <string name="skills_improve_review">Lihat perubahan</string>
+    <string name="skills_improve_accept">Tambahkan ke keterampilan</string>
+    <string name="skills_improve_dismiss">Nanti saja</string>
+    <string name="skills_improve_addedLine">Ditambahkan</string>
+    <string name="skills_improve_removedLine">Dihapus</string>
+    <string name="skills_improve_saved">Ditambahkan ke “%1$s”</string>
+    <string name="skills_saveFailed">Tidak dapat menyimpan perubahan. Silakan coba lagi.</string>
+    <string name="skills_usage_manifestRow">Beban daftar keterampilan</string>
+    <string name="skills_glyph_writing">Tulisan</string>
+    <string name="skills_glyph_report">Laporan</string>
+    <string name="skills_glyph_code">Kode</string>
+    <string name="skills_glyph_study">Belajar</string>
+    <string name="skills_glyph_travel">Perjalanan</string>
+    <string name="skills_glyph_health">Kesehatan</string>
+    <string name="skills_glyph_meeting">Rapat</string>
+    <string name="skills_glyph_idea">Ide</string>
+    <string name="skills_glyph_translate">Terjemahan</string>
+    <string name="skills_glyph_email">Email</string>
+    <string name="skills_glyph_data">Data</string>
+    <string name="skills_glyph_design">Desain</string>
+    <string name="skills_glyph_legal">Hukum</string>
+    <string name="skills_glyph_finance">Keuangan</string>
+    <string name="skills_glyph_marketing">Pemasaran</string>
+    <string name="skills_glyph_support">Layanan pelanggan</string>
+    <string name="skills_glyph_teaching">Pengajaran</string>
+    <string name="skills_glyph_research">Riset</string>
+    <string name="skills_glyph_life">Sehari-hari</string>
+    <string name="skills_glyph_food">Makanan</string>
+    <string name="skills_glyph_music">Musik</string>
+    <string name="skills_glyph_photo">Fotografi</string>
+    <string name="skills_glyph_product">Produk</string>
+    <string name="skills_glyph_general">Umum</string>
+    <string name="skills_home_notesRecent">Terakhir diedit</string>
+    <string name="skills_search_noResults">Tidak ada hasil</string>
+    <string name="generic_error_try_again">Terjadi kesalahan. Coba lagi.</string>
+    <string name="loading_usage_trends">Memuat tren penggunaan…</string>
+    <string name="usage_vs_last_month">vs bulan lalu</string>
+    <string name="usage_section_insights">WAWASAN</string>
+    <string name="usage_section_budgets">ANGGARAN</string>
+    <string name="usage_sample_report">Contoh laporan</string>
+    <string name="usage_clear">Hapus</string>
+    <string name="usage_monthly_budget_eyebrow">Anggaran bulanan</string>
+    <string name="skills_knowledgeErrorOpenAI">Tambahkan dan konfigurasikan penyedia OpenAI terlebih dahulu.</string>
+    <string name="skills_knowledgeErrorEndpoint">Basis Pengetahuan hanya berfungsi dengan titik akhir OpenAI resmi.</string>
+    <string name="skills_knowledgeErrorModelDisabled">Tambahkan dan aktifkan %1$s di penyedia OpenAI Anda terlebih dahulu.</string>
+    <string name="skills_knowledgeErrorServiceUnavailable">Basis Pengetahuan saat ini tidak tersedia.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">File Basis Pengetahuan harus berukuran 20 MB atau lebih kecil.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">Sebuah Keterampilan dapat memiliki hingga 5 file Basis Pengetahuan dan total 100 MB.</string>
+    <string name="skills_knowledgeErrorExtractFailed">Gagal mengekstrak teks dari file ini.</string>
+    <string name="skills_knowledgeErrorUploadFailed">Gagal mengunggah file ini.</string>
+    <string name="skills_knowledgeErrorIndexFailed">Gagal mengindeks file ini.</string>
+    <string name="skills_knowledgeErrorRetrieveFailed">Pengambilan pengetahuan gagal untuk pesan ini.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">Gagal membersihkan file jarak jauh. Coba lagi nanti.</string>
+    <string name="custom_llm_connection_method">Metode koneksi</string>
+    <string name="local_compute_pairing_code">Kode penyandingan</string>
+    <string name="local_compute_scan_qr">Pindai kode QR</string>
+    <string name="api_endpoint_not_configured">Belum dikonfigurasi</string>
+    <string name="contact_support">Hubungi Dukungan</string>
+    <string name="error_attachment_not_accepted_title">Lampiran tidak diterima</string>
+    <string name="generation_empty_runtime_locked">Parameter runtime tidak dapat diubah pada koneksi ini.</string>
+    <string name="legal_consent_notice">Dengan melanjutkan, Anda menyetujui persyaratan hukum di bawah ini.</string>
+    <string name="price_cache_read">Baca cache</string>
+    <string name="price_cache_write">Tulis cache</string>
+    <string name="price_input">Masukan</string>
+    <string name="price_output">Keluaran</string>
+    <string name="settings_report_issue">Laporkan Masalah</string>
+    <string name="settings_source_code">Kode Sumber</string>
+    <string name="skills_pinToHome">Sematkan ke Beranda</string>
+    <string name="skills_unpin">Lepas sematan dari Rumah</string>
 </resources>

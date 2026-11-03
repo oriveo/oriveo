@@ -1,6 +1,7 @@
 package ai.oriveo.community.feature.chat.voice
 
 import android.util.Log
+import ai.oriveo.community.core.voice.realtime.RealtimeVoiceLog
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -114,12 +115,28 @@ class VoiceConversationSessions {
         // A turn was sent (or a realtime persist asked for the id): from then on the conversation exists or is being made.
         private var used = false
 
-        override suspend fun send(text: String): Boolean {
+        override suspend fun send(text: String): Boolean = send(text) {}
+
+        /** Delivery is reported by the chat page's port it is forwarded to. */
+        override suspend fun send(text: String, onDelivered: () -> Unit): Boolean {
             used = true
-            target.value?.let { return it.send(text) }
+            target.value?.let { return it.send(text, onDelivered) }
             conversationId() ?: return false
             val port = withTimeoutOrNull(HANDOFF_TIMEOUT_MS) { target.filterNotNull().first() } ?: return false
-            return port.send(text)
+            return port.send(text, onDelivered)
+        }
+
+        override suspend fun amend(text: String): Boolean = amend(text) {}
+
+        /**
+         * Amends on the chat page: a barge-in while the first turn is still handing off waits for the page like
+         * [send] (false on timeout); nothing sent yet = nothing to amend.
+         */
+        override suspend fun amend(text: String, onDelivered: () -> Unit): Boolean {
+            target.value?.let { return it.amend(text, onDelivered) }
+            if (!used) return false
+            val port = withTimeoutOrNull(HANDOFF_TIMEOUT_MS) { target.filterNotNull().first() } ?: return false
+            return port.amend(text, onDelivered)
         }
 
         override val replies: Flow<VoiceReplyEvent> = target.flatMapLatest { it?.replies ?: emptyFlow() }
@@ -158,20 +175,29 @@ class VoiceConversationEntryFlow(
     private val onStartFailed: () -> Unit,
 ) {
     suspend fun run(): Boolean {
-        if (!gate()) return false
+        if (!gate()) {
+            RealtimeVoiceLog.d("entry stopped: gate")
+            return false
+        }
         if (!microphone()) {
+            RealtimeVoiceLog.d("entry stopped: microphone")
             onMicrophoneDenied()
             return false
         }
         notifications()
-        return when (startService()) {
+        return when (val result = startService()) {
             VoiceConversationServiceStarter.Result.Started -> {
+                RealtimeVoiceLog.d("entry service started")
                 startConversation()
                 true
             }
             // Not visible any more: the user already left; nothing to say.
-            VoiceConversationServiceStarter.Result.NotVisible -> false
+            VoiceConversationServiceStarter.Result.NotVisible -> {
+                RealtimeVoiceLog.d("entry stopped: service not visible")
+                false
+            }
             else -> {
+                RealtimeVoiceLog.d("entry stopped: service $result")
                 onStartFailed()
                 false
             }

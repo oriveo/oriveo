@@ -100,6 +100,7 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.provider.UnsupportedParamCache
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
+import ai.oriveo.community.ui.component.oriveoSwitchColors
 import ai.oriveo.community.ui.theme.OriveoMotion
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.modelControlTextButtonColors
@@ -812,8 +813,11 @@ fun GenerationParameterDefaultsSheet(
                                 onCheckedChange = { checked ->
                                     updateValue(values, id, JsonPrimitive(checked), parameter, parameters, persist) { values = it }
                                 },
-
-                                modifier = Modifier.semantics { contentDescription = parameterTitle },
+                                colors = oriveoSwitchColors(),
+                                // The switch carries no label of its own; without a contentDescription a screen reader only says "switch".
+                                modifier = Modifier
+                                    .semantics { contentDescription = parameterTitle }
+                                    ,
                             )
                         }
                     } else {

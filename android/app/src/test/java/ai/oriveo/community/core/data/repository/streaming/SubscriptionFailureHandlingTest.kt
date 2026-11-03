@@ -1,5 +1,8 @@
 package ai.oriveo.community.core.data.repository.streaming
 
+import android.content.Context
+import ai.oriveo.community.R
+import ai.oriveo.community.core.data.repository.subscriptionClientVersionRejectionWorthReporting
 import ai.oriveo.community.core.error.ErrorMapper
 import ai.oriveo.community.core.model.GrokSubscriptionFailureReason
 import ai.oriveo.community.core.model.OpenAISubscriptionFailureReason
@@ -10,6 +13,8 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import io.mockk.every
+import io.mockk.mockk
 
 /**
  * A subscription request refused by the upstream has to reach the user as a sentence they can act

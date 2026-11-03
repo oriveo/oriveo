@@ -99,6 +99,14 @@ final class SpeechAssetManager {
         try await task.value
     }
 
+    /// Only checks whether the (module, locale) model is installed; does not reserve or download; a query timeout counts as not installed.
+    func isInstalled(_ module: SpeechAssetModule, locale: Locale) async -> Bool {
+        let inventory = inventory
+        return await VoiceDeadline.value(within: queryLimit) {
+            await inventory.isInstalled(module, locale: locale)
+        } ?? false
+    }
+
     /// Last-use time per locale (BCP 47), in seconds since 1970.
     func lastUsed() -> [String: Double] {
         defaults.dictionary(forKey: Self.lastUsedDefaultsKey) as? [String: Double] ?? [:]

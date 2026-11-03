@@ -730,4 +730,54 @@ describe('idb.ts', () => {
       expect(all[0].folderID).toBeUndefined();
     });
   });
+
+  describe('studio stores (v16)', () => {
+    it('studio_stores_created_on_upgrade_from_v15', async () => {
+      const legacy = await openDB('oriveo--guest', 15, {
+        upgrade(database) {
+          const conversations = database.createObjectStore('conversations', { keyPath: 'id' });
+          conversations.createIndex('by-updated', 'updatedAt');
+          conversations.put(makeConversation({ id: 'conv-v15' }));
+        },
+      });
+      legacy.close();
+
+      // Opening through the production path runs the v15 -> v16 upgrade.
+      const kept = await getConversationById('conv-v15');
+      expect(kept?.id).toBe('conv-v15');
+      resetDBConnection();
+
+      const raw = await openDB('oriveo--guest');
+      const expected: Record<string, { keyPath: string | string[]; indexes: Record<string, string> }> = {
+        studio_works: { keyPath: 'id', indexes: { 'by-updated': 'updatedAt' } },
+        studio_rounds: { keyPath: 'id', indexes: { 'by-work': 'workId' } },
+        studio_versions: {
+          keyPath: 'id',
+          indexes: { 'by-work': 'workId', 'by-round': 'roundId', 'by-asset': 'assetId' },
+        },
+        studio_round_refs: {
+          keyPath: ['roundId', 'order'],
+          indexes: { 'by-round': 'roundId', 'by-asset': 'assetId' },
+        },
+      };
+      expect(raw.version).toBe(16);
+      for (const [name, spec] of Object.entries(expected)) {
+        expect(raw.objectStoreNames.contains(name), `${name} exists`).toBe(true);
+        if (!raw.objectStoreNames.contains(name)) continue;
+        const tx = raw.transaction(name, 'readonly');
+        const store = tx.objectStore(name);
+        expect(store.keyPath, `${name} keyPath`).toEqual(spec.keyPath);
+        expect([...store.indexNames].sort(), `${name} indexes`).toEqual(Object.keys(spec.indexes).sort());
+        for (const [indexName, keyPath] of Object.entries(spec.indexes)) {
+          const index = store.index(indexName);
+          expect(index.keyPath, `${name}.${indexName} keyPath`).toBe(keyPath);
+          expect(index.unique, `${name}.${indexName} unique`).toBe(false);
+        }
+        expect(await store.count(), `${name} empty`).toBe(0);
+        await tx.done;
+      }
+      expect((await raw.get('conversations', 'conv-v15'))?.id).toBe('conv-v15');
+      raw.close();
+    });
+  });
 });

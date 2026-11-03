@@ -80,15 +80,14 @@ struct BackupServiceHookTests {
         let imageKey = "\(importedAttachment.id).png"
         let thumbnailKey = "\(importedAttachment.id).thumb.png"
 
-        defer {
-            BackupService.testingHooks = .init()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: targetUID))
-        }
 
         DatabaseManager.shared.close()
 
         let appState = AppState(sessionUID: targetUID)
+        defer {
+            BackupService.testingHooks = .init()
+            await TestPartitionCleanup.remove(targetUID)
+        }
         var hookInvoked = false
         ImageStore.save(imageData: existingImageData, for: existingLocalImageID, partitionUID: targetUID)
         BackupService.testingHooks.beforeReplaceAllCommit = {

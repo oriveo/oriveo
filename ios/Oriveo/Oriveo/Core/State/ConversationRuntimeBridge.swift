@@ -341,9 +341,23 @@ final class ConversationRuntimeBridge {
     }
 
     func loadRecoveryProjection(snapshot: AppSessionSnapshot?, uid: String) -> [Conversation] {
+        Self.loadRecoveryProjection(snapshot: snapshot, uid: uid)
+    }
+
+    #if DEBUG
+    /// Number of times the recovery / backup snapshot files were read on the main thread (accumulated only on the main thread; tests assert the production path stays 0).
+    nonisolated(unsafe) static var debugRecoveryReadOnMainCount = 0
+    #endif
+
+    /// Recovery projection: when the session snapshot carries its conversations, use them directly (no disk read); otherwise read the recovery snapshot, then the backup snapshot.
+    /// Pure file read + decode, callable from any thread; production cold start calls it in the background.
+    nonisolated static func loadRecoveryProjection(snapshot: AppSessionSnapshot?, uid: String) -> [Conversation] {
         if let conversations = snapshot?.conversations {
             return conversations
         }
+        #if DEBUG
+        if Thread.isMainThread { debugRecoveryReadOnMainCount += 1 }
+        #endif
         if let recovery = loadRecoverySnapshot(for: uid) {
             return recovery.conversations
         }
@@ -358,11 +372,15 @@ final class ConversationRuntimeBridge {
         databaseManager.openedPool()
     }
 
-    func close() {
-        databaseManager.close()
+    /// - Parameters:
+    ///   - queue: serial queue whose already enqueued writes must land before the connections close. Required (no
+    ///     default): the partition's write queue, so a queued write never runs on a pool closed under it.
+    ///   - barrier: local writes of the main store that must land before its close (see `DatabaseManager.close`).
+    func close(after queue: DispatchQueue, barrier: (@Sendable () async -> Void)? = nil) {
+        databaseManager.close(after: queue, barrier: barrier)
         // The continuation sidecar is keyed by the same uid and cached alongside the main pool;
         // leaving it bound would keep the previous partition's connection open after a switch.
-        RecipeContinuationStore.closeLocalOnlyPool()
+        RecipeContinuationStore.closeLocalOnlyPool(after: queue)
     }
 
     func searchConversationProjections(query: String, uid: String) async throws -> [Conversation] {
@@ -434,6 +452,25 @@ final class ConversationRuntimeBridge {
         qos: .utility
     )
 
+    #if DEBUG
+    /// Test seam: waits for the queued recovery-snapshot writes (cold start reads full text from the DB) to finish; used before a test deletes a partition so this read does not hit an already-deleted DB.
+    static func waitForRecoverySnapshotsForTesting() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            recoverySnapshotQueue.async { continuation.resume() }
+        }
+    }
+    #endif
+
+    private func scheduleRecoveryProjectionPersist(
+        _ conversations: [Conversation],
+        for uid: String,
+        source: String
+    ) {
+        Self.recoverySnapshotQueue.async {
+            try? Self.writeRecoveryProjection(conversations, for: uid, source: source)
+        }
+    }
+
     /// Cold-start memory is a summary projection; the snapshot must load full threads
     /// from the database so a later SQLite read failure does not drop messages.
     private func scheduleRecoveryProjectionPersistFromDatabase(uid: String, source: String) {
@@ -492,6 +529,14 @@ final class ConversationRuntimeBridge {
     }
 
     private func loadRecoverySnapshot(for uid: String) -> LegacyConversationRecoverySnapshot? {
+        Self.loadRecoverySnapshot(for: uid)
+    }
+
+    private func loadBackupSnapshot(for uid: String) -> AppSessionSnapshot? {
+        Self.loadBackupSnapshot(for: uid)
+    }
+
+    nonisolated private static func loadRecoverySnapshot(for uid: String) -> LegacyConversationRecoverySnapshot? {
         let url = AppSessionStore.recoverySnapshotPath(for: uid)
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()
@@ -499,7 +544,7 @@ final class ConversationRuntimeBridge {
         return try? decoder.decode(LegacyConversationRecoverySnapshot.self, from: data)
     }
 
-    private func loadBackupSnapshot(for uid: String) -> AppSessionSnapshot? {
+    nonisolated private static func loadBackupSnapshot(for uid: String) -> AppSessionSnapshot? {
         let url = AppSessionStore.backupSnapshotPath(for: uid)
         guard let data = try? Data(contentsOf: url) else { return nil }
         let decoder = JSONDecoder()

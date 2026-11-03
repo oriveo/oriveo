@@ -16,7 +16,7 @@ import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.provider.ProviderCredentialResolver
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
-import ai.oriveo.community.core.provider.RelayEndpointResolver
+import ai.oriveo.community.core.provider.withRelayRoute
 import ai.oriveo.community.core.util.generateUuidString
 import ai.oriveo.community.feature.modelpicker.isModelTransportSupportedForModelPicker
 import ai.oriveo.community.feature.providers.detail.comparePickerModels
@@ -157,15 +157,7 @@ class CrosscheckCoordinator(
                     model = model,
                     appLanguage = appLanguageTag(),
                 )
-                var requestOptions = ChatRequestOptions()
-                if (provider.kind == ProviderKind.Relay) {
-                    requestOptions = requestOptions.copy(
-                        relayRequested = provider.relayRequested,
-                        relayImage = provider.relayImage,
-                        relayRouteTransport = RelayEndpointResolver.effectiveTransport(provider, model),
-                        relayRouteAPIRoot = RelayEndpointResolver.effectiveAPIRoot(provider, model),
-                    )
-                }
+                val requestOptions = ChatRequestOptions().withRelayRoute(provider, model)
                 val transport = planned.transportInput(requestOptions)
                 val service = providerRepository.serviceFor(provider, model)
                 val sb = StringBuilder()

@@ -226,7 +226,7 @@ enum ProviderListCardPresentation {
         if balanceCapableProviderKinds.contains(providerKind) {
             return ProviderListTrailingAmount(
                 label: .balance,
-                text: providerBalance.map(providerBalanceText) ?? "--",
+                text: providerBalance.map { providerBalanceText($0) } ?? "--",
                 isZero: providerBalance?.total == 0
             )
         }
@@ -242,20 +242,15 @@ enum ProviderListCardPresentation {
         )
     }
 
-    private static let balanceAmountFormatter: NumberFormatter = {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .decimal
-        formatter.minimumFractionDigits = 2
-        formatter.maximumFractionDigits = 2
-        formatter.usesGroupingSeparator = true
-        return formatter
-    }()
-
-    private static func providerBalanceText(_ balance: ProviderBalance) -> String {
-        let symbol = balance.currency.uppercased() == "CNY" ? "¥" : "$"
-        let number = balanceAmountFormatter.string(from: NSNumber(value: abs(balance.total)))
-            ?? String(format: "%.2f", abs(balance.total))
-        return "\(balance.total < 0 ? "-" : "")\(symbol)\(number)"
+    /// CNY uses the platform currency format, everything else the shared USD display; 2 fraction digits,
+    /// USD rounded half away from zero.
+    static func providerBalanceText(_ balance: ProviderBalance, locale: Locale = AppLocalization.currentLocale) -> String {
+        if balance.currency.uppercased() == "CNY" {
+            return NonUsdCurrencyFormatters.shared.string(
+                from: balance.total, locale: locale, currencyCode: "CNY", digits: 2
+            )
+        }
+        return CostFormatter.usd(balance.total, minFraction: 2, maxFraction: 2, locale: locale, roundingMode: .halfUp)
     }
 
 }

@@ -4,14 +4,23 @@ import Foundation
 /// Audio IO for realtime voice: the microphone goes up as PCM16 frames at the sample rate the transport declares, downlink is streamed 24 kHz PCM16 playback.
 /// Shares the VPIO engine and player with the cascaded path (so AEC has its reference signal). All callbacks except onFrame run on the main actor.
 protocol RealtimeAudioIO: AnyObject {
+    /// Prepare the audio session in the background before the engine starts (session state changes go only through the AudioSessionCoordinator serial queue, off the main thread);
+    /// Called once per session; if it throws, startRealtime is not called. Implementations that need no preparation default to a no-op.
+    func prepareSession() async throws
     /// Start the capture and playback pipeline. onFrame receives mono PCM16 LE at uplinkSampleRate (RealtimeTransport.uplinkSampleRate),
-    /// resampled once from the device rate straight to that value; it is called on the audio thread (any thread) and never hops to main.
+    /// resampled once from the device rate straight to that value; it is called on the audio thread (any thread) and never hops to main;
     /// System interruptions (didBecomeInactive / interruptionNotification) and capture failures call onInterruption; it does not recover on its own.
     func startRealtime(
         uplinkSampleRate: Double,
         onFrame: @escaping (Data) -> Void,
         onInterruption: @escaping () -> Void
     ) throws
+    /// Playback-only start (typed-input state): starts only downlink playback and earcons, with no capture and no voice processing, so the system mic indicator stays off.
+    /// Capture can be added in place afterwards with startRealtimeCapture; onInterruption has the same meaning as in startRealtime.
+    func startRealtimePlayback(onInterruption: @escaping () -> Void) throws
+    /// Adds capture in place after a playback-only start (the connection is not rebuilt); onFrame has the same meaning as in startRealtime.
+    /// Adding capture reconfigures the engine, so downlink audio currently playing is stopped (played ms frozen); the caller truncates it as a barge-in first. No-op if already capturing.
+    func startRealtimeCapture(uplinkSampleRate: Double, onFrame: @escaping (Data) -> Void) throws
     /// Queue a chunk of 24 kHz mono PCM16 LE downlink audio; itemId is used for the playedMs count.
     func enqueue(pcm16: Data, itemId: String)
     /// Milliseconds actually played since the first chunk of this item; 0 for an unknown item.
@@ -26,6 +35,49 @@ protocol RealtimeAudioIO: AnyObject {
     func stopRealtime()
     /// Play an earcon (thinking timeout etc.) on the same engine as the downlink.
     func playEarcon(_ earcon: VoiceConversationLogic.Earcon)
+    /// dBFS of each block of the playback output (mainMixer), called back on the main actor; implementations that do not support it never call back.
+    var onOutputLevel: ((Double) -> Void)? { get set }
+    /// Current output route (the speaker uplink gate samples it at the start of each playback cycle); implementations that do not know default to speaker.
+    var route: VoiceConversationLogic.Route { get }
+    /// Output route changes during the session (speaker <-> headphones / Bluetooth); the new route is called back on the main actor and stops with the engine graph teardown. Implementations that do not support it default to no callback.
+    var onRouteChanged: ((VoiceConversationLogic.Route) -> Void)? { get set }
+    /// Downlink reference level: for each behindSamples value (24 kHz), the dBFS of the downlink block (20 ms) that contains "playhead sample index minus it",
+    /// returned in the same order; the playhead is read once per batch. Returns nil when nothing is playing, the playhead is unavailable, nothing was queued at that position, or the samples are digital silence.
+    /// When one uplink callback covers several gate frames, earlier frames look further back. Called on the audio thread, so implementations may only read thread-safe state.
+    /// Implementations that do not support it default to all nil.
+    nonisolated func playbackReferenceDb(behindSamples: [Int]) -> [Double?]
+}
+
+/// Thrown by test doubles that do not implement the two-stage start when capture is added later.
+struct RealtimeCaptureUnsupported: Error {}
+
+extension RealtimeAudioIO {
+    func prepareSession() async throws {}
+
+    /// Test-double default: runs a full start and drops uplink frames (real implementations provide their own and do not open the mic).
+    func startRealtimePlayback(onInterruption: @escaping () -> Void) throws {
+        try startRealtime(uplinkSampleRate: RealtimePCM.sampleRate, onFrame: { _ in }, onInterruption: onInterruption)
+    }
+
+    func startRealtimeCapture(uplinkSampleRate: Double, onFrame: @escaping (Data) -> Void) throws {
+        throw RealtimeCaptureUnsupported()
+    }
+
+    var route: VoiceConversationLogic.Route { .speaker }
+
+    nonisolated func playbackReferenceDb(behindSamples: [Int]) -> [Double?] {
+        behindSamples.map { _ in nil }
+    }
+
+    var onOutputLevel: ((Double) -> Void)? {
+        get { nil }
+        set {}
+    }
+
+    var onRouteChanged: ((VoiceConversationLogic.Route) -> Void)? {
+        get { nil }
+        set {}
+    }
 }
 
 /// Realtime PCM helpers: downlink is always 24 kHz mono PCM16 little-endian; uplink uses the transport-declared value (24 kHz by default).

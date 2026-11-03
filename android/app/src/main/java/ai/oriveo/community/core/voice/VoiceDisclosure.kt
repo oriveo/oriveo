@@ -1,7 +1,11 @@
 package ai.oriveo.community.core.voice
 
 import android.content.SharedPreferences
+import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.model.ProviderKind
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 
 /**
  * Consent records for the cloud voice disclosure: keyed by (providerKind, direction), stored only in local SharedPreferences (not Room).
@@ -9,6 +13,8 @@ import ai.oriveo.community.core.model.ProviderKind
  * Stored under [KEY_ACCEPTED] in [VoiceEngineSettings.PREFS_NAME]; StringSet elements look like `<providerKind rawValue>/<stt|tts|realtime>`.
  */
 class VoiceDisclosureStore(
+    // Kept first: callers pass prefsProvider as a trailing lambda
+    private val onRealtimeAccepted: (ProviderKind) -> Unit = {},
     prefsProvider: () -> SharedPreferences,
 ) {
     private val prefs: SharedPreferences by lazy(LazyThreadSafetyMode.PUBLICATION) {
@@ -21,6 +27,8 @@ class VoiceDisclosureStore(
     fun markAccepted(providerKind: ProviderKind, direction: VoiceDirection) {
         val next = accepted() + element(providerKind, direction)
         prefs.edit().putStringSet(KEY_ACCEPTED, next.toMutableSet()).apply()
+        // The realtime disclosure text names the provider, so every realtime consent path records the provider disclosure here
+        if (direction == VoiceDirection.Realtime) onRealtimeAccepted(providerKind)
     }
 
     // Copy before use: the set returned by SharedPreferences must not be mutated in place.
@@ -91,5 +99,26 @@ class VoiceEngineChooser(
 
     fun decline(pending: VoiceChoice.NeedsDisclosure): VoiceChoice {
         return VoiceChoice.Declined
+    }
+}
+
+/**
+ * Consenting to realtime disclosure also records that provider's disclosure (not the reverse).
+ * Hosted providers skip provider disclosure, so they are not recorded.
+ * The Room write is suspended, so it runs on the app-level [scope]: closing the disclosure sheet or picker must not cancel it.
+ */
+fun providerDisclosureCoRecorder(
+    preferences: () -> AppPreferencesRepository?,
+    scope: CoroutineScope,
+): (ProviderKind) -> Unit = record@{ kind ->
+    val repository = preferences() ?: return@record
+    scope.launch {
+        try {
+            repository.markProviderDisclosureAccepted(kind)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            android.util.Log.w("VoiceDisclosure", "provider disclosure not recorded: ${e.message}")
+        }
     }
 }

@@ -8,6 +8,8 @@ import android.content.res.Configuration
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.StringRes
 import androidx.annotation.VisibleForTesting
 import androidx.appcompat.app.AppCompatDelegate
@@ -21,16 +23,28 @@ import ai.oriveo.community.core.app.GlobalSnackbarMessage
 import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.UiText
 import java.util.Locale
+import kotlin.coroutines.cancellation.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 
-/** Production [ReadAloudEnvironment]: audio focus (ducking allowed), headphones unplugged, process ON_STOP. */
+/**
+ * Production [ReadAloudEnvironment]: audio focus (ducking allowed), headset unplug, and process ON_STOP.
+ * Focus request / release run on the [sessions] coordinator thread; focus callbacks switch back to the main thread before handing off to the listener.
+ */
 class AndroidReadAloudEnvironment(
     context: Context,
     private val snackbar: GlobalSnackbarManager,
+    private val sessions: AndroidAudioSessionCoordinator,
 ) : ReadAloudEnvironment {
     private val appContext = context.applicationContext
-    private val audioManager = appContext.getSystemService(AudioManager::class.java)
+    private val mainHandler = Handler(Looper.getMainLooper())
 
+    @Volatile
     private var focusRequest: AudioFocusRequest? = null
+
+    /** The current read-aloud lease, paired with [focusRequest]; claimed synchronously on the calling thread. */
+    @Volatile
+    private var lease: AndroidAudioSessionCoordinator.Lease? = null
     private var noisyReceiver: BroadcastReceiver? = null
     private var lifecycleObserver: LifecycleEventObserver? = null
 
@@ -67,7 +81,7 @@ class AndroidReadAloudEnvironment(
         return appContext.createConfigurationContext(config).getString(resId)
     }
 
-    override fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean {
+    override suspend fun beginSession(listener: ReadAloudEnvironment.SessionListener): Boolean {
         endSession()
         val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
             .setAudioAttributes(
@@ -76,14 +90,35 @@ class AndroidReadAloudEnvironment(
                     .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
                     .build(),
             )
-            .setOnAudioFocusChangeListener { change ->
-                if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
-                    listener.onInterrupted()
-                }
-            }
+            .setOnAudioFocusChangeListener(
+                { change ->
+                    if (change == AudioManager.AUDIOFOCUS_LOSS || change == AudioManager.AUDIOFOCUS_LOSS_TRANSIENT) {
+                        mainHandler.post { listener.onInterrupted() }
+                    }
+                },
+                sessions.handler,
+            )
             .build()
+        // Lease is claimed synchronously on the calling thread: claim order matches the call order for conversation and realtime.
+        val held = sessions.claim(AndroidAudioSessionCoordinator.Client.ReadAloud)
         focusRequest = request
-        val granted = audioManager?.requestAudioFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+        lease = held
+        val job = currentCoroutineContext()[Job]
+        val granted = try {
+            sessions.call {
+                // Cancelled while queued: do not request focus.
+                if (job?.isActive == false) return@call false
+                requestFocus(request) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+            }
+        } catch (e: CancellationException) {
+            // Cancelled while waiting for focus: the request may still run, and is released after it in the order of this request and lease.
+            releaseFocus(request, held)
+            if (focusRequest === request) {
+                focusRequest = null
+                lease = null
+            }
+            throw e
+        }
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -107,12 +142,23 @@ class AndroidReadAloudEnvironment(
     }
 
     override fun endSession() {
-        focusRequest?.let { audioManager?.abandonAudioFocusRequest(it) }
+        val request = focusRequest
+        val held = lease
+        if (request != null && held != null) releaseFocus(request, held)
         focusRequest = null
+        lease = null
         noisyReceiver?.let { runCatching { appContext.unregisterReceiver(it) } }
         noisyReceiver = null
         lifecycleObserver?.let { ProcessLifecycleOwner.get().lifecycle.removeObserver(it) }
         lifecycleObserver = null
+    }
+
+    /** Releases the ([request], [held]) pair; the session baseline is restored only if the lease is still held by its owner. */
+    private fun releaseFocus(request: AudioFocusRequest, held: AndroidAudioSessionCoordinator.Lease) {
+        sessions.post {
+            abandonFocus(request)
+            if (sessions.release(held)) restoreBaseline()
+        }
     }
 
     override fun showMessage(resId: Int) {

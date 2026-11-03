@@ -9,7 +9,6 @@ import Testing
 struct VoiceSettingsModelTests {
 
     private static let fallbackNotice = "The selected engine is no longer available. Switched back to System."
-    private static let realtimeFallbackNotice = "Switched back to Follow Current Model."
 
     private static func makeDefaults() -> (UserDefaults, String) {
         let suiteName = "VoiceSettingsModelTests-\(UUID().uuidString)"
@@ -231,73 +230,6 @@ struct VoiceSettingsModelTests {
         #expect(model.dictationNotice == nil)
     }
 
-    // MARK: - Voice conversation group
-
-    private static let realtimeCatalog: VoiceCatalog = VoiceCatalogDecoder.decode([
-        "providers": [
-            "openAI": [
-                "realtime": [[
-                    "model": "gpt-realtime",
-                    "transport": "openai_realtime",
-                    "path": "/v1/realtime",
-                    "contextWindow": 128_000,
-                    "voices": [["id": "marin", "isDefault": true]],
-                    "inputTranscriptionModel": "gpt-4o-mini-transcribe",
-                ]],
-            ],
-        ],
-    ] as [String: Any])
-    private static let realtimeEngine = VoiceCloudEngine(
-        providerKind: .openAI, connectionID: c1, model: "gpt-realtime", voice: "marin"
-    )
-
-    @Test("Conversation engine row: title Conversation Engine, subtitle Follow Current Model or provider name · model; plus the group footer")
-    func realtimeRow() async {
-        let (defaults, suiteName) = Self.makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = VoiceEngineSettings(defaults: defaults)
-        let model = Self.model(settings, state: .available(Self.realtimeCatalog))
-        await model.load()
-
-        #expect(model.realtimeEngine == VoiceEngineRow(
-            title: "Conversation Engine",
-            subtitle: "Follow Current Model",
-            isCloud: false
-        ))
-        #expect(model.realtimeNotice == nil)
-        #expect(model.realtimeFooter
-            == "A realtime model hears you and answers directly, so replies come faster, but this chat's model isn't used.")
-        #expect(VoiceSettingsModel.realtimeGroupTitle == "Voice Conversation")
-
-        settings.setSelection(.cloud(Self.realtimeEngine), for: .realtime)
-        model.reloadLocalSettings()
-        #expect(model.realtimeEngine == VoiceEngineRow(
-            title: "Conversation Engine",
-            subtitle: "OpenAI · gpt-realtime",
-            isCloud: true,
-            providerKind: .openAI
-        ))
-    }
-
-    @Test("An invalid conversation engine connection on entering the page is rewritten to Follow Current Model with a notice once (dedicated fallback copy)")
-    func realtimeFallbackNotice() async {
-        let (defaults, suiteName) = Self.makeDefaults()
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = VoiceEngineSettings(defaults: defaults)
-        settings.setSelection(.cloud(Self.realtimeEngine), for: .realtime)
-        let model = Self.model(settings, state: .available(Self.realtimeCatalog), providers: [])
-        await model.load()
-
-        #expect(settings.selection(for: .realtime) == .system)
-        #expect(model.realtimeEngine.subtitle == "Follow Current Model")
-        #expect(model.realtimeNotice == L10n.tr(Self.realtimeFallbackNotice, table: .voice))
-        #expect(model.dictationNotice == nil)
-        #expect(model.readAloudNotice == nil)
-
-        await model.load()
-        #expect(model.realtimeNotice == nil)
-    }
-
     // MARK: - Read-aloud group
 
     @Test("Voice rows appear only for cloud read-aloud; they list the entry's voices capitalized, check the current voice, and choosing one writes into the tts selection")
@@ -425,7 +357,16 @@ struct VoiceSettingsModelTests {
         #expect(cloud.readAloudFooter == L10n.tr(Self.readAloudFooter, table: .voice))
     }
 
-    // MARK: - View outputs
+    /// Finalized English copy (shared/voice-contracts/p2-copy.v1.json:voice_settings_header).
+    private static let pageHeaderKey = "Dictation and read aloud use your device's built-in voice for free. For better accuracy or a more natural voice, switch to a provider you've connected. Realtime voice talks to your provider's model directly and is billed to your account with that provider."
+
+    @Test("The header explains that dictation and read-aloud are free, realtime voice connects directly to the provider and is billed to the provider account, and no longer says no changes are needed")
+    func pageHeaderMentionsRealtimeBilling() {
+        #expect(VoiceSettingsModel.pageHeader == L10n.tr(Self.pageHeaderKey, table: .voice))
+        #expect(!VoiceSettingsModel.pageHeader.contains("don't need to change anything"))
+    }
+
+    // MARK: - View exit
 
     @Test("A cloud engine row carries providerKind, and the system row has nil")
     func rowProviderKind() async {
@@ -671,5 +612,145 @@ struct VoiceSettingsModelTests {
         #expect(model.dictationEngine.providerKind == .openAI)
         #expect(model.readAloudSelection == .cloud(Self.ttsEngine))
         #expect(model.speechRate == 1.2)
+    }
+
+    // MARK: - Realtime voice group
+
+    private static let realtimeWorkID = UUID(uuidString: "00000000-0000-0000-0000-0000000000E1")!
+    private static let realtimeRelayID = UUID(uuidString: "00000000-0000-0000-0000-0000000000E2")!
+    private static let realtimeHomeID = UUID(uuidString: "00000000-0000-0000-0000-0000000000E3")!
+    private static let realtimeWork = TestFactories.makeProvider(id: realtimeWorkID, kind: .openAI, customName: "Work")
+    private static let realtimeRelay = TestFactories.makeProvider(
+        id: realtimeRelayID, kind: .relay, baseURLText: "https://relay.test/v1"
+    )
+    private static let realtimeHome = TestFactories.makeProvider(id: realtimeHomeID, kind: .openAI, customName: "Home")
+
+    /// Two realtime models for openAI (isDefault sorts first); relays also get entries, and the auth shape is what decides whether one is listed.
+    private static func realtimeCatalog() -> VoiceCatalog {
+        func entry(_ model: String, isDefault: Bool) -> VoiceRealtimeEntry {
+            VoiceRealtimeEntry(
+                model: model,
+                transport: .openaiRealtime,
+                path: "/v1/realtime",
+                contextWindow: 128_000,
+                voices: [VoiceCatalogVoice(id: "marin", isDefault: true)],
+                maxSessionSec: nil,
+                inputTranscriptionModel: nil,
+                isDefault: isDefault
+            )
+        }
+        let openAI = [entry("gpt-realtime-mini", isDefault: false), entry("gpt-realtime", isDefault: true)]
+        return VoiceCatalog(schemaVersion: 2, revision: "settings", providers: [
+            .openAI: VoiceProviderEntries(realtime: openAI),
+            .relay: VoiceProviderEntries(realtime: openAI),
+        ])
+    }
+
+    private static func realtimeRows(_ model: VoiceSettingsModel) -> [VoiceRealtimeRow] {
+        guard case .rows(let rows) = model.realtimeGroup else { return [] }
+        return rows
+    }
+
+    private static let realtimeSubtitle = "Realtime voice · Interrupt anytime"
+
+    @Test("Realtime voice group: all official connections are listed in connection order, subtitle appends ' · connection name'; relays are not listed; footnote is the p3-copy text")
+    func realtimeGroup_lists_official_rows() async {
+        let (defaults, suiteName) = Self.makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let model = Self.model(
+            VoiceEngineSettings(defaults: defaults),
+            state: .available(Self.realtimeCatalog()),
+            providers: [Self.realtimeWork, Self.realtimeRelay, Self.realtimeHome]
+        )
+        #expect(model.realtimeGroup == .loading)
+        await model.load()
+
+        let rows = Self.realtimeRows(model)
+        #expect(rows.map(\.providerID) == [Self.realtimeWorkID, Self.realtimeWorkID, Self.realtimeHomeID, Self.realtimeHomeID])
+        #expect(rows.map(\.model) == ["gpt-realtime", "gpt-realtime-mini", "gpt-realtime", "gpt-realtime-mini"])
+        #expect(rows.map(\.providerKind) == [.openAI, .openAI, .openAI, .openAI])
+        #expect(rows.first?.subtitle == "\(Self.realtimeSubtitle) · Work")
+        #expect(rows.last?.subtitle == "\(Self.realtimeSubtitle) · Home")
+        #expect(rows.allSatisfy { !$0.isSelected })
+        #expect(model.realtimeFooter == "Pick one and Home shows the voice stage — tap the orb to start talking. Any chat's model picker has it too; pick a text model to go back to typing.")
+    }
+
+    @Test("Realtime voice group: no official connection (or the server has no voice catalog) → empty-state copy + add provider")
+    func realtimeGroup_empty_offers_add_provider() async {
+        let (defaults, suiteName) = Self.makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let relayOnly = Self.model(
+            VoiceEngineSettings(defaults: defaults),
+            state: .available(Self.realtimeCatalog()),
+            providers: [Self.realtimeRelay]
+        )
+        await relayOnly.load()
+        #expect(relayOnly.realtimeGroup == .empty)
+
+        let noCatalog = Self.model(
+            VoiceEngineSettings(defaults: defaults),
+            state: .unavailable,
+            providers: [Self.realtimeWork]
+        )
+        await noCatalog.load()
+        #expect(noCatalog.realtimeGroup == .empty)
+
+        #expect(relayOnly.realtimeEmptyText == "Add an official API key from a provider with realtime voice to use it here.")
+        #expect(relayOnly.realtimeAddProviderTitle == L10n.tr("Add Provider"))
+        #expect(relayOnly.realtimeAddProviderTitle == "Add Provider")
+    }
+
+    @Test("Realtime voice group: catalog load failed → failure copy + retry; a progress row during retry, listing rows once the catalog arrives")
+    func realtimeGroup_catalog_failed_offers_retry() async {
+        let (defaults, suiteName) = Self.makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var state: VoiceCatalogState = .loadFailed
+        var refreshes = 0
+        let model = VoiceSettingsModel(
+            settings: VoiceEngineSettings(defaults: defaults),
+            refreshCatalog: {
+                refreshes += 1
+                return state
+            },
+            providers: { [Self.realtimeWork] },
+            interfaceLanguage: { "en" },
+            systemVoiceQuality: { _ in .enhanced }
+        )
+        await model.load()
+        #expect(model.realtimeGroup == .failed)
+        #expect(model.realtimeFailedText == "Couldn't load realtime voice models")
+        #expect(model.realtimeRetryTitle == "Try Again")
+
+        state = .available(Self.realtimeCatalog())
+        await model.retryRealtime()
+        #expect(refreshes == 2)
+        #expect(Self.realtimeRows(model).map(\.model) == ["gpt-realtime", "gpt-realtime-mini"])
+    }
+
+    @Test("A realtime row is checked = realtime selected on home (in memory); unselected rows are not checked")
+    func realtimeRow_checked_equals_home_selection() async {
+        let (defaults, suiteName) = Self.makeDefaults()
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        var selection: RealtimeModelSelection?
+        let model = VoiceSettingsModel(
+            settings: VoiceEngineSettings(defaults: defaults),
+            refreshCatalog: { .available(Self.realtimeCatalog()) },
+            providers: { [Self.realtimeWork, Self.realtimeHome] },
+            interfaceLanguage: { "en" },
+            systemVoiceQuality: { _ in .enhanced },
+            realtimeSelection: { selection }
+        )
+        await model.load()
+        #expect(Self.realtimeRows(model).filter(\.isSelected).isEmpty)
+
+        selection = RealtimeModelSelection(providerID: Self.realtimeHomeID, providerKind: .openAI, model: "gpt-realtime-mini")
+        let checked = Self.realtimeRows(model).filter(\.isSelected)
+        #expect(checked.map(\.providerID) == [Self.realtimeHomeID])
+        #expect(checked.map(\.model) == ["gpt-realtime-mini"])
+
+        selection = RealtimeModelSelection(providerID: Self.realtimeWorkID, providerKind: .openAI, model: "gpt-realtime")
+        let moved = Self.realtimeRows(model).filter(\.isSelected)
+        #expect(moved.map(\.providerID) == [Self.realtimeWorkID])
+        #expect(moved.map(\.model) == ["gpt-realtime"])
     }
 }

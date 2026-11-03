@@ -1,11 +1,12 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Note } from '@oriveo/shared';
+import { PROVIDER_KINDS, type Note } from '@oriveo/shared';
 import { NoteCard } from './NoteCard';
 import { NoteFolderList } from './NoteFolderList';
 import { NoteSourceCard } from './NoteSourceCard';
+import { noteSourceVars } from './NoteSourceBadge';
 import { NoteTagEditor } from './NoteTagEditor';
 import { NoteTrashView } from './NoteTrashView';
 
@@ -424,6 +425,56 @@ describe('Notes responsive and theme style contracts', () => {
     // The byline badge uses the brand source token instead of bare small-caps text.
     expect(cssClassBlock(css, 'sourceBadge')).toContain('border-radius: 12px;');
     expect(cssClassBlock(css, 'sourceBadge')).toContain('var(--note-source-color)');
+    // Brand colour as text: light / dark text variants; the fill keeps the raw brand colour.
+    expect(cssClassBlock(css, 'sourceBadge')).toContain('color: var(--note-source-text);');
+    expect(css).toMatch(/:global\(\[data-theme='dark'\]\) \.sourceBadge \{\s*color: var\(--note-source-text-dark\);/);
+    expect(cssClassBlock(css, 'sourcePrimaryAction')).toContain('color: var(--note-source-text);');
+    expect(cssClassBlock(css, 'sourcePrimaryAction')).toContain('var(--note-source-color)');
+    expect(css).toMatch(/:global\(\[data-theme='dark'\]\) \.sourcePrimaryAction \{\s*color: var\(--note-source-text-dark\);/);
+    const badge = readAppFile('components/notes/NoteSourceBadge.tsx');
+    expect(badge).toContain("'--note-source-text': providerTextTint(providerKind, undefined, false)");
+    expect(badge).toContain("'--note-source-text-dark': providerTextTint(providerKind, undefined, true)");
+    // Kind-less fallback must be the theme text-safe colour, not raw primary.
+    expect(css).not.toMatch(/--note-source-text(-dark)?: var\(--note-source-color\)/);
+    expect(css).toContain('--note-source-text: var(--o-primary-text-on-surface);');
+  });
+
+  // Source colour comes from the same providerTint brand table as iOS / Android (shared fixture brand).
+  // Notes carry no connection id: Relay seeds on "relay" like iOS fallbackId "".
+  it('noteSourceColorMatchesProviderTintFixture', () => {
+    const fixture = JSON.parse(
+      readFileSync(resolve(process.cwd(), '../../../../\u5171\u4eab/test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
+    ) as { cases: { id: string; brand: string; light: string; dark: string }[] };
+    const byId = new Map(fixture.cases.map((c) => [c.id, c]));
+    const vars = (kind: Parameters<typeof noteSourceVars>[0]) =>
+      noteSourceVars(kind) as Record<string, string>;
+    // Web kind spelling → fixture id (fixture follows the iOS rawValue-lowercased keys).
+    const fixtureKey: Partial<Record<string, string>> = { grok: 'xai', togetherAI: 'together', fireworksAI: 'fireworks' };
+    let compared = 0;
+    for (const kind of PROVIDER_KINDS) {
+      const c = byId.get(`brand.${fixtureKey[kind] ?? kind.toLowerCase()}`);
+      if (!c) continue;
+      const v = vars(kind);
+      if (kind === 'grok') {
+        // Monochrome brand follows the theme text token on Web (providerTint decision).
+        expect(v['--note-source-color']).toBe('var(--o-text)');
+        expect(v['--note-source-text']).toBe('var(--o-text)');
+        continue;
+      }
+      expect(v['--note-source-color'].toUpperCase(), kind).toBe(c.brand.toUpperCase());
+      expect(v['--note-source-text'].toUpperCase(), kind).toBe(c.light.toUpperCase());
+      expect(v['--note-source-text-dark'].toUpperCase(), kind).toBe(c.dark.toUpperCase());
+      compared++;
+    }
+    expect(compared).toBe(15);
+    let h = 5381;
+    for (const ch of 'relay') h = (h * 33 + ch.charCodeAt(0)) >>> 0;
+    const relayCase = byId.get(`relay.${h % 8}`)!;
+    const relay = vars('relay');
+    expect(relay['--note-source-color'].toUpperCase()).toBe(relayCase.brand.toUpperCase());
+    expect(relay['--note-source-text'].toUpperCase()).toBe(relayCase.light.toUpperCase());
+    expect(relay['--note-source-text-dark'].toUpperCase()).toBe(relayCase.dark.toUpperCase());
+    expect(vars(undefined)).toEqual({ '--note-source-color': 'var(--o-primary)' });
   });
 
   it('shows the notes page purpose line with the notebook brand icon', () => {
@@ -437,7 +488,7 @@ describe('Notes responsive and theme style contracts', () => {
     expect(page).toContain('notePurposeLine');
     expect(page).toContain('notePurposeIcon');
     expect(cssClassBlock(css, 'notePurposeLine')).toContain('inline-flex');
-    expect(cssClassBlock(css, 'notePurposeIcon')).toContain('var(--o-primary)');
+    expect(cssClassBlock(css, 'notePurposeIcon')).toContain('var(--o-primary-text-on-surface)');
   });
 
   it('promotes source and reading controls at the top of the detail page', () => {
@@ -447,10 +498,11 @@ describe('Notes responsive and theme style contracts', () => {
     // The hero is a manuscript masthead (transparent, no box, large title), and the source model byline uses detailSourceModel with the brand color.
     expect(cssClassBlock(css, 'detailHero')).toContain('background: transparent;');
     expect(cssClassBlock(css, 'detailTitleInput')).toContain('font-size: clamp(30px, 3.4vw, 34px);');
-    expect(cssClassBlock(css, 'detailSourceModel')).toContain('color: var(--note-source-color);');
-    // The content card is not height-limited with inner scrolling: the body expands fully and the
-    // whole page scrolls, matching the manuscript masthead. This pins the card shape itself so it
-    // cannot regress to scrolling inside the card.
+    expect(cssClassBlock(css, 'detailSourceModel')).toContain('color: var(--note-source-text);');
+    expect(css).toMatch(/:global\(\[data-theme='dark'\]\) \.detailSourceModel \{\s*color: var\(--note-source-text-dark\);/);
+    expect(source).toContain('noteSourceVars(note.sourceProviderKind)');
+    // The body card no longer caps its height with inner scrolling: aligned with iOS NoteDetailView (body fully expanded, the whole page scrolls, editing-draft masthead semantics),
+    // so max-height has been removed. This now locks the card shape itself, to prevent a regression to inner scrolling.
     expect(cssClassBlock(css, 'detailContentCard')).toContain('border-radius: 20px;');
     expect(cssClassBlock(css, 'detailContentCard')).toContain('overflow: hidden;');
     expect(cssClassBlock(css, 'detailContentCard')).not.toContain('max-height:');

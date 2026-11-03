@@ -35,12 +35,17 @@ internal class DraftChatViewModelFixture(
     private val skills: List<Skill> = emptyList(),
     private val memoryItems: List<MemoryItem> = emptyList(),
     private val createdId: String = "chat-new",
+    private val voiceCatalog: () -> ai.oriveo.community.core.voice.VoiceCatalog? = { null },
+    /** Connection list flow: emits [provider] immediately by default; cases may pass a late-arriving flow. */
+    private val providersFlow: kotlinx.coroutines.flow.Flow<List<Provider>> = flowOf(listOf(provider)),
 ) {
     val created = mutableListOf<String>()
     val pinned = mutableListOf<String>()
 
+    /** Preferences repository mock (relaxed): cases assert against it whether the last-used write happened. */
+    val appPreferences = mockk<AppPreferencesRepository>(relaxed = true)
+
     fun create(): ChatViewModel {
-        val appPreferences = mockk<AppPreferencesRepository>(relaxed = true)
         every { appPreferences.lastUsedModelRef } returns flowOf(null)
         every { appPreferences.lastUsedModelRefSnapshot } returns null
         every { appPreferences.memoryText } returns MutableStateFlow("")
@@ -48,7 +53,7 @@ internal class DraftChatViewModelFixture(
         every { appPreferences.memoryAntiForgetText } returns MutableStateFlow("")
         coEvery { appPreferences.hasAcceptedProviderDisclosure(any()) } returns true
         val providers = mockk<ProviderRepository>()
-        every { providers.observeAll() } returns flowOf(listOf(provider))
+        every { providers.observeAll() } returns providersFlow
         coEvery { providers.getById(provider.id) } returns provider
         every { providers.currentCapabilityPartitionId() } returns "test-partition"
         coEvery { providers.capabilityEvidenceIdentity(any(), any(), "test-partition") } returns null
@@ -93,6 +98,7 @@ internal class DraftChatViewModelFixture(
             globalSnackbarManager = mockk<GlobalSnackbarManager>(relaxed = true),
             applicationScope = applicationScope,
             memoryItemsSource = flowOf(memoryItems),
+            voiceCatalog = voiceCatalog,
         )
     }
 

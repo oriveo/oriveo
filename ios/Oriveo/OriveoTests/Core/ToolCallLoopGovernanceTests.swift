@@ -251,9 +251,11 @@ struct ToolCallMemoryStoreTests {
         #expect(store.record(connectionID: connection, modelID: "m", toolCall: true, reason: .structuredToolCalls))
         #expect(store.lookup(connectionID: connection, modelID: "m")?.toolCall == true)
         #expect(store.record(connectionID: connection, modelID: "other", toolCall: false, reason: .toolsRejected4xx))
+        try store.waitForPendingWritesForTesting()
         #expect(store.count() == 2)
         store.clear(connectionID: connection)
         #expect(store.lookup(connectionID: connection, modelID: "m") == nil)
+        try store.waitForPendingWritesForTesting()
         #expect(store.count() == 0)
     }
 

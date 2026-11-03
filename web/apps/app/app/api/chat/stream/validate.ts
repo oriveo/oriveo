@@ -4,11 +4,16 @@ import type { RequestParams } from './request-builders/types';
 import { validateContinuation, type ContinuationIntent } from '@oriveo/core/providers/request-preference/continuation';
 import { PROPOSE_MEMORY_TOOL, PROPOSE_MEMORY_TOOL_NAME } from '@oriveo/core/context/memory-propose';
 import { SEARCH_MEMORY_TOOL, SEARCH_MEMORY_TOOL_NAME } from '@oriveo/core/context/memory-search';
+import { WEB_SEARCH_TOOL } from '@oriveo/core/search/search-turn';
 
 /** Host tool propose_memory: only the one byte-identical to the shared definition is let through. */
 const PROPOSE_MEMORY_TOOL_JSON = JSON.stringify(PROPOSE_MEMORY_TOOL);
 /** Host tool search_memory (memory-search.v1): same as propose_memory, only the byte-identical one is let through. */
 const SEARCH_MEMORY_TOOL_JSON = JSON.stringify(SEARCH_MEMORY_TOOL);
+/** Client web_search function tool: the shared definition with {today} filled in as YYYY-MM-DD, nothing else may differ. */
+const WEB_SEARCH_TOOL_NAME = WEB_SEARCH_TOOL.name;
+const [WEB_SEARCH_DESCRIPTION_HEAD, WEB_SEARCH_DESCRIPTION_TAIL] = WEB_SEARCH_TOOL.description.split('{today}');
+const WEB_SEARCH_TODAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Runtime validation and size limits for this route's request parameters.
@@ -112,7 +117,19 @@ export function isMcpToolName(name: string): boolean {
 /** Tool calls in the history and outgoing tools share the same name rules. */
 function isAllowedToolCallName(name: string): boolean {
   return LIBRARY_TOOL_NAMES.has(name) || isMcpToolName(name) || name === PROPOSE_MEMORY_TOOL_NAME
-    || name === SEARCH_MEMORY_TOOL_NAME;
+    || name === SEARCH_MEMORY_TOOL_NAME || name === WEB_SEARCH_TOOL_NAME;
+}
+
+/** web_search: byte-for-byte the shared WEB_SEARCH_TOOL with only {today} replaced by a YYYY-MM-DD date. */
+function isWebSearchToolDefinition(tool: unknown): boolean {
+  const description = (tool as { function?: { description?: unknown } }).function?.description;
+  if (typeof description !== 'string'
+    || description.length !== WEB_SEARCH_DESCRIPTION_HEAD.length + 10 + WEB_SEARCH_DESCRIPTION_TAIL.length
+    || !description.startsWith(WEB_SEARCH_DESCRIPTION_HEAD) || !description.endsWith(WEB_SEARCH_DESCRIPTION_TAIL)) return false;
+  const today = description.slice(WEB_SEARCH_DESCRIPTION_HEAD.length, WEB_SEARCH_DESCRIPTION_HEAD.length + 10);
+  if (!WEB_SEARCH_TODAY_PATTERN.test(today)) return false;
+  const expected = { type: 'function', function: { name: WEB_SEARCH_TOOL.name, description, parameters: WEB_SEARCH_TOOL.parameters } };
+  return JSON.stringify(tool) === JSON.stringify(expected);
 }
 
 function validateMessageContentSize(content: unknown): boolean {
@@ -324,6 +341,8 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
         if (JSON.stringify(tool) !== SEARCH_MEMORY_TOOL_JSON) {
           return { ok: false, status: 400, error: 'tools invalid' };
         }
+      } else if (fn.name === WEB_SEARCH_TOOL_NAME) {
+        if (!isWebSearchToolDefinition(tool)) return { ok: false, status: 400, error: 'tools invalid' };
       } else {
         return { ok: false, status: 400, error: 'tools invalid' };
       }

@@ -139,9 +139,7 @@ struct ProviderDetailHangCostTests {
     ) async -> Sample {
         let state = AppState(seedDemoData: false, sessionUID: "hang-cost-\(UUID().uuidString)")
         defer {
-            state.flushConversationPersistQueue()
-            DatabaseManager.shared.close()
-            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: state.sessionPartitionUID))
+            await TestPartitionCleanup.remove(state.sessionPartitionUID)
         }
         state.providers = [provider]
 

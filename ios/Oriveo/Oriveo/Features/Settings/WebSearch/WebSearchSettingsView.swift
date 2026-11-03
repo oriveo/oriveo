@@ -129,7 +129,7 @@ struct WebSearchSettingsView: View {
                     .font(.system(size: 16, weight: .medium))
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+            .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             .padding(.horizontal, 16)
             .padding(.vertical, 13)
         }

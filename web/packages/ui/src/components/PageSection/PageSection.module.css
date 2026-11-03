@@ -8,7 +8,7 @@
   border-radius: var(--o-radius-full);
   background: var(--o-primary-subtle);
   border: 1px solid var(--o-border);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-size: var(--o-text-xs);
   font-weight: 600;
   letter-spacing: 0.04em;

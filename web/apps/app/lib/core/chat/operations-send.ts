@@ -92,7 +92,7 @@ import { createUserMessage, createAssistantMessage } from './message-factory';
 import { upsertMessages } from './message-merge';
 import { deriveConversationMetadata, computeConversationActivityAt } from '../conversation-metadata';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent, dispatchesImageGeneration, filterGenerationParameterOverrides, filterRequestCapabilityIntent, providerControlsAreManaged } from './stream-options';
-import type { StreamOptions } from '@oriveo/core/providers/types';
+import type { StreamOptions, StreamUsage } from '@oriveo/core/providers/types';
 import { generationParameterFallbackModelId, generationParameterProfileFingerprint, resolveGenerationParameterOverrides } from './generation-parameter-settings';
 import { canonicalFinalTransport, capabilityPreferenceIdentity, resolveCapabilityPreferences, subscriptionFinalTransport, resolveRelayWebPreference, type CapabilityPreferences } from './capability-preference-settings';
 import { migrateDraftScopedModelControls } from './draft-scope-migration';
@@ -110,6 +110,7 @@ import { trackEvent, telemetryProviderKind, telemetryModelID } from '../telemetr
 import * as Sentry from '@sentry/nextjs';
 import { deriveCostFields, generatedImageUnits, mergeMessageUsageFields, roundCostOf } from './cost-fields';
 import { mergeCitationsWithExisting } from './cost-fields';
+import { COST_EPSILON } from '../../utils/format-utils';
 import {
   buildProviderSentryContext,
   normalizeChatFailure,
@@ -118,17 +119,21 @@ import {
 } from './error-reporting';
 import { recalculateConversationCostTotals } from './usage-tracking';
 import { addMessageCost } from '../cost/cost-currency';
-import { recordOfficialInputRejection } from '../capability/input-rejection-flow';
-import { attachOfficialInputRejection, officialInputRejectionOf } from '../capability/rejection-recovery';
 import { unbilledSkillRetrievalUsage, type PromptInjectionContext } from './prompt-injection';
-import { runStreamPipeline, type StreamPipelineResult } from './stream-runner';
+import {
+  afterFinishedLegs, runStreamPipeline, type FinishedLegsShown, type StreamPipelineResult,
+} from './stream-runner';
 import { transportInput, type TransportInput } from './context-pipeline/transport-input';
 import { stopReasonFromError, stopReasonFromFinish } from './stop-reason-outcome';
 import { ContextOverflowClassifier } from '@oriveo/core/context/overflow';
 import { prepareSendStart, reportSendStartedTelemetry, rollbackSendStart } from './send-start';
 import { CapConfirmCancelledError, capConfirmAttemptOf, gateCapConfirm, onceCallback } from './context-visibility/cap-confirm-gate';
 import { reportSendCompletion } from './send-completion';
+import { interruptedTurnUsage } from './interrupted-turn-usage';
 import { reportChatFailed } from './send-failure';
+import {
+  hasVisibleReplyContent, inStreamOverflowFailure, isInStreamOverflowFailure, newReplyText, noVisibleReplyError,
+} from './visible-reply';
 import type { ChatAttemptKind } from '../telemetry/chat-failure';
 import { continuationCaptured, continuationSendCompleted, continuationSendInterrupted, continuationSendStarted } from './continuation-lifecycle';
 import { getSyncAdapter } from '../sync-port';
@@ -155,6 +160,8 @@ import {
 } from './capability-recovery-runtime';
 import { sendLibraryAgentLeg } from '../providers/proxy-client';
 import { requestBaseURLText } from '../providers/endpoint-source';
+import { resolveProviderAPIKey } from '@oriveo/core/providers/provider-credential';
+import { runChatImageStudio, type ChatImageStudioResult } from '../studio/chat-image-runner';
 import { getActiveUIDSync } from '../../infra/storage/partition';
 import { createMemoryCandidateRepository } from '../memory/memory-candidate-repository';
 import { createMemoryItemRepository } from '../memory/memory-item-repository';
@@ -206,7 +213,9 @@ function dispatchesToImagesEndpoint(provider: Provider, model: AIModel, options:
 /**
  * Decides whether this send is handed to the MCP tool loop, and returns its arguments if so. It only reads the local MCP store and sends no request.
  */
-function resolveMcpDelegation(params: Parameters<typeof sendMessage>[1]): SendMcpToolMessageParams | null {
+function resolveMcpDelegation(
+  params: Parameters<typeof sendMessage>[1],
+): SendMcpToolMessageParams | null {
   if (params.libraryServerResearch) return null;
   if (params.libraryContextDocuments?.length) return null;
   // A continuation is a single purpose=continue request and never enters the tool loop.
@@ -367,17 +376,15 @@ export function sendMessage(
     attemptKind = 'send',
     searchRegenerate,
   } = params;
+
   const sendConfirmed = onceCallback(params.onSendConfirmed);
 
-  // Remote MCP: when this conversation has servers switched on and the connection can carry tools,
-  // the send goes through the tool loop instead. The decision is made here rather than in the UI
-  // because retry and edit-and-resend re-enter through this function; deciding at each entry point
-  // would inevitably miss one. Not delegated: named documents and server-side research (they need
-  // the injection pipeline, and the library takes precedence), and targeted resends the user
-  // confirmed (those switches only take effect on the plain send path). With no usable tool the
-  // plan is empty and the original path is unchanged.
+  // Remote MCP (contract §9.1): when this conversation has a server open and this connection can carry tools, switch to the send path with the tool loop.
+  // The decision lives here rather than in the UI layer: retry and resend-after-edit both re-enter through this function, so each entry deciding separately would inevitably miss some.
+  // Not delegated: named document / server-side retrieval (they go through the injection pipeline, library first) and user-confirmed targeted resends
+  // (those switches only apply on the normal send path). With no usable tools the plan is empty and the original path stays byte-for-byte unchanged.
   const userMsg = userMessageOverride ?? createUserMessage({ text, provider, model, attachments, quoteContext });
-  // The "set as instruction" suggestion strip only judges fresh user sends (including fresh MCP / library sends); retries, regenerations, edits, continuations and restores do not.
+  // The 'set as instruction' suggestion bar is judged only for new user sends (including new MCP / library sends); retry, regenerate, edit, continue and resume are not judged.
   const isFreshUserSend = attemptKind === 'send' && !userMessageOverride && !userMessageAlreadyInHistory
     && persistUserMessage && !continueAssistant;
   const mcpDelegation = resolveMcpDelegation(params);
@@ -498,6 +505,24 @@ export function sendMessage(
     if (abortRequested) externalSearchReply.stop();
     return externalSearchMessagePatch(externalSearchReply.finish(), externalSearchReply.turn.binding.service, existing);
   };
+  // Finished legs bill what they reported; the stopped leg only what it showed after them.
+  const recordStoppedTurn = (billing: StoppedTurnBilling): void => {
+    const earlierReasoning = appendToAssistant ? assistantMsg.reasoningText : undefined;
+    const shown = billing.finishedLegsShown;
+    recordInterruptedTurnUsage({
+      store, provider, model, conversationId: finalConvId, messageId: assistantMsg.id,
+      before: shown
+        ? {
+          text: shown.text,
+          reasoningText: [earlierReasoning ?? '', shown.reasoningText.trim()].filter((part) => part !== '').join('\n\n'),
+        }
+        : { text: initialAssistantText, reasoningText: earlierReasoning },
+      estimatedInput: billing.estimatedInput,
+      rhoHi: billing.rhoHi,
+      promptContext: billing.promptContext,
+      ...(billing.finishedLegsUsage ? { finishedLegs: billing.finishedLegsUsage } : {}),
+    });
+  };
   const done = (async () => {
     try {
       if (directContextDocuments.length > 0 || serverResearch) {
@@ -601,8 +626,16 @@ export function sendMessage(
           const guarded = store.getState().conversations.find((c) => c.id === finalConvId)?.messages.find((m) => m.id === assistantMsg.id);
           patchAssistantMessage(store, finalConvId, assistantMsg.id, externalSearchPatch(guarded ?? {}));
         }
-        // Guard hit: stream-runner already wrote citations back, so the transaction must not overwrite the final message state.
-        // The request did go out, so still report this attempt's sent (the outcome is the stopped event from the stop side, not reported here).
+        // A stopped reply bills what it showed; the state stays as stop() wrote it.
+        recordStoppedTurn({
+          estimatedInput: outbound.estimatedInput,
+          rhoHi: outbound.rhoHi,
+          promptContext,
+          ...(pipeline.finishedLegsUsage ? { finishedLegsUsage: pipeline.finishedLegsUsage } : {}),
+          ...(pipeline.finishedLegsShown ? { finishedLegsShown: pipeline.finishedLegsShown } : {}),
+        });
+        // Guard triggered: stream-runner has already written back citations, so the transaction function no longer overwrites the message's terminal state.
+        // The request was actually sent: still record this attempt's sent (the outcome is recorded as stopped on the stop side; not emitted here).
         reportSendStartedTelemetry({
           finalConvId,
           isFirstMessage,
@@ -662,6 +695,18 @@ export function sendMessage(
       });
 
       const { finalText, processedAttachments } = await processImageAttachments(fullText, imageAttachments);
+      // A reply with nothing visible fails as empty_response; a user stop keeps the cancel path.
+      // An upstream context-window overflow is the more specific failure, so it wins over the empty-reply fallback
+      // and the turn still records context_window_exceeded (e.g. reasoning streamed, then the window ran out).
+      if (!abortRequested && !hasVisibleReplyContent({
+        text: newReplyText(finalText, initialAssistantText),
+        attachments: processedAttachments,
+        unhandledToolCalls,
+        memoryProposed: outbound.memoryProposed,
+      })) {
+        throw noVisibleReplyError(pipeline.finish);
+      }
+      // Per-item pricing counts the images generated this turn.
       const costInfo = deriveCostFields(usage, model, provider, () => new Date(), generatedImageUnits(processedAttachments));
       const roundCost = roundCostOf(costInfo, promptContext.retrievalCost);
       const cost = roundCost.estimatedCost;
@@ -889,6 +934,9 @@ export function sendMessage(
       if (alreadyTerminal && guardMsg && externalSearchReply) {
         patchAssistantMessage(store, finalConvId, assistantMsg.id, externalSearchPatch(guardMsg));
       }
+      // A stop that ended a tool loop by throwing bills like a guarded stop.
+      const stoppedBilling = stoppedByUser && guardMsg?.state === 'interrupted' ? stoppedTurnBillingOf(err) : undefined;
+      if (stoppedBilling) recordStoppedTurn(stoppedBilling);
       const partialText = partialState.streamingTexts[finalConvId] || guardMsg?.text || '';
       const partialReasoning = (partialState.streamingReasoningTexts[finalConvId] ?? '').trim();
       const errorKindKey = mapErrorKindKey(pe.kind);
@@ -896,7 +944,6 @@ export function sendMessage(
         && (err as { additionalBodyRetryEligible?: unknown }).additionalBodyRetryEligible === true);
       // A 400 before the stream starts that names one panel parameter exactly: the error card says which one and the user decides whether to resend without it.
       const generationParameterRejection = generationParameterRejectionOf(err);
-      const inputRejection = officialInputRejectionOf(err);
       const relayImageUnsupported = Boolean(err && typeof err === 'object'
         && (err as { relayImageUnsupported?: unknown }).relayImageUnsupported === true);
       const relayFileUnsupported = !relayImageUnsupported && Boolean(err && typeof err === 'object'
@@ -936,7 +983,6 @@ export function sendMessage(
         errorTitle: !additionalBodyRetry && pe.source === 'provider' ? PROVIDER_REQUEST_FAILED_TITLE : te(errorTitleKey),
         ...(additionalBodyRetry ? { additionalBodyRetryEligible: true } : {}),
         ...(generationParameterRejection ? { generationParameterRejection } : {}),
-        ...(inputRejection ? { inputRejection } : {}),
         ...(relayImageUnsupported ? { relayImageUnsupported: true } : {}),
         ...(relayFileUnsupported ? { relayFileUnsupported: true } : {}),
         errorDetail: additionalBodyFailure ? additionalBodyFailure.errorDetail : customFragmentFailure
@@ -1067,6 +1113,106 @@ export interface ChatOutboundResult<L> {
   relayStreamOptions: StreamOptions | undefined;
   /** Memory item ids injected by the final plan (the recomputed one after an overflow recompute). */
   memoryIds: string[];
+  /** Input estimate of the last request sent (budget estimatedInput); bills a stopped reply. */
+  estimatedInput: number | undefined;
+  /** rhoHi of this turn; estimates a stopped reply's output. */
+  rhoHi: number;
+  /** A propose_memory call this turn raised a suggestion bar (a created candidate or an instruct offer). */
+  memoryProposed: boolean;
+}
+
+/** What a stop needs to bill a turn: the outbound estimate inputs and the legs that finished before the stop. */
+interface StoppedTurnBilling {
+  estimatedInput: number | undefined;
+  rhoHi: number;
+  promptContext?: Pick<PromptInjectionContext, 'retrievalCost'>;
+  finishedLegsUsage?: StreamUsage;
+  finishedLegsShown?: FinishedLegsShown;
+}
+
+/** Carries the billing of a turn a stop ended by throwing (a tool loop's abort) to sendMessage's catch. */
+function attachStoppedTurnBilling(error: unknown, billing: StoppedTurnBilling): void {
+  if (!error || typeof error !== 'object') return;
+  Object.defineProperty(error, 'stoppedTurnBilling', { value: billing, enumerable: false, configurable: true });
+}
+
+function stoppedTurnBillingOf(error: unknown): StoppedTurnBilling | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  return (error as { stoppedTurnBilling?: StoppedTurnBilling }).stoppedTurnBilling;
+}
+
+/** Text after the prefix the message already had when this request started. */
+export function textAfter(full: string | undefined, before: string | undefined): string {
+  const value = full ?? '';
+  const prefix = before ?? '';
+  if (!prefix) return value;
+  if (!value.startsWith(prefix)) return value;
+  return value.slice(prefix.length).replace(/^\n\n/, '');
+}
+
+/**
+ * Bills a non-managed reply that was stopped while streaming: the stopped request is
+ * estimated from what the message shows (usage it streamed is ignored), finished legs keep their usage; tokens,
+ * cost and costSource go onto the message where a completed reply writes them, and the usage is reported once.
+ * Knowledge retrievals that ran before the stop are a finished leg: their cost joins the message cost (unless the
+ * model cost is unknown, which keeps the whole cost unknown). Nothing shown writes nothing. The message state is
+ * left untouched; a deleted message is skipped.
+ */
+export function recordInterruptedTurnUsage(p: {
+  store: ChatOpCtx['store'];
+  provider: Provider;
+  model: AIModel;
+  conversationId: string;
+  messageId: string;
+  /** What the message showed before this request (continue keeps the earlier text and reasoning). */
+  before: { text?: string; reasoningText?: string };
+  estimatedInput: number | undefined;
+  rhoHi: number;
+  /** Usage of legs that finished before the stop. */
+  finishedLegs?: StreamUsage;
+  /** This turn's prompt context: knowledge retrievals already run (cost). */
+  promptContext?: Pick<PromptInjectionContext, 'retrievalCost'>;
+}): void {
+  const message = p.store.getState().conversations
+    .find((c) => c.id === p.conversationId)?.messages.find((m) => m.id === p.messageId);
+  if (!message) return;
+  const usage = interruptedTurnUsage({
+    estimatedInput: p.estimatedInput,
+    rhoHi: p.rhoHi,
+    visibleText: textAfter(message.text, p.before.text),
+    reasoningText: textAfter(message.reasoningText, p.before.reasoningText),
+    ...(p.finishedLegs ? { finishedLegs: p.finishedLegs } : {}),
+  });
+  if (!usage) {
+    recordStoppedRetrievalsOnly(p, message);
+    return;
+  }
+  const costInfo = deriveCostFields(usage, p.model, p.provider, () => new Date(), undefined);
+  // Any leg unknown keeps the whole cost unknown, so the retrieval cost is only added to a known model cost.
+  const roundCost = roundCostOf(costInfo, costInfo.costSource === 'unknown' ? 0 : p.promptContext?.retrievalCost ?? 0);
+  patchAssistantMessage(p.store, p.conversationId, p.messageId, {
+    ...addMessageCost(message, roundCost),
+    costSource: roundCost.costSource,
+    ...mergeMessageUsageFields(message, costInfo),
+  });
+}
+
+/**
+ * A stop with nothing shown and no finished model leg, after knowledge retrievals already ran: the retrievals are
+ * a finished leg, so their cost goes onto the message and their usage is reported; no model tokens are written
+ *.
+ */
+function recordStoppedRetrievalsOnly(
+  p: Pick<Parameters<typeof recordInterruptedTurnUsage>[0], 'store' | 'conversationId' | 'messageId' | 'promptContext'>,
+  message: ChatMessage,
+): void {
+  const retrievalCost = p.promptContext?.retrievalCost ?? 0;
+  if (retrievalCost <= COST_EPSILON) return;
+  const roundCost = roundCostOf({ cost: 0, costSource: 'unknown' }, retrievalCost);
+  patchAssistantMessage(p.store, p.conversationId, p.messageId, {
+    ...addMessageCost(message, roundCost),
+    costSource: roundCost.costSource,
+  });
 }
 
 function continuationInstructionsModeOf(continuation: ContinuationIntent): ContinuationInstructionsMode | null {
@@ -1394,7 +1540,83 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     : subscriptionFinalTransport(provider, model)
       ?? canonicalFinalTransport(resolveCatalogModel(model.id, provider.kind)?.transport ?? model.transport);
 
-  // Outbound of one attempt: plan -> history and options. An explicit continuation decides fullPlan / stateful here.
+  // A prompt-only image send the dispatch puts on the studio pipeline runs through the chat image runner and
+  // ends here; null keeps the legacy images path below unchanged.
+  // A base URL that cannot be resolved keeps the legacy path: the studio request needs a concrete one.
+  const studioBaseURL = imageGeneration ? (requestBaseURLText(provider) ?? '').trim() : '';
+  if (imageGeneration && studioBaseURL !== '') {
+    const studioController = new AbortController();
+    req.setAbortFn(() => studioController.abort());
+    let studio: ChatImageStudioResult | null;
+    try {
+      const lastUser = [...receivableMessages].reverse().find((message) => message.role === 'user');
+      studio = await runChatImageStudio({
+        providerKind: provider.kind,
+        model: model.id,
+        apiKey: resolveProviderAPIKey(provider, model.id),
+        baseURL: studioBaseURL,
+        prompt: chatPlan.imagePrompt ?? '',
+        attachments: lastUser?.attachments ?? [],
+        signal: studioController.signal,
+      });
+    } finally {
+      req.setAbortFn(null);
+    }
+    // A stop while the runner decided legacy used up this abort hook: end the send like a stop during compaction.
+    if (!studio && (req.isAbortRequested() || studioController.signal.aborted)) {
+      throw new DOMException('Send stopped before the image request', 'AbortError');
+    }
+    if (studio && 'errorKind' in studio) {
+      const detail = studio.message ?? undefined;
+      const failure: ProviderError = {
+        kind: studio.errorKind as ProviderError['kind'],
+        title: '',
+        message: detail ?? '',
+        ...(detail ? { detail } : {}),
+      };
+      throw failure;
+    }
+    if (studio) {
+      const delivered = 'attachments' in studio ? studio : null;
+      const guardMsg = store.getState().conversations.find((c) => c.id === conversationId)?.messages
+        .find((m) => m.id === req.assistantMessageId);
+      // Same shape the legacy images stream ends with: images and the usage event, no text.
+      const pipeline: StreamPipelineResult = {
+        outcome: !delivered && (guardMsg?.state === 'interrupted' || guardMsg?.state === 'failed') ? 'guarded' : 'completed',
+        fullText: req.initialText,
+        reasoningText: '',
+        citations: undefined,
+        usage: delivered?.usage ? {
+          prompt_tokens: delivered.usage.inputTokens,
+          completion_tokens: delivered.usage.outputTokens,
+          total_tokens: delivered.usage.totalTokens,
+        } : undefined,
+        imageAttachments: delivered?.attachments ?? [],
+        capabilityResults: [],
+        unhandledToolCalls: [],
+      };
+      await appendChatManifest({
+        conversationId, provider, model, plan: chatPlan, userMaxOutput: chatUserMaxOutput,
+        wireModelId: chatWireModelIdOf(model, imagePromptStreamOptions),
+        family: chatStopFamilyOf(undefined, provider.kind, imagePromptStreamOptions?.relayTransport),
+        ...(chatPlanAssembly.tailFrom ? { tailFrom: chatPlanAssembly.tailFrom } : {}),
+        ...manifestCheckpointId(),
+        stopReason: pipeline.outcome === 'guarded' || req.isAbortRequested()
+          ? 'interrupted'
+          : stopReasonFromFinish(undefined, false),
+      });
+      return {
+        pipeline, promptContext, libraryContext,
+        relayStreamOptions: imagePromptStreamOptions,
+        memoryIds: [...new Set(chatPlan.memoryIds)],
+        estimatedInput: chatPlan.budget.estimatedInput ?? undefined,
+        rhoHi: chatPlanAssembly.input.rhoHi ?? CONTEXT_BUDGET_CONSTANTS.rho0,
+        memoryProposed: false,
+      };
+    }
+  }
+
+  // Outbound for one attempt: plan -> history and options. An explicit continue judges fullPlan / stateful here.
   const prepareAttempt = async (plan: ContextPlan, assembly: ChatContextAssembly) => {
     const fingerprint = chatContinuationFingerprintOf(plan, chatWireModelIdOf(model, imagePromptStreamOptions), assembly);
     const continuationFingerprint = req.continuation
@@ -1686,6 +1908,10 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     const agentOutbound = await prepareAgentSubscriptionOutbound(store, provider, model, attempt.transport.options);
     const unhandled: CompletedToolCall[] = [];
     let legText = '';
+    // Billing of a stop: usage events are cumulative, so the last one before a leg starts covers the legs that finished.
+    let loopUsage: StreamUsage | undefined;
+    let finishedBeforeLeg: StreamUsage | undefined;
+    let shownBeforeLeg: FinishedLegsShown = { text: req.initialText, reasoningText: '' };
     try {
       const result = await new ToolCallLoop({
         registry: new ToolRegistry(entries),
@@ -1709,7 +1935,14 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
         if (event.type === 'legStarted') {
           legText = '';
           webSearchLoopLegIndex = event.legIndex;
+          finishedBeforeLeg = loopUsage;
+          // Each leg's text replaces the previous one after initialText; reasoning accumulates.
+          shownBeforeLeg = {
+            text: req.initialText,
+            reasoningText: store.getState().streamingReasoningTexts[conversationId] ?? '',
+          };
         }
+        else if (event.type === 'usage') loopUsage = event.usage;
         else if (event.type === 'textDelta') {
           legText += event.text;
           store.getState().setStreamingActivity(conversationId, null);
@@ -1727,7 +1960,19 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
         capabilityResults: [],
         unhandledToolCalls: unhandled,
         ...(result.finish ? { finish: result.finish } : {}),
+        ...afterFinishedLegs({}, finishedBeforeLeg, shownBeforeLeg),
       };
+    } catch (error) {
+      if (req.isAbortRequested()) {
+        const rhoHi = chatPlanAssembly.input.rhoHi ?? CONTEXT_BUDGET_CONSTANTS.rho0;
+        attachStoppedTurnBilling(error, {
+          estimatedInput: chatPlan.budget.estimatedInput ?? undefined,
+          rhoHi,
+          promptContext,
+          ...afterFinishedLegs({}, finishedBeforeLeg, shownBeforeLeg),
+        });
+      }
+      throw error;
     } finally {
       req.setAbortFn(null);
     }
@@ -1761,13 +2006,6 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     try {
       return await runPipeline();
     } catch (error) {
-      // The upstream of an official connection rejects media / parameters by signature: record a v2 negative cache (a parameter is recorded as `param:<name>` and omitted next time), no retry;
-      // the error still lands on the failure card as usual (Relay uses its own loop).
-      if (provider.kind !== 'relay' && !req.isAbortRequested()) {
-        attachOfficialInputRejection(error, recordOfficialInputRejection({
-          provider, model, streamOptions: attachmentScopeOptions, messages: attempt.transport.messages, error,
-        }));
-      }
       const rejectionContext = error && typeof error === 'object'
         ? (error as { toolCallRejectionContext?: unknown }).toolCallRejectionContext
         : undefined;
@@ -1818,6 +2056,8 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     });
     // The tail leg renders after the first-leg text.
     store.getState().setStreamingText(conversationId, first.fullText);
+    // The first leg finished: a stop during the tail bills it as reported.
+    const firstLegShown: FinishedLegsShown = { text: first.fullText, reasoningText: first.reasoningText };
     const handle = sendLibraryAgentLeg(
       provider.kind,
       agentOutbound.apiKey,
@@ -1849,7 +2089,10 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     const tailOtherCalls = (tail.toolCalls ?? []).filter((call) => !isProposeMemoryCall(call) && !isHostMemoryCall(call));
     const guardMsg = store.getState().conversations
       .find((c) => c.id === conversationId)?.messages.find((m) => m.id === req.assistantMessageId);
-    const { finish: _firstFinish, continuation: _firstContinuation, ...firstRest } = first;
+    const {
+      finish: _firstFinish, continuation: _firstContinuation,
+      finishedLegsUsage: _firstFinishedUsage, finishedLegsShown: _firstFinishedShown, ...firstRest
+    } = first;
     return {
       ...firstRest,
       outcome: guardMsg && (guardMsg.state === 'interrupted' || guardMsg.state === 'failed') ? 'guarded' : 'completed',
@@ -1859,6 +2102,7 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
       reasoningText: [first.reasoningText, tail.reasoningText].filter((text) => text.trim() !== '').join('\n\n'),
       citations: tail.citations ?? first.citations,
       usage: mergeToolLoopUsage(first.usage, tail.usage),
+      ...afterFinishedLegs({}, first.usage, firstLegShown),
       ...(tail.servedModelID ?? first.servedModelID ? { servedModelID: tail.servedModelID ?? first.servedModelID } : {}),
       imageAttachments: [...first.imageAttachments, ...tail.imageAttachments],
       unhandledToolCalls: tailOtherCalls,
@@ -1868,6 +2112,8 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
   // Each propose call writes its candidate in order (counted per round); the first create of the round becomes the suggestion strip; failures only warn.
   let proposedInTurn = 0;
   let instructedInTurn = 0;
+  // Set once a proposal actually surfaced a suggestion bar; a rejected proposal (null candidate) leaves it false.
+  let memoryProposed = false;
   const applyProposeMemoryCalls = async (calls: CompletedToolCall[]): Promise<void> => {
     if (!proposeMemory || calls.length === 0) return;
     const { ticket, userMessage } = proposeMemory;
@@ -1891,9 +2137,11 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
             priorInstructInTurn: instructedInTurn,
             onInstruct: (sentence) => {
               instructedInTurn += 1;
+              memoryProposed = true;
               offerInstructSuggestion(store, ticket, sentence);
             },
           });
+          if (candidate) memoryProposed = true;
           resolveProposedMemorySuggestion(store, ticket, candidate);
         } catch (error) {
           console.warn('[memory-candidate] propose failed', error);
@@ -2049,9 +2297,15 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
             attempt = await prepareAttempt(resendPlan, chatPlanAssembly);
             chatPlan = resendPlan;
           }
+          // The first leg finished: a stop during the resend bills it as reported.
+          const firstLegShown: FinishedLegsShown = { text: req.initialText, reasoningText: first.reasoningText };
           const retry = await runPipeline();
-          // Usage of the two legs is added up (same as the tail leg); no rho sample is recorded.
-          pipeline = { ...retry, usage: mergeToolLoopUsage(first.usage, retry.usage) };
+          // Sum the usage of both legs (same tail leg); no ρ sample is recorded.
+          pipeline = {
+            ...retry,
+            usage: mergeToolLoopUsage(first.usage, retry.usage),
+            ...afterFinishedLegs(retry, first.usage, firstLegShown),
+          };
           proposeTailLegRan = true;
         }
       }
@@ -2079,26 +2333,13 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     ...(observedInput !== undefined ? { observedInput } : {}),
   });
   return {
-    pipeline, promptContext, libraryContext, relayStreamOptions: attempt.transport.options,
+    pipeline, promptContext, libraryContext,
+    relayStreamOptions: attempt.transport.options,
     memoryIds: [...new Set([...chatPlan.memoryIds, ...searchMemoryIds])],
+    estimatedInput: chatPlan.budget.estimatedInput ?? undefined,
+    rhoHi: chatPlanAssembly.input.rhoHi ?? CONTEXT_BUDGET_CONSTANTS.rho0,
+    memoryProposed,
   };
-}
-
-/**
- * Failure object for a second in-stream overflow: HTTP 200 wraps up normally with no error body, so isContextOverflowFailure cannot recognize it;
- * the marker makes the failure wrap-up record context_window_exceeded. The message carries only the upstream finishRaw (technical original text, not self-written copy).
- */
-const IN_STREAM_OVERFLOW = Symbol('inStreamContextOverflow');
-
-function inStreamOverflowFailure(finishRaw: string | null | undefined): ProviderError {
-  const raw = finishRaw?.trim() || 'context_window_exceeded';
-  return Object.assign({ kind: 'badRequest', title: raw, message: raw, source: 'provider' } as ProviderError, {
-    [IN_STREAM_OVERFLOW]: true,
-  });
-}
-
-function isInStreamOverflowFailure(err: unknown): boolean {
-  return Boolean(err && typeof err === 'object' && (err as { [IN_STREAM_OVERFLOW]?: unknown })[IN_STREAM_OVERFLOW] === true);
 }
 
 /** Wire tool definition of propose_memory (canonical OpenAI function shape; the route projects it by protocol). */

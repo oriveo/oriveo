@@ -31,13 +31,14 @@ struct ConversationPersistenceSafetyTests {
         }
         DatabaseManager.shared.close()
 
-        let sourceStore = try makeStore(uid: sourceUID)
+        let (sourceStore, sourcePool) = try makeClosableStore(uid: sourceUID)
         let sourceSnapshot = try decodeSnapshot(at: sourceSnapshotURL)
 
         #expect(try sourceStore.fetchConversationCount() == 0)
         #expect(sourceSnapshot.selectedTab == state.selectedTab)
         #expect(sourceSnapshot.providers.isEmpty)
         #expect(sourceSnapshot.conversations == nil)
+        try sourcePool.close()
         await TestPartitionCleanup.remove(sourceUID, targetUID)
     }
 
@@ -583,12 +584,14 @@ struct ConversationPersistenceSafetyTests {
         state.upsertConversationProjection(conversation)
         state.flushConversationPersistQueue()
 
-        let sourceStore = try makeStore(uid: sourceUID)
-        let targetStore = try makeStore(uid: targetUID)
+        let (sourceStore, sourcePool) = try makeClosableStore(uid: sourceUID)
+        let (targetStore, targetPool) = try makeClosableStore(uid: targetUID)
         let stored = try #require(try sourceStore.fetchConversationThread(id: conversation.id))
 
         #expect(stored.summary.title == "bound body")
         #expect(try targetStore.fetchConversationCount() == 0)
+        try sourcePool.close()
+        try targetPool.close()
         await TestPartitionCleanup.remove(sourceUID, targetUID)
     }
 
@@ -688,10 +691,10 @@ struct ConversationPersistenceSafetyTests {
 
     @Test("v25/v26 local tool-call columns round-trip through ConversationStore")
     @MainActor
-    func toolCallLocalColumnsRoundTrip() throws {
+    func toolCallLocalColumnsRoundTrip() async throws {
         let uid = "toolcall-columns-\(UUID().uuidString)"
         try FileManager.default.createDirectory(at: AppSessionStore.userDir(for: uid), withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid)) }
+        defer { await TestPartitionCleanup.remove(uid) }
         var assistant = TestFactories.makeMessage(role: .assistant, text: "", estimatedCost: 0)
         assistant.unhandledToolCalls = [
             UnhandledToolCall(id: "call_r2_weather", name: "get_weather", arguments: #"{"city":"Melbourne"}"#),
@@ -738,13 +741,15 @@ struct ConversationPersistenceSafetyTests {
         state.replaceConversationProjection([conversation])
         state.flushConversationPersistQueue()
 
-        let sourceStore = try makeStore(uid: sourceUID)
-        let targetStore = try makeStore(uid: targetUID)
+        let (sourceStore, sourcePool) = try makeClosableStore(uid: sourceUID)
+        let (targetStore, targetPool) = try makeClosableStore(uid: targetUID)
         let stored = try #require(try sourceStore.fetchConversationThread(id: conversation.id))
 
         #expect(stored.summary.title == "Replace Projection")
         #expect(stored.messages.first?.text == "replace body")
         #expect(try targetStore.fetchConversationCount() == 0)
+        try sourcePool.close()
+        try targetPool.close()
         await TestPartitionCleanup.remove(sourceUID, targetUID)
     }
 
@@ -900,6 +905,18 @@ struct ConversationPersistenceSafetyTests {
         #expect(SQLitePersistRetry.isRetryable(DatabaseError(resultCode: .SQLITE_LOCKED)))
         #expect(SQLitePersistRetry.isRetryable(DatabaseError(resultCode: .SQLITE_INTERRUPT)))
         #expect(!SQLitePersistRetry.isRetryable(constraint))
+    }
+
+    /// Like `makeStore(uid:)`, also handing back the pool so the test closes it before removing the partition
+    /// (a test-opened pool left open while its files are removed logs "vnode unlinked while in use").
+    private func makeClosableStore(uid: String) throws -> (store: ConversationStore, pool: DatabasePool) {
+        let dbPool = try DatabasePool(
+            path: AppSessionStore.databasePath(for: uid).path,
+            configuration: DatabaseSchema.makeConfiguration()
+        )
+        let attachmentFileStore = AttachmentFileStore(rootDirectory: AppSessionStore.userDir(for: uid).appendingPathComponent("Files", isDirectory: true))
+        try DatabaseSchema.makeMigrator(attachmentFileStore: attachmentFileStore).migrate(dbPool)
+        return (ConversationStore(dbPool: dbPool, attachmentFileStore: attachmentFileStore), dbPool)
     }
 
     private func makeStore(uid: String) throws -> ConversationStore {

@@ -1,6 +1,7 @@
 package ai.oriveo.community.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -217,9 +218,68 @@ class OriveoColorsTest {
     @Test
     fun `light palette keeps its pre palette values`() {
         assertEquals(Color(0xFF8C5FF8), LightOriveoColors.primary)
-        assertEquals(Color(0xFFFFFFFF), LightOriveoColors.backgroundBase)
+        assertEquals(Color(0xFFFAFAFA), LightOriveoColors.backgroundBase)
         assertEquals(Color(0xFFFFFFFF), LightOriveoColors.textInverse)
         assertEquals(Color(0x1A8C5FF8), LightOriveoColors.primaryGlow)
         assertEquals(1f, LightOriveoColors.glowK)
+    }
+
+    @Test
+    fun `neutralFill light is tertiarySystemFill 12 percent`() {
+        assertEquals(Color(0x1F767680), LightOriveoColors.neutralFill)
+    }
+
+    @Test
+    fun `neutralFill dark and all dark palettes are tertiarySystemFill 24 percent`() {
+        assertEquals(Color(0x3D767680), DarkOriveoColors.neutralFill)
+        val palettes = DarkPaletteContract.instances()
+        assertEquals(7, palettes.size)
+        for ((id, c) in palettes) {
+            assertEquals("$id neutralFill", Color(0x3D767680), c.neutralFill)
+        }
+    }
+
+    @Test
+    fun `neutralFill light stays visible on backgroundSecondary`() {
+        val bg = LightOriveoColors.backgroundSecondary
+        assertTrue(LightOriveoColors.neutralFill.compositeOver(bg) != bg)
+    }
+
+    @Test
+    fun `backgroundSecondary light is the neutral inset fill shared with iOS and Web bg-inset`() {
+        assertEquals(Color(0xFFF0F0F2), LightOriveoColors.backgroundSecondary)
+    }
+
+    private val darkVariants = listOf(
+        DarkOriveoColors,
+        DarkPurpleOriveoColors,
+        DarkGraphiteOriveoColors,
+        DarkBlackOriveoColors,
+        DarkOceanOriveoColors,
+        DarkForestOriveoColors,
+        DarkSunsetOriveoColors,
+    )
+
+    @Test
+    fun `card highlight matches iOS values`() {
+        assertEquals(Color(0x8CFFFFFF), LightOriveoColors.cardSheen)
+        assertEquals(Color(0x8CFFFFFF), LightOriveoColors.cardHighlight)
+        darkVariants.forEach {
+            assertEquals(Color(0x07FFFFFF), it.cardSheen)
+            assertEquals(Color(0x14FFFFFF), it.cardHighlight)
+        }
+    }
+
+    @Test
+    fun `card highlight skips elevated fill`() {
+        darkVariants.forEach {
+            assertEquals(false, cardSheenApplies(it.surfaceElevated, it))
+            assertEquals(true, cardSheenApplies(it.surface, it))
+        }
+        // Light surface and surfaceElevated are both opaque white (as on iOS); a 55% white sheen
+        // over white is invisible, so neither light fill draws it.
+        assertEquals(LightOriveoColors.surface, LightOriveoColors.surfaceElevated)
+        assertEquals(false, cardSheenApplies(LightOriveoColors.surfaceElevated, LightOriveoColors))
+        assertEquals(false, cardSheenApplies(LightOriveoColors.surface, LightOriveoColors))
     }
 }

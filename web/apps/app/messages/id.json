@@ -6,10 +6,10 @@
     "notes": "Catatan"
   },
   "sidebar": {
-    "newChat": "Obrolan Baru",
+    "newChat": "Percakapan Baru",
     "resizeSidebar": "Ubah ukuran bilah sisi",
     "noConversations": "Belum ada percakapan",
-    "startPrompt": "Mulai obrolan pertama Anda untuk melihatnya di sini.",
+    "startPrompt": "Mulai percakapan pertama Anda untuk melihatnya di sini.",
     "searchPlaceholder": "Telusuri percakapan…",
     "clearSearch": "Hapus pencarian",
     "rename": "Ganti nama",
@@ -41,7 +41,7 @@
     "back": "Kembali",
     "emptyFolder": "Belum ada percakapan",
     "emptyFolderHint": "Pindahkan percakapan ke sini atau mulai percakapan baru",
-    "newChatInFolder": "Obrolan Baru",
+    "newChatInFolder": "Percakapan Baru",
     "renameFolder": "Ganti nama",
     "viewFolder": "Lihat Semua",
     "changeColor": "Ubah Warna",
@@ -156,17 +156,16 @@
     "generationParameterDormantClear": "Hapus",
     "generationParameterDormantRestored": "{count} parameter dipulihkan",
     "generationPresetName": "Nama preset",
-    "capabilityControlFixedByConnection": "Ditetapkan oleh koneksi ini",
     "capabilityControlReasonPending": "Konfigurasi otomatis belum siap",
     "capabilityControlReasonUnsupported": "Permintaan ini tidak didukung oleh model ini",
     "capabilityControlReasonExternalConnector": "Disediakan oleh layanan eksternal terpisah, di luar permintaan chat ini",
     "capabilityControlReasonCustom": "Atur permintaan ini di koneksi Anda",
     "capabilityControlReasonUnknown": "Konfigurasi otomatis tidak tersedia",
     "capabilityPreferencesUnavailable": "Pengaturan ini belum dapat disimpan sampai koneksi, model, dan rute permintaan siap.",
-    "currentConversation": "Percakapan Saat Ini",
+    "currentConversation": "Percakapan saat ini",
     "restoreModelBehavior": "Pulihkan Default",
     "restoreModelBehaviorConfirm": "Ini menghapus semua nilai yang Anda atur untuk model ini. Tidak dapat dibatalkan.",
-    "modelBehaviorScopeHint": "Hanya berlaku saat model ini digunakan dalam percakapan ini. Nilai tidak disalin saat berganti model dan dipulihkan saat kembali.",
+    "modelBehaviorScopeHint": "Hanya berlaku selama model ini dipakai dalam percakapan ini. Mengganti model tidak menyalin nilainya; kembali lagi akan memulihkannya.",
     "controlledByReasoningShortcut": "Dikendalikan oleh pintasan Berpikir",
     "customRequestFieldsCustom": "Bidang permintaan khusus",
     "customRequestFieldsReasonSyntax": "Pastikan fragmen berupa objek JSON valid tanpa kunci duplikat.",
@@ -233,6 +232,7 @@
     "capabilityControlReasoningNoteMax": "Masalah tersulit, berapa pun waktunya.",
     "capabilityControlReasoningFixedLevel": "Model ini memakai tingkat berpikir tetap dan tidak bisa diubah.",
     "capabilityControlCannotAdjustYet": "Belum bisa diatur",
+    "capabilityControlGoToParameters": "Buka parameter",
     "customRequestFieldsNotAllowed": "Kolom ini tidak diizinkan. Kolom yang diterima model ini: {fields}",
     "customRequestFieldsFooter": "Kolom ditambahkan ke permintaan persis seperti yang ditulis. Hanya kolom yang dideklarasikan resmi oleh penyedia yang didukung; kesalahan bisa membuat permintaan gagal. Draf tetap di perangkat ini.",
     "customRequestFieldsScopeConnectionModel": "Cakupan: model ini pada koneksi ini, sebagai default percakapannya.",
@@ -424,14 +424,12 @@
     "advancedStopSequenceAdd": "Tambahkan",
     "advancedStopSequenceRemove": "Hapus {sequence}",
     "advancedMore": "Lainnya",
-    "add": "Menambahkan",
-    "capabilityControlGoToParameters": "Buka parameter"
+    "add": "Menambahkan"
   },
   "pages": {
     "welcome": {
       "title": "Selamat datang di Oriveo",
       "tagline": "Semua Model Anda, Satu Aplikasi.",
-      "slogan": "Kunci Anda, Biaya Anda, Data Anda.",
       "description": "Siapkan penyedia AI pertama Anda untuk memulai percakapan multi-model.",
       "addProvider": "Tambahkan Penyedia",
       "enterHome": "Lanjut ke Aplikasi"
@@ -502,7 +500,6 @@
       "stop": "Berhenti menghasilkan",
       "generating": "Menghasilkan",
       "activityWebSearch": "Mencari di web",
-      "activityMcpTool": "Menggunakan {server} · {tool}",
       "aiAnswering": "AI menjawab…",
       "export": "Ekspor",
       "continueAnswering": "Lanjutkan Menjawab",
@@ -573,8 +570,8 @@
       "savedAsNote": "Disimpan sebagai catatan",
       "viewNote": "Lihat",
       "noteCaptureHint": "Gunakan tombol ini untuk menyimpan jawaban bagus sebagai catatan.",
-      "relatedNotesTitle": "Catatan yang bisa dibawa ke chat ini",
-      "attachNoteContext": "Bawa ke chat",
+      "relatedNotesTitle": "Catatan yang bisa dibawa ke percakapan ini",
+      "attachNoteContext": "Bawa ke percakapan",
       "dismissNoteSuggestion": "Abaikan",
       "noteAttachedToContext": "Catatan ditambahkan ke konteks",
       "crosscheckAction": "Periksa dengan model lain",
@@ -586,16 +583,23 @@
         "cacheRead": "Baca cache",
         "cacheWrite": "Tulis cache",
         "total": "Total",
-        "unavailable": "Tidak ada data"
+        "unavailable": "Tidak ada data",
+        "cost": "Biaya",
+        "estimated": "Perkiraan"
       },
-      "attachedNotesTitle": "Catatan yang dibawa ke chat ini",
+      "attachedNotesTitle": "Catatan yang dibawa ke percakapan ini",
       "removeNoteContext": "Hapus konteks: {title}",
       "managedAttachmentLimitAction": "OK",
       "weeklyQuotaUseBalanceConfirm": "Permintaan mingguan yang disertakan telah habis. Lanjutkan dengan Saldo AI Anda?",
       "viaOllamaCloud": "Melalui Ollama Cloud",
-      "modelRemovedBanner": "Model obrolan ini sudah tidak ada di {connection}.",
+      "modelRemovedBanner": "Model percakapan ini sudah tidak ada di {connection}.",
       "modelRemovedChoose": "Pilih model",
+      "connectionRemovedBanner": "Koneksi yang dipakai percakapan ini sudah dihapus.",
+      "modelRetiredBanner": "{model} sudah dihentikan.",
+      "modelRetiredSwitchTo": "Beralih ke {model}",
+      "lastUsedModelRetiredHint": "Model yang terakhir Anda pakai sudah dihentikan. Sekarang memakai {model}.",
       "copyFailed": "Gagal menyalin",
+      "activityMcpTool": "Menggunakan {server} · {tool}",
       "contextCompaction": {
         "summaryLine1": "{count, plural, other {{count} pesan sebelumnya dipadatkan · {before} → {after} token}}",
         "summaryLine2": "Oleh {model} · Lihat ringkasan",
@@ -726,11 +730,7 @@
         "confirmAlsoPriceLine": "Permintaan ini juga melewati ambang harga {model} di {line}, sehingga seluruh permintaan dikenai harga konteks panjang.",
         "confirmDontAsk": "Jangan tanya lagi di percakapan ini",
         "confirmSend": "Tetap kirim"
-      },
-      "connectionRemovedBanner": "Koneksi yang dipakai percakapan ini sudah dihapus.",
-      "modelRetiredBanner": "{model} sudah dihentikan.",
-      "modelRetiredSwitchTo": "Beralih ke {model}",
-      "lastUsedModelRetiredHint": "Model yang terakhir Anda pakai sudah dihentikan. Sekarang memakai {model}."
+      }
     },
     "providerSetup": {
       "title": "Tambahkan Penyedia",
@@ -790,7 +790,7 @@
         "openai": "Model GPT unggulan",
         "anthropic": "Model Claude",
         "gemini": "Teks, gambar & video",
-        "deepseek": "Penalaran & obrolan",
+        "deepseek": "Penalaran & percakapan",
         "grok": "Model xAI",
         "mistral": "Model Mistral AI",
         "minimax": "Model multimodal",
@@ -866,7 +866,7 @@
       "modelIdLabel": "ID Model",
       "clear": "Hapus",
       "modelIdPlaceholder": "misalnya openai/gpt-4o",
-      "saveAndChat": "Simpan & Mulai Mengobrol",
+      "saveAndChat": "Simpan & Mulai Percakapan",
       "providerNotFound": "Penyedia tidak ditemukan.",
       "addModelTitle": "Tambahkan Model",
       "fallbackTitle": "Model Pengganti",
@@ -1001,11 +1001,11 @@
           "reasoning": "Penalaran"
         },
         "hints": {
-          "text": "Obrolan teks biasa",
-          "image": "Unggah gambar ke obrolan",
+          "text": "Chat teks biasa",
+          "image": "Unggah gambar ke percakapan",
           "file": "Lampirkan PDF / dokumen",
           "web": "Pencarian web bawaan",
-          "imageGen": "Hasilkan gambar di obrolan",
+          "imageGen": "Hasilkan gambar di percakapan",
           "reasoning": "Mode berpikir / penalaran"
         }
       },
@@ -1016,7 +1016,7 @@
       "apiKeyPrivacy": "URL permintaan di jaringan lokal Anda terhubung langsung dari perangkat ini. URL permintaan publik diteruskan melalui server Oriveo untuk mengatasi batasan CORS browser — API key Anda hanya berada di memori selama permintaan tersebut, tidak pernah disimpan atau dicatat. HTTPS diperlukan pada kedua kasus.",
       "apiKeyStaysOnDevice": "Kunci hanya disimpan di perangkat ini dan tidak diunggah lewat sinkronisasi cloud.",
       "modelsFound": "Menemukan model {count} di katalog.",
-      "verifiedProtocol": "{protocol} terverifikasi melalui jalur obrolan sebenarnya.",
+      "verifiedProtocol": "{protocol} terverifikasi melalui jalur chat sebenarnya.",
       "probeProtocol": "Daftar model tidak dapat diambil. Tambahkan ID model yang ingin Anda gunakan secara manual.",
       "emptyCatalog": "Katalog ditemukan, namun tidak mengembalikan ID model. Masukkan model di atas untuk melanjutkan.",
       "manualSetup": "Penyiapan manual",
@@ -1112,9 +1112,9 @@
       "noModelsHint": "Belum ada model yang ditambahkan. Gunakan tombol di bawah untuk menambahkan ID model.",
       "addModelsTitle": "Tambahkan Model",
       "addModelsHint": "Masukkan satu ID model per baris",
-      "addModelsPlaceholder": "gpt-4o\nclaude-3.5-soneta\nobrolan mendalam",
+      "addModelsPlaceholder": "gpt-4o\nclaude-3.5-sonnet\ndeepseek-chat",
       "addModelsConfirm": "Tambahkan {count, plural, =0 {model} =1 {1 model} other {# model}}",
-      "chatWithModel": "Chat dengan {model}",
+      "chatWithModel": "Mulai percakapan dengan {model}",
       "confirmDeleteTitle": "Hapus \"{name}\"?",
       "confirmDeleteDesc": "Koneksi ini beserta kuncinya, model yang diaktifkan dan pustaka modelnya, serta parameter perilaku model yang disimpan akan dihapus. Percakapan Anda tidak akan dihapus. Pesan lama tetap ada; model yang digunakan akan ditandai tidak tersedia.",
       "editName": "Sunting Nama",
@@ -1131,7 +1131,7 @@
           "progress": "{current} / {total}",
           "doneBadge": "Selesai",
           "stoppedBadge": "Dihentikan",
-          "itemText": "Obrolan teks",
+          "itemText": "Chat teks",
           "itemImage": "Baca gambar",
           "itemTool": "Pemanggilan alat",
           "itemWeb": "Pencarian web",
@@ -1159,10 +1159,10 @@
           "reasonNetwork": "kesalahan jaringan",
           "reasonHttp": "HTTP {code}",
           "notRun": "Belum diuji: uji teks tidak lolos",
-          "infoNamedKey": "{count, plural, other {Mengirim hingga # permintaan kecil dengan kunci “{key}”, lewat jalur yang sama dengan obrolan. Maksimal 30 detik per item.}}",
-          "info": "{count, plural, other {Mengirim hingga # permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan obrolan. Maksimal 30 detik per item.}}",
-          "infoWeb": "{count, plural, other {Mengirim hingga # permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan obrolan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item.}}",
-          "infoWebNamedKey": "{count, plural, other {Mengirim hingga # permintaan kecil dengan kunci “{key}”, lewat jalur yang sama dengan obrolan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item.}}",
+          "infoNamedKey": "{count, plural, other {Mengirim hingga # permintaan kecil dengan kunci “{key}”, lewat jalur yang sama dengan percakapan. Maksimal 30 detik per item.}}",
+          "info": "{count, plural, other {Mengirim hingga # permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan percakapan. Maksimal 30 detik per item.}}",
+          "infoWeb": "{count, plural, other {Mengirim hingga # permintaan kecil dengan kunci Anda, lewat jalur yang sama dengan percakapan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item.}}",
+          "infoWebNamedKey": "{count, plural, other {Mengirim hingga # permintaan kecil dengan kunci “{key}”, lewat jalur yang sama dengan percakapan. Salah satunya melakukan pencarian web, yang mungkin dikenai biaya pencarian. Maksimal 30 detik per item.}}",
           "footerSaved": "Hasil disimpan ke kemampuan model ini. Anda bisa mengubahnya di “Lanjutan”.",
           "footerNothing": "Tidak ada yang disimpan.",
           "stopped": "Pengujian dihentikan: {reason}. Permintaan yang sudah terkirim tidak akan disimpan.",
@@ -1249,7 +1249,7 @@
       "noKey": "Tidak perlu kunci",
       "librarySummary": "Aktif: {enabled} · Bisa ditambahkan: {available}",
       "librarySummaryLocal": "Aktif: {enabled} · Masih ada {available} di mesin",
-      "thinkingTemplate": "Mengikuti templat chat. Atur di “Opsi Model” pada chat.",
+      "thinkingTemplate": "Mengikuti templat chat. Atur di “Opsi Model” pada percakapan.",
       "thinkingModel": "Saluran mesin ini saat ini tidak bisa mengatur mode berpikir. Model yang menentukan.",
       "readOnly": "Hanya baca",
       "detectAgain": "Deteksi ulang",
@@ -1271,7 +1271,7 @@
         "sourceDetected": "Terdeteksi",
         "sourceTested": "Sudah diuji",
         "sourceEngine": "Dinyatakan mesin",
-        "thinkingLevels": "Tingkat berpikir yang bisa dipilih di chat",
+        "thinkingLevels": "Tingkat berpikir yang bisa dipilih di percakapan",
         "channelHint": "Saluran diubah di pengaturan koneksi.",
         "localOnly": "Hanya disimpan di perangkat ini",
         "appliesNow": "Perubahan langsung berlaku dan hanya disimpan di perangkat ini.",
@@ -1329,7 +1329,7 @@
         "rowSubtitle": "Opsional: ganti pengaturan pencarian web bawaan",
         "statusNotSet": "Bawaan",
         "statusSet": "Kustom",
-        "intro": "Opsional. Setiap protokol sudah punya pengaturan pencarian web bawaan; isian di sini menggantikannya. Apa pun yang dipakai, pengaturan hanya dikirim saat pencarian web diaktifkan di obrolan.",
+        "intro": "Opsional. Setiap protokol sudah punya pengaturan pencarian web bawaan; isian di sini menggantikannya. Apa pun yang dipakai, pengaturan hanya dikirim saat pencarian web diaktifkan di percakapan.",
         "useTemplate": "Pakai templat",
         "clear": "Kosongkan",
         "errorNotObject": "Masukkan objek JSON",
@@ -1460,7 +1460,7 @@
       "contextLength": "Konteks",
       "needsApiKey": "Perlu API key",
       "hero": {
-        "newChat": "Obrolan Baru",
+        "newChat": "Percakapan Baru",
         "verifyConnection": "Verifikasi Koneksi",
         "syncedNever": "Tidak pernah",
         "editName": "Sunting",
@@ -1520,14 +1520,7 @@
         "switchToApiKey": "Ganti ke API key",
         "disabledFallback": "Masuk dengan langganan ChatGPT sedang tidak tersedia. Anda bisa beralih ke API key atau menghapus koneksi ini."
       },
-      "subscription": "Langganan",
-      "tokenPrices": {
-        "input": "Masukan {count}",
-        "cacheRead": "Baca cache {count}",
-        "cacheWrite": "Tulis cache {count}",
-        "output": "Keluaran {count}",
-        "unit": "token"
-      }
+      "subscription": "Langganan"
     },
     "providers": {
       "title": "Penyedia",
@@ -1580,12 +1573,9 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "Memasuki",
       "privacyPolicy": "Kebijakan Privasi",
-      "sourceCode": "Kode Sumber",
       "aiSection": "AI",
       "skills": "Keterampilan",
       "backupImportExport": "Cadangan & Impor/Ekspor",
-      "reportIssue": "Laporkan Masalah",
-      "documentation": "Dokumentasi",
       "aboutTagline": "Semua model Anda. Satu aplikasi.",
       "context": {
         "title": "Konteks",
@@ -1710,7 +1700,7 @@
         "2": "Saya seorang manajer produk, tidak perlu terlalu banyak detail teknis",
         "3": "Saya sedang mengerjakan proyek e-niaga, jawablah dengan konteks itu"
       },
-      "generateDraft": "Hasilkan draf dari obrolan terbaru",
+      "generateDraft": "Hasilkan draf dari percakapan terbaru",
       "generateDraftLoading": "Menganalisis percakapan terkini Anda...",
       "generateDraftFailed": "Pembuatan gagal, harap tulis secara manual",
       "generateDraftEmpty": "Model tidak mengembalikan konten apa pun. Coba lagi nanti atau ganti model.",
@@ -1781,7 +1771,7 @@
       "editorCategory": "Kategori",
       "editorTooLong": "Maksimal 2.000 karakter",
       "deleteConfirmTitle": "Hapus memori ini?",
-      "deleteConfirmBody": "Memori ini akan dihapus permanen dari perangkat ini.",
+      "deleteConfirmBody": "Memori ini akan dihapus dari semua perangkat Anda.",
       "actionOrganize": "Pecah menjadi entri",
       "rawView": "Teks biasa",
       "rawViewHint": "Pisahkan setiap entri dengan baris yang hanya berisi ---.",
@@ -1913,6 +1903,10 @@
       "title": "Kesalahan Penyedia",
       "message": "Penyedia mengembalikan kesalahan untuk permintaan ini. Silakan coba lagi atau ganti model."
     },
+    "emptyReply": {
+      "title": "Respon Penyedia Kosong",
+      "message": "Penyedia tidak mengembalikan konten asisten untuk pesan ini."
+    },
     "moderationBlocked": {
       "title": "Konten Diblokir",
       "message": "Prompt ini diblokir oleh moderasi konten. Silakan ubah dan coba lagi."
@@ -1959,7 +1953,7 @@
     "relay": {
       "codexIdentityRequiredSwitch": "Koneksi ini memerlukan identitas klien Codex. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, ubah protokol ke OpenAI Responses, lalu coba lagi.",
       "codexIdentityRejected": "Koneksi ini masih menolak identitas klien Codex milik Oriveo. Buka Penyedia → koneksi ini → Edit koneksi → Header & parameter kueri, atur User-Agent atau header kustom, atau beralih ke koneksi lain.",
-      "imageGenerationEndpointUnavailable": "Koneksi ini tidak menyediakan API terpisah untuk membuat gambar. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, lalu ubah protokol ke OpenAI Responses. Oriveo akan membuat gambar langsung di dalam chat.",
+      "imageGenerationEndpointUnavailable": "Koneksi ini tidak menyediakan API terpisah untuk membuat gambar. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, lalu ubah protokol ke OpenAI Responses. Oriveo akan membuat gambar langsung di dalam percakapan.",
       "chatCompletionsRejectedByCodexHost": "Koneksi ini hanya menyediakan /v1/responses dan menolak /chat/completions. Buka Penyedia → koneksi ini → Perpustakaan Model → model ini → Lanjutan, ubah protokol ke OpenAI Responses, lalu coba lagi.",
       "imageResponseFormatRejected": "Model gambar ini tidak menerima parameter response_format. Coba ID model gambar lain.",
       "upstreamUnavailable": "Koneksi ini tidak dapat menghubungi penyedia upstream-nya. Ini bukan masalah konfigurasi Anda — akun upstream milik adminnya mungkin tidak valid, kehabisan saldo, atau terkena batas laju permintaan. Beralihlah ke koneksi lain atau hubungi adminnya.",
@@ -2060,14 +2054,11 @@
     "title": "Keterampilan",
     "mySkills": "Keterampilan saya",
     "builtinSkills": "Keterampilan Bawaan",
-    "pinned": "Disematkan",
     "newSkill": "Keterampilan Baru",
     "editSkill": "Sunting Keterampilan",
     "deleteSkill": "Hapus Keterampilan",
     "forkSkill": "Salin sebagai Keahlian Saya",
-    "useSkill": "Menggunakan",
-    "pinToHome": "Sematkan ke Beranda",
-    "unpinFromHome": "Lepas sematan dari Rumah",
+    "useSkill": "Gunakan Keterampilan ini",
     "instructions": "Mengingatkan",
     "instructionsPlaceholder": "misalnya Anda adalah peninjau kode senior. Tinjau kode untuk keamanan, kinerja, dan keterbacaan. Balasan dalam bahasa pengguna.",
     "starterMessages": "Pembuka Percakapan",
@@ -2076,7 +2067,7 @@
     "referenceFiles": "Bahan Referensi",
     "tipInstructions": "Tulis instruksi yang menjelaskan bagaimana AI berperilaku — kepribadian, keahlian, dan gaya responsnya. Hanya AI yang melihat ini, pengguna tidak.",
     "knowledgeSectionTitle": "Pengetahuan",
-    "tipReferenceFiles": "AI membaca file-file ini secara lengkap setiap kali membalas — seperti catatan yang selalu terbuka di mejanya. Paling cocok untuk dokumen pendek dan penting (panduan gaya, glosarium, aturan utama). File yang lebih besar akan meningkatkan biaya setiap respons.",
+    "tipReferenceFiles": "AI membaca file-file ini secara lengkap setiap kali membalas — seperti catatan yang selalu terbuka di mejanya. Paling cocok untuk dokumen singkat dan penting (panduan gaya, glosarium, aturan utama). File yang lebih besar akan meningkatkan biaya respons.",
     "noReferenceFiles": "Belum ada bahan referensi",
     "addFile": "Tambahkan berkas",
     "filesQuota": "{count} / {max}",
@@ -2088,7 +2079,7 @@
     "color": "Warna",
     "save": "Simpan",
     "saving": "Penghematan...",
-    "newChat": "Obrolan Baru",
+    "newChat": "Percakapan Baru",
     "allSkills": "Semua Keterampilan",
     "greeting": "Apa yang bisa saya bantu?",
     "greetingSub": "Tanyakan apa saja, atau mulailah mengetik.",
@@ -2103,7 +2094,7 @@
     "fileReadError": "Gagal membaca file",
     "knowledgeBaseFiles": "File Basis Pengetahuan",
     "tipKnowledgeBaseFiles": "AI mencari di file-file ini dan hanya membaca bagian yang relevan dengan pertanyaan Anda — seperti mencari sesuatu di buku alih-alih membaca semuanya. Paling cocok untuk dokumen panjang atau berjumlah banyak. Memerlukan OpenAI API key.",
-    "knowledgeReadyHint": "File yang baru diunggah mungkin memerlukan beberapa menit untuk diindeks sebelum dapat digunakan dalam percakapan. Konten yang telah diindeks hanya disisipkan jika relevan dengan pesan saat ini.",
+    "knowledgeReadyHint": "Berkas yang baru diunggah mungkin perlu beberapa menit untuk diindeks sebelum bisa dipakai dalam percakapan. Konten terindeks hanya disisipkan bila relevan dengan pesan saat ini.",
     "knowledgeCtaOpenAIRequired": "Basis Pengetahuan Keterampilan memerlukan kunci OpenAI resmi. Anda masih dapat menyimpan Skill, namun Anda belum dapat menambahkan file basis pengetahuan.",
     "knowledgeCtaOpenRouterOnly": "Kami mendeteksi bahwa Anda menggunakan OpenRouter. Basis Pengetahuan Keterampilan hanya mendukung OpenAI API resmi, bukan OpenRouter.",
     "knowledgeCtaEndpointNotOfficial": "Konfigurasi OpenAI Anda tidak menggunakan titik akhir resmi, sehingga Basis Pengetahuan Keterampilan tidak tersedia. Silakan beralih ke titik akhir OpenAI resmi.",
@@ -2117,11 +2108,11 @@
     "knowledgeCtaSecondaryLater": "Tidak sekarang",
     "knowledgeCtaSecondaryContinue": "Lanjutkan mengedit Keterampilan",
     "knowledgeEmptyHint": "Belum ada file basis pengetahuan",
-    "knowledgeRetryUnavailable": "Coba lagi hanya tersedia untuk file yang ditambahkan dalam sesi pengeditan ini.",
+    "knowledgeRetryUnavailable": "Coba lagi tidak tersedia untuk berkas ini di perangkat ini.",
     "replaceKnowledgeFile": "Ganti",
     "retryKnowledgeFile": "Coba lagi",
     "deleteKnowledgeFile": "Hapus",
-    "addKnowledgeFile": "Tambahkan file pengetahuan",
+    "addKnowledgeFile": "Tambah berkas pengetahuan",
     "referenceFileChars": "{count} karakter",
     "knowledgeStatusExtracting": "Mengekstrak",
     "knowledgeStatusUploading": "Mengunggah",
@@ -2129,12 +2120,12 @@
     "knowledgeStatusReady": "Tersedia",
     "knowledgeStatusFailed": "Gagal",
     "knowledgeStatusReplacing": "Mengganti",
-    "knowledgeStatusDeleting": "Hapus",
+    "knowledgeStatusDeleting": "Menghapus",
     "knowledgeStatusDisabled": "Tidak tersedia",
     "openai_not_configured": "Basis Pengetahuan memerlukan API key OpenAI resmi.",
     "openai_endpoint_not_official": "Basis Pengetahuan hanya berfungsi dengan titik akhir OpenAI resmi.",
     "retrieval_model_not_enabled": "Tambahkan dan aktifkan {model} di penyedia OpenAI Anda terlebih dahulu.",
-    "knowledge_service_unavailable": "Basis Pengetahuan untuk sementara tidak tersedia. Anda masih dapat mengedit dan menyimpan Skill ini.",
+    "knowledge_service_unavailable": "Basis Pengetahuan saat ini tidak tersedia.",
     "unsupported_file_type": "Jenis file ini tidak didukung untuk Basis Pengetahuan.",
     "reference_file_too_large": "File referensi harus berukuran 3 MB atau lebih kecil.",
     "knowledge_file_too_large": "File Basis Pengetahuan harus berukuran 20 MB atau lebih kecil.",
@@ -2147,7 +2138,191 @@
     "providerRequiredTitle": "Tambahkan penyedia untuk memakai Skill ini",
     "providerRequiredMessage": "Skill ini memerlukan penyedia AI yang tersedia sebelum memulai percakapan.",
     "providerRequiredAction": "Tambahkan penyedia",
-    "promptCancel": "Nanti saja"
+    "promptCancel": "Nanti saja",
+    "home": {
+      "autoCount": "Otomatis · {count}",
+      "slashHint": "Ketik / untuk memakai",
+      "empty": "Simpan cara kerja pilihan Anda",
+      "notesRecent": "Terakhir diedit"
+    },
+    "list": {
+      "subtitle": "Simpan cara yang Anda sukai, dan AI akan memakainya saat cocok."
+    },
+    "create": {
+      "describePlaceholder": "Jelaskan caranya, AI akan menuliskannya",
+      "fromChat": "Dari percakapan",
+      "manual": "Buat manual"
+    },
+    "segment": {
+      "mine": "Milik saya",
+      "templates": "Template"
+    },
+    "group": {
+      "auto": "Otomatis",
+      "manual": "Hanya manual"
+    },
+    "card": {
+      "usageCount": "Dipakai {count} kali"
+    },
+    "row": {
+      "slashHint": "Dipakai saat Anda mengetik {slash}"
+    },
+    "auto": {
+      "needWhenTitle": "Tulis dulu kapan dipakai",
+      "suggest": "Sarankan",
+      "limitReached": "Penggunaan otomatis sudah mencapai batas ({count}). Matikan salah satu dulu."
+    },
+    "search": {
+      "placeholder": "Cari keterampilan"
+    },
+    "empty": {
+      "title": "Belum ada keterampilan",
+      "body": "Simpan cara yang sering Anda pakai agar tidak perlu menjelaskannya setiap kali.",
+      "browseTemplates": "Lihat template"
+    },
+    "migrate": {
+      "banner": "Keterampilan tanpa “Kapan digunakan”: {count}. Tambahkan satu kalimat agar bisa dipakai otomatis.",
+      "review": "Lengkapi satu per satu"
+    },
+    "templates": {
+      "note": "Template baru dipakai otomatis setelah ditambahkan ke “Milik saya”.",
+      "featured": "Pilihan",
+      "addToMine": "Tambah ke Milik saya",
+      "add": "Tambah",
+      "added": "Ditambahkan",
+      "tryOnce": "Coba sekali"
+    },
+    "detail": {
+      "useInNewChat": "Pakai di percakapan baru",
+      "orSlash": "Atau ketik {slash} di kolom pesan",
+      "usage": "Dipakai {count} kali · Terakhir {time}",
+      "neverUsed": "Belum pernah dipakai",
+      "autoInvoke": "Gunakan otomatis",
+      "whenToUse": "Kapan digunakan",
+      "whenToUseNote": "AI memutuskan berdasarkan ini",
+      "instructions": "Instruksi",
+      "showAll": "Tampilkan semua",
+      "references": "Bahan referensi",
+      "starters": "Pembuka percakapan",
+      "recentChats": "Percakapan terbaru",
+      "try": "Coba"
+    },
+    "edit": {
+      "changeIcon": "Ganti ikon",
+      "name": "Nama",
+      "whenBadge": "Menentukan pemakaian otomatis",
+      "whenPlaceholder": "mis. Saat saya minta catatan dijadikan laporan mingguan. Bukan untuk laporan harian.",
+      "keywordsCaption": "Terpicu oleh kata-kata ini · cukup jelaskan situasinya",
+      "whenTip": "Tulis apa fungsinya, kapan dipakai, dan bagaimana Anda biasanya memintanya. Tambahkan “Bukan untuk …” agar tidak salah dipakai. Kata dalam tanda kutip akan disorot.",
+      "polish": "Rapikan dengan AI",
+      "addStarter": "Tambah pembuka",
+      "modelAndFeatures": "Model dan fitur",
+      "followChat": "Ikuti percakapan",
+      "needWhenForAuto": "Isi “Kapan digunakan” atau matikan penggunaan otomatis."
+    },
+    "draft": {
+      "askScenarios": "Sebutkan satu atau dua situasi saat Anda akan memakainya",
+      "askQuality": "Hasil yang bagus itu seperti apa?",
+      "skip": "Lewati",
+      "generating": "Menulis draf…",
+      "title": "Draf",
+      "editFirst": "Edit dulu",
+      "suggestedIcon": "Ikon yang disarankan",
+      "failed": "Draf belum bisa diselesaikan. Bagian yang sudah jadi telah diisikan untuk Anda."
+    },
+    "fromChat": {
+      "menuConversation": "Simpan sebagai keterampilan",
+      "menuMessage": "Simpan cara ini sebagai keterampilan",
+      "messages": "{count} pesan",
+      "extracting": "Merangkum…"
+    },
+    "limit": {
+      "upgrade": "Upgrade untuk lebih banyak",
+      "draftKept": "Draf Anda tetap tersimpan di perangkat ini."
+    },
+    "composer": {
+      "placeholder": "Ketik / untuk memakai keterampilan"
+    },
+    "picker": {
+      "title": "Keterampilan saya",
+      "multi": "Bisa pilih beberapa",
+      "auto": "Otomatis",
+      "manual": "Manual",
+      "manage": "Kelola keterampilan",
+      "maxReached": "Maksimal {count} sekaligus"
+    },
+    "chip": {
+      "deleted": "Dihapus"
+    },
+    "message": {
+      "attached": "Memakai {names}"
+    },
+    "used": {
+      "chip": "Dipakai: {names}",
+      "loading": "Memakai {names}…",
+      "byChoice": "Dipakai karena Anda memilihnya",
+      "why": "Alasan dipakai",
+      "disableHere": "Jangan pakai otomatis di percakapan ini",
+      "view": "Lihat keterampilan"
+    },
+    "settings": {
+      "autoToggle": "Gunakan keterampilan otomatis",
+      "autoToggleFooter": "Jika dimatikan, model tidak akan memilih keterampilan sendiri. Anda tetap bisa mengetik / untuk memakainya."
+    },
+    "try": {
+      "banner": "Sedang dicoba · Tidak disimpan ke riwayat",
+      "saveToSkill": "Simpan ke keterampilan",
+      "adjust": "Ubah instruksi",
+      "saved": "Disimpan ke “{name}”",
+      "savedToDraft": "Disalin ke editor. Simpan di sana agar tidak hilang."
+    },
+    "improve": {
+      "prompt": "Tambahkan ini ke “{name}”?",
+      "review": "Lihat perubahan",
+      "accept": "Tambahkan ke keterampilan",
+      "dismiss": "Nanti saja",
+      "addedLine": "Ditambahkan",
+      "removedLine": "Dihapus",
+      "saved": "Ditambahkan ke “{name}”"
+    },
+    "usage": {
+      "manifestRow": "Beban daftar keterampilan"
+    },
+    "glyph": {
+      "writing": "Tulisan",
+      "report": "Laporan",
+      "code": "Kode",
+      "study": "Belajar",
+      "travel": "Perjalanan",
+      "health": "Kesehatan",
+      "meeting": "Rapat",
+      "idea": "Ide",
+      "translate": "Terjemahan",
+      "email": "Email",
+      "data": "Data",
+      "design": "Desain",
+      "legal": "Hukum",
+      "finance": "Keuangan",
+      "marketing": "Pemasaran",
+      "support": "Layanan pelanggan",
+      "teaching": "Pengajaran",
+      "research": "Riset",
+      "life": "Sehari-hari",
+      "food": "Makanan",
+      "music": "Musik",
+      "photo": "Fotografi",
+      "product": "Produk",
+      "general": "Umum"
+    },
+    "capability": {
+      "title": "Preferensi Model",
+      "any": "Setiap",
+      "reasoning": "Pemikiran",
+      "vision": "Penglihatan",
+      "fast": "Cepat",
+      "largeContext": "Konteks Besar"
+    },
+    "saveFailed": "Tidak dapat menyimpan perubahan. Silakan coba lagi."
   },
   "builtinSkills": {
     "code_assistant": {
@@ -2490,9 +2665,9 @@
     "greetingName": "Halo, {name}",
     "subtitle": "Semua model kamu, satu aplikasi.",
     "quickStart": "Mulai cepat",
-    "newChat": "Obrolan baru",
+    "newChat": "Percakapan Baru",
     "composerPlaceholder": "Tanya apa saja...",
-    "history": "Conversations"
+    "history": "Percakapan"
   },
   "reachability": {
     "noNetwork": "Tidak ada koneksi internet",
@@ -2508,7 +2683,7 @@
   "library": {
     "back": "Kembali",
     "title": "Pustaka",
-    "description": "Hubungkan sumber dokumen, lalu tanyakan di chat. Oriveo hanya menelusuri yang Anda izinkan dan mencantumkan dokumen yang digunakan.",
+    "description": "Hubungkan sumber dokumen, lalu tanyakan di percakapan. Oriveo hanya menelusuri yang Anda izinkan dan mencantumkan dokumen yang digunakan.",
     "connectedNoticeNotion": "Ruang kerja Notion kini tersedia untuk riset Pustaka.",
     "connectedNoticeGoogle": "File Google Drive yang Anda pilih kini tersedia untuk riset Pustaka.",
     "genericError": "Terjadi kesalahan. Coba lagi.",
@@ -2636,13 +2811,12 @@
       "stepLimit": "Dokumen yang dipilih terlalu banyak atau terlalu panjang untuk satu riset. Batalkan pilihan beberapa lalu coba lagi.",
       "notConnected": "Hubungkan sumber Pustaka sebelum memulai riset.",
       "sourceForbidden": "Sumber menolak akses karena pembatasan izin atau kebijakan. Menyambungkan ulang tidak akan memperbaikinya — periksa pengaturan berbagi atau kepatuhan pada sumber itu sendiri.",
-      "unavailable": "Pustaka sementara tidak tersedia. Coba lagi nanti.",
-      "retry": "Coba Lagi"
+      "unavailable": "Pustaka sementara tidak tersedia. Coba lagi nanti."
     }
   },
   "notes": {
     "title": "Catatan",
-    "subtitle": "Simpan isi chat sebagai catatan",
+    "subtitle": "Simpan isi percakapan sebagai catatan",
     "untitled": "Catatan tanpa judul",
     "actions": {
       "backToNotes": "Kembali ke catatan",
@@ -2675,7 +2849,7 @@
     },
     "empty": {
       "body": "Belum ada isi.",
-      "description": "Simpan isi chat sebagai catatan",
+      "description": "Simpan isi percakapan sebagai catatan",
       "title": "Belum ada catatan"
     },
     "folders": {
@@ -2832,10 +3006,10 @@
     },
     "chat": {
       "tools": "Alat",
-      "toolsAria": "Alat untuk chat ini",
+      "toolsAria": "Alat untuk percakapan ini",
       "toolsAriaCount": "{count} server aktif",
       "panel": {
-        "title": "Alat untuk chat ini",
+        "title": "Alat untuk percakapan ini",
         "subtitle": "Jika diaktifkan, model bisa memakai alat dari layanan-layanan ini saat menjawab.",
         "toolCount": "{count} alat",
         "authExpired": "Otorisasi kedaluwarsa",
@@ -2848,12 +3022,12 @@
         "overLimit": "Lebih dari {max} alat aktif. Hanya {max} yang akan dikirim, diambil bergiliran dari setiap server.",
         "manage": "Kelola server MCP",
         "emptyTitle": "Belum ada alat",
-        "emptyBody": "Hubungkan server MCP, lalu model bisa mencari di Linear, menulis ke Notion, atau memakai alat yang Anda kelola sendiri, langsung dari chat.",
+        "emptyBody": "Hubungkan server MCP, lalu model bisa mencari di Linear, menulis ke Notion, atau memakai alat yang Anda kelola sendiri, langsung dari percakapan.",
         "addServer": "Tambah server MCP",
         "unsupportedTitle": "Model ini tidak bisa memakai alat",
         "unsupportedModel": "Model ini tidak mendukung pemanggilan alat. Beralihlah ke model lain untuk memakai alat.",
         "switchModel": "Ganti model",
-        "toggleAria": "Gunakan {server} di chat ini"
+        "toggleAria": "Gunakan {server} di percakapan ini"
       },
       "steps": {
         "running": "Sedang memakai alat",
@@ -2893,7 +3067,7 @@
         "moreArgs": "{count} kolom lainnya",
         "noArgs": "Tidak ada yang dikirim pada langkah ini.",
         "allowOnce": "Izinkan sekali",
-        "allowConversation": "Selalu izinkan di chat ini",
+        "allowConversation": "Selalu izinkan di percakapan ini",
         "decline": "Tolak",
         "fullTitle": "Yang akan dikirim",
         "fullHint": "Ini ditulis oleh model dan akan dikirim ke {server} persis seperti yang tampil.",
@@ -2927,10 +3101,10 @@
       "added": "Sudah ditambahkan",
       "count": "{count}",
       "emptyTitle": "Biarkan model memakai layanan Anda",
-      "emptyBody": "Server MCP membuat layanan seperti Linear dan Notion, atau alat yang Anda kelola sendiri, bisa dipakai model langsung di dalam chat.",
+      "emptyBody": "Server MCP membuat layanan seperti Linear dan Notion, atau alat yang Anda kelola sendiri, bisa dipakai model langsung di dalam percakapan.",
       "promiseCredentials": "Kredensial login tetap tersimpan di browser ini",
       "promiseConfirm": "Apa pun yang mengubah data Anda selalu minta izin dulu",
-      "promisePerChat": "Bisa dinyalakan atau dimatikan per chat",
+      "promisePerChat": "Bisa dinyalakan atau dimatikan per percakapan",
       "addServer": "Tambah server",
       "trustNote": "Alat berasal dari pihak ketiga, dan apa pun yang dikembalikannya diteruskan ke model. Hubungkan hanya server yang Anda percaya.",
       "refresh": "Periksa koneksi",
@@ -2997,7 +3171,7 @@
     },
     "remove": {
       "title": "Hapus {name}?",
-      "body": "Kredensial login yang tersimpan di browser ini akan dihapus, dan server ini dikeluarkan dari daftar. Catatan alat di chat yang sudah ada tetap disimpan.",
+      "body": "Kredensial login yang tersimpan di browser ini akan dihapus, dan server ini dikeluarkan dari daftar di semua perangkat Anda. Catatan alat di percakapan yang sudah ada tetap disimpan.",
       "confirm": "Hapus",
       "cancel": "Batal",
       "failed": "Server ini tidak bisa dihapus. Coba lagi."

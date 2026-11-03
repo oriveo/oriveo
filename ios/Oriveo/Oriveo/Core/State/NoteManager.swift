@@ -33,11 +33,24 @@ final class NoteManager {
     /// rows into the mirror.
     @discardableResult
     func reloadFromStore() -> Task<Void, Never>? {
+        guard let task = makeReloadTask() else { return nil }
+        #if DEBUG
+        trackReloadForTesting(task)
+        #endif
+        return task
+    }
+
+    private func makeReloadTask() -> Task<Void, Never>? {
         guard isBound else { return nil }
         // The partition database is still being prepared in the background (cold start): the main thread does not open it, read once it is ready.
         guard appState.sessionStoreReady else {
             return Task { @MainActor [weak self, weak state = appState] in
-                await state?.waitForSessionStore()
+                guard let state else { return }
+                await state.waitForSessionStore()
+                // Still not ready: no session load is in flight, so the store will not become ready on its own
+                // (e.g. closed for a partition switch). Stop here instead of re-queueing a reload without delay;
+                // the next session load triggers its own reload.
+                guard state.sessionStoreReady else { return }
                 await self?.reloadFromStore()?.value
             }
         }
@@ -74,6 +87,10 @@ final class NoteManager {
             state.noteFolders = snapshot.folders
         }
     }
+
+    /// The serial local write tail as of now (local writes only: cloud pushes are spawned, never awaited by it).
+    /// Callers that must outlive exactly the writes enqueued so far await it once instead of draining.
+    var pendingWriteTail: Task<Void, Never>? { writeTail }
 
     /// Waits until every queued write has landed (and its main-thread follow-up has run). For tests and callers
     /// that must read the database directly.
@@ -602,6 +619,39 @@ final class NoteManager {
 
 
     // MARK: - Serial background writes and the in-flight overlay
+
+    #if DEBUG
+    /// Test seam: appends a step to the serial write tail that holds every later write until the returned closure runs.
+    func _testingBlockWriteTail() -> () -> Void {
+        let (stream, continuation) = AsyncStream<Void>.makeStream()
+        let previous = writeTail
+        writeTail = Task.detached {
+            await previous?.value
+            for await _ in stream {}
+        }
+        return { continuation.finish() }
+    }
+
+    /// In-flight mirror reloads (background DB reads), registered on the type by the partition that started them.
+    /// NoteManager can be released with AppState while its read is still running, so tests wait for those reads per partition before deleting the partition; otherwise a read would hit a deleted database file.
+    private static var reloadsForTesting: [UUID: (uid: String, task: Task<Void, Never>)] = [:]
+
+    private func trackReloadForTesting(_ task: Task<Void, Never>) {
+        let id = UUID()
+        Self.reloadsForTesting[id] = (uid, task)
+        Task { @MainActor in
+            await task.value
+            Self.reloadsForTesting[id] = nil
+        }
+    }
+
+    static func waitForReloadsForTesting(boundTo uids: Set<String>) async {
+        while let (id, entry) = reloadsForTesting.first(where: { uids.contains($0.value.uid) }) {
+            await entry.task.value
+            reloadsForTesting[id] = nil
+        }
+    }
+    #endif
 
     /// Serial tail of all note database writes: each write waits for the previous one to land (and for its
     /// main-thread follow-up) before it runs, so commit order equals enqueue order.

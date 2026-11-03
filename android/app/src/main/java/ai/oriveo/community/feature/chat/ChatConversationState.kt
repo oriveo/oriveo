@@ -8,11 +8,23 @@ import ai.oriveo.community.core.provider.ModelRetirement
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 import ai.oriveo.community.core.provider.RelayModelFallback
+import ai.oriveo.community.core.voice.VoiceCatalog
+import ai.oriveo.community.core.voice.realtime.RealtimeSelection
 
 data class ChatConversationState(
     val provider: Provider?,
     val model: AIModel?,
     val issue: ChatConversationIssue? = null,
+    /**
+     * true = the conversation's connection cannot be found locally, but the connection set has not finished syncing yet: do not judge it deleted, show no banner, and do not fall back to another connection;
+     * sending goes through the onMissing of resolveChatProvider to give a visible reason, and the draft is kept (same pending state as while the connection list is loading).
+     */
+    val isConnectionPending: Boolean = false,
+    /**
+     * true = the voice catalog is not ready yet, and the conversation's model on an official apiKey connection is not in the enabled text list; it may be a realtime model:
+     * do not judge it delisted, show no issue bar; sending is disabled first (loading state), and recomputeWhenVoiceCatalogReady re-judges when the catalog arrives.
+     */
+    val isAwaitingVoiceCatalog: Boolean = false,
 ) {
     val isReadOnly: Boolean
         get() = issue?.isBlocking == true
@@ -22,7 +34,8 @@ data class ChatConversationState(
         get() = isReadOnly ||
             issue?.removedConnectionName != null ||
             issue?.modelRetirement?.sendBlocked == true ||
-            issue?.kind == ChatConversationIssueKind.ProviderMissing
+            issue?.kind == ChatConversationIssueKind.ProviderMissing ||
+            isAwaitingVoiceCatalog
 }
 
 enum class ChatConversationIssueKind {
@@ -63,6 +76,7 @@ fun resolveChatConversationState(
     activeProviderId: String?,
     activeModelId: String?,
     lastUsedModelRef: LastUsedModelRef? = null,
+    voiceCatalog: VoiceCatalog? = null,
 ): ChatConversationState = resolveChatConversationState(
     conversation = conversation,
     providers = providerSnapshot.orEmpty(),
@@ -70,6 +84,7 @@ fun resolveChatConversationState(
     activeModelId = activeModelId,
     providersLoaded = providerSnapshot != null,
     lastUsedModelRef = lastUsedModelRef,
+    voiceCatalog = voiceCatalog,
 )
 
 fun resolveChatConversationState(
@@ -81,6 +96,8 @@ fun resolveChatConversationState(
     providersLoaded: Boolean,
     /** For sessions with an empty modelID: points at this connection's last use (usable and enabled), taking precedence over the new-chat fallback. */
     lastUsedModelRef: LastUsedModelRef? = null,
+    /** Voice catalog (cached): when the conversation / selected id is a realtime[] model of that official apiKey connection, it resolves to a synthesized model; not judged delisted, default not swapped. */
+    voiceCatalog: VoiceCatalog? = null,
 ): ChatConversationState {
     // The session's connection has been deleted: show a banner plus "Choose model" and block sending; do not fall back to another
     // connection or rewrite the session, only the user's own model choice writes. Judged only once the connection list has loaded:
@@ -121,7 +138,7 @@ fun resolveChatConversationState(
             providers.firstOrNull { it.id == selectedId }
         }
         val model = provider?.let { selectedProvider ->
-            ProviderSelectionSnapshot.currentModel(selectedProvider, activeModelId)
+            ProviderSelectionSnapshot.currentModel(selectedProvider, activeModelId, voiceCatalog = voiceCatalog)
         }
         return ChatConversationState(provider = provider, model = model, issue = null)
     }
@@ -137,8 +154,13 @@ fun resolveChatConversationState(
         provider?.id == conversation.providerID -> conversation.modelID
         else -> null
     }
-    // The official session model has been retired: do not swap in the default model or rewrite the session; the banner guides the user to switch themselves, and every send is blocked.
-    ProviderSelectionSnapshot.modelRetirement(provider, requestedModelId)
+    // Realtime models (catalog realtime[] x official apiKey connection): not in the enabled list nor in the text catalog; not judged delisted, sending not blocked, default not swapped.
+    RealtimeSelection.realtimeEntry(provider, requestedModelId, voiceCatalog)?.let { entry ->
+        return ChatConversationState(provider = provider, model = RealtimeSelection.realtimeAIModel(entry), issue = null)
+    }
+    // Official BYOK / Free conversation model has been delisted: not swapped for the default model, the conversation is not rewritten, a hint bar guides the user to switch manually, and sending is always blocked.
+    // Voice catalog not ready: an id on an official apiKey connection that is not in the text catalog may be a realtime model, so it is not judged missing yet.
+    ProviderSelectionSnapshot.modelRetirement(provider, requestedModelId, voiceCatalogPending = voiceCatalog == null)
         ?.takeIf { it.sendBlocked }
         ?.let { retirement ->
             return ChatConversationState(
@@ -175,6 +197,8 @@ fun resolveChatConversationState(
         provider = provider,
         model = model,
         issue = null,
+        // Possible realtime ids exempted by the exemption above: sending is disabled first, and re-judged when the catalog arrives.
+        isAwaitingVoiceCatalog = voiceCatalog == null && provider != null && isPossibleRealtimeId(provider, requestedModelId),
     )
 }
 
@@ -188,6 +212,7 @@ internal fun conversationSelectionToSync(
     activeProviderId: String?,
     activeModelId: String?,
     resolvedState: ChatConversationState,
+    voiceCatalog: VoiceCatalog? = null,
 ): Pair<String, String?>? {
     // The session connection is deleted: activeProviderId / activeModelId keep the stored session values and are not replaced by another connection.
     if (resolvedState.issue?.kind == ChatConversationIssueKind.ProviderMissing) return null
@@ -197,8 +222,24 @@ internal fun conversationSelectionToSync(
     // The official session model is retired: activeModelId keeps the stored session value and is not replaced by the default.
     if (resolvedState.issue?.kind == ChatConversationIssueKind.ModelRetired) return null
     val activeProvider = activeProviderId?.let { selectedId -> providerList.firstOrNull { it.id == selectedId } }
-    val activeModel = activeProvider?.let { provider -> ProviderSelectionSnapshot.currentModel(provider, activeModelId) }
+    // Voice catalog not ready (cold start): an id on an official apiKey connection that is not in the text list may be a realtime model, so it is not rewritten; re-judged after the catalog is ready.
+    if (voiceCatalog == null && activeProvider != null && isPossibleRealtimeId(activeProvider, activeModelId)) return null
+    // The realtime id must be resolved against the same catalog, otherwise it is treated as unresolvable and rewritten to the default text model.
+    val activeModel = activeProvider?.let { provider ->
+        ProviderSelectionSnapshot.currentModel(provider, activeModelId, voiceCatalog = voiceCatalog)
+    }
     if (activeProvider?.id == resolvedProvider.id && activeModel?.id == resolvedState.model?.id) return null
     return resolvedProvider.id to
         resolvedState.model?.let { ModelSelectionUtils.preferredStoredModelIdentifier(it, resolvedProvider.kind) }
+}
+
+/** Realtime candidates that cannot be ruled out while the catalog is not ready: non-empty ids on a connection that can take realtime (official apiKey) and are not in the enabled text list. */
+internal fun isPossibleRealtimeId(provider: Provider, modelId: String?): Boolean {
+    if (modelId.isNullOrBlank()) return false
+    if (ai.oriveo.community.core.voice.realtime.RealtimeModel.connectionAuth(provider.kind, provider.authMode) !=
+        ai.oriveo.community.core.voice.realtime.RealtimeModel.AUTH_API_KEY
+    ) {
+        return false
+    }
+    return ModelSelectionUtils.resolveStoredModel(ProviderSelectionSnapshot.enabledModels(provider), modelId, provider.kind) == null
 }

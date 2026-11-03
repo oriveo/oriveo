@@ -2,6 +2,8 @@ package ai.oriveo.community.core.voice
 
 import android.media.AudioAttributes
 import android.media.MediaPlayer
+import android.media.audiofx.Visualizer
+import ai.oriveo.community.core.voice.conversation.ConversationFrames
 import ai.oriveo.community.core.model.ProviderKind
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -47,24 +49,50 @@ interface ChunkPlayer {
     suspend fun play(file: File): Boolean
 
     fun stop()
+
+    /**
+     * Holds playback at its position, including chunks played later on this player, until [resume].
+     * false = this player can't hold a position (nothing changed).
+     */
+    fun pause(): Boolean = false
+
+    fun resume() = Unit
 }
 
 /**
  * [ChunkPlayer] backed by MediaPlayer with prepareAsync; one MediaPlayer per chunk.
  * [audioAttributes] null keeps MediaPlayer's default (read aloud); the voice conversation passes USAGE_VOICE_COMMUNICATION.
+ * [levelProbe] (voice conversation only) receives the measured playback level 0…1 about every 67 ms from a
+ * [Visualizer] on the player's audio session; when the probe can't be built or started it gets 0 once (no level is
+ * faked). A player released before or while its probe attaches reports nothing.
  */
-class MediaChunkPlayer(private val audioAttributes: AudioAttributes? = null) : ChunkPlayer {
+class MediaChunkPlayer internal constructor(
+    private val audioAttributes: AudioAttributes?,
+    private val levelProbe: ((Float) -> Unit)?,
+    private val probeFactory: PlaybackLevelProbeFactory,
+    private val playerFactory: () -> MediaPlayer,
+) : ChunkPlayer {
+    constructor(audioAttributes: AudioAttributes? = null, levelProbe: ((Float) -> Unit)? = null) :
+        this(audioAttributes, levelProbe, ::visualizerLevelProbe, ::MediaPlayer)
+
     private val lock = Any()
     private var current: MediaPlayer? = null
 
+    // The current player once prepared (started unless held); a held player starts on resume.
+    private var prepared: MediaPlayer? = null
+    private var held = false
+
+    // Owned by whoever takes it out of this field under [lock]; that side releases it exactly once.
+    private var probe: PlaybackLevelProbe? = null
+
     override suspend fun play(file: File): Boolean = suspendCancellableCoroutine { cont ->
-        val player = MediaPlayer()
+        val player = playerFactory()
         synchronized(lock) { current = player }
         fun finish(ok: Boolean) {
             release(player)
             if (cont.isActive) cont.resume(ok)
         }
-        player.setOnPreparedListener { it.start() }
+        player.setOnPreparedListener(::onPrepared)
         player.setOnCompletionListener { finish(true) }
         player.setOnErrorListener { _, _, _ ->
             finish(false)
@@ -85,13 +113,129 @@ class MediaChunkPlayer(private val audioAttributes: AudioAttributes? = null) : C
         release(player)
     }
 
-    private fun release(player: MediaPlayer) {
+    override fun pause(): Boolean {
         synchronized(lock) {
+            held = true
+            prepared?.let { runCatching { it.pause() } }
+        }
+        return true
+    }
+
+    override fun resume() {
+        synchronized(lock) {
+            held = false
+            prepared?.let { runCatching { it.start() } }
+        }
+    }
+
+    /** MediaPlayer prepared callback: starts playback (unless held), then attaches the level probe. */
+    internal fun onPrepared(player: MediaPlayer) {
+        synchronized(lock) {
+            if (current === player) prepared = player
+            if (!held) player.start()
+        }
+        levelProbe?.let { startProbe(player, it) }
+    }
+
+    private fun release(player: MediaPlayer) {
+        val attached = synchronized(lock) {
             if (current !== player) return
             current = null
+            if (prepared === player) prepared = null
+            probe.also { probe = null }
         }
+        attached?.release()
         runCatching { player.reset() }
         runCatching { player.release() }
+    }
+
+    private fun startProbe(player: MediaPlayer, onLevel: (Float) -> Unit) {
+        // Readings count only while this probe is the attached one (set before attaching, read under [lock]).
+        var self: PlaybackLevelProbe? = null
+        val built = try {
+            probeFactory(player.audioSessionId) { measurement ->
+                val live = synchronized(lock) { self != null && probe === self }
+                if (live) onLevel(playbackLevelFromPeakRms(measurement))
+            }
+        } catch (e: Exception) {
+            if (synchronized(lock) { current === player }) onLevel(0f)
+            return
+        }
+        self = built
+        val attached = synchronized(lock) {
+            (current === player).also { if (it) probe = built }
+        }
+        if (!attached) {
+            // The player was released before the probe attached: nobody else holds it.
+            built.release()
+            return
+        }
+        try {
+            built.enable()
+        } catch (e: Exception) {
+            // Still ours: detach and fall back to 0. Otherwise release() already took and released it.
+            val ours = synchronized(lock) {
+                (probe === built).also { if (it) probe = null }
+            }
+            if (ours) {
+                built.release()
+                onLevel(0f)
+            }
+        }
+    }
+}
+
+/** One attached playback level measurement; [enable] throws when it can't start (e.g. already released). */
+internal interface PlaybackLevelProbe {
+    fun enable()
+
+    fun release()
+}
+
+/** Builds a probe on an audio session that hands each Peak/RMS reading to the callback; throws when unavailable. */
+internal typealias PlaybackLevelProbeFactory =
+    (audioSessionId: Int, onMeasurement: (Visualizer.MeasurementPeakRms) -> Unit) -> PlaybackLevelProbe
+
+/** Orb level 0…1 from a Peak/RMS reading; mRms is in millibels (−9600…0). */
+internal fun playbackLevelFromPeakRms(measurement: Visualizer.MeasurementPeakRms): Float =
+    ConversationFrames.levelFromDb(measurement.mRms / 100.0, ConversationFrames.AI_LEVEL_FLOOR_DB)
+
+/** About one reading per 67 ms (15 Hz), capped by the device's maximum capture rate. */
+private const val PROBE_RATE_MILLIHERTZ = 1_000_000 / 67
+
+/** [Visualizer] Peak/RMS measurement on [audioSessionId], read on each waveform capture. */
+private fun visualizerLevelProbe(
+    audioSessionId: Int,
+    onMeasurement: (Visualizer.MeasurementPeakRms) -> Unit,
+): PlaybackLevelProbe {
+    val v = Visualizer(audioSessionId)
+    try {
+        check(v.setMeasurementMode(Visualizer.MEASUREMENT_MODE_PEAK_RMS) == Visualizer.SUCCESS)
+        val measurement = Visualizer.MeasurementPeakRms()
+        val rate = minOf(PROBE_RATE_MILLIHERTZ, Visualizer.getMaxCaptureRate())
+        val listener = object : Visualizer.OnDataCaptureListener {
+            override fun onWaveFormDataCapture(visualizer: Visualizer, waveform: ByteArray?, samplingRate: Int) {
+                // A capture racing release() reads a released Visualizer: drop it.
+                val ok = runCatching { visualizer.getMeasurementPeakRms(measurement) == Visualizer.SUCCESS }
+                if (ok.getOrDefault(false)) onMeasurement(measurement)
+            }
+
+            override fun onFftDataCapture(visualizer: Visualizer, fft: ByteArray?, samplingRate: Int) = Unit
+        }
+        check(v.setDataCaptureListener(listener, rate, true, false) == Visualizer.SUCCESS)
+    } catch (e: Exception) {
+        v.release()
+        throw e
+    }
+    return object : PlaybackLevelProbe {
+        override fun enable() {
+            check(v.setEnabled(true) == Visualizer.SUCCESS)
+        }
+
+        override fun release() {
+            runCatching { v.setEnabled(false) }
+            runCatching { v.release() }
+        }
     }
 }
 

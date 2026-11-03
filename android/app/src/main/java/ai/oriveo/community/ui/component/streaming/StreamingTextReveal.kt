@@ -201,6 +201,12 @@ internal class StreamingRevealState(
                 target = newTarget
                 return
             }
+            // Already caught up but the tail is still fading in (a very short reply commits its whole first frame and ends within 250ms): let the frame loop finish the fade.
+            // snap() clears only plain fields and does not notify when visibleText has the same value, so Compose would stay on the old span at alpha 0 / partially transparent.
+            if (newTarget == visibleText && isFading) {
+                target = newTarget
+                return
+            }
             snap(newTarget)
             return
         }

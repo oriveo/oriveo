@@ -49,7 +49,7 @@
 .reasoningNotice strong { font-weight:650; color:var(--o-text, #111827); }
 .presets { display:flex; flex-wrap:wrap; gap:7px; padding:10px 0; border-top:1px solid var(--o-border, #e5e7eb); }
 .presets input { min-width:130px; flex:1; padding:7px 8px; border:1px solid var(--o-border, #d1d5db); border-radius:7px; background:transparent; color:inherit; }
-.presets>button,.preset button,.compatibility button { border:0; border-radius:7px; padding:7px 9px; background:var(--o-surface-raised, #f3f4f6); color:inherit; cursor:pointer; }
+.presets>button,.preset button,.compatibility button { border:0; border-radius:7px; padding:7px 9px; background:var(--o-fill-muted, #f3f4f6); color:inherit; cursor:pointer; }
 /* A disabled state has to be visible: with only the disabled attribute and identical visuals, users read
    it as a broken button. */
 .presets>button:disabled,.portableActions button:disabled,.compatibility button:disabled { opacity:.5; cursor:not-allowed; }
@@ -57,7 +57,7 @@
 .preset button+button { padding-inline:6px; border-left:1px solid var(--o-border, #d1d5db); border-radius:0; }
 /* gap 8: the row below expands its hit area 4px in each direction, so wrapped rows meet without overlapping. */
 .portableActions { display:flex; flex-wrap:wrap; gap:8px; padding:0 0 10px; }
-.portableActions button { position:relative; display:inline-flex; align-items:center; min-height:36px; border:0; border-radius:7px; padding:0 9px; background:var(--o-surface-raised, #f3f4f6); color:inherit; cursor:pointer; }
+.portableActions button { position:relative; display:inline-flex; align-items:center; min-height:36px; border:0; border-radius:7px; padding:0 9px; background:var(--o-fill-muted, #f3f4f6); color:inherit; cursor:pointer; }
 .portableActions button::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
 .hiddenInput { display:none; }
 .diagnostics { display:flex; flex-direction:column; gap:8px; padding-bottom:10px; }
@@ -130,8 +130,8 @@
 .resetConfirm button { position:relative; display:inline-flex; align-items:center; min-height:36px; border:0; border-radius:7px; padding:0 9px; background:var(--o-surface, #fff); color:inherit; font-size:12px; cursor:pointer; }
 .resetConfirm button::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
 .resetConfirm .customDangerAction { padding:0 9px; }
-.customPreview { max-height:180px; overflow:auto; padding:8px; border-radius:8px; background:var(--o-surface-raised, #f3f4f6); font:11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; direction:ltr; text-align:left; }
-/* ── Developer group: read-only does not hide it, it degrades to a single status line ───────────────── */
+.customPreview { max-height:180px; overflow:auto; padding:8px; border-radius:8px; background:var(--o-fill-muted, #f3f4f6); font:11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; direction:ltr; text-align:left; }
+/* ── Developer group: stays visible when read-only, reduced to a single line of status text ───────────────── */
 .developerGroup { padding:12px 0 0; border-top:1px solid var(--o-border, #e5e7eb); }
 .developerGroupTitle { display:block; font-size:12px; font-weight:650; color:var(--o-text-secondary, #6b7280); }
 .developerRow { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:44px; padding:0; border:0; background:none; color:var(--o-text, #111827); font-size:13px; text-align:left; }

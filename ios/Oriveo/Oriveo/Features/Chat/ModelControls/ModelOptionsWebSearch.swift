@@ -334,7 +334,7 @@ struct SearchSourcePickerSheet: View {
                 onAdd()
             } label: {
                 Label(WebSearchCopy.tr("main.add"), systemImage: "plus")
-                    .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
+                    .foregroundStyle(OriveoTheme.Palette.primaryTextOnSurface)
             }
         }
     }

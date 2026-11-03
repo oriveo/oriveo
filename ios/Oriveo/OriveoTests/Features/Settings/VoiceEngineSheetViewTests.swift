@@ -117,7 +117,7 @@ struct VoiceEngineSheetViewTests {
     func realtimeDisclosureCopy() {
         #expect(VoiceDisclosureSheet.title(provider: .openAI, direction: .realtime) == "Use OpenAI for Voice Conversations?")
         #expect(VoiceDisclosureSheet.message(provider: .openAI, direction: .realtime)
-            == "In voice conversations, OpenAI answers instead of this chat's model. Your voice and this chat's history are sent to OpenAI, usage is billed to your connection, and OpenAI's privacy policy applies.")
+            == "Your voice and this chat's history are sent directly to OpenAI, and OpenAI's privacy policy applies. Realtime voice is billed by audio length and usually costs more than text chats; charges go to your OpenAI account.")
     }
 
     @Test("Conversation engine: an unconsented cloud row shows the disclosure; Not Now writes nothing, Agree writes the selection and records realtime consent")

@@ -40,6 +40,7 @@ import {
 } from './metadata/metadata-client';
 import { isContractVersionDegraded } from './metadata/metadata-runtime';
 import { refreshAllSkills } from './skills/ops';
+import { runStudioPresetsLaunch } from './studio/presets-launch';
 import { installStreamLifecycleListeners } from './chat/lifecycle-listeners';
 import { buildOfficialEnabledModels } from './providers/official-model-sync';
 import type { CatalogMetadataInput } from './providers/catalog-resolver';
@@ -166,7 +167,10 @@ export async function bootstrapApp(
 
     store.setState({ hydrationPhase: 'ready' });
     refreshAllSkills(store).catch(() => {});
+    // Studio presets: refresh only when the entry is visible; a replaced set prunes the sample cache.
+    runStudioPresetsLaunch().catch(() => {});
     // Background sweep of orphaned images in this partition; it only deletes image records and runs once per partition per session.
+    // If the partition switches mid-way and deleteImage throws, the sweep stops; no one awaits its result.
     sweepOrphanImagesOnLaunch(getActiveUIDSync()).catch(() => {});
     if (storageHealth) reportStorageHealth(storageHealth);
     return { initialUser: null, authResolution: 'observed' };
