@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "مسح",
     "generationParameterDormantRestored": "تمت استعادة {count} من المعاملات",
     "generationPresetName": "اسم الإعداد المسبق",
+    "capabilityControlFixedByConnection": "يُحدده هذا الاتصال",
     "capabilityControlReasonPending": "الإعداد التلقائي غير جاهز بعد",
     "capabilityControlReasonUnsupported": "هذا الطلب غير مدعوم لهذا النموذج",
     "capabilityControlReasonExternalConnector": "تقدّمه خدمة خارجية منفصلة، خارج طلب المحادثة هذا",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "مرحباً بك في Oriveo",
       "tagline": "جميع النماذج، تطبيق واحد.",
+      "slogan": "مفاتيحك، تكاليفك، بياناتك.",
       "description": "قم بإعداد أول مزود ذكاء اصطناعي لبدء المحادثات متعددة النماذج.",
       "addProvider": "إضافة مزود",
       "enterHome": "متابعة إلى التطبيق"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "التبديل إلى مفتاح API",
         "disabledFallback": "تسجيل الدخول باشتراك ChatGPT غير متاح حاليًا. يمكنك التبديل إلى مفتاح API أو حذف هذا الاتصال."
       },
-      "subscription": "الاشتراك"
+      "subscription": "الاشتراك",
+      "tokenPrices": {
+        "input": "الإدخال {count}",
+        "cacheRead": "قراءة التخزين المؤقت {count}",
+        "cacheWrite": "كتابة التخزين المؤقت {count}",
+        "output": "الإخراج {count}",
+        "unit": "توكن"
+      }
     },
     "providers": {
       "title": "المزودون",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "سياسة الخصوصية",
+      "sourceCode": "الشفرة المصدرية",
       "aiSection": "الذكاء الاصطناعي",
       "skills": "المهارات",
       "backupImportExport": "النسخ الاحتياطي والاستيراد/التصدير",
+      "reportIssue": "الإبلاغ عن مشكلة",
+      "documentation": "التوثيق",
       "aboutTagline": "كل نماذجك. تطبيق واحد.",
       "context": {
         "title": "السياق",
@@ -2054,11 +2066,14 @@
     "title": "المهارات",
     "mySkills": "مهاراتي",
     "builtinSkills": "المهارات المدمجة",
+    "pinned": "مثبّتة",
     "newSkill": "مهارة جديدة",
     "editSkill": "تعديل المهارة",
     "deleteSkill": "حذف المهارة",
     "forkSkill": "نسخ كمهارتي",
     "useSkill": "استخدام هذه المهارة",
+    "pinToHome": "تثبيت في الرئيسية",
+    "unpinFromHome": "إلغاء التثبيت",
     "instructions": "الأوامر",
     "instructionsPlaceholder": "مثال: أنت مراجع كود خبير. راجع الكود من حيث الأمان والأداء وسهولة القراءة. أجب بلغة المستخدم.",
     "starterMessages": "عبارات بدء المحادثة",
@@ -2811,7 +2826,8 @@
       "stepLimit": "عدد المستندات المحددة كبير جدًا أو محتواها طويل جدًا لعملية بحث واحدة. ألغِ تحديد بعضها ثم أعد المحاولة.",
       "notConnected": "اربط مصدرًا بالمكتبة قبل بدء البحث.",
       "sourceForbidden": "رفض المصدر الوصول بسبب قيد في الأذونات أو السياسات. لن تحل إعادة الاتصال هذه المشكلة — تحقق من إعدادات المشاركة أو الامتثال في المصدر نفسه.",
-      "unavailable": "المكتبة غير متاحة مؤقتًا. حاول لاحقًا."
+      "unavailable": "المكتبة غير متاحة مؤقتًا. حاول لاحقًا.",
+      "retry": "إعادة المحاولة"
     }
   },
   "notes": {

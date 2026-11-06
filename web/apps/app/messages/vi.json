@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "Xóa",
     "generationParameterDormantRestored": "Đã khôi phục {count} tham số",
     "generationPresetName": "Tên preset",
+    "capabilityControlFixedByConnection": "Do kết nối này đặt",
     "capabilityControlReasonPending": "Cấu hình tự động chưa sẵn sàng",
     "capabilityControlReasonUnsupported": "Mô hình này không hỗ trợ yêu cầu này",
     "capabilityControlReasonExternalConnector": "Do một dịch vụ bên ngoài riêng biệt cung cấp, ngoài yêu cầu trò chuyện này",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Chào mừng đến với Oriveo",
       "tagline": "Tất cả mô hình của bạn, một ứng dụng.",
+      "slogan": "Khóa API của bạn, chi phí của bạn, dữ liệu của bạn.",
       "description": "Thiết lập nhà cung cấp AI đầu tiên của bạn để bắt đầu cuộc trò chuyện đa mô hình.",
       "addProvider": "Thêm nhà cung cấp",
       "enterHome": "Vào ứng dụng"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "Chuyển sang khóa API",
         "disabledFallback": "Đăng nhập bằng gói đăng ký ChatGPT hiện không dùng được. Bạn có thể chuyển sang khóa API hoặc xóa kết nối này."
       },
-      "subscription": "Gói đăng ký"
+      "subscription": "Gói đăng ký",
+      "tokenPrices": {
+        "input": "Đầu vào {count}",
+        "cacheRead": "Đọc cache {count}",
+        "cacheWrite": "Ghi cache {count}",
+        "output": "Đầu ra {count}",
+        "unit": "token"
+      }
     },
     "providers": {
       "title": "Nhà cung cấp",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "Đi vào",
       "privacyPolicy": "Chính sách bảo mật",
+      "sourceCode": "Mã nguồn",
       "aiSection": "AI",
       "skills": "Kỹ năng",
       "backupImportExport": "Sao lưu & Nhập/Xuất",
+      "reportIssue": "Báo lỗi",
+      "documentation": "Tài liệu",
       "aboutTagline": "Tất cả các mô hình của bạn. Một ứng dụng.",
       "context": {
         "title": "Ngữ cảnh",
@@ -2054,11 +2066,14 @@
     "title": "Kỹ năng",
     "mySkills": "Kỹ năng của tôi",
     "builtinSkills": "Kỹ năng tích hợp",
+    "pinned": "Đã ghim",
     "newSkill": "Kỹ năng mới",
     "editSkill": "Chỉnh sửa kỹ năng",
     "deleteSkill": "Xóa kỹ năng",
     "forkSkill": "Sao chép dưới dạng kỹ năng của tôi",
     "useSkill": "Sử dụng kỹ năng này",
+    "pinToHome": "Ghim vào Trang chủ",
+    "unpinFromHome": "Bỏ ghim khỏi Trang chủ",
     "instructions": "Lời nhắc",
     "instructionsPlaceholder": "ví dụ. Bạn là người đánh giá mã cấp cao. Xem lại mã về tính bảo mật, hiệu suất và khả năng đọc. Trả lời bằng ngôn ngữ của người dùng.",
     "starterMessages": "Người bắt đầu cuộc trò chuyện",
@@ -2811,7 +2826,8 @@
       "stepLimit": "Bạn đã chọn quá nhiều hoặc quá dài tài liệu cho một lượt nghiên cứu. Hãy bỏ chọn bớt rồi thử lại.",
       "notConnected": "Hãy kết nối một nguồn Thư viện trước khi nghiên cứu.",
       "sourceForbidden": "Nguồn đã từ chối quyền truy cập do hạn chế về quyền hoặc chính sách. Kết nối lại sẽ không khắc phục được điều này — hãy kiểm tra cài đặt chia sẻ hoặc tuân thủ tại chính nguồn đó.",
-      "unavailable": "Thư viện tạm thời không khả dụng. Hãy thử lại sau."
+      "unavailable": "Thư viện tạm thời không khả dụng. Hãy thử lại sau.",
+      "retry": "Thử lại"
     }
   },
   "notes": {

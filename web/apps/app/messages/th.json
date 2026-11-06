@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "ล้าง",
     "generationParameterDormantRestored": "กู้คืนพารามิเตอร์แล้ว {count} รายการ",
     "generationPresetName": "ชื่อพรีเซ็ต",
+    "capabilityControlFixedByConnection": "กำหนดโดยการเชื่อมต่อนี้",
     "capabilityControlReasonPending": "การตั้งค่าอัตโนมัติยังไม่พร้อม",
     "capabilityControlReasonUnsupported": "โมเดลนี้ไม่รองรับคำขอนี้",
     "capabilityControlReasonExternalConnector": "ให้บริการโดยบริการภายนอกแยกต่างหาก ซึ่งไม่อยู่ในคำขอแชทนี้",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "ยินดีต้อนรับสู่ Oriveo",
       "tagline": "โมเดลทั้งหมดของคุณในแอปเดียว",
+      "slogan": "คีย์ของคุณ ค่าใช้จ่ายของคุณ ข้อมูลของคุณ",
       "description": "ตั้งค่าผู้ให้บริการ AI รายแรกของคุณเพื่อเริ่มต้นการสนทนาหลายรูปแบบ",
       "addProvider": "เพิ่มผู้ให้บริการ",
       "enterHome": "เข้าแอป"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "เปลี่ยนไปใช้คีย์ API",
         "disabledFallback": "การเข้าสู่ระบบด้วยการสมัครสมาชิก ChatGPT ใช้ไม่ได้ในขณะนี้ คุณสามารถเปลี่ยนไปใช้คีย์ API หรือลบการเชื่อมต่อนี้ได้"
       },
-      "subscription": "การสมัครสมาชิก"
+      "subscription": "การสมัครสมาชิก",
+      "tokenPrices": {
+        "input": "อินพุต {count}",
+        "cacheRead": "อ่านแคช {count}",
+        "cacheWrite": "เขียนแคช {count}",
+        "output": "เอาต์พุต {count}",
+        "unit": "โทเคน"
+      }
     },
     "providers": {
       "title": "ผู้ให้บริการ",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "เข้า",
       "privacyPolicy": "นโยบายความเป็นส่วนตัว",
+      "sourceCode": "ซอร์สโค้ด",
       "aiSection": "AI",
       "skills": "ทักษะ",
       "backupImportExport": "สำรองข้อมูลและนำเข้า/ส่งออก",
+      "reportIssue": "รายงานปัญหา",
+      "documentation": "เอกสาร",
       "aboutTagline": "ทุกรุ่นของคุณ แอปเดียว",
       "context": {
         "title": "บริบท",
@@ -2054,11 +2066,14 @@
     "title": "ทักษะ",
     "mySkills": "ทักษะของฉัน",
     "builtinSkills": "ทักษะในตัว",
+    "pinned": "ปักหมุดแล้ว",
     "newSkill": "ทักษะใหม่",
     "editSkill": "แก้ไขทักษะ",
     "deleteSkill": "ลบทักษะ",
     "forkSkill": "คัดลอกเป็นทักษะของฉัน",
     "useSkill": "ใช้ทักษะนี้",
+    "pinToHome": "ปักหมุดไปที่หน้าแรก",
+    "unpinFromHome": "เลิกปักหมุดจากหน้าแรก",
     "instructions": "พรอมต์",
     "instructionsPlaceholder": "เช่น คุณเป็นผู้ตรวจสอบโค้ดอาวุโส ตรวจสอบโค้ดเพื่อความปลอดภัย ประสิทธิภาพ และความสามารถในการอ่าน ตอบกลับเป็นภาษาของผู้ใช้",
     "starterMessages": "ผู้เริ่มการสนทนา",
@@ -2811,7 +2826,8 @@
       "stepLimit": "เอกสารที่เลือกมีจำนวนมากเกินไปหรือยาวเกินไปสำหรับการค้นคว้าครั้งเดียว โปรดยกเลิกการเลือกบางรายการแล้วลองอีกครั้ง",
       "notConnected": "เชื่อมต่อแหล่งคลังข้อมูลก่อนเริ่มค้นคว้า",
       "sourceForbidden": "แหล่งข้อมูลปฏิเสธการเข้าถึงเนื่องจากข้อจำกัดด้านสิทธิ์หรือนโยบาย การเชื่อมต่อใหม่จะไม่ช่วยแก้ปัญหานี้ โปรดตรวจสอบการตั้งค่าการแชร์หรือการปฏิบัติตามข้อกำหนดที่ต้นทาง",
-      "unavailable": "คลังข้อมูลไม่พร้อมใช้งานชั่วคราว โปรดลองภายหลัง"
+      "unavailable": "คลังข้อมูลไม่พร้อมใช้งานชั่วคราว โปรดลองภายหลัง",
+      "retry": "ลองอีกครั้ง"
     }
   },
   "notes": {

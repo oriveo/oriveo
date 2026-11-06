@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "हटाएँ",
     "generationParameterDormantRestored": "{count} पैरामीटर बहाल किए गए",
     "generationPresetName": "प्रीसेट नाम",
+    "capabilityControlFixedByConnection": "इस कनेक्शन द्वारा सेट",
     "capabilityControlReasonPending": "स्वचालित कॉन्फ़िगरेशन अभी तैयार नहीं है",
     "capabilityControlReasonUnsupported": "यह अनुरोध इस मॉडल के लिए समर्थित नहीं है",
     "capabilityControlReasonExternalConnector": "एक अलग बाहरी सेवा द्वारा दिया जाता है, इस चैट अनुरोध के बाहर",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Oriveo में आपका स्वागत है",
       "tagline": "आपके सभी मॉडल, एक ऐप।",
+      "slogan": "आपकी चाबियाँ, आपकी लागत, आपका डेटा।",
       "description": "मल्टी-मॉडल बातचीत शुरू करने के लिए अपना पहला AI प्रोवाइडर सेट अप करें।",
       "addProvider": "प्रोवाइडर जोड़ें",
       "enterHome": "ऐप पर जाएँ"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "API key पर स्विच करें",
         "disabledFallback": "ChatGPT सदस्यता साइन-इन अभी उपलब्ध नहीं है। आप API key पर स्विच कर सकते हैं या यह कनेक्शन हटा सकते हैं।"
       },
-      "subscription": "सब्सक्रिप्शन"
+      "subscription": "सब्सक्रिप्शन",
+      "tokenPrices": {
+        "input": "इनपुट {count}",
+        "cacheRead": "कैश रीड {count}",
+        "cacheWrite": "कैश राइट {count}",
+        "output": "आउटपुट {count}",
+        "unit": "टोकन"
+      }
     },
     "providers": {
       "title": "प्रोवाइडर",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "गोपनीयता नीति",
+      "sourceCode": "स्रोत कोड",
       "aiSection": "AI",
       "skills": "कौशल",
       "backupImportExport": "बैकअप फ़ाइल लाएँ और सहेजें",
+      "reportIssue": "समस्या की रिपोर्ट करें",
+      "documentation": "दस्तावेज़",
       "aboutTagline": "आपके सभी मॉडल. एक ऐप.",
       "context": {
         "title": "कॉन्टेक्स्ट",
@@ -2054,11 +2066,14 @@
     "title": "कौशल",
     "mySkills": "मेरे कौशल",
     "builtinSkills": "अंतर्निहित कौशल",
+    "pinned": "पिन की गई",
     "newSkill": "नया कौशल",
     "editSkill": "कौशल संपादित करें",
     "deleteSkill": "कौशल हटाएँ",
     "forkSkill": "मेरे कौशल के रूप में कॉपी करें",
     "useSkill": "इस कौशल का प्रयोग करें",
+    "pinToHome": "होम पर पिन करें",
+    "unpinFromHome": "घर से अनपिन करें",
     "instructions": "तत्पर",
     "instructionsPlaceholder": "जैसे आप एक वरिष्ठ कोड समीक्षक हैं. सुरक्षा, प्रदर्शन और पठनीयता के लिए कोड की समीक्षा करें। उपयोगकर्ता की भाषा में उत्तर दें.",
     "starterMessages": "बातचीत आरंभकर्ता",
@@ -2811,7 +2826,8 @@
       "stepLimit": "एक ही रिसर्च के लिए चुने गए दस्तावेज़ बहुत ज़्यादा या बहुत लंबे हैं। कुछ का चयन हटाकर फिर कोशिश करें।",
       "notConnected": "शोध शुरू करने से पहले लाइब्रेरी स्रोत कनेक्ट करें।",
       "sourceForbidden": "अनुमति या नीति संबंधी प्रतिबंध के कारण स्रोत ने पहुँच अस्वीकार कर दी। फिर से कनेक्ट करने से यह ठीक नहीं होगा — स्रोत की शेयरिंग या अनुपालन सेटिंग जाँचें।",
-      "unavailable": "लाइब्रेरी अभी उपलब्ध नहीं है। बाद में फिर कोशिश करें।"
+      "unavailable": "लाइब्रेरी अभी उपलब्ध नहीं है। बाद में फिर कोशिश करें।",
+      "retry": "पुनः प्रयास करें"
     }
   },
   "notes": {
