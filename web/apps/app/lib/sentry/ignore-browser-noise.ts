@@ -45,6 +45,28 @@ const USERSCRIPT_MANAGER_PATTERNS = [
   /window\[\s*['"][0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}['"]\s*\]/i,
 ] as const;
 
+/**
+ * Uncaught errors raised inside the reCAPTCHA Enterprise script itself.
+ *
+ * App code never calls the script. One shape is the script's internal promise timing out when
+ * Google is unreachable; the other is its own timer throwing roughly every 100ms once internal
+ * state is gone (115 events in 10 seconds).
+ *
+ * Match the crash frame, not the text: the text names minified fields that change per script
+ * release. Require one uncaught exception; a crash whose top frame is ours stays reported.
+ * The Next SDK rewrites frame origins to `app://` before beforeSend, so match the path only.
+ */
+const RECAPTCHA_SCRIPT_FRAME = /\/recaptcha\/releases\/[^/]+\/recaptcha__[\w-]+\.js$/;
+
+function isRecaptchaScriptError(event: Event): boolean {
+  const values = (event as ErrorEvent).exception?.values ?? [];
+  if (values.length !== 1) return false;
+  const [entry] = values;
+  if (entry.mechanism?.handled !== false) return false;
+  const crashFrame = entry.stacktrace?.frames?.at(-1);
+  return RECAPTCHA_SCRIPT_FRAME.test(crashFrame?.filename ?? "");
+}
+
 function matchesAny(patterns: readonly RegExp[], value: string | undefined): boolean {
   if (!value) return false;
   return patterns.some((pattern) => pattern.test(value));
@@ -58,6 +80,7 @@ export function isChunkLoadError(error: unknown): boolean {
 
 /** Sentry beforeSend filter: a match returns true and the caller drops the event. */
 export function isIgnorableBrowserNoiseError(event: Event): boolean {
+  if (isRecaptchaScriptError(event)) return true;
   const values = (event as ErrorEvent).exception?.values ?? [];
   return values.some((entry) => {
     const haystack = entry.value;

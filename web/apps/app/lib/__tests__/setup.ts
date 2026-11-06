@@ -2,6 +2,7 @@
 
 import { afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import { installPurgeAbortGuard } from './purge-abort-guard';
 
 // Application tests exercise code that records telemetry, not Sentry's webpack
 // transformer internals. Loading the real Next.js SDK in Vitest 4 crosses its
@@ -41,6 +42,8 @@ vi.mock('@sentry/nextjs', () => {
 afterEach(() => {
   cleanup();
 });
+
+installPurgeAbortGuard();
 
 // Mock next-intl
 vi.mock('next-intl', () => ({

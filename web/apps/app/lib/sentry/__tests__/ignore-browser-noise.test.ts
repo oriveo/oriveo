@@ -11,6 +11,27 @@ function buildEvent(values: Array<{ type?: string; value?: string }>): Event {
   return { exception: { values } } as unknown as Event;
 }
 
+const UNHANDLED_REJECTION = { type: "auto.browser.global_handlers.onunhandledrejection", handled: false };
+/** Mechanism of an error we captured ourselves with `Sentry.captureException`. */
+const HANDLED_CAPTURE = { type: "generic", handled: true };
+
+/** Shape of a raw browser payload with a stack. */
+function buildRejectionEvent(
+  entry: { type: string; value: string; frames?: Array<{ filename: string; function?: string }> },
+  mechanism: { type: string; handled: boolean } = UNHANDLED_REJECTION,
+): Event {
+  return {
+    exception: {
+      values: [{
+        type: entry.type,
+        value: entry.value,
+        mechanism,
+        ...(entry.frames ? { stacktrace: { frames: entry.frames } } : {}),
+      }],
+    },
+  } as unknown as Event;
+}
+
 describe("isChunkLoadError", () => {
   it("matches a ChunkLoadError by name", () => {
     const err = Object.assign(new Error("Loading chunk 9886 failed."), { name: "ChunkLoadError" });
@@ -110,6 +131,56 @@ describe("isIgnorableBrowserNoiseError", () => {
 
   it("handles events with no exception", () => {
     expect(isIgnorableBrowserNoiseError({} as Event)).toBe(false);
+  });
+});
+
+describe("reCAPTCHA script errors", () => {
+  const RECAPTCHA_JS = "app:///recaptcha/releases/bSuJ2xBC8cFy7pM4Z3Hu9boH/recaptcha__fa.js";
+  const OWN_CHUNK = "app:///_next/static/chunks/0b1c8e2f4d6a9c3e.js";
+  const SET_TIMEOUT_WRAPPER = { type: "auto.browser.browserapierrors.customSetTimeout", handled: false };
+
+  it("drops the promise timeout thrown inside the script", () => {
+    const event = buildRejectionEvent({
+      type: "Error",
+      value: "reCAPTCHA Timeout (b)",
+      frames: [{ filename: RECAPTCHA_JS }],
+    });
+    expect(isIgnorableBrowserNoiseError(event)).toBe(true);
+  });
+
+  it("drops the timer crash under Sentry's setTimeout wrapper", () => {
+    const event = buildRejectionEvent({
+      type: "TypeError",
+      value: "Cannot read properties of undefined (reading 'nc')",
+      frames: [
+        { filename: OWN_CHUNK, function: "l" },
+        { filename: "app:///recaptcha/releases/bSuJ2xBC8cFy7pM4Z3Hu9boH/recaptcha__en.js", function: "Wm.<anonymous>" },
+        { filename: "app:///recaptcha/releases/bSuJ2xBC8cFy7pM4Z3Hu9boH/recaptcha__en.js", function: "Wm.P.Wm.iF.U.Un" },
+      ],
+    }, SET_TIMEOUT_WRAPPER);
+    expect(isIgnorableBrowserNoiseError(event)).toBe(true);
+  });
+
+  it("keeps a crash whose top frame is our own code", () => {
+    const event = buildRejectionEvent({
+      type: "TypeError",
+      value: "Cannot read properties of undefined (reading 'nc')",
+      frames: [{ filename: RECAPTCHA_JS }, { filename: OWN_CHUNK, function: "onToken" }],
+    });
+    expect(isIgnorableBrowserNoiseError(event)).toBe(false);
+  });
+
+  it("keeps the same frame when we captured the error ourselves", () => {
+    const event = buildRejectionEvent(
+      { type: "Error", value: "reCAPTCHA Timeout (b)", frames: [{ filename: RECAPTCHA_JS }] },
+      HANDLED_CAPTURE,
+    );
+    expect(isIgnorableBrowserNoiseError(event)).toBe(false);
+  });
+
+  it("keeps the same text without a stack", () => {
+    const event = buildRejectionEvent({ type: "Error", value: "reCAPTCHA Timeout (b)" });
+    expect(isIgnorableBrowserNoiseError(event)).toBe(false);
   });
 });
 
