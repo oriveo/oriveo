@@ -59,6 +59,13 @@ describe('CSS custom property audit', () => {
     }
   });
 
+  // --o-focus-ring holds a box-shadow value: inside outline the declaration is invalid and the ring vanishes.
+  it('--o-focus-ring is never used inside outline', () => {
+    const offenders = collectSourceCssFiles(['apps', 'packages']).filter((file) =>
+      /outline[^;{}]*var\(\s*--o-focus-ring\b/.test(readFileSync(join(WEB_ROOT, file), 'utf8')));
+    expect(offenders).toEqual([]);
+  });
+
   it('never reads stylesheets from an ignored directory', () => {
     // Generated stylesheets carry hashed class names and inlined custom properties. If the file
     // list ever stopped honouring .gitignore, a build directory would flood the report with

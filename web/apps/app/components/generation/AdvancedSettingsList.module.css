@@ -7,7 +7,7 @@
 .card > :first-child { border-top:0; }
 .rowHead { display:flex; align-items:center; gap:10px; width:100%; min-height:44px; padding:6px 12px; border:0; background:none; color:inherit; font:inherit; text-align:start; cursor:pointer; }
 .rowHead:disabled { cursor:default; }
-.rowHead:focus-visible { outline:2px solid var(--o-focus-ring, #7c3aed); outline-offset:-2px; }
+.rowHead:focus-visible { outline:2px solid var(--o-primary); outline-offset:-2px; }
 .rowTitle { flex:1; min-width:0; display:flex; align-items:center; gap:6px; }
 .titleText { font-size:14px; color:var(--o-text, #18181b); }
 .titleStack { display:flex; flex-direction:column; gap:2px; min-width:0; }
