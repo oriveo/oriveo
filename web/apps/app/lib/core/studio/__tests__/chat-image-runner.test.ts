@@ -46,7 +46,7 @@ interface WireCase {
   input: { providerKind: string; modelId: string; profileRef: string; prompt: string };
   expect: {
     method: string;
-    pathSuffix: string;
+    url: string;
     bodyIncludes: Record<string, unknown>;
     bodyExcludes: string[];
   };
@@ -189,7 +189,7 @@ describe('chat image runner', () => {
         baseInput({
           providerKind: c.input.providerKind,
           model: c.input.modelId,
-          baseURL: BASE_URLS[c.input.providerKind]!,
+          baseURL: c.input.connectionBaseUrl,
           prompt: c.input.prompt,
         }),
         deps,
@@ -198,7 +198,7 @@ describe('chat image runner', () => {
       expect(calls.length, c.caseId).toBeGreaterThanOrEqual(1);
       const call = calls[0]!;
       expect(call.method, c.caseId).toBe(c.expect.method);
-      expect(new URL(call.url).pathname.endsWith(c.expect.pathSuffix), `${c.caseId} ${call.url}`).toBe(true);
+      expect(call.url, c.caseId).toBe(c.expect.url);
       expect(typeof call.body, c.caseId).toBe('string');
       const body = JSON.parse(call.body as string) as Record<string, unknown>;
       for (const [path, value] of Object.entries(c.expect.bodyIncludes)) {
