@@ -20,8 +20,8 @@ import {
 } from '../chat-image-dispatch';
 import type { ImageProfile } from '../image-profile';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const FIXTURE = resolve(ROOT, '\u5171\u4eab/studio-contracts/chat_image_dispatch.v1.json');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const FIXTURE = resolve(ROOT, 'shared/studio-contracts/chat_image_dispatch.v1.json');
 
 interface DispatchCase {
   caseId: string;

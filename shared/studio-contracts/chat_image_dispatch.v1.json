@@ -1,0 +1,2265 @@
+{
+  "$comment": "Chat image generation on the studio pipeline (BYOK). dispatch: which chat sends move to the studio executor; legacy = the existing chat image path, unchanged. baseUrl: executor base derived from the chat connection effective address (spec.baseUrlRule). wire: the same chat input (connectionBaseUrl -> full url) through the new pipeline; bodyExcludes and the legacy body keys come from request_shape_contract.v1 (the frozen legacy chat lock), so sameAsLegacy=true proves the request did not change. persist: the assistant message shape both paths must produce. errorMap: studio errorKind -> chat failure category; each end maps the category onto its own chat error type. Recomputed by scripts/studio-contracts-check.mjs. relay: spec.relay + dispatch relay_* cases decide which relay chat sends move to the studio executor (input.relayImageRoute = the relay transport image route); relayParams: chat wire = normalize(profile, chatParams).wire overlaid by the relay connection image overrides, studio module ignores them.",
+  "contractId": "chat_image_dispatch.v1",
+  "version": 1,
+  "spec": {
+    "chatParams": {
+      "aspect": "1:1",
+      "resolution": "1K",
+      "quality": "standard",
+      "n": 1
+    },
+    "studioRoutes": [
+      "openai_images",
+      "xai_images",
+      "openrouter_images",
+      "minimax_image_generation",
+      "dashscope_multimodal"
+    ],
+    "legacyProviderKinds": [
+      "relay"
+    ],
+    "firstImage": {
+      "slot": 1,
+      "role": "base"
+    },
+    "laterImages": {
+      "role": "element"
+    },
+    "errorMap": {
+      "refused": "upstream_400",
+      "auth": "invalid_key",
+      "insufficient_balance": "quota_exceeded",
+      "rate_limited": "rate_limited",
+      "invalid_param": "upstream_400",
+      "model_unavailable": "model_unavailable",
+      "upstream_error": "upstream_502",
+      "timeout": "network",
+      "network": "network",
+      "decode_failed": "empty_response",
+      "storage_full": "upstream_507"
+    },
+    "baseUrlRule": "Executor base = the chat connection effective address: trim; empty or missing -> null (stay legacy); no scheme -> prefix https://; trim trailing slashes; no host -> null. dashscope_multimodal only: drop one trailing /compatible-mode/v1 or /api/v1 (case-sensitive), then append /api/v1. Other routes: as-is.",
+    "relay": {
+      "routes": [
+        "openai_images"
+      ],
+      "transportImageRoutes": [
+        "imagesEndpoint"
+      ],
+      "rule": "providerKind relay goes to studio only when the legacy image gate is on, input.relayImageRoute is in transportImageRoutes, a profile resolves (ImageProfileResolver relay context: userDeclared, else the relay official catalog match) and profile.route is in relay.routes. Anything else stays legacy, unchanged. edit / attachments / persist / errorMap as for official providers.",
+      "overrides": {
+        "imageSize": "size",
+        "imageQuality": "quality",
+        "imageStyle": "style",
+        "imageCount": "n",
+        "imageResponseFormat": "response_format"
+      },
+      "overrideRule": "Chat only: applied to the wire of every call after normalization (generate and edit). Strings are trimmed and used verbatim when non-empty (no enum check); imageCount is used only when it is an integer > 0 and goes into one call (no batch split). Missing, null, blank or out-of-range values are ignored. The override replaces the profile value. Studio module requests ignore overrides.",
+      "wireRule": "Relay studio requests go through the end relay HTTP stack (relay security / TOFU, auth mode, custom headers, query params, UA), never the studio Bearer-only transport or the iOS background session. Base: relayRequested.resolvedAPIBaseURL when set, else baseURL with trailing slashes dropped and /v1 appended unless the path already ends in /v1 (same as relay chat requests). Body: the studio request for the profile with the chat wire after relayWire and the prompt composed as for every studio round (studio_prompt_compose: edit adds the base-image line); model is the relay model id. Auth: auto / bearer -> Authorization: Bearer <key>; x_api_key -> x-api-key; x_goog_api_key -> x-goog-api-key; query_key -> query key=<apiKey> and no auth header. Custom headers and query params are sent as given. expect.query is compared as a map (order free); header names lower-cased; headersExclude must be absent. Images collected per call = that call wire n (an n override raises it). A URL image is fetched through the relay stack without auth; it keeps the relay security mode only when its host equals the relay host."
+    },
+    "continueEdit": {
+      "reasons": [
+        "applied",
+        "has_attachment",
+        "cancelled",
+        "no_edit",
+        "no_previous_image"
+      ],
+      "rule": "Continue edit: evaluated for a chat image send before decide, first match wins. 1) This user message carries an image attachment (mime starts with image/, case-insensitive, with or without local bytes) -> has_attachment. 2) cancelled (the user tapped the continue-edit tag; one-shot per conversation, consumed by the next image send whatever its path, in memory only) -> cancelled. 3) No resolved profile, or profile.operations lacks edit -> no_edit. 4) previousAssistant = the latest assistant message of this conversation before this send (null when none); usable = its generated images with local bytes, in message order; none -> no_previous_image. 5) base = the usable image whose id equals lastViewedImageId (the image last opened in the chat full-screen viewer, process memory), else the first usable -> applied. Image id = the attachment local image id when present, else the attachment id. On applied the runner passes the base image as the only attachment to decide (so it becomes slot 1, role base, operation edit) and does not add it to the user message. Non-image attachments of the user message are ignored here."
+    }
+  },
+  "profiles": {
+    "openai_images_square": {
+      "imageOutput": true,
+      "operations": [
+        "generate"
+      ],
+      "route": "openai_images",
+      "aspectRatios": [
+        "1:1"
+      ],
+      "sizeParam": "wxh",
+      "resolutions": {
+        "1K": 1024
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 1048576,
+        "maxPixels": 1048576,
+        "maxLongEdge": 1024
+      },
+      "maxNPerCall": 1,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "source": "verified_allowlist"
+    },
+    "openai_images_square_no_n": {
+      "imageOutput": true,
+      "operations": [
+        "generate"
+      ],
+      "route": "openai_images",
+      "aspectRatios": [
+        "1:1"
+      ],
+      "sizeParam": "wxh",
+      "resolutions": {
+        "1K": 1024
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 1048576,
+        "maxPixels": 1048576,
+        "maxLongEdge": 1024
+      },
+      "maxNPerCall": 1,
+      "nParam": false,
+      "timeoutSeconds": 180,
+      "source": "verified_allowlist"
+    },
+    "dashscope_square": {
+      "imageOutput": true,
+      "operations": [
+        "generate"
+      ],
+      "route": "dashscope_multimodal",
+      "aspectRatios": [
+        "1:1"
+      ],
+      "sizeParam": "dashscope_wxh",
+      "resolutions": {
+        "1K": 1024
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 1048576,
+        "maxPixels": 1048576,
+        "maxLongEdge": 1024
+      },
+      "maxNPerCall": 1,
+      "nParam": true,
+      "params": {
+        "promptExtend": true
+      },
+      "timeoutSeconds": 180,
+      "source": "verified_allowlist"
+    },
+    "minimax_image01": {
+      "imageOutput": true,
+      "operations": [
+        "generate"
+      ],
+      "route": "minimax_image_generation",
+      "aspectRatios": [
+        "1:1",
+        "16:9",
+        "4:3",
+        "3:2",
+        "2:3",
+        "3:4",
+        "9:16",
+        "21:9"
+      ],
+      "sizeParam": "aspect_only",
+      "resolutions": {
+        "1K": 1024
+      },
+      "maxNPerCall": 9,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        20,
+        60
+      ],
+      "source": "official_api",
+      "verifiedAt": "2026-10-28"
+    },
+    "openai_gpt_image": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "openai_images",
+      "editTransport": "multipart",
+      "maxReferenceImages": 16,
+      "aspectRatios": [
+        "1:1",
+        "3:2",
+        "2:3",
+        "4:3",
+        "3:4",
+        "16:9",
+        "9:16"
+      ],
+      "sizeParam": "wxh",
+      "resolutions": {
+        "1K": 1024,
+        "2K": 2048,
+        "4K": 3840
+      },
+      "sizeConstraints": {
+        "multipleOf": 16,
+        "minPixels": 655360,
+        "maxPixels": 8294400,
+        "maxLongEdge": 3840,
+        "ratioRange": [
+          0.333,
+          3
+        ]
+      },
+      "qualityMap": {
+        "draft": "low",
+        "standard": "medium",
+        "fine": "high"
+      },
+      "maxNPerCall": 10,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        15,
+        60
+      ],
+      "source": "verified_allowlist",
+      "verifiedAt": "2026-10-28"
+    },
+    "xai_grok_imagine": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "xai_images",
+      "editTransport": "json_image_object",
+      "maxReferenceImages": 5,
+      "aspectRatios": [
+        "1:1",
+        "3:4",
+        "4:3",
+        "9:16",
+        "16:9",
+        "2:3",
+        "3:2",
+        "1:2",
+        "2:1",
+        "21:9"
+      ],
+      "sizeParam": "aspect_resolution",
+      "resolutions": {
+        "1K": 1024,
+        "2K": 2048
+      },
+      "resolutionValues": {
+        "1K": "1k",
+        "2K": "2k"
+      },
+      "maxNPerCall": 10,
+      "nParam": true,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        5,
+        20
+      ],
+      "source": "official_api",
+      "verifiedAt": "2026-10-28"
+    },
+    "gemini_flash_image": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "gemini_generate_content",
+      "editTransport": "inline",
+      "maxReferenceImages": 14,
+      "aspectRatios": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9"
+      ],
+      "sizeParam": "gemini_image_config",
+      "resolutions": {
+        "1K": 1024,
+        "2K": 2048,
+        "4K": 4096
+      },
+      "resolutionValues": {
+        "1K": "1K",
+        "2K": "2K",
+        "4K": "4K"
+      },
+      "maxNPerCall": 1,
+      "nParam": false,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        5,
+        40
+      ],
+      "source": "official_api",
+      "verifiedAt": "2026-10-28"
+    },
+    "openrouter_gemini_chat": {
+      "imageOutput": true,
+      "operations": [
+        "generate",
+        "edit"
+      ],
+      "route": "chat_modalities",
+      "editTransport": "inline",
+      "maxReferenceImages": 3,
+      "aspectRatios": [
+        "1:1",
+        "2:3",
+        "3:2",
+        "3:4",
+        "4:3",
+        "4:5",
+        "5:4",
+        "9:16",
+        "16:9",
+        "21:9"
+      ],
+      "sizeParam": "chat_image_config",
+      "resolutions": {
+        "1K": 1024
+      },
+      "maxNPerCall": 1,
+      "nParam": false,
+      "timeoutSeconds": 180,
+      "typicalSeconds": [
+        5,
+        40
+      ],
+      "source": "openrouter",
+      "verifiedAt": "2026-10-28"
+    },
+    "openrouter_openai_chat_square": {
+      "imageOutput": true,
+      "operations": [
+        "generate"
+      ],
+      "route": "chat_modalities",
+      "aspectRatios": [
+        "1:1"
+      ],
+      "sizeParam": "chat_image_config",
+      "resolutions": {
+        "1K": 1024
+      },
+      "maxNPerCall": 1,
+      "nParam": false,
+      "timeoutSeconds": 180,
+      "source": "openrouter"
+    }
+  },
+  "dispatch": [
+    {
+      "caseId": "square_generate",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-1",
+        "legacyImageDispatch": true,
+        "profileRef": "openai_images_square",
+        "attachments": []
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "generate",
+        "images": []
+      }
+    },
+    {
+      "caseId": "square_drops_attachment",
+      "$comment": "generate-only profile: attachments ignored, same as the legacy prompt-only body",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-1",
+        "legacyImageDispatch": true,
+        "profileRef": "openai_images_square",
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": true
+          }
+        ]
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "generate",
+        "images": []
+      }
+    },
+    {
+      "caseId": "edit_first_attachment_is_base",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-2",
+        "legacyImageDispatch": true,
+        "profileRef": "openai_gpt_image",
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": true
+          },
+          {
+            "id": "a2",
+            "mime": "image/png",
+            "hasBytes": true
+          }
+        ]
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "edit",
+        "images": [
+          {
+            "attachmentId": "a1",
+            "slot": 1,
+            "role": "base"
+          },
+          {
+            "attachmentId": "a2",
+            "slot": 2,
+            "role": "element"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "edit_skips_attachment_without_bytes",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-2",
+        "legacyImageDispatch": true,
+        "profileRef": "openai_gpt_image",
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": false
+          },
+          {
+            "id": "a2",
+            "mime": "image/png",
+            "hasBytes": true
+          }
+        ]
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "edit",
+        "images": [
+          {
+            "attachmentId": "a2",
+            "slot": 1,
+            "role": "base"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "edit_no_local_bytes_generates",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-2",
+        "legacyImageDispatch": true,
+        "profileRef": "openai_gpt_image",
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": false
+          }
+        ]
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "generate",
+        "images": []
+      }
+    },
+    {
+      "caseId": "verified_generate",
+      "input": {
+        "providerKind": "grok",
+        "modelId": "grok-imagine-image",
+        "legacyImageDispatch": true,
+        "profileRef": "xai_grok_imagine",
+        "attachments": []
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "generate",
+        "images": []
+      }
+    },
+    {
+      "caseId": "minimax_generate_only",
+      "input": {
+        "providerKind": "miniMax",
+        "modelId": "image-01",
+        "legacyImageDispatch": true,
+        "profileRef": "minimax_image01",
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": true
+          }
+        ]
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "generate",
+        "images": []
+      }
+    },
+    {
+      "caseId": "legacy_only_no_profile",
+      "$comment": "legacyOnly: no v2 profile, keeps the legacy chat image path",
+      "input": {
+        "providerKind": "qwen",
+        "modelId": "qwen-image-plus",
+        "legacyImageDispatch": true,
+        "profileRef": null,
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "legacy_only_gemini_gemini_2_5_flash_image",
+      "$comment": "legacyOnly (server recipe table): no v2 profile, keeps the legacy chat image path",
+      "input": {
+        "providerKind": "gemini",
+        "modelId": "gemini-2.5-flash-image",
+        "legacyImageDispatch": true,
+        "profileRef": null,
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "openrouter_image_chat_stays_chat_google_gemini_2_5_flash_image",
+      "$comment": "chat_modalities profile: conversational route keeps the legacy chat image path",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "google/gemini-2.5-flash-image",
+        "legacyImageDispatch": true,
+        "profileRef": "openrouter_gemini_chat",
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "openrouter_image_chat_stays_chat_openai_gpt_5_image",
+      "$comment": "chat_modalities profile: conversational route keeps the legacy chat image path",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "openai/gpt-5-image",
+        "legacyImageDispatch": true,
+        "profileRef": "openrouter_openai_chat_square",
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "openrouter_image_chat_stays_chat_openai_gpt_5_image_mini",
+      "$comment": "chat_modalities profile: conversational route keeps the legacy chat image path",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "openai/gpt-5-image-mini",
+        "legacyImageDispatch": true,
+        "profileRef": "openrouter_openai_chat_square",
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "openrouter_image_chat_stays_chat_openai_gpt_5_4_image_2",
+      "$comment": "chat_modalities profile: conversational route keeps the legacy chat image path",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "openai/gpt-5.4-image-2",
+        "legacyImageDispatch": true,
+        "profileRef": "openrouter_openai_chat_square",
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "legacy_only_openRouter_openrouter_auto",
+      "$comment": "legacyOnly (server recipe table): no v2 profile, keeps the legacy chat image path",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "openrouter/auto",
+        "legacyImageDispatch": true,
+        "profileRef": null,
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "legacy_only_openRouter_openrouter_auto_beta",
+      "$comment": "legacyOnly (server recipe table): no v2 profile, keeps the legacy chat image path",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "openrouter/auto-beta",
+        "legacyImageDispatch": true,
+        "profileRef": null,
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "legacy_only_grok_grok_imagine_image_2_0",
+      "$comment": "legacyOnly (server recipe table): no v2 profile, keeps the legacy chat image path",
+      "input": {
+        "providerKind": "grok",
+        "modelId": "grok-imagine-image-2.0",
+        "legacyImageDispatch": true,
+        "profileRef": null,
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "legacy_only_qwen_z_image_turbo",
+      "$comment": "legacyOnly (server recipe table): no v2 profile, keeps the legacy chat image path",
+      "input": {
+        "providerKind": "qwen",
+        "modelId": "z-image-turbo",
+        "legacyImageDispatch": true,
+        "profileRef": null,
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "legacy_only_qwen_qwen_image_max",
+      "$comment": "legacyOnly (server recipe table): no v2 profile, keeps the legacy chat image path",
+      "input": {
+        "providerKind": "qwen",
+        "modelId": "qwen-image-max",
+        "legacyImageDispatch": true,
+        "profileRef": null,
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "not_in_catalog_no_profile",
+      "input": {
+        "providerKind": "grok",
+        "modelId": "grok-imagine-image-pro",
+        "legacyImageDispatch": true,
+        "profileRef": null,
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "gemini_conversational_stays_chat",
+      "$comment": "conversational route keeps the multi-turn chat request",
+      "input": {
+        "providerKind": "gemini",
+        "modelId": "gemini-3-pro-image",
+        "legacyImageDispatch": true,
+        "profileRef": "gemini_flash_image",
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": true
+          }
+        ]
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "openrouter_conversational_stays_chat",
+      "input": {
+        "providerKind": "openRouter",
+        "modelId": "google/gemini-3-pro-image",
+        "legacyImageDispatch": true,
+        "profileRef": "openrouter_gemini_chat",
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "legacy_gate_off_unchanged",
+      "$comment": "who goes to image generation stays decided by the legacy gate",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-2",
+        "legacyImageDispatch": false,
+        "profileRef": "openai_gpt_image",
+        "attachments": []
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "relay_images_endpoint_official_match_generate",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": true,
+        "attachments": [],
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "relayImageRoute": "imagesEndpoint"
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "generate",
+        "images": []
+      },
+      "$comment": "profileRef = what ImageProfileResolver returns for the relay official catalog match."
+    },
+    {
+      "caseId": "relay_images_endpoint_edit_with_attachments",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": true,
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": true
+          },
+          {
+            "id": "a2",
+            "mime": "image/jpeg",
+            "hasBytes": true
+          }
+        ],
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "relayImageRoute": "imagesEndpoint"
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "edit",
+        "images": [
+          {
+            "attachmentId": "a1",
+            "slot": 1,
+            "role": "base"
+          },
+          {
+            "attachmentId": "a2",
+            "slot": 2,
+            "role": "element"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "relay_generate_only_profile_ignores_attachments",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": true,
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": true
+          },
+          {
+            "id": "a2",
+            "mime": "image/jpeg",
+            "hasBytes": true
+          }
+        ],
+        "modelId": "gpt-image-1",
+        "profileRef": "openai_images_square",
+        "relayImageRoute": "imagesEndpoint"
+      },
+      "expect": {
+        "path": "studio",
+        "operation": "generate",
+        "images": []
+      }
+    },
+    {
+      "caseId": "relay_no_profile_stays_legacy",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": true,
+        "attachments": [],
+        "modelId": "mystery-image-x",
+        "profileRef": null,
+        "relayImageRoute": "imagesEndpoint"
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "relay_inline_responses_tool_stays_legacy",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": true,
+        "attachments": [],
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "relayImageRoute": "inlineResponsesTool"
+      },
+      "expect": {
+        "path": "legacy"
+      },
+      "$comment": "Responses transport keeps the inline image_generation tool (conversational, needs a chat driver)."
+    },
+    {
+      "caseId": "relay_gemini_modality_stays_legacy",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": true,
+        "attachments": [],
+        "modelId": "gemini-3.1-flash-image",
+        "profileRef": "gemini_flash_image",
+        "relayImageRoute": "geminiModality"
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "relay_missing_image_route_stays_legacy",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": true,
+        "attachments": [],
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "relayImageRoute": null
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    },
+    {
+      "caseId": "relay_non_openai_route_stays_legacy",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": true,
+        "attachments": [],
+        "modelId": "grok-imagine-image",
+        "profileRef": "xai_grok_imagine",
+        "relayImageRoute": "imagesEndpoint"
+      },
+      "expect": {
+        "path": "legacy"
+      },
+      "$comment": "A relay speaks the OpenAI images shape; vendor-native shapes are not sent to it."
+    },
+    {
+      "caseId": "relay_gate_off_unchanged",
+      "input": {
+        "providerKind": "relay",
+        "legacyImageDispatch": false,
+        "attachments": [],
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "relayImageRoute": "imagesEndpoint"
+      },
+      "expect": {
+        "path": "legacy"
+      }
+    }
+  ],
+  "baseUrl": [
+    {
+      "caseId": "dashscope_bare_origin",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "https://dashscope-intl.aliyuncs.com"
+      },
+      "expect": {
+        "baseUrl": "https://dashscope-intl.aliyuncs.com/api/v1"
+      }
+    },
+    {
+      "caseId": "dashscope_bare_origin_trailing_slash",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "https://dashscope.aliyuncs.com/"
+      },
+      "expect": {
+        "baseUrl": "https://dashscope.aliyuncs.com/api/v1"
+      }
+    },
+    {
+      "caseId": "dashscope_compatible_mode",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+      },
+      "expect": {
+        "baseUrl": "https://dashscope-intl.aliyuncs.com/api/v1"
+      }
+    },
+    {
+      "caseId": "dashscope_compatible_mode_trailing_slash",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "https://cn-hongkong.dashscope.aliyuncs.com/compatible-mode/v1/"
+      },
+      "expect": {
+        "baseUrl": "https://cn-hongkong.dashscope.aliyuncs.com/api/v1"
+      }
+    },
+    {
+      "caseId": "dashscope_already_native",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "https://dashscope.aliyuncs.com/api/v1"
+      },
+      "expect": {
+        "baseUrl": "https://dashscope.aliyuncs.com/api/v1"
+      }
+    },
+    {
+      "caseId": "dashscope_proxy_path_kept",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "https://proxy.example.com/dashscope"
+      },
+      "expect": {
+        "baseUrl": "https://proxy.example.com/dashscope/api/v1"
+      }
+    },
+    {
+      "caseId": "dashscope_no_scheme",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "dashscope-intl.aliyuncs.com"
+      },
+      "expect": {
+        "baseUrl": "https://dashscope-intl.aliyuncs.com/api/v1"
+      }
+    },
+    {
+      "caseId": "dashscope_surrounding_whitespace",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "  https://dashscope-intl.aliyuncs.com  "
+      },
+      "expect": {
+        "baseUrl": "https://dashscope-intl.aliyuncs.com/api/v1"
+      }
+    },
+    {
+      "caseId": "dashscope_suffix_case_sensitive",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "https://dashscope-intl.aliyuncs.com/Compatible-Mode/V1"
+      },
+      "expect": {
+        "baseUrl": "https://dashscope-intl.aliyuncs.com/Compatible-Mode/V1/api/v1"
+      }
+    },
+    {
+      "caseId": "openai_as_is",
+      "input": {
+        "route": "openai_images",
+        "connectionBaseUrl": "https://api.openai.com/v1"
+      },
+      "expect": {
+        "baseUrl": "https://api.openai.com/v1"
+      }
+    },
+    {
+      "caseId": "openai_trailing_slashes_trimmed",
+      "input": {
+        "route": "openai_images",
+        "connectionBaseUrl": "https://api.openai.com/v1//"
+      },
+      "expect": {
+        "baseUrl": "https://api.openai.com/v1"
+      }
+    },
+    {
+      "caseId": "openai_compatible_mode_not_stripped",
+      "input": {
+        "route": "openai_images",
+        "connectionBaseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+      },
+      "expect": {
+        "baseUrl": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+      }
+    },
+    {
+      "caseId": "minimax_as_is",
+      "input": {
+        "route": "minimax_image_generation",
+        "connectionBaseUrl": "https://api.minimax.io/v1"
+      },
+      "expect": {
+        "baseUrl": "https://api.minimax.io/v1"
+      }
+    },
+    {
+      "caseId": "no_scheme_gets_https",
+      "input": {
+        "route": "openai_images",
+        "connectionBaseUrl": "api.openai.com/v1"
+      },
+      "expect": {
+        "baseUrl": "https://api.openai.com/v1"
+      }
+    },
+    {
+      "caseId": "http_scheme_kept",
+      "input": {
+        "route": "openai_images",
+        "connectionBaseUrl": "http://localhost:8080/v1"
+      },
+      "expect": {
+        "baseUrl": "http://localhost:8080/v1"
+      }
+    },
+    {
+      "caseId": "empty_stays_legacy",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": ""
+      },
+      "expect": {
+        "baseUrl": null
+      }
+    },
+    {
+      "caseId": "whitespace_stays_legacy",
+      "input": {
+        "route": "openai_images",
+        "connectionBaseUrl": "   "
+      },
+      "expect": {
+        "baseUrl": null
+      }
+    },
+    {
+      "caseId": "missing_stays_legacy",
+      "input": {
+        "route": "openai_images",
+        "connectionBaseUrl": null
+      },
+      "expect": {
+        "baseUrl": null
+      }
+    },
+    {
+      "caseId": "no_host_stays_legacy",
+      "input": {
+        "route": "dashscope_multimodal",
+        "connectionBaseUrl": "/"
+      },
+      "expect": {
+        "baseUrl": null
+      }
+    }
+  ],
+  "wire": [
+    {
+      "caseId": "wire.openai.images.route",
+      "legacyCase": "openai.images.route",
+      "input": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-1",
+        "profileRef": "openai_images_square",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "connectionBaseUrl": "https://api.openai.com/v1"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/images/generations",
+        "bodyIncludes": {
+          "model": "gpt-image-1",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "size": "1024x1024",
+          "n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "input",
+          "stream",
+          "response_format"
+        ],
+        "sameAsLegacy": true
+      }
+    },
+    {
+      "caseId": "wire.zhipu.images.route",
+      "legacyCase": "zhipu.images.route",
+      "input": {
+        "providerKind": "zhipu",
+        "modelId": "cogview-3-flash",
+        "profileRef": "openai_images_square_no_n",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "connectionBaseUrl": "https://open.bigmodel.cn/api/paas/v4"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://open.bigmodel.cn/api/paas/v4/images/generations",
+        "bodyIncludes": {
+          "model": "cogview-3-flash",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "size": "1024x1024"
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream"
+        ],
+        "sameAsLegacy": true
+      }
+    },
+    {
+      "caseId": "wire.siliconflow.images.route",
+      "legacyCase": "siliconflow.images.route",
+      "input": {
+        "providerKind": "siliconFlow",
+        "modelId": "Kwai-Kolors/Kolors",
+        "profileRef": "openai_images_square",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "connectionBaseUrl": "https://api.siliconflow.cn/v1"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://api.siliconflow.cn/v1/images/generations",
+        "bodyIncludes": {
+          "model": "Kwai-Kolors/Kolors",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "size": "1024x1024",
+          "n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream"
+        ],
+        "sameAsLegacy": true
+      }
+    },
+    {
+      "caseId": "wire.together.images.route",
+      "legacyCase": "together.images.route",
+      "input": {
+        "providerKind": "togetherAI",
+        "modelId": "Qwen/Qwen-Image-2.0",
+        "profileRef": "openai_images_square",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "connectionBaseUrl": "https://api.together.xyz/v1"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://api.together.xyz/v1/images/generations",
+        "bodyIncludes": {
+          "model": "Qwen/Qwen-Image-2.0",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "size": "1024x1024",
+          "n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "input",
+          "stream",
+          "response_format"
+        ],
+        "sameAsLegacy": true
+      }
+    },
+    {
+      "caseId": "wire.together.images.no_n_variant",
+      "legacyCase": "together.images.no_n_variant",
+      "input": {
+        "providerKind": "togetherAI",
+        "modelId": "google/gemini-3-pro-image",
+        "profileRef": "openai_images_square_no_n",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "connectionBaseUrl": "https://api.together.xyz/v1"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://api.together.xyz/v1/images/generations",
+        "bodyIncludes": {
+          "model": "google/gemini-3-pro-image",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "size": "1024x1024"
+        },
+        "bodyExcludes": [
+          "messages",
+          "input",
+          "stream",
+          "n",
+          "response_format"
+        ],
+        "sameAsLegacy": true
+      }
+    },
+    {
+      "caseId": "wire.qwen.images.route",
+      "legacyCase": "qwen.images.route",
+      "input": {
+        "providerKind": "qwen",
+        "modelId": "qwen-image",
+        "profileRef": "dashscope_square",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "connectionBaseUrl": "https://dashscope-intl.aliyuncs.com"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation",
+        "bodyIncludes": {
+          "model": "qwen-image",
+          "parameters.prompt_extend": true,
+          "parameters.size": "1024*1024",
+          "parameters.n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream",
+          "enable_thinking"
+        ],
+        "sameAsLegacy": true
+      }
+    },
+    {
+      "caseId": "wire.minimax.images.route",
+      "legacyCase": "minimax.images.route",
+      "input": {
+        "providerKind": "miniMax",
+        "modelId": "image-01",
+        "profileRef": "minimax_image01",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "connectionBaseUrl": "https://api.minimax.io/v1"
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://api.minimax.io/v1/image_generation",
+        "bodyIncludes": {
+          "model": "image-01",
+          "prompt": "a cup of coffee and a book on a wooden table by the window",
+          "response_format": "base64",
+          "aspect_ratio": "1:1",
+          "n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream"
+        ],
+        "sameAsLegacy": false,
+        "addedOverLegacy": [
+          "aspect_ratio"
+        ]
+      }
+    }
+  ],
+  "persist": {
+    "text": "",
+    "attachment": {
+      "kind": "image",
+      "localImageId": "result image id",
+      "mimeType": "result mime",
+      "thumbnail": "required"
+    },
+    "order": "result order",
+    "partial": "completed with the delivered images, no error",
+    "cancelled": "legacy cancelled state, no attachments",
+    "failed": "legacy failed state with spec.errorMap category, no attachments",
+    "usage": "same as the legacy path of the same end",
+    "telemetry": "same as the legacy path of the same end"
+  },
+  "relayParams": [
+    {
+      "caseId": "chat_no_overrides",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {}
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        }
+      }
+    },
+    {
+      "caseId": "chat_all_overrides",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageSize": "1536x1024",
+          "imageQuality": "high",
+          "imageStyle": "vivid",
+          "imageCount": 2,
+          "imageResponseFormat": "b64_json"
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "1536x1024",
+          "quality": "high",
+          "n": 2,
+          "style": "vivid",
+          "response_format": "b64_json"
+        }
+      }
+    },
+    {
+      "caseId": "chat_null_overrides_ignored",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageSize": null,
+          "imageQuality": null,
+          "imageStyle": null,
+          "imageCount": null,
+          "imageResponseFormat": null
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        }
+      }
+    },
+    {
+      "caseId": "chat_blank_strings_ignored",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageSize": "  ",
+          "imageQuality": "",
+          "imageStyle": " ",
+          "imageResponseFormat": ""
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        }
+      }
+    },
+    {
+      "caseId": "chat_strings_trimmed_verbatim",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageSize": " 1024x1536 ",
+          "imageQuality": " HD ",
+          "imageResponseFormat": " url "
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "1024x1536",
+          "quality": "HD",
+          "n": 1,
+          "response_format": "url"
+        }
+      },
+      "$comment": "No enum check or case folding: relays disagree on values; legacy Android / Web sent them as typed."
+    },
+    {
+      "caseId": "chat_auto_size_passthrough",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageSize": "auto"
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "auto",
+          "quality": "medium",
+          "n": 1
+        }
+      }
+    },
+    {
+      "caseId": "chat_count_zero_ignored",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageCount": 0
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        }
+      }
+    },
+    {
+      "caseId": "chat_count_negative_ignored",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageCount": -3
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        }
+      }
+    },
+    {
+      "caseId": "chat_count_above_max_n_one_call",
+      "input": {
+        "profileRef": "openai_images_square",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageCount": 4
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "n": 1
+        },
+        "wire": {
+          "size": "1024x1024",
+          "n": 4
+        }
+      },
+      "$comment": "maxNPerCall is 1 but the override goes into the single call unchanged (no batch split), same as the legacy relay body."
+    },
+    {
+      "caseId": "chat_override_adds_key_profile_omits",
+      "input": {
+        "profileRef": "openai_images_square_no_n",
+        "purpose": "chat",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageQuality": "hd",
+          "imageCount": 2
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024"
+        },
+        "wire": {
+          "size": "1024x1024",
+          "quality": "hd",
+          "n": 2
+        }
+      }
+    },
+    {
+      "caseId": "studio_ignores_overrides",
+      "input": {
+        "profileRef": "openai_gpt_image",
+        "purpose": "studio",
+        "request": "spec.chatParams",
+        "overrides": {
+          "imageSize": "1536x1024",
+          "imageQuality": "high",
+          "imageStyle": "vivid",
+          "imageCount": 2,
+          "imageResponseFormat": "b64_json"
+        }
+      },
+      "expect": {
+        "normalizedWire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        },
+        "wire": {
+          "size": "1024x1024",
+          "quality": "medium",
+          "n": 1
+        }
+      }
+    }
+  ],
+  "relayWire": [
+    {
+      "caseId": "relay_wire_bearer_bare_host_generate",
+      "input": {
+        "relay": {
+          "baseURL": "https://relay.example.com",
+          "relayRequested": {
+            "authMode": "auto"
+          }
+        },
+        "apiKey": "sk-relay-0000",
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "operation": "generate",
+        "overrides": {},
+        "images": []
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://relay.example.com/v1/images/generations",
+        "query": {},
+        "headersInclude": {
+          "authorization": "Bearer sk-relay-0000",
+          "content-type": "application/json"
+        },
+        "headersExclude": [
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "body": {
+          "json": {
+            "model": "gpt-image-2-all",
+            "prompt": "a cup of coffee and a book on a wooden table by the window",
+            "size": "1024x1024",
+            "quality": "medium",
+            "n": 1
+          }
+        }
+      }
+    },
+    {
+      "caseId": "relay_wire_overrides_headers_query_generate",
+      "input": {
+        "relay": {
+          "baseURL": "https://relay.example.com/v1/",
+          "relayRequested": {
+            "authMode": "bearer",
+            "headers": {
+              "X-Tenant": "team-a"
+            },
+            "queryParams": {
+              "api-version": "2025-01"
+            }
+          }
+        },
+        "apiKey": "sk-relay-0000",
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "operation": "generate",
+        "overrides": {
+          "imageSize": "1536x1024",
+          "imageQuality": " high ",
+          "imageCount": 2,
+          "imageResponseFormat": "b64_json"
+        },
+        "images": []
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://relay.example.com/v1/images/generations",
+        "query": {
+          "api-version": "2025-01"
+        },
+        "headersInclude": {
+          "authorization": "Bearer sk-relay-0000",
+          "x-tenant": "team-a",
+          "content-type": "application/json"
+        },
+        "headersExclude": [
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "body": {
+          "json": {
+            "model": "gpt-image-2-all",
+            "prompt": "a cup of coffee and a book on a wooden table by the window",
+            "size": "1536x1024",
+            "quality": "high",
+            "n": 2,
+            "response_format": "b64_json"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "relay_wire_query_key_generate",
+      "input": {
+        "relay": {
+          "baseURL": "https://relay.example.com/v1",
+          "relayRequested": {
+            "authMode": "query_key",
+            "queryParams": {
+              "group": "img"
+            }
+          }
+        },
+        "apiKey": "sk-relay-0000",
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "operation": "generate",
+        "overrides": {},
+        "images": []
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://relay.example.com/v1/images/generations",
+        "query": {
+          "key": "sk-relay-0000",
+          "group": "img"
+        },
+        "headersInclude": {
+          "content-type": "application/json"
+        },
+        "headersExclude": [
+          "authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "body": {
+          "json": {
+            "model": "gpt-image-2-all",
+            "prompt": "a cup of coffee and a book on a wooden table by the window",
+            "size": "1024x1024",
+            "quality": "medium",
+            "n": 1
+          }
+        }
+      }
+    },
+    {
+      "caseId": "relay_wire_x_api_key_resolved_root_generate",
+      "input": {
+        "relay": {
+          "baseURL": "https://relay.example.com",
+          "relayRequested": {
+            "authMode": "x_api_key",
+            "resolvedAPIBaseURL": "https://relay.example.com/gateway/v1"
+          }
+        },
+        "apiKey": "sk-relay-0000",
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "operation": "generate",
+        "overrides": {
+          "imageSize": "auto"
+        },
+        "images": []
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://relay.example.com/gateway/v1/images/generations",
+        "query": {},
+        "headersInclude": {
+          "x-api-key": "sk-relay-0000",
+          "content-type": "application/json"
+        },
+        "headersExclude": [
+          "authorization",
+          "x-goog-api-key"
+        ],
+        "body": {
+          "json": {
+            "model": "gpt-image-2-all",
+            "prompt": "a cup of coffee and a book on a wooden table by the window",
+            "size": "auto",
+            "quality": "medium",
+            "n": 1
+          }
+        }
+      }
+    },
+    {
+      "caseId": "relay_wire_edit_multipart",
+      "input": {
+        "relay": {
+          "baseURL": "https://relay.example.com",
+          "relayRequested": {
+            "authMode": "bearer",
+            "headers": {
+              "X-Tenant": "team-a"
+            }
+          }
+        },
+        "apiKey": "sk-relay-0000",
+        "modelId": "gpt-image-2-all",
+        "profileRef": "openai_gpt_image",
+        "prompt": "a cup of coffee and a book on a wooden table by the window",
+        "operation": "edit",
+        "overrides": {
+          "imageSize": "1024x1536",
+          "imageCount": 1
+        },
+        "images": [
+          {
+            "attachmentId": "a1",
+            "slot": 1,
+            "role": "base",
+            "mime": "image/png",
+            "data": "iVBORw0KGgo="
+          }
+        ]
+      },
+      "expect": {
+        "method": "POST",
+        "url": "https://relay.example.com/v1/images/edits",
+        "query": {},
+        "headersInclude": {
+          "authorization": "Bearer sk-relay-0000",
+          "x-tenant": "team-a"
+        },
+        "headersExclude": [
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "body": {
+          "multipartFields": [
+            [
+              "model",
+              "gpt-image-2-all"
+            ],
+            [
+              "prompt",
+              "a cup of coffee and a book on a wooden table by the window\n\nImage 1 is the image to edit."
+            ],
+            [
+              "n",
+              "1"
+            ],
+            [
+              "quality",
+              "medium"
+            ],
+            [
+              "size",
+              "1024x1536"
+            ]
+          ],
+          "fileCount": 1
+        }
+      }
+    }
+  ],
+  "continueEdit": [
+    {
+      "caseId": "continue_edit_single_image",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": {
+          "imageId": "g1"
+        },
+        "reason": "applied"
+      }
+    },
+    {
+      "caseId": "continue_edit_multi_last_viewed",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            },
+            {
+              "id": "g2",
+              "hasBytes": true
+            },
+            {
+              "id": "g3",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": "g2",
+        "cancelled": false
+      },
+      "expect": {
+        "base": {
+          "imageId": "g2"
+        },
+        "reason": "applied"
+      }
+    },
+    {
+      "caseId": "continue_edit_multi_never_viewed_first",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            },
+            {
+              "id": "g2",
+              "hasBytes": true
+            },
+            {
+              "id": "g3",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": {
+          "imageId": "g1"
+        },
+        "reason": "applied"
+      }
+    },
+    {
+      "caseId": "continue_edit_viewed_older_message_first",
+      "$comment": "last viewed image belongs to an older message",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            },
+            {
+              "id": "g2",
+              "hasBytes": true
+            },
+            {
+              "id": "g3",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": "old9",
+        "cancelled": false
+      },
+      "expect": {
+        "base": {
+          "imageId": "g1"
+        },
+        "reason": "applied"
+      }
+    },
+    {
+      "caseId": "continue_edit_viewed_without_bytes_first_usable",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": false
+            },
+            {
+              "id": "g2",
+              "hasBytes": true
+            },
+            {
+              "id": "g3",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": "g1",
+        "cancelled": false
+      },
+      "expect": {
+        "base": {
+          "imageId": "g2"
+        },
+        "reason": "applied"
+      }
+    },
+    {
+      "caseId": "continue_edit_previous_images_no_bytes",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": false
+            },
+            {
+              "id": "g2",
+              "hasBytes": false
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": null,
+        "reason": "no_previous_image"
+      }
+    },
+    {
+      "caseId": "continue_edit_previous_text_only",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": []
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": null,
+        "reason": "no_previous_image"
+      }
+    },
+    {
+      "caseId": "continue_edit_no_previous_assistant",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": null,
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": null,
+        "reason": "no_previous_image"
+      }
+    },
+    {
+      "caseId": "continue_edit_user_attached_image",
+      "input": {
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": true
+          }
+        ],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": null,
+        "reason": "has_attachment"
+      }
+    },
+    {
+      "caseId": "continue_edit_user_image_without_bytes",
+      "input": {
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/jpeg",
+            "hasBytes": false
+          }
+        ],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": null,
+        "reason": "has_attachment"
+      }
+    },
+    {
+      "caseId": "continue_edit_uppercase_image_mime",
+      "input": {
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "IMAGE/PNG",
+            "hasBytes": true
+          }
+        ],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": null,
+        "reason": "has_attachment"
+      }
+    },
+    {
+      "caseId": "continue_edit_non_image_attachment_ignored",
+      "input": {
+        "attachments": [
+          {
+            "id": "f1",
+            "mime": "application/pdf",
+            "hasBytes": true
+          }
+        ],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": {
+          "imageId": "g1"
+        },
+        "reason": "applied"
+      }
+    },
+    {
+      "caseId": "continue_edit_generate_only_profile",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_images_square",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": null,
+        "reason": "no_edit"
+      }
+    },
+    {
+      "caseId": "continue_edit_no_profile",
+      "input": {
+        "attachments": [],
+        "profileRef": null,
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": false
+      },
+      "expect": {
+        "base": null,
+        "reason": "no_edit"
+      }
+    },
+    {
+      "caseId": "continue_edit_cancelled",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": true
+      },
+      "expect": {
+        "base": null,
+        "reason": "cancelled"
+      }
+    },
+    {
+      "caseId": "continue_edit_attachment_beats_cancelled",
+      "input": {
+        "attachments": [
+          {
+            "id": "a1",
+            "mime": "image/png",
+            "hasBytes": true
+          }
+        ],
+        "profileRef": "openai_gpt_image",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": true
+      },
+      "expect": {
+        "base": null,
+        "reason": "has_attachment"
+      }
+    },
+    {
+      "caseId": "continue_edit_cancelled_beats_no_edit",
+      "input": {
+        "attachments": [],
+        "profileRef": "openai_images_square",
+        "previousAssistant": {
+          "images": [
+            {
+              "id": "g1",
+              "hasBytes": true
+            }
+          ]
+        },
+        "lastViewedImageId": null,
+        "cancelled": true
+      },
+      "expect": {
+        "base": null,
+        "reason": "cancelled"
+      }
+    }
+  ]
+}

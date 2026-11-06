@@ -1,0 +1,1037 @@
+{
+  "$comment": "BYOK reference image budget before sending to the provider. Pure planning shared by iOS / Android / Web; scripts/studio-contracts-check.mjs recomputes every case with scripts/lib/studio-image-reference.mjs. Inputs are already-typed values (route / editTransport from a validated profile, images already passed request-builder checks), nothing is decoded from the wire. Sizes are encoded request bytes; the platform shrinker (long edge 2048, JPEG 0.9, alpha on white) is simulated by images[].shrunk ({mime, byteCount}, null = undecodable); expect.shrinkCalls lists the slots handed to the shrinker in call order. Test groups, same name on every end: spec, encodedBytes, fit.",
+  "contractId": "byok_reference_budget.v1",
+  "version": 1,
+  "spec": {
+    "overheadBytes": 65536,
+    "routes": {
+      "openai_images": {
+        "maxRequestBytes": 50000000,
+        "maxImageBytes": 20971520
+      },
+      "xai_images": {
+        "maxRequestBytes": 50000000,
+        "maxImageBytes": 20971520
+      },
+      "openrouter_images": {
+        "maxRequestBytes": 50000000,
+        "maxImageBytes": null
+      },
+      "chat_modalities": {
+        "maxRequestBytes": 50000000,
+        "maxImageBytes": null
+      },
+      "gemini_generate_content": {
+        "maxRequestBytes": 20000000,
+        "maxImageBytes": null
+      },
+      "dashscope_multimodal": {
+        "maxRequestBytes": 16777216,
+        "maxImageBytes": 10000000
+      },
+      "minimax_image_generation": null
+    },
+    "shrink": {
+      "maxLongEdge": 2048,
+      "jpegQuality": 0.9,
+      "mime": "image/jpeg"
+    },
+    "tooLargeErrorKind": "invalid_param",
+    "statuses": [
+      "fits",
+      "too_large"
+    ]
+  },
+  "encodedBytes": [
+    {
+      "caseId": "encoded.multipart_raw",
+      "input": {
+        "route": "openai_images",
+        "editTransport": "multipart",
+        "mime": "image/png",
+        "byteCount": 1000
+      },
+      "expect": 1000
+    },
+    {
+      "caseId": "encoded.gemini_bare_base64",
+      "input": {
+        "route": "gemini_generate_content",
+        "editTransport": "inline",
+        "mime": "image/png",
+        "byteCount": 1000
+      },
+      "expect": 1336
+    },
+    {
+      "caseId": "encoded.gemini_round_up",
+      "input": {
+        "route": "gemini_generate_content",
+        "editTransport": "inline",
+        "mime": "image/jpeg",
+        "byteCount": 1001
+      },
+      "expect": 1336
+    },
+    {
+      "caseId": "encoded.data_uri_png",
+      "input": {
+        "route": "openai_images",
+        "editTransport": "json_image_url",
+        "mime": "image/png",
+        "byteCount": 3
+      },
+      "expect": 26
+    },
+    {
+      "caseId": "encoded.data_uri_jpeg",
+      "input": {
+        "route": "xai_images",
+        "editTransport": "json_image_object",
+        "mime": "image/jpeg",
+        "byteCount": 4
+      },
+      "expect": 31
+    },
+    {
+      "caseId": "encoded.data_uri_webp_inline",
+      "input": {
+        "route": "dashscope_multimodal",
+        "editTransport": "inline",
+        "mime": "image/webp",
+        "byteCount": 5
+      },
+      "expect": 31
+    },
+    {
+      "caseId": "encoded.chat_inline_data_uri",
+      "input": {
+        "route": "chat_modalities",
+        "editTransport": "inline",
+        "mime": "image/jpeg",
+        "byteCount": 6
+      },
+      "expect": 31
+    },
+    {
+      "caseId": "encoded.input_references_data_uri",
+      "input": {
+        "route": "openrouter_images",
+        "editTransport": "input_references",
+        "mime": "image/png",
+        "byteCount": 2
+      },
+      "expect": 26
+    }
+  ],
+  "fit": [
+    {
+      "caseId": "fit.generate_no_images",
+      "input": {
+        "route": "openai_images",
+        "editTransport": null,
+        "prompt": "a cat",
+        "images": []
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 65541,
+        "images": [],
+        "shrinkCalls": []
+      }
+    },
+    {
+      "caseId": "fit.minimax_no_limits",
+      "input": {
+        "route": "minimax_image_generation",
+        "editTransport": null,
+        "prompt": "a cat",
+        "images": []
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 65541,
+        "images": [],
+        "shrinkCalls": []
+      }
+    },
+    {
+      "caseId": "fit.under_limit_untouched",
+      "input": {
+        "route": "openai_images",
+        "editTransport": "multipart",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 3000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/jpeg",
+            "byteCount": 2000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 3,
+            "role": "base",
+            "mime": "image/png",
+            "byteCount": 4000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 9065537,
+        "images": [
+          {
+            "slot": 3,
+            "mime": "image/png",
+            "byteCount": 4000000
+          },
+          {
+            "slot": 1,
+            "mime": "image/png",
+            "byteCount": 3000000
+          },
+          {
+            "slot": 2,
+            "mime": "image/jpeg",
+            "byteCount": 2000000
+          }
+        ],
+        "shrinkCalls": []
+      }
+    },
+    {
+      "caseId": "fit.request_exact_limit_fits",
+      "input": {
+        "route": "openai_images",
+        "editTransport": "multipart",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 16644821,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/png",
+            "byteCount": 16644821,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 3,
+            "role": "composition",
+            "mime": "image/png",
+            "byteCount": 16644821,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 50000000,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/png",
+            "byteCount": 16644821
+          },
+          {
+            "slot": 2,
+            "mime": "image/png",
+            "byteCount": 16644821
+          },
+          {
+            "slot": 3,
+            "mime": "image/png",
+            "byteCount": 16644821
+          }
+        ],
+        "shrinkCalls": []
+      }
+    },
+    {
+      "caseId": "fit.request_one_over_shrinks_last",
+      "input": {
+        "route": "openai_images",
+        "editTransport": "multipart",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 16644821,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/png",
+            "byteCount": 16644821,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 3,
+            "role": "composition",
+            "mime": "image/png",
+            "byteCount": 16644822,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 34355179,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/png",
+            "byteCount": 16644821
+          },
+          {
+            "slot": 2,
+            "mime": "image/png",
+            "byteCount": 16644821
+          },
+          {
+            "slot": 3,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          }
+        ],
+        "shrinkCalls": [
+          3
+        ]
+      }
+    },
+    {
+      "caseId": "fit.shrinks_backwards_until_fits",
+      "input": {
+        "route": "openrouter_images",
+        "editTransport": "input_references",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 13000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/png",
+            "byteCount": 13000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 3,
+            "role": "element",
+            "mime": "image/png",
+            "byteCount": 13000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 4,
+            "role": "character",
+            "mime": "image/png",
+            "byteCount": 13000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 37398971,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/png",
+            "byteCount": 13000000
+          },
+          {
+            "slot": 2,
+            "mime": "image/png",
+            "byteCount": 13000000
+          },
+          {
+            "slot": 3,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          },
+          {
+            "slot": 4,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          }
+        ],
+        "shrinkCalls": [
+          4,
+          3
+        ]
+      }
+    },
+    {
+      "caseId": "fit.base_shrunk_last",
+      "input": {
+        "route": "gemini_generate_content",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 5,
+            "role": "base",
+            "mime": "image/png",
+            "byteCount": 5500000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 4800000
+            }
+          },
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 5500000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 4800000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/png",
+            "byteCount": 5500000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 4800000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 19265537,
+        "images": [
+          {
+            "slot": 5,
+            "mime": "image/jpeg",
+            "byteCount": 4800000
+          },
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 4800000
+          },
+          {
+            "slot": 2,
+            "mime": "image/jpeg",
+            "byteCount": 4800000
+          }
+        ],
+        "shrinkCalls": [
+          2,
+          1,
+          5
+        ]
+      }
+    },
+    {
+      "caseId": "fit.shrink_not_smaller_kept",
+      "input": {
+        "route": "gemini_generate_content",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/jpeg",
+            "byteCount": 14000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/jpeg",
+            "byteCount": 900000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 950000
+            }
+          },
+          {
+            "slot": 3,
+            "role": "element",
+            "mime": "image/jpeg",
+            "byteCount": 900000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 900000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 3798873,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          },
+          {
+            "slot": 2,
+            "mime": "image/jpeg",
+            "byteCount": 900000
+          },
+          {
+            "slot": 3,
+            "mime": "image/jpeg",
+            "byteCount": 900000
+          }
+        ],
+        "shrinkCalls": [
+          3,
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "fit.shrink_undecodable_kept",
+      "input": {
+        "route": "gemini_generate_content",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/jpeg",
+            "byteCount": 8000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/jpeg",
+            "byteCount": 8000000,
+            "shrunk": null
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 12065541,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          },
+          {
+            "slot": 2,
+            "mime": "image/jpeg",
+            "byteCount": 8000000
+          }
+        ],
+        "shrinkCalls": [
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "fit.too_large_after_all_shrunk",
+      "input": {
+        "route": "gemini_generate_content",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "base",
+            "mime": "image/png",
+            "byteCount": 9000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 8000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 9000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 8000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "too_large",
+        "errorKind": "invalid_param",
+        "requestBytes": 21398873,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 8000000
+          },
+          {
+            "slot": 2,
+            "mime": "image/jpeg",
+            "byteCount": 8000000
+          }
+        ],
+        "shrinkCalls": [
+          2,
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "fit.gemini_base64_boundary_fits",
+      "input": {
+        "route": "gemini_generate_content",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/jpeg",
+            "byteCount": 14950845,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 19999997,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 14950845
+          }
+        ],
+        "shrinkCalls": []
+      }
+    },
+    {
+      "caseId": "fit.gemini_base64_over_shrinks",
+      "input": {
+        "route": "gemini_generate_content",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/jpeg",
+            "byteCount": 14950846,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 1398873,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          }
+        ],
+        "shrinkCalls": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "fit.per_image_limit_fits",
+      "input": {
+        "route": "openai_images",
+        "editTransport": "json_image_url",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "base",
+            "mime": "image/png",
+            "byteCount": 15728622,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 21037055,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/png",
+            "byteCount": 15728622
+          }
+        ],
+        "shrinkCalls": []
+      }
+    },
+    {
+      "caseId": "fit.per_image_limit_over_shrinks",
+      "input": {
+        "route": "openai_images",
+        "editTransport": "json_image_url",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "base",
+            "mime": "image/png",
+            "byteCount": 15728623,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 1398896,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          }
+        ],
+        "shrinkCalls": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "fit.per_image_only_offender_shrunk",
+      "input": {
+        "route": "dashscope_multimodal",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 8000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/jpeg",
+            "byteCount": 1000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 3,
+            "role": "element",
+            "mime": "image/jpeg",
+            "byteCount": 1000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 4065614,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          },
+          {
+            "slot": 2,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          },
+          {
+            "slot": 3,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          }
+        ],
+        "shrinkCalls": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "fit.per_image_too_large",
+      "input": {
+        "route": "dashscope_multimodal",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 9000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 8000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "too_large",
+        "errorKind": "invalid_param",
+        "requestBytes": 10732228,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 8000000
+          }
+        ],
+        "shrinkCalls": [
+          1
+        ]
+      }
+    },
+    {
+      "caseId": "fit.xai_per_image_over_shrinks",
+      "input": {
+        "route": "xai_images",
+        "editTransport": "json_image_object",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/jpeg",
+            "byteCount": 2000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/png",
+            "byteCount": 16000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 4065587,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 2000000
+          },
+          {
+            "slot": 2,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          }
+        ],
+        "shrinkCalls": [
+          2
+        ]
+      }
+    },
+    {
+      "caseId": "fit.chat_modalities_over",
+      "input": {
+        "route": "chat_modalities",
+        "editTransport": "inline",
+        "prompt": "a",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 20000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          },
+          {
+            "slot": 2,
+            "role": "style",
+            "mime": "image/png",
+            "byteCount": 20000000,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 28065586,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/png",
+            "byteCount": 20000000
+          },
+          {
+            "slot": 2,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          }
+        ],
+        "shrinkCalls": [
+          2
+        ]
+      }
+    },
+    {
+      "caseId": "fit.prompt_counted_as_utf8",
+      "input": {
+        "route": "openrouter_images",
+        "editTransport": "input_references",
+        "prompt": "猫😀",
+        "images": [
+          {
+            "slot": 1,
+            "role": "subject",
+            "mime": "image/png",
+            "byteCount": 37450827,
+            "shrunk": {
+              "mime": "image/jpeg",
+              "byteCount": 1000000
+            }
+          }
+        ]
+      },
+      "expect": {
+        "status": "fits",
+        "errorKind": null,
+        "requestBytes": 1398902,
+        "images": [
+          {
+            "slot": 1,
+            "mime": "image/jpeg",
+            "byteCount": 1000000
+          }
+        ],
+        "shrinkCalls": [
+          1
+        ]
+      }
+    }
+  ]
+}

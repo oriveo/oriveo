@@ -17,8 +17,8 @@ import {
   type StudioPresetRefreshInput,
 } from '../presets';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/studio-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/studio-contracts');
 
 function readJson<T>(name: string): T {
   return JSON.parse(readFileSync(resolve(CONTRACTS, name), 'utf8')) as T;

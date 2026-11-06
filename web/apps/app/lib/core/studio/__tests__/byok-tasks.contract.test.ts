@@ -26,8 +26,8 @@ import {
   type ByokRetryDecision,
 } from '../byok-tasks';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/studio-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/studio-contracts');
 const FIXTURE_PATH = resolve(CONTRACTS, 'byok_image_tasks.v1.json');
 
 function readJson<T>(path: string): T {

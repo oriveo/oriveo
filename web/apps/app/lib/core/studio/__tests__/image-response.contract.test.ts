@@ -19,8 +19,8 @@ import {
   type ParsedImage,
 } from '../image-response';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/model-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 const SAMPLES_DIR = resolve(CONTRACTS, 'image_response_samples.v1');
 
 function readJson<T>(name: string): T {

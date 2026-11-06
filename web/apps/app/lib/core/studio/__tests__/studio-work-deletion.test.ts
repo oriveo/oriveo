@@ -46,8 +46,8 @@ const { generateImportPreview, executeImport } = await import('../../../backup')
 const { canonicalJSON } = await import('../../../backup/backup-format');
 const { sha256hex } = await import('../../../backup/backup-crypto');
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const SHARED_DIR = String.fromCharCode(0x5171, 0x4eab);
+const ROOT = resolve(__dirname, '../../../../../../..');
+const SHARED_DIR = 'shared';
 
 type Ms = number;
 

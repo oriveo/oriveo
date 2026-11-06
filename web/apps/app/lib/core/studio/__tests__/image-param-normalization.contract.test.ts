@@ -10,8 +10,8 @@ import { describe, expect, it } from 'vitest';
 import { checkImageProfile } from '../image-profile';
 import { normalizeImageParams, type ImageParamRequest } from '../image-param-normalization';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/model-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 
 interface NormalizationCase {
   caseId: string;

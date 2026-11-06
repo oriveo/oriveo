@@ -457,7 +457,7 @@ describe('image-orphan-sweeper', () => {
   });
 });
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
+const ROOT = resolve(__dirname, '../../../../../../..');
 
 interface StudioOrphanSweepCase {
   chatAssets: string[];
@@ -468,7 +468,7 @@ interface StudioOrphanSweepCase {
 }
 
 const studioModel = JSON.parse(readFileSync(
-  resolve(ROOT, '\u5171\u4eab/studio-contracts/studio_data_model.v1.json'), 'utf8',
+  resolve(ROOT, 'shared/studio-contracts/studio_data_model.v1.json'), 'utf8',
 )) as { orphanSweep: { case: StudioOrphanSweepCase } };
 const STUDIO_CASE = studioModel.orphanSweep.case;
 

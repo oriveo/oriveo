@@ -14,9 +14,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { decodeImageInfo, type ImageMaterializeOutcome } from '../../../../lib/core/studio/image-response';
 import { runStudioGenerate, type StudioGenerateDeps, type StudioGenerateInput } from './executor';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
+const ROOT = resolve(__dirname, '../../../../../../..');
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
-const CONTRACTS = resolve(ROOT, String.fromCharCode(0x5171, 0x4eab), 'model-contracts');
+const CONTRACTS = resolve(ROOT, 'shared', 'model-contracts');
 const SAMPLES_DIR = resolve(CONTRACTS, 'image_response_samples.v1');
 const BASE_URL = 'https://api.example.com/v1';
 const PLACEHOLDER = /<base64 bytes=\d+ sha256=[^>]+>/g;

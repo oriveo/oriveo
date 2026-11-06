@@ -8,8 +8,8 @@ import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { STUDIO_IMAGE_FETCH_POLICY, fetchStudioImage, type StudioImageFetchOptions } from '../image-fetch';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/model-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 
 function readJson<T>(name: string): T {
   return JSON.parse(readFileSync(resolve(CONTRACTS, name), 'utf8')) as T;

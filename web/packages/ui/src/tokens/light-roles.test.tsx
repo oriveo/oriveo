@@ -7,8 +7,8 @@ import { describe, expect, it } from 'vitest';
  * `:root, [data-theme='light']` block of variables.css, equals the contract color and alpha.
  * Only the default light block is read; dark and palette blocks are out of scope.
  */
-const REPO_ROOT = resolve(__dirname, '../../../../../..');
-const CONTRACT_PATH = resolve(REPO_ROOT, '\u5171\u4eab/theme-contracts/light-roles.v1.json');
+const REPO_ROOT = resolve(__dirname, '../../../../..');
+const CONTRACT_PATH = resolve(REPO_ROOT, 'shared/theme-contracts/light-roles.v1.json');
 const CSS_PATH = resolve(__dirname, 'variables.css');
 
 interface Role {
@@ -152,7 +152,7 @@ describe('light_roles_contract', () => {
     const base = declarations("[data-theme='dark']");
     const palettes = [...css.matchAll(/\n(\[data-theme='dark'\]\[data-palette='[\w-]+'\]) \{/g)].map((m) => m[1]);
     // Every non-default dark palette must have its block, so a renamed selector cannot silently drop out of the check.
-    const darkContract = JSON.parse(readFileSync(resolve(REPO_ROOT, '\u5171\u4eab/theme-contracts/dark-palettes.v1.json'), 'utf8')) as { defaultId: string; order: string[] };
+    const darkContract = JSON.parse(readFileSync(resolve(REPO_ROOT, 'shared/theme-contracts/dark-palettes.v1.json'), 'utf8')) as { defaultId: string; order: string[] };
     expect(palettes.map((s) => s.match(/data-palette='([\w-]+)'/)?.[1]).sort()).toEqual(darkContract.order.filter((id) => id !== darkContract.defaultId).sort());
     const pairs = [
       ['--o-success-text', '--o-success'],

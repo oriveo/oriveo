@@ -1,0 +1,4577 @@
+{
+  "$comment": "Studio data model. Local tables are the same on the three clients (iOS GRDB v48_studio_works, Android Room 55→56, Web IDB 15→16). Firestore: users/{uid}/studioWorks/{workId} (one document per work, revision / baseRevision like memoryItems, never hard-deleted: delete = tombstone status deleted) and users/{uid}/studioWorks/{workId}/rounds/{roundId} (only finished rounds; immutable once written; no thumbnails inside). Originals live at users/{uid}/attachments/{assetId}. firestoreGolden is the target shape for; it moves into the shared sync golden fixture when the Web mapping that generates that file exists (that file is generated from Web code and compared value by value, so it is not hand-edited here).",
+  "contractId": "studio_data_model.v1",
+  "version": 1,
+  "localTables": {
+    "studio_works": [
+      "id",
+      "title",
+      "currentVersionId",
+      "source",
+      "chatConversationId",
+      "chatMessageId",
+      "favorite",
+      "selectedVersionIds",
+      "deletedVersionIds",
+      "deletedRoundIds",
+      "createdAt",
+      "updatedAt",
+      "deletedAt",
+      "revision",
+      "baseRevision",
+      "accountPartition",
+      "syncState"
+    ],
+    "studio_rounds": [
+      "id",
+      "workId",
+      "index",
+      "baseVersionId",
+      "operation",
+      "prompt",
+      "composedPrompt",
+      "enhancedPrompt",
+      "presetIds",
+      "params",
+      "modelRef",
+      "status",
+      "errorKind",
+      "adjustments",
+      "nRequested",
+      "nDelivered",
+      "costEstimateUsd",
+      "chargedUsd",
+      "fundingSource",
+      "managedJobId",
+      "clientJobId",
+      "startedAt",
+      "finishedAt"
+    ],
+    "studio_versions": [
+      "id",
+      "roundId",
+      "workId",
+      "parentVersionId",
+      "assetId",
+      "width",
+      "height",
+      "mime",
+      "kept",
+      "createdAt"
+    ],
+    "studio_round_refs": [
+      "roundId",
+      "order",
+      "assetId",
+      "role"
+    ]
+  },
+  "localSyncColumns": {
+    "$comment": "Device-local sync bookkeeping columns: added by the sync migration on iOS / Android (Web keeps them as optional row fields); never written to Firestore or backups. Migration tests compare columns with localTables plus these.",
+    "studio_works": [
+      "mutationId",
+      "coverThumbnail",
+      "coverWidth",
+      "coverHeight",
+      "cloudCleanup",
+      "remoteRoundCount"
+    ],
+    "studio_rounds": [
+      "syncState",
+      "deviceId"
+    ]
+  },
+  "enums": {
+    "workSource": [
+      "studio",
+      "chat"
+    ],
+    "workStatus": [
+      "active",
+      "deleted"
+    ],
+    "operation": [
+      "generate",
+      "edit",
+      "import"
+    ],
+    "roundStatus": [
+      "queued",
+      "running",
+      "completed",
+      "partial",
+      "failed",
+      "cancelled",
+      "interrupted",
+      "expired"
+    ],
+    "roundStatusSynced": [
+      "completed",
+      "partial",
+      "failed",
+      "cancelled",
+      "interrupted",
+      "expired"
+    ],
+    "referenceRole": [
+      "base",
+      "subject",
+      "style",
+      "composition",
+      "person",
+      "element"
+    ],
+    "modelSource": [
+      "managed",
+      "byok",
+      "relay"
+    ],
+    "fundingSource": [
+      "byok",
+      "free_quota",
+      "balance",
+      "none"
+    ]
+  },
+  "rules": [
+    "selectedVersionIds is the keep order across the whole work (append-only); version number vN = position + 1. Deleted kept versions stay in selectedVersionIds, so numbers never shift; deletedVersionIds lists every deleted version id, kept or candidate, so it is not a subset of selectedVersionIds.",
+    "currentVersionId is the cover; it is null only on a tombstone.",
+    "A round document is written once, when the round reaches a status in roundStatusSynced; running BYOK rounds stay on the device.",
+    "Asset ids are single path segments (no \"/\"); a chat work copies the chat image into a new asset.",
+    "Deleting a work from the wall writes a tombstone; for a chat work the chat image stays (Q-8).",
+    "expired = a managed job finished but no output link was ever issued within 24h; the refund is shown on the card.",
+    "An import round (the user-supplied picture that becomes v1) has modelRef null and fundingSource none; it is never billed.",
+    "Work and round ids are upper-case canonical UUIDs (same as id-utils); a tombstone keeps source and the chat ids so the history backfill never re-registers a deleted chat work.",
+    "deletedRoundIds lists the rounds removed with deleteFailedRound (append-only, at most 2000, empty on a tombstone). It follows deletedVersionIds everywhere: outbound union with the remote list, inbound remote-wins removes the listed local round rows and their refs the same way as deleteFailedRound (row stays synced, no tombstone), a rounds pull skips listed ids. Outbound roundCount = max(ended local rounds + deletedRoundIds length, remote roundCount), so it never shrinks. After the work write the newly listed remote round documents are deleted; a failed delete is a cloudCleanup roundIds debt retried like the others. Backups do not carry deletedRoundIds."
+  ],
+  "firestore": {
+    "$comment": "String limits count UTF-16 code units, same as Firestore rules string.size.",
+    "workPath": "users/{uid}/studioWorks/{workId}",
+    "roundPath": "users/{uid}/studioWorks/{workId}/rounds/{roundId}",
+    "workFields": [
+      "id",
+      "schemaVersion",
+      "status",
+      "title",
+      "source",
+      "chatConversationId",
+      "chatMessageId",
+      "currentVersionId",
+      "coverThumbnail",
+      "coverWidth",
+      "coverHeight",
+      "favorite",
+      "selectedVersionIds",
+      "deletedVersionIds",
+      "deletedRoundIds",
+      "roundCount",
+      "revision",
+      "baseRevision",
+      "mutationId",
+      "deviceId",
+      "createdAt",
+      "updatedAt",
+      "deletedAt"
+    ],
+    "roundFields": [
+      "id",
+      "workId",
+      "schemaVersion",
+      "index",
+      "operation",
+      "baseVersionId",
+      "prompt",
+      "composedPrompt",
+      "enhancedPrompt",
+      "presetIds",
+      "params",
+      "modelRef",
+      "status",
+      "errorKind",
+      "adjustments",
+      "nRequested",
+      "nDelivered",
+      "candidates",
+      "references",
+      "costEstimateUsd",
+      "chargedUsd",
+      "fundingSource",
+      "managedJobId",
+      "startedAt",
+      "finishedAt",
+      "deviceId"
+    ],
+    "limits": {
+      "coverThumbnailChars": 65536,
+      "titleChars": 200,
+      "promptChars": 1000,
+      "composedPromptChars": 32000,
+      "candidatesMax": 16,
+      "referencesMax": 16,
+      "deletedVersionIdsMax": 2000,
+      "deletedRoundIdsMax": 2000,
+      "selectedVersionIdsMax": 2000,
+      "adjustmentsMax": 20
+    },
+    "serverTimestamps": {
+      "work": [
+        "createdAt on create",
+        "updatedAt always"
+      ],
+      "round": []
+    }
+  },
+  "firestoreGolden": {
+    "work": {
+      "create": {
+        "id": "B7E0C1D2-3A4B-4C5D-8E6F-708192A3B4C5",
+        "schemaVersion": 1,
+        "status": "active",
+        "title": "窗边的咖啡",
+        "source": "studio",
+        "chatConversationId": null,
+        "chatMessageId": null,
+        "currentVersionId": "C0000003-0000-4000-8000-000000000003",
+        "coverThumbnail": "<base64 jpeg ≤ 65536 chars>",
+        "coverWidth": 360,
+        "coverHeight": 360,
+        "favorite": false,
+        "selectedVersionIds": [
+          "C0000001-0000-4000-8000-000000000001",
+          "C0000003-0000-4000-8000-000000000003"
+        ],
+        "deletedVersionIds": [],
+        "deletedRoundIds": [],
+        "roundCount": 2,
+        "revision": 1,
+        "baseRevision": 0,
+        "mutationId": "5f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0",
+        "deviceId": "ios-7d3c",
+        "createdAt": "<serverTimestamp>",
+        "updatedAt": "<serverTimestamp>",
+        "deletedAt": null
+      },
+      "update": {
+        "id": "B7E0C1D2-3A4B-4C5D-8E6F-708192A3B4C5",
+        "schemaVersion": 1,
+        "status": "active",
+        "title": "窗边的咖啡",
+        "source": "studio",
+        "chatConversationId": null,
+        "chatMessageId": null,
+        "currentVersionId": "C0000003-0000-4000-8000-000000000003",
+        "coverThumbnail": "<base64 jpeg ≤ 65536 chars>",
+        "coverWidth": 360,
+        "coverHeight": 360,
+        "favorite": false,
+        "selectedVersionIds": [
+          "C0000001-0000-4000-8000-000000000001",
+          "C0000003-0000-4000-8000-000000000003"
+        ],
+        "deletedVersionIds": [],
+        "deletedRoundIds": [],
+        "roundCount": 2,
+        "revision": 3,
+        "baseRevision": 2,
+        "mutationId": "5f1e2d3c-4b5a-4968-8776-a5b4c3d2e1f0",
+        "deviceId": "ios-7d3c",
+        "createdAt": "2026-10-28T08:00:00.000Z",
+        "updatedAt": "<serverTimestamp>",
+        "deletedAt": null
+      },
+      "tombstone": {
+        "id": "B7E0C1D2-3A4B-4C5D-8E6F-708192A3B4C5",
+        "schemaVersion": 1,
+        "status": "deleted",
+        "title": "",
+        "source": "studio",
+        "chatConversationId": null,
+        "chatMessageId": null,
+        "currentVersionId": null,
+        "coverThumbnail": null,
+        "coverWidth": 360,
+        "coverHeight": 360,
+        "favorite": false,
+        "selectedVersionIds": [],
+        "deletedVersionIds": [],
+        "deletedRoundIds": [],
+        "roundCount": 2,
+        "revision": 4,
+        "baseRevision": 3,
+        "mutationId": "6a2f3e4d-5c6b-4a79-8887-b6c5d4e3f201",
+        "deviceId": "ios-7d3c",
+        "createdAt": "2026-10-28T08:00:00.000Z",
+        "updatedAt": "<serverTimestamp>",
+        "deletedAt": "2026-10-28T09:00:00.000Z"
+      }
+    },
+    "rounds": [
+      {
+        "id": "0A1B2C3D-4E5F-4A6B-8C7D-8E9FA0B1C2D3",
+        "workId": "B7E0C1D2-3A4B-4C5D-8E6F-708192A3B4C5",
+        "schemaVersion": 1,
+        "index": 1,
+        "operation": "generate",
+        "baseVersionId": null,
+        "prompt": "窗边木桌上的一杯咖啡和一本书",
+        "composedPrompt": "a cup of coffee and a book on a wooden table by the window\n\nStyle: watercolor, soft washes.",
+        "enhancedPrompt": null,
+        "presetIds": {
+          "style": "watercolor",
+          "effects": [
+            "golden_hour"
+          ]
+        },
+        "params": {
+          "aspect": "1:1",
+          "resolution": "1K",
+          "quality": "standard",
+          "n": 2
+        },
+        "modelRef": {
+          "source": "byok",
+          "providerKind": "openAI",
+          "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+          "modelId": "gpt-image-2",
+          "route": "openai_images"
+        },
+        "status": "completed",
+        "errorKind": null,
+        "adjustments": [],
+        "nRequested": 2,
+        "nDelivered": 2,
+        "candidates": [
+          {
+            "versionId": "C0000001-0000-4000-8000-000000000001",
+            "assetId": "D0000001-0000-4000-8000-000000000001",
+            "parentVersionId": null,
+            "width": 1024,
+            "height": 1024,
+            "mime": "image/png"
+          },
+          {
+            "versionId": "C0000002-0000-4000-8000-000000000002",
+            "assetId": "D0000002-0000-4000-8000-000000000002",
+            "parentVersionId": null,
+            "width": 1024,
+            "height": 1024,
+            "mime": "image/png"
+          }
+        ],
+        "references": [],
+        "costEstimateUsd": 0.106,
+        "chargedUsd": null,
+        "fundingSource": "byok",
+        "managedJobId": null,
+        "startedAt": "2026-10-28T08:00:00.000Z",
+        "finishedAt": "2026-10-28T08:00:31.000Z",
+        "deviceId": "ios-7d3c"
+      },
+      {
+        "id": "1B2C3D4E-5F60-4B7C-9D8E-9FA0B1C2D3E4",
+        "workId": "B7E0C1D2-3A4B-4C5D-8E6F-708192A3B4C5",
+        "schemaVersion": 1,
+        "index": 2,
+        "operation": "edit",
+        "baseVersionId": "C0000001-0000-4000-8000-000000000001",
+        "prompt": "杯子换成玻璃杯",
+        "composedPrompt": "Image 1 is the image to edit.\n\nreplace the cup with a glass",
+        "enhancedPrompt": null,
+        "presetIds": {
+          "style": null,
+          "effects": []
+        },
+        "params": {
+          "aspect": "1:1",
+          "resolution": "1K",
+          "quality": "standard",
+          "n": 1
+        },
+        "modelRef": {
+          "source": "managed",
+          "providerKind": null,
+          "connectionId": null,
+          "modelId": "gpt-image-2",
+          "route": "openai_images"
+        },
+        "status": "completed",
+        "errorKind": null,
+        "adjustments": [],
+        "nRequested": 1,
+        "nDelivered": 1,
+        "candidates": [
+          {
+            "versionId": "C0000003-0000-4000-8000-000000000003",
+            "assetId": "D0000003-0000-4000-8000-000000000003",
+            "parentVersionId": "C0000001-0000-4000-8000-000000000001",
+            "width": 1254,
+            "height": 1254,
+            "mime": "image/png"
+          }
+        ],
+        "references": [
+          {
+            "order": 1,
+            "assetId": "D0000001-0000-4000-8000-000000000001",
+            "role": "base",
+            "width": 1024,
+            "height": 1024
+          }
+        ],
+        "costEstimateUsd": 0.05,
+        "chargedUsd": 0.05,
+        "fundingSource": "balance",
+        "managedJobId": "mij_01JBXYZ",
+        "startedAt": "2026-10-28T08:05:00.000Z",
+        "finishedAt": "2026-10-28T08:05:29.000Z",
+        "deviceId": "ios-7d3c"
+      }
+    ]
+  },
+  "operationTable": [
+    {
+      "caseId": "detail_continue_edit",
+      "context": {
+        "inWorkDetail": true,
+        "images": []
+      },
+      "modelOps": [
+        "generate",
+        "edit"
+      ],
+      "expect": {
+        "operation": "edit",
+        "base": "current_version",
+        "importFirst": false
+      }
+    },
+    {
+      "caseId": "new_no_images",
+      "context": {
+        "inWorkDetail": false,
+        "images": []
+      },
+      "modelOps": [
+        "generate",
+        "edit"
+      ],
+      "expect": {
+        "operation": "generate",
+        "base": null,
+        "importFirst": false
+      }
+    },
+    {
+      "caseId": "new_with_subject",
+      "context": {
+        "inWorkDetail": false,
+        "images": [
+          "subject",
+          "element"
+        ]
+      },
+      "modelOps": [
+        "generate",
+        "edit"
+      ],
+      "expect": {
+        "operation": "edit",
+        "base": "first_subject_as_v1",
+        "importFirst": true
+      }
+    },
+    {
+      "caseId": "new_refs_without_subject",
+      "context": {
+        "inWorkDetail": false,
+        "images": [
+          "style",
+          "composition"
+        ]
+      },
+      "modelOps": [
+        "generate",
+        "edit"
+      ],
+      "expect": {
+        "operation": "edit",
+        "base": null,
+        "importFirst": false
+      }
+    },
+    {
+      "caseId": "generate_only_model_with_images_blocked",
+      "context": {
+        "inWorkDetail": false,
+        "images": [
+          "subject"
+        ]
+      },
+      "modelOps": [
+        "generate"
+      ],
+      "expect": {
+        "operation": null,
+        "base": null,
+        "importFirst": false,
+        "blocked": "model_cannot_reference_images"
+      }
+    },
+    {
+      "caseId": "edit_only_model_without_images_blocked",
+      "context": {
+        "inWorkDetail": false,
+        "images": []
+      },
+      "modelOps": [
+        "edit"
+      ],
+      "expect": {
+        "operation": null,
+        "base": null,
+        "importFirst": false,
+        "blocked": "model_needs_image"
+      }
+    },
+    {
+      "caseId": "detail_generate_only_blocked",
+      "context": {
+        "inWorkDetail": true,
+        "images": []
+      },
+      "modelOps": [
+        "generate"
+      ],
+      "expect": {
+        "operation": null,
+        "base": null,
+        "importFirst": false,
+        "blocked": "model_cannot_reference_images"
+      }
+    },
+    {
+      "caseId": "detail_with_refs_edits_current",
+      "context": {
+        "inWorkDetail": true,
+        "images": [
+          "subject",
+          "style"
+        ]
+      },
+      "modelOps": [
+        "generate",
+        "edit"
+      ],
+      "expect": {
+        "operation": "edit",
+        "base": "current_version",
+        "importFirst": false
+      }
+    },
+    {
+      "caseId": "detail_edit_only_model",
+      "context": {
+        "inWorkDetail": true,
+        "images": []
+      },
+      "modelOps": [
+        "edit"
+      ],
+      "expect": {
+        "operation": "edit",
+        "base": "current_version",
+        "importFirst": false
+      }
+    },
+    {
+      "caseId": "new_subject_not_first",
+      "context": {
+        "inWorkDetail": false,
+        "images": [
+          "element",
+          "subject"
+        ]
+      },
+      "modelOps": [
+        "generate",
+        "edit"
+      ],
+      "expect": {
+        "operation": "edit",
+        "base": "first_subject_as_v1",
+        "importFirst": true
+      }
+    },
+    {
+      "caseId": "new_no_images_generate_only",
+      "context": {
+        "inWorkDetail": false,
+        "images": []
+      },
+      "modelOps": [
+        "generate"
+      ],
+      "expect": {
+        "operation": "generate",
+        "base": null,
+        "importFirst": false
+      }
+    },
+    {
+      "caseId": "edit_only_refs_without_subject",
+      "context": {
+        "inWorkDetail": false,
+        "images": [
+          "person"
+        ]
+      },
+      "modelOps": [
+        "edit"
+      ],
+      "expect": {
+        "operation": "edit",
+        "base": null,
+        "importFirst": false
+      }
+    }
+  ],
+  "versionCases": [
+    {
+      "caseId": "single_output_auto_kept",
+      "round": {
+        "n": 1,
+        "delivered": 1
+      },
+      "action": "finish",
+      "expect": {
+        "kept": [
+          "c1"
+        ],
+        "current": "c1",
+        "pendingPick": 0
+      }
+    },
+    {
+      "caseId": "multi_output_waits_for_pick",
+      "round": {
+        "n": 4,
+        "delivered": 4
+      },
+      "action": "finish",
+      "expect": {
+        "kept": [],
+        "current": "c1",
+        "pendingPick": 4
+      }
+    },
+    {
+      "caseId": "pick_keeps_and_becomes_current",
+      "round": {
+        "n": 4,
+        "delivered": 4
+      },
+      "action": "pick:c3",
+      "expect": {
+        "kept": [
+          "c3"
+        ],
+        "current": "c3",
+        "pendingPick": 0
+      }
+    },
+    {
+      "caseId": "also_keep_second",
+      "round": {
+        "n": 4,
+        "delivered": 4
+      },
+      "action": "pick:c3,also:c1",
+      "expect": {
+        "kept": [
+          "c3",
+          "c1"
+        ],
+        "current": "c3",
+        "pendingPick": 0
+      }
+    },
+    {
+      "caseId": "new_round_without_pick_keeps_first",
+      "round": {
+        "n": 4,
+        "delivered": 4
+      },
+      "action": "start_next_round",
+      "expect": {
+        "kept": [
+          "c1"
+        ],
+        "current": "c1",
+        "pendingPick": 0
+      }
+    },
+    {
+      "caseId": "version_number_by_keep_order",
+      "round": {
+        "n": 2,
+        "delivered": 2
+      },
+      "action": "keep_order:[V1,V3]",
+      "expect": {
+        "numbers": {
+          "V1": 1,
+          "V3": 2
+        }
+      }
+    },
+    {
+      "caseId": "delete_keeps_numbers_stable",
+      "round": {
+        "n": 2,
+        "delivered": 2
+      },
+      "action": "keep_order:[V1,V3];delete:V1",
+      "expect": {
+        "numbers": {
+          "V3": 2
+        },
+        "deletedVersionIds": [
+          "V1"
+        ]
+      }
+    },
+    {
+      "caseId": "multi_output_keeps_previous_cover",
+      "round": {
+        "n": 4,
+        "delivered": 4,
+        "previous": true
+      },
+      "action": "finish",
+      "expect": {
+        "kept": [],
+        "current": "P",
+        "pendingPick": 4
+      }
+    },
+    {
+      "caseId": "partial_single_delivered_auto_kept",
+      "round": {
+        "n": 4,
+        "delivered": 1
+      },
+      "action": "finish",
+      "expect": {
+        "kept": [
+          "c1"
+        ],
+        "current": "c1",
+        "pendingPick": 0
+      }
+    },
+    {
+      "caseId": "failed_round_changes_nothing",
+      "round": {
+        "n": 2,
+        "delivered": 0,
+        "previous": true
+      },
+      "action": "finish",
+      "expect": {
+        "kept": [],
+        "current": "P",
+        "pendingPick": 0
+      }
+    },
+    {
+      "caseId": "also_keep_same_twice_no_duplicate",
+      "round": {
+        "n": 4,
+        "delivered": 4
+      },
+      "action": "pick:c3,also:c3",
+      "expect": {
+        "kept": [
+          "c3"
+        ],
+        "current": "c3",
+        "pendingPick": 0
+      }
+    },
+    {
+      "caseId": "next_round_after_pick_keeps_nothing_more",
+      "round": {
+        "n": 4,
+        "delivered": 4
+      },
+      "action": "pick:c2;start_next_round",
+      "expect": {
+        "kept": [
+          "c2"
+        ],
+        "current": "c2",
+        "pendingPick": 0
+      }
+    }
+  ],
+  "chatWorkId": {
+    "$comment": "Chat work id is deterministic so only the generating device registers it and other devices receive it by sync. Both inputs are canonicalized to upper-case first, the same way as provider ids (id-utils.ts).",
+    "namespace": {
+      "derivation": "UUIDv5(DNS, \"oriveo.studio.chat-work\")",
+      "value": "B8FCECDA-E33A-5BB2-893B-A57DD52B5BB3"
+    },
+    "name": "{CONVERSATION_ID}|{MESSAGE_ID}",
+    "output": "upper-case canonical UUID",
+    "vectors": [
+      {
+        "conversationId": "3f2a9c1e-7b4d-4e8a-9c3f-1a2b3c4d5e6f",
+        "messageId": "11112222-3333-4444-8555-666677778888",
+        "expectWorkId": "636B2D5C-3C9C-5964-8214-15E7D9158596"
+      },
+      {
+        "conversationId": "3F2A9C1E-7B4D-4E8A-9C3F-1A2B3C4D5E6F",
+        "messageId": "11112222-3333-4444-8555-666677778888",
+        "expectWorkId": "636B2D5C-3C9C-5964-8214-15E7D9158596"
+      },
+      {
+        "conversationId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+        "messageId": "99990000-1111-4222-8333-444455556666",
+        "expectWorkId": "6FCD39D0-9B86-5DF3-97D4-02DB3FEC63BF"
+      }
+    ],
+    "derivedIds": {
+      "$comment": ". Every id of a registered chat work is derived, so the same message registers the same rows on any device and a repeated registration writes nothing. Names (inputs upper-cased, locale independent; chatAssetIds in message attachment order, deduplicated by upper-cased id with the first occurrence kept — a repeated image registers once): round = \"{CONVERSATION_ID}|{MESSAGE_ID}|round|{ASSET_1}|…|{ASSET_n}\"; version = \"{ROUND_ID}|version|{ASSET}\"; copied asset = \"{ROUND_ID}|asset|{ASSET}\"; all UUIDv5 under the chat-work namespace, upper-case output. Reference: scripts/lib/studio-chat-work-reference.mjs chatWorkIds.",
+      "vectors": [
+        {
+          "caseId": "single_image",
+          "conversationId": "3f2a9c1e-7b4d-4e8a-9c3f-1a2b3c4d5e6f",
+          "messageId": "11112222-3333-4444-8555-666677778888",
+          "chatAssetIds": [
+            "a1b2c3d4-0000-4000-8000-000000000001"
+          ],
+          "expect": {
+            "workId": "636B2D5C-3C9C-5964-8214-15E7D9158596",
+            "roundId": "BBA27389-E4E3-568D-A79C-D5F6ACAB3612",
+            "versionIds": [
+              "D1F1D2B6-D8B5-51E2-875C-F3D4417DCAAB"
+            ],
+            "assetIds": [
+              "C1A8FB7F-3C16-59B2-9D86-CBB787174B46"
+            ]
+          }
+        },
+        {
+          "caseId": "two_images_upper_input",
+          "conversationId": "3F2A9C1E-7B4D-4E8A-9C3F-1A2B3C4D5E6F",
+          "messageId": "11112222-3333-4444-8555-666677778888",
+          "chatAssetIds": [
+            "A1B2C3D4-0000-4000-8000-000000000001",
+            "a1b2c3d4-0000-4000-8000-000000000002"
+          ],
+          "expect": {
+            "workId": "636B2D5C-3C9C-5964-8214-15E7D9158596",
+            "roundId": "506E1670-332A-56C0-A732-C858080D1A4F",
+            "versionIds": [
+              "2911EC42-05CD-55D4-B7C5-DA46EAD30A1A",
+              "7DE14EB5-1D7F-52BF-8B06-A146C416B78B"
+            ],
+            "assetIds": [
+              "FEE343FD-2EB3-5B5B-A17E-584FAE93807C",
+              "BE01DD01-1412-5861-820B-C21274B04217"
+            ]
+          }
+        },
+        {
+          "caseId": "non_uuid_asset_id",
+          "conversationId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+          "messageId": "99990000-1111-4222-8333-444455556666",
+          "chatAssetIds": [
+            "img_17300000_abc"
+          ],
+          "expect": {
+            "workId": "6FCD39D0-9B86-5DF3-97D4-02DB3FEC63BF",
+            "roundId": "39991E56-E98E-55DD-A4CF-6DEB7B6CE220",
+            "versionIds": [
+              "4D85D5FB-53FA-51CD-82F7-3E82E89748F4"
+            ],
+            "assetIds": [
+              "AA627249-1493-5DE8-A461-0B52B5B6517B"
+            ]
+          }
+        },
+        {
+          "caseId": "duplicate_asset_id",
+          "conversationId": "3F2A9C1E-7B4D-4E8A-9C3F-1A2B3C4D5E6F",
+          "messageId": "11112222-3333-4444-8555-666677778888",
+          "chatAssetIds": [
+            "a1b2c3d4-0000-4000-8000-000000000001",
+            "A1B2C3D4-0000-4000-8000-000000000001",
+            "a1b2c3d4-0000-4000-8000-000000000002"
+          ],
+          "expect": {
+            "workId": "636B2D5C-3C9C-5964-8214-15E7D9158596",
+            "roundId": "506E1670-332A-56C0-A732-C858080D1A4F",
+            "versionIds": [
+              "2911EC42-05CD-55D4-B7C5-DA46EAD30A1A",
+              "7DE14EB5-1D7F-52BF-8B06-A146C416B78B"
+            ],
+            "assetIds": [
+              "FEE343FD-2EB3-5B5B-A17E-584FAE93807C",
+              "BE01DD01-1412-5861-820B-C21274B04217"
+            ]
+          }
+        }
+      ]
+    },
+    "title": {
+      "$comment": "Work title = first sentence of the paired user message, first 12 grapheme clusters. Trim the text (Unicode whitespace and line breaks); the sentence ends before the first line break (any Unicode line terminator: \\n \\r U+000B U+000C U+0085 U+2028 U+2029), one of 。！？!?…, or a \".\" followed by whitespace or the end of the text; take the first 12 grapheme clusters and trim trailing whitespace. No text (image-only message) = empty title. Reference: chatWorkTitle.",
+      "graphemes": 12,
+      "vectors": [
+        {
+          "caseId": "zh_period",
+          "text": "画一只在窗边喝咖啡的橘猫，阳光很好。再加点雨",
+          "expect": "画一只在窗边喝咖啡的橘猫"
+        },
+        {
+          "caseId": "en_period_space",
+          "text": "A cat. On a sofa",
+          "expect": "A cat"
+        },
+        {
+          "caseId": "decimal_not_end",
+          "text": "Version 3.5 of the logo please",
+          "expect": "Version 3.5"
+        },
+        {
+          "caseId": "whitespace_only",
+          "text": "  \n  ",
+          "expect": ""
+        },
+        {
+          "caseId": "empty",
+          "text": "",
+          "expect": ""
+        },
+        {
+          "caseId": "combining_mark",
+          "text": "Café au lait at dawn",
+          "expect": "Café au lait"
+        },
+        {
+          "caseId": "emoji_surrogates",
+          "text": "😀😀 smile wide please!",
+          "expect": "😀😀 smile wid"
+        },
+        {
+          "caseId": "leading_newline",
+          "text": "\n第一行\n第二行",
+          "expect": "第一行"
+        },
+        {
+          "caseId": "question_bang",
+          "text": "Make it pop?! now",
+          "expect": "Make it pop"
+        },
+        {
+          "caseId": "ellipsis",
+          "text": "Hmm… a fox",
+          "expect": "Hmm"
+        },
+        {
+          "caseId": "trailing_period_end",
+          "text": "Short.",
+          "expect": "Short"
+        },
+        {
+          "caseId": "unicode_line_separator",
+          "text": "Line one line two",
+          "expect": "Line one"
+        },
+        {
+          "caseId": "paragraph_separator",
+          "text": "段落一 段落二",
+          "expect": "段落一"
+        },
+        {
+          "caseId": "next_line_and_vertical_tab",
+          "text": "Topmid\u000bend",
+          "expect": "Top"
+        }
+      ]
+    }
+  },
+  "orphanSweep": {
+    "$comment": "Every orphan sweeper counts these as references before any studio data is written.",
+    "referencedAssets": [
+      "studio_versions.assetId (kept and candidate)",
+      "studio_round_refs.assetId"
+    ],
+    "case": {
+      "chatAssets": [
+        "D0000009-0000-4000-8000-000000000009"
+      ],
+      "studioVersions": [
+        "D0000001-0000-4000-8000-000000000001",
+        "D0000002-0000-4000-8000-000000000002",
+        "D0000003-0000-4000-8000-000000000003"
+      ],
+      "studioRefs": [
+        "D0000001-0000-4000-8000-000000000001",
+        "D0000005-0000-4000-8000-000000000005"
+      ],
+      "onDisk": [
+        "D0000001-0000-4000-8000-000000000001",
+        "D0000002-0000-4000-8000-000000000002",
+        "D0000003-0000-4000-8000-000000000003",
+        "D0000004-0000-4000-8000-000000000004",
+        "D0000005-0000-4000-8000-000000000005",
+        "D0000009-0000-4000-8000-000000000009"
+      ],
+      "expectOrphans": [
+        "D0000004-0000-4000-8000-000000000004"
+      ]
+    }
+  },
+  "versionCasesHarness": "versionCases harness: a fresh active work; with round.previous an earlier single-output round already kept version P (current). The round under test has delivered candidates c1..cN (strictly increasing createdAt) and status completed (delivered = n), partial (0 < delivered < n) or failed (0); apply finish first, then the action steps left to right (\";\" separates steps, \"pick:x,also:y\" = pick x then also-keep y, start_next_round = resolve the pending pick before a new round). keep_order:[X,Y] = X and Y are independent root versions (one single-output round each) kept in that order, no finish step; delete:X deletes version X. expect.kept = candidates of the round under test that are kept, in selectedVersionIds order; numbers = version numbers (selectedVersionIds position + 1); pendingPick = candidate count of the latest finished round when it has more than one and none is kept, else 0.",
+  "repository": {
+    "$comment": "work repository cases. Aliases resolve through ids; times are epoch milliseconds (Web stores them as toISOString). Seeds list only the fields the cases read; tests fill the other NOT NULL columns with any valid value. Apply ops in order, each at now = 9000. reclaimedAssets = asset ids whose last studio_versions / studio_round_refs row went away in the case, sorted; they are handed to the platform orphan sweeper purge (it re-checks every reference, chat included), so each expected id must be gone from the image store afterwards and every other seeded asset must still be there. versions / rounds = remaining rows of the case work. Reference: scripts/lib/studio-work-reference.mjs. deleteFailedRound cases list each deleteFailedRound result, in op order, under expect.roundDeleteResults.",
+    "rules": [
+      "Every change to a synced work field (title, favorite, currentVersionId, selectedVersionIds, deletedVersionIds, deletedRoundIds, deletedAt) sets revision += 1, updatedAt = now and syncState = pending in the same transaction; baseRevision is only written by sync. A new work starts at revision 1, baseRevision 0, syncState pending. Ops that change none of these fields leave the row untouched.",
+      "Candidates of a round are ordered by createdAt, then id; writers give the candidates of one round strictly increasing createdAt in delivery order.",
+      "Deleting a version removes it and every version row whose parentVersionId chain reaches it (kept or candidate). Every removed id (kept or candidate) is appended to deletedVersionIds, ids already there are not repeated: the deleted version first, then the other removed rows by createdAt, then id; selectedVersionIds never shrinks, so version numbers never shift.",
+      "A round row and its refs are removed when its baseVersionId was removed or when it lost its last version row in the same op; a round without versions otherwise stays until deleteFailedRound, its base or the work goes.",
+      "If the op removes a kept version and no kept version is left, or no version row is left at all, the whole work is deleted (deleting v1 = deleting the work).",
+      "When the current version is removed, the cover moves to its parent if that row is left, else to the latest entry of selectedVersionIds that is not deleted, else to the first candidate of the highest-index round that still has candidates.",
+      "Deleting a work writes a local tombstone: deletedAt = now, title empty, favorite false, currentVersionId null, the id arrays (selectedVersionIds, deletedVersionIds, deletedRoundIds) empty, source and chat ids kept; all its round, version and ref rows are removed. Tombstones never show in lists or detail.",
+      "Assets are reclaimed after the row deletion commits, only through the platform orphan sweeper purge, never by deleting files directly.",
+      "Lists show works whose accountPartition equals the active partition (the ImageStore partition uid) and deletedAt is null, newest updatedAt first, then id ascending; detail of a work in another partition or of a tombstone is null.",
+      "Undo of a version delete (5 s toast) is done by the caller delaying the delete call; the repository has no undo.",
+      "local beginRound / insertRound refused when deleted ids + live version rows + 16 > versionIdsMax; inbound sync not refused.",
+      "deleteFailedRound(work, round) removes a round that has ended (status not queued / running) and has no version rows, together with its refs; it appends the round id to deletedRoundIds (revision += 1, pending) and reclaims assets like the other deletes. It returns false and writes nothing when the work is missing or a tombstone, the round is not in that work, the round is queued / running, it has a version row, or deletedRoundIds already holds 2000 ids. If the work is then left with no round and no version row, the whole work is deleted (tombstone)."
+    ],
+    "versionIdsMax": 2000,
+    "ids": {
+      "W": "B0000001-0000-4000-8000-000000000001",
+      "WP": "B0000002-0000-4000-8000-000000000002",
+      "W2": "B0000003-0000-4000-8000-000000000003",
+      "W3": "B0000004-0000-4000-8000-000000000004",
+      "W4": "B0000005-0000-4000-8000-000000000005",
+      "W5": "B0000006-0000-4000-8000-000000000006",
+      "R1": "A0000001-0000-4000-8000-000000000001",
+      "R2": "A0000002-0000-4000-8000-000000000002",
+      "R3": "A0000003-0000-4000-8000-000000000003",
+      "R4": "A0000004-0000-4000-8000-000000000004",
+      "R5": "A0000005-0000-4000-8000-000000000005",
+      "RP": "A0000006-0000-4000-8000-000000000006",
+      "V1": "C0000001-0000-4000-8000-000000000001",
+      "V1b": "C0000002-0000-4000-8000-000000000002",
+      "V2a": "C0000003-0000-4000-8000-000000000003",
+      "V2b": "C0000004-0000-4000-8000-000000000004",
+      "V3": "C0000005-0000-4000-8000-000000000005",
+      "V4": "C0000006-0000-4000-8000-000000000006",
+      "P1": "C0000007-0000-4000-8000-000000000007",
+      "P2": "C0000008-0000-4000-8000-000000000008",
+      "P3": "C0000009-0000-4000-8000-000000000009",
+      "A1": "D0000001-0000-4000-8000-000000000001",
+      "A2": "D0000002-0000-4000-8000-000000000002",
+      "A3": "D0000003-0000-4000-8000-000000000003",
+      "A4": "D0000004-0000-4000-8000-000000000004",
+      "A5": "D0000005-0000-4000-8000-000000000005",
+      "A6": "D0000006-0000-4000-8000-000000000006",
+      "A9": "D0000009-0000-4000-8000-000000000009",
+      "AP1": "D0000010-0000-4000-8000-000000000010",
+      "AP2": "D0000011-0000-4000-8000-000000000011",
+      "AP3": "D0000012-0000-4000-8000-000000000012",
+      "W6": "B0000007-0000-4000-8000-000000000007",
+      "W7": "B0000008-0000-4000-8000-000000000008",
+      "R6": "A0000007-0000-4000-8000-000000000007",
+      "R7": "A0000008-0000-4000-8000-000000000008",
+      "R8": "A0000009-0000-4000-8000-000000000009",
+      "R9": "A0000010-0000-4000-8000-000000000010",
+      "V5": "C0000010-0000-4000-8000-000000000010",
+      "A7": "D0000007-0000-4000-8000-000000000007",
+      "A8": "D0000008-0000-4000-8000-000000000008"
+    },
+    "seeds": {
+      "main": {
+        "works": [
+          {
+            "id": "W",
+            "accountPartition": "uid-a",
+            "title": "Window coffee",
+            "source": "chat",
+            "chatConversationId": "CONV-1",
+            "chatMessageId": "MSG-1",
+            "favorite": true,
+            "currentVersionId": "V4",
+            "selectedVersionIds": [
+              "V1",
+              "V2a",
+              "V3",
+              "V4"
+            ],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 5000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          }
+        ],
+        "rounds": [
+          {
+            "id": "R1",
+            "workId": "W",
+            "index": 1,
+            "baseVersionId": null,
+            "status": "completed"
+          },
+          {
+            "id": "R2",
+            "workId": "W",
+            "index": 2,
+            "baseVersionId": "V1",
+            "status": "completed"
+          },
+          {
+            "id": "R3",
+            "workId": "W",
+            "index": 3,
+            "baseVersionId": "V2a",
+            "status": "completed"
+          },
+          {
+            "id": "R4",
+            "workId": "W",
+            "index": 4,
+            "baseVersionId": "V1",
+            "status": "completed"
+          },
+          {
+            "id": "R5",
+            "workId": "W",
+            "index": 5,
+            "baseVersionId": "V4",
+            "status": "failed"
+          }
+        ],
+        "versions": [
+          {
+            "id": "V1",
+            "roundId": "R1",
+            "workId": "W",
+            "parentVersionId": null,
+            "assetId": "A1",
+            "kept": true,
+            "createdAt": 1001
+          },
+          {
+            "id": "V1b",
+            "roundId": "R1",
+            "workId": "W",
+            "parentVersionId": null,
+            "assetId": "A6",
+            "kept": false,
+            "createdAt": 1002
+          },
+          {
+            "id": "V2a",
+            "roundId": "R2",
+            "workId": "W",
+            "parentVersionId": "V1",
+            "assetId": "A2",
+            "kept": true,
+            "createdAt": 2001
+          },
+          {
+            "id": "V2b",
+            "roundId": "R2",
+            "workId": "W",
+            "parentVersionId": "V1",
+            "assetId": "A3",
+            "kept": false,
+            "createdAt": 2002
+          },
+          {
+            "id": "V3",
+            "roundId": "R3",
+            "workId": "W",
+            "parentVersionId": "V2a",
+            "assetId": "A4",
+            "kept": true,
+            "createdAt": 3001
+          },
+          {
+            "id": "V4",
+            "roundId": "R4",
+            "workId": "W",
+            "parentVersionId": "V1",
+            "assetId": "A5",
+            "kept": true,
+            "createdAt": 4001
+          }
+        ],
+        "refs": [
+          {
+            "roundId": "R2",
+            "order": 0,
+            "assetId": "A1",
+            "role": "base"
+          },
+          {
+            "roundId": "R2",
+            "order": 1,
+            "assetId": "A9",
+            "role": "style"
+          },
+          {
+            "roundId": "R3",
+            "order": 0,
+            "assetId": "A2",
+            "role": "base"
+          },
+          {
+            "roundId": "R4",
+            "order": 0,
+            "assetId": "A1",
+            "role": "base"
+          },
+          {
+            "roundId": "R4",
+            "order": 1,
+            "assetId": "A9",
+            "role": "style"
+          },
+          {
+            "roundId": "R5",
+            "order": 0,
+            "assetId": "A5",
+            "role": "base"
+          }
+        ]
+      },
+      "pending": {
+        "works": [
+          {
+            "id": "WP",
+            "accountPartition": "uid-a",
+            "title": "Window coffee",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": "P1",
+            "selectedVersionIds": [],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 5000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          }
+        ],
+        "rounds": [
+          {
+            "id": "RP",
+            "workId": "WP",
+            "index": 1,
+            "baseVersionId": null,
+            "status": "completed"
+          }
+        ],
+        "versions": [
+          {
+            "id": "P1",
+            "roundId": "RP",
+            "workId": "WP",
+            "parentVersionId": null,
+            "assetId": "AP1",
+            "kept": false,
+            "createdAt": 1001
+          },
+          {
+            "id": "P2",
+            "roundId": "RP",
+            "workId": "WP",
+            "parentVersionId": null,
+            "assetId": "AP2",
+            "kept": false,
+            "createdAt": 1002
+          },
+          {
+            "id": "P3",
+            "roundId": "RP",
+            "workId": "WP",
+            "parentVersionId": null,
+            "assetId": "AP3",
+            "kept": false,
+            "createdAt": 1003
+          }
+        ],
+        "refs": []
+      },
+      "list": {
+        "works": [
+          {
+            "id": "W",
+            "accountPartition": "uid-a",
+            "title": "Window coffee",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": null,
+            "selectedVersionIds": [],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 5000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          },
+          {
+            "id": "W2",
+            "accountPartition": "uid-a",
+            "title": "Window coffee",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": null,
+            "selectedVersionIds": [],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 6000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          },
+          {
+            "id": "W5",
+            "accountPartition": "uid-a",
+            "title": "Window coffee",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": null,
+            "selectedVersionIds": [],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 6000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          },
+          {
+            "id": "W3",
+            "accountPartition": "uid-a",
+            "title": "",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": null,
+            "selectedVersionIds": [],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 7000,
+            "deletedAt": 7000,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          },
+          {
+            "id": "W4",
+            "accountPartition": "uid-b",
+            "title": "Window coffee",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": null,
+            "selectedVersionIds": [],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 8000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          }
+        ],
+        "rounds": [],
+        "versions": [],
+        "refs": []
+      },
+      "foreignRound": {
+        "works": [
+          {
+            "id": "W4",
+            "accountPartition": "uid-b",
+            "title": "Window coffee",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": null,
+            "selectedVersionIds": [],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 8000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          }
+        ],
+        "rounds": [
+          {
+            "id": "R1",
+            "workId": "W4",
+            "index": 1,
+            "baseVersionId": null,
+            "status": "running",
+            "startedAt": 8000,
+            "finishedAt": null
+          }
+        ],
+        "versions": [],
+        "refs": []
+      },
+      "failed": {
+        "works": [
+          {
+            "id": "W6",
+            "accountPartition": "uid-a",
+            "title": "Window coffee",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": "V5",
+            "selectedVersionIds": [
+              "V5"
+            ],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 5000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          }
+        ],
+        "rounds": [
+          {
+            "id": "R6",
+            "workId": "W6",
+            "index": 1,
+            "baseVersionId": null,
+            "status": "completed"
+          },
+          {
+            "id": "R7",
+            "workId": "W6",
+            "index": 2,
+            "baseVersionId": "V5",
+            "status": "failed"
+          },
+          {
+            "id": "R8",
+            "workId": "W6",
+            "index": 3,
+            "baseVersionId": "V5",
+            "status": "running"
+          }
+        ],
+        "versions": [
+          {
+            "id": "V5",
+            "roundId": "R6",
+            "workId": "W6",
+            "parentVersionId": null,
+            "assetId": "A7",
+            "kept": true,
+            "createdAt": 1001
+          }
+        ],
+        "refs": [
+          {
+            "roundId": "R7",
+            "order": 0,
+            "assetId": "A7",
+            "role": "base"
+          },
+          {
+            "roundId": "R7",
+            "order": 1,
+            "assetId": "A8",
+            "role": "style"
+          },
+          {
+            "roundId": "R8",
+            "order": 0,
+            "assetId": "A7",
+            "role": "base"
+          }
+        ]
+      },
+      "failedOnly": {
+        "works": [
+          {
+            "id": "W7",
+            "accountPartition": "uid-a",
+            "title": "Window coffee",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": false,
+            "currentVersionId": null,
+            "selectedVersionIds": [],
+            "deletedVersionIds": [],
+            "deletedRoundIds": [],
+            "createdAt": 1000,
+            "updatedAt": 5000,
+            "deletedAt": null,
+            "revision": 1,
+            "baseRevision": 1,
+            "syncState": "synced"
+          }
+        ],
+        "rounds": [
+          {
+            "id": "R9",
+            "workId": "W7",
+            "index": 1,
+            "baseVersionId": null,
+            "status": "failed"
+          }
+        ],
+        "versions": [],
+        "refs": [
+          {
+            "roundId": "R9",
+            "order": 0,
+            "assetId": "A8",
+            "role": "subject"
+          }
+        ]
+      }
+    },
+    "deleteCases": [
+      {
+        "caseId": "delete_leaf_version",
+        "seed": "main",
+        "ops": [
+          "deleteVersion:V3"
+        ],
+        "before": {
+          "descendants": {
+            "V3": 0,
+            "V2a": 1,
+            "V1": 3
+          }
+        },
+        "expect": {
+          "tombstone": false,
+          "currentVersionId": "V4",
+          "selectedVersionIds": [
+            "V1",
+            "V2a",
+            "V3",
+            "V4"
+          ],
+          "deletedVersionIds": [
+            "V3"
+          ],
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [
+            "V1",
+            "V1b",
+            "V2a",
+            "V2b",
+            "V4"
+          ],
+          "rounds": [
+            "R1",
+            "R2",
+            "R4",
+            "R5"
+          ],
+          "reclaimedAssets": [
+            "A4"
+          ],
+          "numbers": {
+            "V1": 1,
+            "V2a": 2,
+            "V4": 4
+          }
+        }
+      },
+      {
+        "caseId": "delete_current_falls_back_to_parent",
+        "seed": "main",
+        "ops": [
+          "deleteVersion:V4"
+        ],
+        "expect": {
+          "tombstone": false,
+          "currentVersionId": "V1",
+          "selectedVersionIds": [
+            "V1",
+            "V2a",
+            "V3",
+            "V4"
+          ],
+          "deletedVersionIds": [
+            "V4"
+          ],
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [
+            "V1",
+            "V1b",
+            "V2a",
+            "V2b",
+            "V3"
+          ],
+          "rounds": [
+            "R1",
+            "R2",
+            "R3"
+          ],
+          "reclaimedAssets": [
+            "A5"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_with_descendants",
+        "seed": "main",
+        "ops": [
+          "deleteVersion:V2a"
+        ],
+        "expect": {
+          "tombstone": false,
+          "currentVersionId": "V4",
+          "selectedVersionIds": [
+            "V1",
+            "V2a",
+            "V3",
+            "V4"
+          ],
+          "deletedVersionIds": [
+            "V2a",
+            "V3"
+          ],
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [
+            "V1",
+            "V1b",
+            "V2b",
+            "V4"
+          ],
+          "rounds": [
+            "R1",
+            "R2",
+            "R4",
+            "R5"
+          ],
+          "reclaimedAssets": [
+            "A2",
+            "A4"
+          ]
+        }
+      },
+      {
+        "caseId": "parent_also_deleted_falls_back_to_latest_kept",
+        "seed": "main",
+        "ops": [
+          "setCurrent:V3",
+          "deleteVersion:V2a"
+        ],
+        "expect": {
+          "tombstone": false,
+          "currentVersionId": "V4",
+          "selectedVersionIds": [
+            "V1",
+            "V2a",
+            "V3",
+            "V4"
+          ],
+          "deletedVersionIds": [
+            "V2a",
+            "V3"
+          ],
+          "revision": 3,
+          "syncState": "pending",
+          "versions": [
+            "V1",
+            "V1b",
+            "V2b",
+            "V4"
+          ],
+          "rounds": [
+            "R1",
+            "R2",
+            "R4",
+            "R5"
+          ],
+          "reclaimedAssets": [
+            "A2",
+            "A4"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_candidate_leaves_work_row",
+        "seed": "main",
+        "ops": [
+          "deleteVersion:V2b"
+        ],
+        "expect": {
+          "tombstone": false,
+          "currentVersionId": "V4",
+          "selectedVersionIds": [
+            "V1",
+            "V2a",
+            "V3",
+            "V4"
+          ],
+          "deletedVersionIds": [
+            "V2b"
+          ],
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [
+            "V1",
+            "V1b",
+            "V2a",
+            "V3",
+            "V4"
+          ],
+          "rounds": [
+            "R1",
+            "R2",
+            "R3",
+            "R4",
+            "R5"
+          ],
+          "reclaimedAssets": [
+            "A3"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_root_with_other_kept_root",
+        "seed": "main",
+        "ops": [
+          "alsoKeep:V1b",
+          "deleteVersion:V1"
+        ],
+        "expect": {
+          "tombstone": false,
+          "currentVersionId": "V1b",
+          "selectedVersionIds": [
+            "V1",
+            "V2a",
+            "V3",
+            "V4",
+            "V1b"
+          ],
+          "deletedVersionIds": [
+            "V1",
+            "V2a",
+            "V2b",
+            "V3",
+            "V4"
+          ],
+          "revision": 3,
+          "syncState": "pending",
+          "versions": [
+            "V1b"
+          ],
+          "rounds": [
+            "R1"
+          ],
+          "reclaimedAssets": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A9"
+          ],
+          "numbers": {
+            "V1b": 5
+          }
+        }
+      },
+      {
+        "caseId": "delete_root_deletes_work",
+        "seed": "main",
+        "ops": [
+          "deleteVersion:V1"
+        ],
+        "expect": {
+          "tombstone": true,
+          "title": "",
+          "favorite": false,
+          "source": "chat",
+          "chatConversationId": "CONV-1",
+          "chatMessageId": "MSG-1",
+          "currentVersionId": null,
+          "selectedVersionIds": [],
+          "deletedVersionIds": [],
+          "deletedAt": 9000,
+          "updatedAt": 9000,
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [],
+          "rounds": [],
+          "reclaimedAssets": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A9"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_work_tombstone",
+        "seed": "main",
+        "ops": [
+          "deleteWork"
+        ],
+        "expect": {
+          "tombstone": true,
+          "title": "",
+          "favorite": false,
+          "source": "chat",
+          "chatConversationId": "CONV-1",
+          "chatMessageId": "MSG-1",
+          "currentVersionId": null,
+          "selectedVersionIds": [],
+          "deletedVersionIds": [],
+          "deletedAt": 9000,
+          "updatedAt": 9000,
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [],
+          "rounds": [],
+          "reclaimedAssets": [
+            "A1",
+            "A2",
+            "A3",
+            "A4",
+            "A5",
+            "A6",
+            "A9"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_pending_cover_moves_to_next_candidate",
+        "seed": "pending",
+        "ops": [
+          "deleteVersion:P1"
+        ],
+        "expect": {
+          "tombstone": false,
+          "currentVersionId": "P2",
+          "selectedVersionIds": [],
+          "deletedVersionIds": [
+            "P1"
+          ],
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [
+            "P2",
+            "P3"
+          ],
+          "rounds": [
+            "RP"
+          ],
+          "reclaimedAssets": [
+            "AP1"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_all_candidates_deletes_work",
+        "seed": "pending",
+        "ops": [
+          "deleteVersion:P3",
+          "deleteVersion:P2",
+          "deleteVersion:P1"
+        ],
+        "expect": {
+          "tombstone": true,
+          "title": "",
+          "currentVersionId": null,
+          "selectedVersionIds": [],
+          "deletedVersionIds": [],
+          "deletedAt": 9000,
+          "revision": 4,
+          "syncState": "pending",
+          "versions": [],
+          "rounds": [],
+          "reclaimedAssets": [
+            "AP1",
+            "AP2",
+            "AP3"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_failed_round",
+        "seed": "failed",
+        "ops": [
+          "deleteFailedRound:R7"
+        ],
+        "expect": {
+          "tombstone": false,
+          "roundDeleteResults": [
+            true
+          ],
+          "currentVersionId": "V5",
+          "selectedVersionIds": [
+            "V5"
+          ],
+          "deletedVersionIds": [],
+          "deletedRoundIds": [
+            "R7"
+          ],
+          "updatedAt": 9000,
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [
+            "V5"
+          ],
+          "rounds": [
+            "R6",
+            "R8"
+          ],
+          "reclaimedAssets": [
+            "A8"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_failed_round_refuses_candidates_live_and_foreign",
+        "seed": "failed",
+        "ops": [
+          "deleteFailedRound:R6",
+          "deleteFailedRound:R8",
+          "deleteFailedRound:R1"
+        ],
+        "expect": {
+          "tombstone": false,
+          "roundDeleteResults": [
+            false,
+            false,
+            false
+          ],
+          "deletedRoundIds": [],
+          "updatedAt": 5000,
+          "revision": 1,
+          "syncState": "synced",
+          "versions": [
+            "V5"
+          ],
+          "rounds": [
+            "R6",
+            "R7",
+            "R8"
+          ],
+          "reclaimedAssets": []
+        }
+      },
+      {
+        "caseId": "delete_failed_round_twice_writes_once",
+        "seed": "failed",
+        "ops": [
+          "deleteFailedRound:R7",
+          "deleteFailedRound:R7"
+        ],
+        "expect": {
+          "tombstone": false,
+          "roundDeleteResults": [
+            true,
+            false
+          ],
+          "deletedRoundIds": [
+            "R7"
+          ],
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [
+            "V5"
+          ],
+          "rounds": [
+            "R6",
+            "R8"
+          ],
+          "reclaimedAssets": [
+            "A8"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_only_failed_round_deletes_work",
+        "seed": "failedOnly",
+        "ops": [
+          "deleteFailedRound:R9"
+        ],
+        "expect": {
+          "tombstone": true,
+          "roundDeleteResults": [
+            true
+          ],
+          "title": "",
+          "currentVersionId": null,
+          "selectedVersionIds": [],
+          "deletedVersionIds": [],
+          "deletedRoundIds": [],
+          "deletedAt": 9000,
+          "revision": 2,
+          "syncState": "pending",
+          "versions": [],
+          "rounds": [],
+          "reclaimedAssets": [
+            "A8"
+          ]
+        }
+      },
+      {
+        "caseId": "delete_work_clears_deleted_round_ids",
+        "seed": "failed",
+        "ops": [
+          "deleteFailedRound:R7",
+          "deleteWork"
+        ],
+        "expect": {
+          "tombstone": true,
+          "roundDeleteResults": [
+            true
+          ],
+          "deletedRoundIds": [],
+          "revision": 3,
+          "syncState": "pending",
+          "versions": [],
+          "rounds": [],
+          "reclaimedAssets": [
+            "A7",
+            "A8"
+          ]
+        }
+      }
+    ],
+    "listCases": [
+      {
+        "caseId": "list_partition_a",
+        "seed": "list",
+        "op": "list:uid-a",
+        "expect": [
+          "W2",
+          "W5",
+          "W"
+        ]
+      },
+      {
+        "caseId": "list_partition_b",
+        "seed": "list",
+        "op": "list:uid-b",
+        "expect": [
+          "W4"
+        ]
+      },
+      {
+        "caseId": "list_unknown_partition_empty",
+        "seed": "list",
+        "op": "list:uid-c",
+        "expect": []
+      },
+      {
+        "caseId": "detail_other_partition_null",
+        "seed": "list",
+        "op": "get:uid-b:W",
+        "expect": null
+      },
+      {
+        "caseId": "detail_tombstone_null",
+        "seed": "list",
+        "op": "get:uid-a:W3",
+        "expect": null
+      },
+      {
+        "caseId": "detail_same_partition",
+        "seed": "list",
+        "op": "get:uid-a:W",
+        "expect": "W"
+      }
+    ]
+  },
+  "roundCommit": {
+    "$comment": "round commit. Same seeds, aliases and now = 9000 as repository; begin / complete / insertRound / deleteWork ops apply in order. byokTerminal / managedTerminal map the result types (StudioByokResult / StudioGenerateResult, ManagedImageJob) to the terminal record that complete takes. versionsOf lists the new version rows of a round in candidate order (their ids are random upper-case UUIDs, so only parent / asset / kept / createdAt are compared). Reference: scripts/lib/studio-round-reference.mjs.",
+    "rules": [
+      "begin writes one round row with status queued or running (any other status is a caller error and throws), index = 1 + the highest index among the work's round rows (1 when it has none), startedAt = now, finishedAt null, nDelivered 0, errorKind null, adjustments [], plus its refs; the work row is not touched. A missing, tombstoned or other-partition work, or a baseVersionId that is not a version row of the work, writes nothing and returns false; an existing round id of a visible work writes nothing and returns true (visibility is checked first, so a round of another partition is never reported).",
+      "complete takes a status in roundStatusSynced (any other status throws). A missing round or a work that is no longer visible writes nothing and returns false; a round that already has a synced status writes nothing and returns true (rounds are immutable once finished).",
+      "complete writes, in one transaction: status, errorKind, nRequested / composedPrompt / fundingSource / managedJobId when the terminal value is not null (null keeps the stored value), adjustments (first adjustmentsMax, 20, also when the caller built the terminal itself), chargedUsd, nDelivered = number of images, finishedAt = now; one version row per image in order with a new upper-case id, parentVersionId = the round baseVersionId, kept false, createdAt = now + position (ms); then the finishRound rule (one candidate is kept and becomes the cover; several set the cover to the first candidate only when the work has no cover).",
+      "assetId is the image store key: it is stored and compared exactly as given and never re-cased (Android / Web store keys are case-sensitive and their writers emit lower-case UUIDs). Work, round and version ids stay upper-case canonical.",
+      "Terminal mapping (both sources): expired, and a BYOK cancelled, keep their status and drop every image; a managed cancelled keeps status cancelled with errorKind null and keeps its images capped to nRequested in order (the server settles and charges a job cancelled while running for the images it already delivered; fetchErrorKind is ignored); otherwise images are capped to nRequested, and status = failed when that count is 0 (checked first, so nRequested 0 never yields an empty completed round), completed when it equals nRequested, partial otherwise. errorKind: completed / cancelled / expired -> null; partial -> fetchErrorKind ?? source errorKind ?? \"partial\"; failed -> fetchErrorKind ?? source errorKind ?? \"upstream_error\". adjustments keep the first adjustmentsMax (20) entries.",
+      "BYOK: nRequested = result.nRequested, composedPrompt = result.composedPrompt, adjustments = result.adjustments.prompt then .params, images = result.images (id -> assetId), chargedUsd / fundingSource / managedJobId null (begin already stored fundingSource byok).",
+      "Managed: nRequested = job.nRequested, composedPrompt null, adjustments = the created event adjustments, images = the outputs the caller fetched and saved, fetchErrorKind = the first fetch failure kind (null when none failed), chargedUsd = max(0, chargedMicroUsd - refund.microUsd) / 1000000, fundingSource = job.fundingSource, managedJobId = job.jobId. A job that is still queued or running is a caller error and throws (a round is immutable once finished, so a wrong failed would stick).",
+      "After complete commits, the recorder calls ensureThumbnail for every new version asset; a thumbnail failure does not undo or fail the round (the wall falls back to the original)."
+    ],
+    "ids": {
+      "RN": "A00000A1-0000-4000-8000-0000000000A1",
+      "an1": "d00000a1-0000-4000-8000-0000000000a1",
+      "an2": "d00000a2-0000-4000-8000-0000000000a2",
+      "VX": "C00000A9-0000-4000-8000-0000000000A9"
+    },
+    "repoCases": [
+      {
+        "caseId": "begin_next_index",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 2,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": [
+              {
+                "order": 0,
+                "assetId": "A5",
+                "role": "base"
+              }
+            ]
+          }
+        ],
+        "expect": {
+          "results": [
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "index": 6,
+              "status": "running",
+              "nDelivered": 0,
+              "errorKind": null,
+              "startedAt": 9000,
+              "finishedAt": null
+            }
+          },
+          "refsOf": {
+            "RN": [
+              {
+                "order": 0,
+                "assetId": "A5",
+                "role": "base"
+              }
+            ]
+          },
+          "versionsOf": {
+            "RN": []
+          },
+          "work": {
+            "workId": "W",
+            "revision": 1,
+            "syncState": "synced",
+            "updatedAt": 5000
+          }
+        }
+      },
+      {
+        "caseId": "begin_first_round_index_1",
+        "seed": "list",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "generate",
+              "status": "queued",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": null
+            },
+            "refs": []
+          }
+        ],
+        "expect": {
+          "results": [
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "index": 1,
+              "status": "queued",
+              "nDelivered": 0,
+              "startedAt": 9000,
+              "finishedAt": null
+            }
+          },
+          "work": {
+            "workId": "W",
+            "revision": 1,
+            "syncState": "synced"
+          }
+        }
+      },
+      {
+        "caseId": "begin_tombstone_writes_nothing",
+        "seed": "list",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W3",
+              "baseVersionId": null
+            },
+            "refs": []
+          }
+        ],
+        "expect": {
+          "results": [
+            false
+          ],
+          "rounds": {
+            "RN": null
+          }
+        }
+      },
+      {
+        "caseId": "begin_other_partition_writes_nothing",
+        "seed": "list",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W4",
+              "baseVersionId": null
+            },
+            "refs": []
+          }
+        ],
+        "expect": {
+          "results": [
+            false
+          ],
+          "rounds": {
+            "RN": null
+          }
+        }
+      },
+      {
+        "caseId": "begin_missing_base_writes_nothing",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "VX"
+            },
+            "refs": []
+          }
+        ],
+        "expect": {
+          "results": [
+            false
+          ],
+          "rounds": {
+            "RN": null
+          }
+        }
+      },
+      {
+        "caseId": "begin_existing_round_idempotent",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "R5",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          }
+        ],
+        "expect": {
+          "results": [
+            true
+          ],
+          "rounds": {
+            "R5": {
+              "index": 5,
+              "status": "failed"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "begin_terminal_status_throws",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "completed",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          }
+        ],
+        "expect": {
+          "results": [
+            "throws"
+          ],
+          "rounds": {
+            "RN": null
+          }
+        }
+      },
+      {
+        "caseId": "complete_single_image_keeps_and_covers",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": 1,
+              "composedPrompt": "composed",
+              "adjustments": [
+                {
+                  "field": "size",
+                  "from": "1x1",
+                  "to": "1x2"
+                }
+              ],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [
+                {
+                  "assetId": "an1",
+                  "mime": "image/png",
+                  "width": 1024,
+                  "height": 1024
+                }
+              ],
+              "status": "completed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "status": "completed",
+              "errorKind": null,
+              "nRequested": 1,
+              "nDelivered": 1,
+              "composedPrompt": "composed",
+              "adjustments": [
+                {
+                  "field": "size",
+                  "from": "1x1",
+                  "to": "1x2"
+                }
+              ],
+              "finishedAt": 9000
+            }
+          },
+          "versionsOf": {
+            "RN": [
+              {
+                "assetId": "an1",
+                "parentVersionId": "V4",
+                "kept": true,
+                "createdAt": 9000,
+                "width": 1024,
+                "height": 1024,
+                "mime": "image/png"
+              }
+            ]
+          },
+          "work": {
+            "workId": "W",
+            "coverAsset": "an1",
+            "selectedCount": 5,
+            "revision": 2,
+            "syncState": "pending",
+            "updatedAt": 9000
+          }
+        }
+      },
+      {
+        "caseId": "complete_cancelled_with_image_writes_version",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "balance",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": 1,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": 0.05,
+              "fundingSource": "balance",
+              "managedJobId": "mij_01JBTEST",
+              "images": [
+                {
+                  "assetId": "an1",
+                  "mime": "image/png",
+                  "width": 1024,
+                  "height": 1024
+                }
+              ],
+              "status": "cancelled"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "status": "cancelled",
+              "errorKind": null,
+              "nRequested": 1,
+              "nDelivered": 1,
+              "composedPrompt": "",
+              "adjustments": [],
+              "finishedAt": 9000
+            }
+          },
+          "versionsOf": {
+            "RN": [
+              {
+                "assetId": "an1",
+                "parentVersionId": "V4",
+                "kept": true,
+                "createdAt": 9000,
+                "width": 1024,
+                "height": 1024,
+                "mime": "image/png"
+              }
+            ]
+          },
+          "work": {
+            "workId": "W",
+            "coverAsset": "an1",
+            "selectedCount": 5,
+            "revision": 2,
+            "syncState": "pending",
+            "updatedAt": 9000
+          }
+        }
+      },
+      {
+        "caseId": "complete_two_images_wait_for_pick",
+        "seed": "list",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "generate",
+              "status": "running",
+              "nRequested": 2,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": null
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [
+                {
+                  "assetId": "an1",
+                  "mime": "image/png",
+                  "width": 1024,
+                  "height": 1024
+                },
+                {
+                  "assetId": "an2",
+                  "mime": "image/png",
+                  "width": 768,
+                  "height": 1024
+                }
+              ],
+              "status": "completed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "status": "completed",
+              "nRequested": 2,
+              "nDelivered": 2,
+              "composedPrompt": "",
+              "finishedAt": 9000
+            }
+          },
+          "versionsOf": {
+            "RN": [
+              {
+                "assetId": "an1",
+                "parentVersionId": null,
+                "kept": false,
+                "createdAt": 9000
+              },
+              {
+                "assetId": "an2",
+                "parentVersionId": null,
+                "kept": false,
+                "createdAt": 9001,
+                "width": 768,
+                "height": 1024
+              }
+            ]
+          },
+          "work": {
+            "workId": "W",
+            "coverAsset": "an1",
+            "selectedCount": 0,
+            "revision": 2,
+            "syncState": "pending"
+          }
+        }
+      },
+      {
+        "caseId": "complete_failed_changes_no_work",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": "rate_limited",
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [],
+              "status": "failed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "status": "failed",
+              "errorKind": "rate_limited",
+              "nDelivered": 0,
+              "finishedAt": 9000
+            }
+          },
+          "versionsOf": {
+            "RN": []
+          },
+          "work": {
+            "workId": "W",
+            "revision": 1,
+            "syncState": "synced",
+            "updatedAt": 5000
+          }
+        }
+      },
+      {
+        "caseId": "complete_keeps_stored_values_on_null",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 3,
+              "fundingSource": "balance",
+              "composedPrompt": "from begin",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [],
+              "status": "cancelled"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "status": "cancelled",
+              "nRequested": 3,
+              "nDelivered": 0,
+              "composedPrompt": "from begin",
+              "fundingSource": "balance",
+              "chargedUsd": null,
+              "finishedAt": 9000
+            }
+          }
+        }
+      },
+      {
+        "caseId": "complete_finished_round_is_immutable",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "complete",
+            "roundId": "R5",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [
+                {
+                  "assetId": "an1",
+                  "mime": "image/png",
+                  "width": 1024,
+                  "height": 1024
+                }
+              ],
+              "status": "completed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true
+          ],
+          "rounds": {
+            "R5": {
+              "status": "failed"
+            }
+          },
+          "versionsOf": {
+            "R5": []
+          },
+          "work": {
+            "workId": "W",
+            "revision": 1
+          }
+        }
+      },
+      {
+        "caseId": "complete_twice_second_noop",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [
+                {
+                  "assetId": "an1",
+                  "mime": "image/png",
+                  "width": 1024,
+                  "height": 1024
+                }
+              ],
+              "status": "completed"
+            }
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": "network",
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [],
+              "status": "failed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            true,
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "status": "completed",
+              "nDelivered": 1
+            }
+          },
+          "work": {
+            "workId": "W",
+            "revision": 2
+          }
+        }
+      },
+      {
+        "caseId": "complete_missing_round_false",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [
+                {
+                  "assetId": "an1",
+                  "mime": "image/png",
+                  "width": 1024,
+                  "height": 1024
+                }
+              ],
+              "status": "completed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            false
+          ],
+          "rounds": {
+            "RN": null
+          }
+        }
+      },
+      {
+        "caseId": "complete_after_work_deleted_false",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          },
+          {
+            "op": "deleteWork",
+            "workId": "W"
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [
+                {
+                  "assetId": "an1",
+                  "mime": "image/png",
+                  "width": 1024,
+                  "height": 1024
+                }
+              ],
+              "status": "completed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            true,
+            false
+          ],
+          "rounds": {
+            "RN": null
+          }
+        }
+      },
+      {
+        "caseId": "complete_nonterminal_status_throws",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": "",
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4"
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": null,
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [],
+              "status": "running"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            "throws"
+          ],
+          "rounds": {
+            "RN": {
+              "status": "running",
+              "finishedAt": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "insertRound_keeps_asset_case",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "insertRound",
+            "round": {
+              "id": "RN",
+              "workId": "W",
+              "index": 6,
+              "baseVersionId": "V4",
+              "operation": "edit",
+              "status": "completed"
+            },
+            "versions": [
+              {
+                "id": "VX",
+                "parentVersionId": "V4",
+                "assetId": "an1",
+                "kept": false,
+                "createdAt": 9000
+              }
+            ],
+            "refs": [
+              {
+                "order": 0,
+                "assetId": "an2",
+                "role": "base"
+              }
+            ]
+          }
+        ],
+        "expect": {
+          "results": [
+            true
+          ],
+          "versionsOf": {
+            "RN": [
+              {
+                "assetId": "an1",
+                "parentVersionId": "V4",
+                "kept": false,
+                "createdAt": 9000
+              }
+            ]
+          },
+          "refsOf": {
+            "RN": [
+              {
+                "order": 0,
+                "assetId": "an2",
+                "role": "base"
+              }
+            ]
+          }
+        }
+      },
+      {
+        "caseId": "begin_existing_round_other_partition",
+        "seed": "foreignRound",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "id": "R1",
+              "workId": "W4",
+              "baseVersionId": null,
+              "operation": "generate",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": ""
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "R1",
+            "terminal": {
+              "errorKind": "network",
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [],
+              "status": "failed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            false,
+            false
+          ],
+          "rounds": {
+            "R1": {
+              "status": "running",
+              "finishedAt": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "complete_caps_adjustments_20",
+        "seed": "main",
+        "ops": [
+          {
+            "op": "begin",
+            "round": {
+              "id": "RN",
+              "workId": "W",
+              "baseVersionId": "V4",
+              "operation": "edit",
+              "status": "running",
+              "nRequested": 1,
+              "fundingSource": "byok",
+              "composedPrompt": ""
+            },
+            "refs": []
+          },
+          {
+            "op": "complete",
+            "roundId": "RN",
+            "terminal": {
+              "errorKind": "network",
+              "nRequested": null,
+              "composedPrompt": null,
+              "adjustments": [
+                {
+                  "field": "effect",
+                  "dropped": "e1"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e2"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e3"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e4"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e5"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e6"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e7"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e8"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e9"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e10"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e11"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e12"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e13"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e14"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e15"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e16"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e17"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e18"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e19"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e20"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e21"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e22"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e23"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e24"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e25"
+                }
+              ],
+              "chargedUsd": null,
+              "fundingSource": null,
+              "managedJobId": null,
+              "images": [],
+              "status": "failed"
+            }
+          }
+        ],
+        "expect": {
+          "results": [
+            true,
+            true
+          ],
+          "rounds": {
+            "RN": {
+              "status": "failed",
+              "adjustments": [
+                {
+                  "field": "effect",
+                  "dropped": "e1"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e2"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e3"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e4"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e5"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e6"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e7"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e8"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e9"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e10"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e11"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e12"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e13"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e14"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e15"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e16"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e17"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e18"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e19"
+                },
+                {
+                  "field": "effect",
+                  "dropped": "e20"
+                }
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "byokTerminal": [
+      {
+        "caseId": "byok_completed",
+        "input": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 2,
+          "delivered": 2,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [
+              {
+                "field": "effect",
+                "dropped": "backlight"
+              }
+            ],
+            "params": [
+              {
+                "field": "size",
+                "from": "3840x3840",
+                "to": "2880x2880"
+              }
+            ]
+          },
+          "images": [
+            {
+              "id": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            },
+            {
+              "id": "an2",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        },
+        "expect": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 2,
+          "composedPrompt": "c",
+          "adjustments": [
+            {
+              "field": "effect",
+              "dropped": "backlight"
+            },
+            {
+              "field": "size",
+              "from": "3840x3840",
+              "to": "2880x2880"
+            }
+          ],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            },
+            {
+              "assetId": "an2",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        }
+      },
+      {
+        "caseId": "byok_partial_kind",
+        "input": {
+          "status": "partial",
+          "errorKind": "timeout",
+          "nRequested": 2,
+          "delivered": 1,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [],
+            "params": []
+          },
+          "images": [
+            {
+              "id": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        },
+        "expect": {
+          "status": "partial",
+          "errorKind": "timeout",
+          "nRequested": 2,
+          "composedPrompt": "c",
+          "adjustments": [],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        }
+      },
+      {
+        "caseId": "byok_short_without_kind_is_partial",
+        "input": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 2,
+          "delivered": 2,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [],
+            "params": []
+          },
+          "images": [
+            {
+              "id": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        },
+        "expect": {
+          "status": "partial",
+          "errorKind": "partial",
+          "nRequested": 2,
+          "composedPrompt": "c",
+          "adjustments": [],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        }
+      },
+      {
+        "caseId": "byok_failed_kind",
+        "input": {
+          "status": "failed",
+          "errorKind": "auth",
+          "nRequested": 1,
+          "delivered": 0,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [],
+            "params": []
+          },
+          "images": []
+        },
+        "expect": {
+          "status": "failed",
+          "errorKind": "auth",
+          "nRequested": 1,
+          "composedPrompt": "c",
+          "adjustments": [],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": []
+        }
+      },
+      {
+        "caseId": "byok_failed_without_kind",
+        "input": {
+          "status": "failed",
+          "errorKind": null,
+          "nRequested": 1,
+          "delivered": 0,
+          "composedPrompt": null,
+          "adjustments": {
+            "prompt": [],
+            "params": []
+          },
+          "images": []
+        },
+        "expect": {
+          "status": "failed",
+          "errorKind": "upstream_error",
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": []
+        }
+      },
+      {
+        "caseId": "byok_completed_without_images_is_failed",
+        "input": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 1,
+          "delivered": 1,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [],
+            "params": []
+          },
+          "images": []
+        },
+        "expect": {
+          "status": "failed",
+          "errorKind": "upstream_error",
+          "nRequested": 1,
+          "composedPrompt": "c",
+          "adjustments": [],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": []
+        }
+      },
+      {
+        "caseId": "byok_cancelled_drops_images",
+        "input": {
+          "status": "cancelled",
+          "errorKind": null,
+          "nRequested": 2,
+          "delivered": 1,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [],
+            "params": []
+          },
+          "images": [
+            {
+              "id": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        },
+        "expect": {
+          "status": "cancelled",
+          "errorKind": null,
+          "nRequested": 2,
+          "composedPrompt": "c",
+          "adjustments": [],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": []
+        }
+      },
+      {
+        "caseId": "byok_over_delivery_capped",
+        "input": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 1,
+          "delivered": 1,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [],
+            "params": []
+          },
+          "images": [
+            {
+              "id": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            },
+            {
+              "id": "an2",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        },
+        "expect": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 1,
+          "composedPrompt": "c",
+          "adjustments": [],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        }
+      },
+      {
+        "caseId": "byok_adjustments_capped_20",
+        "input": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 1,
+          "delivered": 1,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [
+              {
+                "field": "effect",
+                "dropped": "e1"
+              },
+              {
+                "field": "effect",
+                "dropped": "e2"
+              },
+              {
+                "field": "effect",
+                "dropped": "e3"
+              },
+              {
+                "field": "effect",
+                "dropped": "e4"
+              },
+              {
+                "field": "effect",
+                "dropped": "e5"
+              },
+              {
+                "field": "effect",
+                "dropped": "e6"
+              },
+              {
+                "field": "effect",
+                "dropped": "e7"
+              },
+              {
+                "field": "effect",
+                "dropped": "e8"
+              },
+              {
+                "field": "effect",
+                "dropped": "e9"
+              },
+              {
+                "field": "effect",
+                "dropped": "e10"
+              },
+              {
+                "field": "effect",
+                "dropped": "e11"
+              },
+              {
+                "field": "effect",
+                "dropped": "e12"
+              },
+              {
+                "field": "effect",
+                "dropped": "e13"
+              },
+              {
+                "field": "effect",
+                "dropped": "e14"
+              },
+              {
+                "field": "effect",
+                "dropped": "e15"
+              }
+            ],
+            "params": [
+              {
+                "field": "size",
+                "from": "1x1",
+                "to": "1x2"
+              },
+              {
+                "field": "size",
+                "from": "2x1",
+                "to": "2x2"
+              },
+              {
+                "field": "size",
+                "from": "3x1",
+                "to": "3x2"
+              },
+              {
+                "field": "size",
+                "from": "4x1",
+                "to": "4x2"
+              },
+              {
+                "field": "size",
+                "from": "5x1",
+                "to": "5x2"
+              },
+              {
+                "field": "size",
+                "from": "6x1",
+                "to": "6x2"
+              },
+              {
+                "field": "size",
+                "from": "7x1",
+                "to": "7x2"
+              },
+              {
+                "field": "size",
+                "from": "8x1",
+                "to": "8x2"
+              },
+              {
+                "field": "size",
+                "from": "9x1",
+                "to": "9x2"
+              },
+              {
+                "field": "size",
+                "from": "10x1",
+                "to": "10x2"
+              }
+            ]
+          },
+          "images": [
+            {
+              "id": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        },
+        "expect": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 1,
+          "composedPrompt": "c",
+          "adjustments": [
+            {
+              "field": "effect",
+              "dropped": "e1"
+            },
+            {
+              "field": "effect",
+              "dropped": "e2"
+            },
+            {
+              "field": "effect",
+              "dropped": "e3"
+            },
+            {
+              "field": "effect",
+              "dropped": "e4"
+            },
+            {
+              "field": "effect",
+              "dropped": "e5"
+            },
+            {
+              "field": "effect",
+              "dropped": "e6"
+            },
+            {
+              "field": "effect",
+              "dropped": "e7"
+            },
+            {
+              "field": "effect",
+              "dropped": "e8"
+            },
+            {
+              "field": "effect",
+              "dropped": "e9"
+            },
+            {
+              "field": "effect",
+              "dropped": "e10"
+            },
+            {
+              "field": "effect",
+              "dropped": "e11"
+            },
+            {
+              "field": "effect",
+              "dropped": "e12"
+            },
+            {
+              "field": "effect",
+              "dropped": "e13"
+            },
+            {
+              "field": "effect",
+              "dropped": "e14"
+            },
+            {
+              "field": "effect",
+              "dropped": "e15"
+            },
+            {
+              "field": "size",
+              "from": "1x1",
+              "to": "1x2"
+            },
+            {
+              "field": "size",
+              "from": "2x1",
+              "to": "2x2"
+            },
+            {
+              "field": "size",
+              "from": "3x1",
+              "to": "3x2"
+            },
+            {
+              "field": "size",
+              "from": "4x1",
+              "to": "4x2"
+            },
+            {
+              "field": "size",
+              "from": "5x1",
+              "to": "5x2"
+            }
+          ],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ]
+        }
+      },
+      {
+        "caseId": "byok_zero_requested_is_failed",
+        "input": {
+          "status": "completed",
+          "errorKind": null,
+          "nRequested": 0,
+          "delivered": 0,
+          "composedPrompt": "c",
+          "adjustments": {
+            "prompt": [],
+            "params": []
+          },
+          "images": []
+        },
+        "expect": {
+          "status": "failed",
+          "errorKind": "upstream_error",
+          "nRequested": 0,
+          "composedPrompt": "c",
+          "adjustments": [],
+          "chargedUsd": null,
+          "fundingSource": null,
+          "managedJobId": null,
+          "images": []
+        }
+      }
+    ],
+    "managedTerminal": [
+      {
+        "caseId": "managed_completed",
+        "input": {
+          "adjustments": [
+            {
+              "field": "resolution",
+              "from": "4K",
+              "to": "2K"
+            }
+          ],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "completed",
+            "nRequested": 1,
+            "nDelivered": 1,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 50000,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [
+            {
+              "field": "resolution",
+              "from": "4K",
+              "to": "2K"
+            }
+          ],
+          "chargedUsd": 0.05,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "completed"
+        }
+      },
+      {
+        "caseId": "managed_fetch_failed_one",
+        "input": {
+          "adjustments": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": "storage_full",
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "completed",
+            "nRequested": 2,
+            "nDelivered": 2,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 100000,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": "storage_full",
+          "nRequested": 2,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.1,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "partial"
+        }
+      },
+      {
+        "caseId": "managed_fetch_failed_all",
+        "input": {
+          "adjustments": [],
+          "saved": [],
+          "fetchErrorKind": "network",
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "completed",
+            "nRequested": 1,
+            "nDelivered": 1,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 50000,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": "network",
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.05,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [],
+          "status": "failed"
+        }
+      },
+      {
+        "caseId": "managed_server_partial",
+        "input": {
+          "adjustments": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            },
+            {
+              "assetId": "an2",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "completed",
+            "nRequested": 4,
+            "nDelivered": 3,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 150000,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": "partial",
+          "nRequested": 4,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.15,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            },
+            {
+              "assetId": "an2",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "partial"
+        }
+      },
+      {
+        "caseId": "managed_failed_kind",
+        "input": {
+          "adjustments": [],
+          "saved": [],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "failed",
+            "nRequested": 1,
+            "nDelivered": 0,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 0,
+            "refund": null,
+            "errorKind": "refused"
+          }
+        },
+        "expect": {
+          "errorKind": "refused",
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [],
+          "status": "failed"
+        }
+      },
+      {
+        "caseId": "managed_failed_without_kind",
+        "input": {
+          "adjustments": [],
+          "saved": [],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "failed",
+            "nRequested": 1,
+            "nDelivered": 0,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 0,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": "upstream_error",
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [],
+          "status": "failed"
+        }
+      },
+      {
+        "caseId": "managed_failed_with_outputs",
+        "input": {
+          "adjustments": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "failed",
+            "nRequested": 2,
+            "nDelivered": 1,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 50000,
+            "refund": null,
+            "errorKind": "upstream_error"
+          }
+        },
+        "expect": {
+          "errorKind": "upstream_error",
+          "nRequested": 2,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.05,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "partial"
+        }
+      },
+      {
+        "caseId": "managed_expired_refunded",
+        "input": {
+          "adjustments": [],
+          "saved": [],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "expired",
+            "nRequested": 1,
+            "nDelivered": 1,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 50000,
+            "refund": {
+              "microUsd": 50000,
+              "quotaRefunded": false
+            },
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [],
+          "status": "expired"
+        }
+      },
+      {
+        "caseId": "managed_partial_refund",
+        "input": {
+          "adjustments": [],
+          "saved": [],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "expired",
+            "nRequested": 2,
+            "nDelivered": 2,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 100000,
+            "refund": {
+              "microUsd": 25000,
+              "quotaRefunded": false
+            },
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 2,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.075,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [],
+          "status": "expired"
+        }
+      },
+      {
+        "caseId": "managed_cancelled_nothing_delivered",
+        "input": {
+          "adjustments": [],
+          "saved": [],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "cancelled",
+            "nRequested": 1,
+            "nDelivered": 0,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 0,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [],
+          "status": "cancelled"
+        }
+      },
+      {
+        "caseId": "managed_cancelled_keeps_delivered",
+        "input": {
+          "adjustments": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "cancelled",
+            "nRequested": 2,
+            "nDelivered": 1,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 50000,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 2,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.05,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "cancelled"
+        }
+      },
+      {
+        "caseId": "managed_cancelled_fetch_failure_stays_cancelled",
+        "input": {
+          "adjustments": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": "storage_full",
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "cancelled",
+            "nRequested": 2,
+            "nDelivered": 2,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 100000,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 2,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.1,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "cancelled"
+        }
+      },
+      {
+        "caseId": "managed_cancelled_capped_to_requested",
+        "input": {
+          "adjustments": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            },
+            {
+              "assetId": "an2",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "cancelled",
+            "nRequested": 1,
+            "nDelivered": 1,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 50000,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.05,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "cancelled"
+        }
+      },
+      {
+        "caseId": "managed_free_quota",
+        "input": {
+          "adjustments": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "completed",
+            "nRequested": 1,
+            "nDelivered": 1,
+            "fundingSource": "free_quota",
+            "chargedMicroUsd": 0,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0,
+          "fundingSource": "free_quota",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "completed"
+        }
+      },
+      {
+        "caseId": "managed_over_delivery_capped",
+        "input": {
+          "adjustments": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            },
+            {
+              "assetId": "an2",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "completed",
+            "nRequested": 1,
+            "nDelivered": 1,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 50000,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": {
+          "errorKind": null,
+          "nRequested": 1,
+          "composedPrompt": null,
+          "adjustments": [],
+          "chargedUsd": 0.05,
+          "fundingSource": "balance",
+          "managedJobId": "mij_01JBTEST",
+          "images": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
+          "status": "completed"
+        }
+      },
+      {
+        "caseId": "managed_queued_throws",
+        "input": {
+          "adjustments": [],
+          "saved": [],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "queued",
+            "nRequested": 1,
+            "nDelivered": 0,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 0,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": "throws"
+      },
+      {
+        "caseId": "managed_running_throws",
+        "input": {
+          "adjustments": [],
+          "saved": [],
+          "fetchErrorKind": null,
+          "job": {
+            "jobId": "mij_01JBTEST",
+            "status": "running",
+            "nRequested": 1,
+            "nDelivered": 0,
+            "fundingSource": "balance",
+            "chargedMicroUsd": 0,
+            "refund": null,
+            "errorKind": null
+          }
+        },
+        "expect": "throws"
+      }
+    ]
+  }
+}

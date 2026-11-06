@@ -59,9 +59,9 @@ import { createAppStore } from '../../store/app-store';
 import { sendMessage } from '../operations';
 import { setActiveUID } from '../../../infra/storage/partition';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
+const ROOT = resolve(__dirname, '../../../../../../..');
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
-const SHARED = resolve(ROOT, String.fromCharCode(0x5171, 0x4eab));
+const SHARED = resolve(ROOT, 'shared');
 const fixture = JSON.parse(readFileSync(resolve(SHARED, 'studio-contracts/chat_image_dispatch.v1.json'), 'utf8')) as {
   profiles: Record<string, Record<string, unknown>>;
 };

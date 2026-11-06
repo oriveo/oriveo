@@ -7,8 +7,8 @@ import { PROVIDER_TEXT_TINT_RULE, providerTextTint } from './provider-text-tint'
  * Provider text tint: reads the shared fixture provider-text-tint.v1.json and asserts every case
  * per channel |diff| <= 1, plus the rule constants.
  */
-const REPO_ROOT = resolve(__dirname, '../../../../../..');
-const JSON_PATH = resolve(REPO_ROOT, '\u5171\u4eab/test-fixtures/provider-tint/provider-text-tint.v1.json');
+const REPO_ROOT = resolve(__dirname, '../../../../..');
+const JSON_PATH = resolve(REPO_ROOT, 'shared/test-fixtures/provider-tint/provider-text-tint.v1.json');
 
 const fixture = JSON.parse(readFileSync(JSON_PATH, 'utf8')) as {
   rule: { minContrast: number; step: number; light: string[]; dark: string[] };

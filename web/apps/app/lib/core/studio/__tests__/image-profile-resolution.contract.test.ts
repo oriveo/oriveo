@@ -28,8 +28,8 @@ import {
   type StudioVisibilityContext,
 } from '../image-profile';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/model-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 
 interface ResolutionCase {
   caseId: string;

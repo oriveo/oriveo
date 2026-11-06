@@ -19,8 +19,8 @@ import { setActiveUID } from '../../../infra/storage/partition';
 import { createCanonicalUUID } from '../../../utils/id-utils';
 import { createStudioWorkRepository } from '../studio-work-repository';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const SHARED_DIR = String.fromCharCode(0x5171, 0x4eab);
+const ROOT = resolve(__dirname, '../../../../../../..');
+const SHARED_DIR = 'shared';
 
 type Ms = number;
 

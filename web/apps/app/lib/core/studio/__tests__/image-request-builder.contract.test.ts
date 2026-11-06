@@ -18,8 +18,8 @@ import {
   type ImageRequestFile,
 } from '../image-request-builder';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/model-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 const BUILDER_ROUTES = [
   'openai_images',
   'xai_images',

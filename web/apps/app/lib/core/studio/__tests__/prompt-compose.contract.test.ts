@@ -14,8 +14,8 @@ import {
   type StudioPromptComposeSpec,
 } from '../prompt-compose';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/studio-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/studio-contracts');
 
 interface ComposeCase {
   caseId: string;
