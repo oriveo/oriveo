@@ -12,13 +12,14 @@ import {
   CHAT_IMAGE_PARAMS,
   chatImageErrorCategory,
   chatImageErrorKind,
+  chatStudioBaseUrl,
   decideChatImageDispatch,
   LEGACY_PROVIDER_KINDS,
   STUDIO_ROUTES,
   type ChatImageAttachment,
   type ChatImageFailureKind,
 } from '../chat-image-dispatch';
-import type { ImageProfile } from '../image-profile';
+import type { ImageProfile, ImageRoute } from '../image-profile';
 
 const ROOT = resolve(__dirname, '../../../../../../..');
 const FIXTURE = resolve(ROOT, 'shared/studio-contracts/chat_image_dispatch.v1.json');
@@ -35,6 +36,12 @@ interface DispatchCase {
   expect: unknown;
 }
 
+interface BaseUrlCase {
+  caseId: string;
+  input: { route: ImageRoute; connectionBaseUrl: string | null };
+  expect: { baseUrl: string | null };
+}
+
 interface Fixture {
   spec: {
     chatParams: Record<string, unknown>;
@@ -44,6 +51,7 @@ interface Fixture {
   };
   profiles: Record<string, ImageProfile>;
   dispatch: DispatchCase[];
+  baseUrl: BaseUrlCase[];
 }
 
 const fixture = JSON.parse(readFileSync(FIXTURE, 'utf8')) as Fixture;
@@ -111,6 +119,16 @@ describe('dispatch', () => {
       operation: 'edit',
       images: [{ attachmentId: 'a1', slot: 1, role: 'base' }],
     });
+  });
+});
+
+describe('baseUrlMatchesFixture', () => {
+  it('covers every fixture case', () => {
+    expect(fixture.baseUrl.length).toBe(19);
+  });
+
+  it.each(fixture.baseUrl.map((c) => [c.caseId, c] as const))('%s', (_id, c) => {
+    expect(chatStudioBaseUrl(c.input.route, c.input.connectionBaseUrl)).toBe(c.expect.baseUrl);
   });
 });
 

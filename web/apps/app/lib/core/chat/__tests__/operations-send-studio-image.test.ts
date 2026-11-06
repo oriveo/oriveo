@@ -277,6 +277,25 @@ describe('chat send path for studio image generation', () => {
     expect(message.attachments).toHaveLength(1);
   });
 
+  it('dashscopeConnectionUsesNativeApiV1', async () => {
+    // A DashScope connection stores the compatible-mode address; the studio request goes to the native /api/v1 root.
+    const qwenModel = { ...imageModel, id: 'qwen-image', name: 'qwen-image' } as AIModel;
+    const qwenProvider = {
+      ...officialProvider, id: 'p-qwen', kind: 'qwen', models: [qwenModel], apiKey: 'sk-qwen',
+      baseURLText: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    } as unknown as Provider;
+    mocks.slice = {
+      profiles: { image: { dashscope_square: fixture.profiles.dashscope_square } },
+      providers: { qwen: { models: { 'qwen-image': { imageProfile: 'dashscope_square' } } } },
+    };
+    await sendImageTurn(qwenProvider, qwenModel);
+    expect(mocks.sendStream).not.toHaveBeenCalled();
+    expect(mocks.round).toHaveBeenCalledTimes(1);
+    const roundInput = mocks.round.mock.calls[0]![0] as { providerKind: string; baseURL: string };
+    expect(roundInput.providerKind).toBe('qwen');
+    expect(roundInput.baseURL).toBe('https://dashscope-intl.aliyuncs.com/api/v1');
+  });
+
   it('cancelLeavesNoAttachments', async () => {
     // Legacy cancel: the stream is aborted before any image arrives.
     mocks.slice = sliceOf('openAI', false);
