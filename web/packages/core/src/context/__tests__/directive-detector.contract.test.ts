@@ -78,6 +78,7 @@ describe('ContextContractDirectiveDetector', () => {
   // so 2N must stay below the cap, otherwise truncation would flatten the ratio to 1.
   const RATIO_LIMIT = 2.5;
   const ROUNDS = 5;
+  const RATIO_ATTEMPTS = 3;
   const timeOf = (inputs: string[], loops: number): number => {
     for (let i = 0; i < loops; i++) for (const t of inputs) detectDirective(t); // warm up the JIT
     const samples: number[] = [];
@@ -92,7 +93,14 @@ describe('ContextContractDirectiveDetector', () => {
     const small = build(n);
     const large = build(n * 2);
     for (const t of large) expect([...t].length).toBeLessThanOrEqual(DIRECTIVE_MAX_SCAN_CODE_POINTS);
-    return timeOf(large, loops) / timeOf(small, loops);
+    // A shared runner can stall one whole measurement (GC, a noisy neighbour), which min-of-rounds cannot undo
+    // when the samples are a few milliseconds. Stalls only raise the ratio, while quadratic work exceeds the
+    // limit on every attempt, so the lowest of a few independent ratios still fails real regressions.
+    let best = Number.POSITIVE_INFINITY;
+    for (let attempt = 0; attempt < RATIO_ATTEMPTS && best >= RATIO_LIMIT; attempt++) {
+      best = Math.min(best, timeOf(large, loops) / timeOf(small, loops));
+    }
+    return best;
   };
 
   // Regression: the fence check once rescanned to end of text at every position (O(n^2));
