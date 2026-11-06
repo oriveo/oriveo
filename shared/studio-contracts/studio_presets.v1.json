@@ -13,7 +13,7 @@
     "samples": {
       "request": "GET /api/studio/presets/samples/{revision}/{id}.webp (styles[].sample.url)",
       "response": "image/webp, Cache-Control: public, max-age=31536000, immutable. Only the current revision is served; any other revision or id → 404. Clients cache by sample.sha256.",
-      "source": "Served from a go:embed byte copy of preset-samples/{revision}/ in the server studiopresets data directory (test-enforced)."
+      "source": "Served from a go:embed byte copy of preset-samples/{revision}/ in 应用/oriveo-server/internal/service/studiopresets/data/ (test-enforced)."
     }
   },
   "locales": [
@@ -1630,7 +1630,7 @@
     }
   ],
   "clientCases": {
-    "$comment": "Client behaviour shared by iOS / Android / Web. Executable reference: scripts/lib/studio-image-reference.mjs decodePresets / resolvePresetLocale / localizePresets / planPresetRefresh / applyPresetResponse. decode input = the response envelope; dropped entries are reported ( telemetry). Lengths are Unicode code points; integers are JSON numbers within ±(2^53−1); locale tags trim ASCII whitespace only. snapshot = decode(localizePresets(this file, tag)): the bundled text-only snapshot, samples reduced to placeholderColor. refresh: at most every 6 h per locale, If-None-Match with the cached ETag, replace the cached body only when revision (or locale) changes; status 0 = transport failure; failures leave the cache and checkedAtMs untouched. Sample images are cached by sha256 in a separate per-end sample cache (sampleCache), not in the presets store.",
+    "$comment": "Client behaviour shared by iOS / Android / Web. Executable reference: scripts/lib/studio-image-reference.mjs decodePresets / resolvePresetLocale / localizePresets / planPresetRefresh / applyPresetResponse. decode input = the response envelope; dropped entries are reported (P6 telemetry). Lengths are Unicode code points; integers are JSON numbers within ±(2^53−1); locale tags trim ASCII whitespace only. snapshot = decode(localizePresets(this file, tag)): the bundled text-only snapshot, samples reduced to placeholderColor. refresh: at most every 6 h per locale, If-None-Match with the cached ETag, replace the cached body only when revision (or locale) changes; status 0 = transport failure; failures leave the cache and checkedAtMs untouched. Sample images are cached by sha256 in a separate per-end sample cache (sampleCache,), not in the presets store.",
     "decode": [
       {
         "caseId": "sorted_by_group_order_then_order",

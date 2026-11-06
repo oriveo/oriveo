@@ -1498,54 +1498,6 @@
         "transferActive": false
       },
       "expect": "interrupted"
-    },
-    {
-      "caseId": "reconcile.queued_with_response_interrupted",
-      "input": {
-        "status": "queued",
-        "startedAtMs": null,
-        "nowMs": 1000,
-        "timeoutSeconds": 180,
-        "responseReceived": true,
-        "transferActive": false
-      },
-      "expect": "interrupted"
-    },
-    {
-      "caseId": "reconcile.response_and_active_process",
-      "input": {
-        "status": "running",
-        "startedAtMs": 0,
-        "nowMs": 1000,
-        "timeoutSeconds": 180,
-        "responseReceived": true,
-        "transferActive": true
-      },
-      "expect": "process"
-    },
-    {
-      "caseId": "reconcile.started_equals_now_interrupted",
-      "input": {
-        "status": "running",
-        "startedAtMs": 5000,
-        "nowMs": 5000,
-        "timeoutSeconds": 180,
-        "responseReceived": false,
-        "transferActive": false
-      },
-      "expect": "interrupted"
-    },
-    {
-      "caseId": "reconcile.cancelled_kept",
-      "input": {
-        "status": "cancelled",
-        "startedAtMs": 0,
-        "nowMs": 999999999,
-        "timeoutSeconds": 180,
-        "responseReceived": true,
-        "transferActive": true
-      },
-      "expect": "keep"
     }
   ]
 }

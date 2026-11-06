@@ -481,7 +481,7 @@ describe('ToolCallLoop — token budget and usage merging', () => {
     const registry = new ToolRegistry([makeEntry('library_search', async () => ({ content: '{}' }))]);
     const runner = makeRunner([
       handle([toolCall('c1', 'library_search'), { type: 'usage', usage: { prompt_tokens: 1, completion_tokens: 2 } }]),
-      handle([text('answer'), { type: 'usage', usage: { total_tokens: 10 } }]),
+      handle([text('answer'), { type: 'usage', usage: { prompt_tokens: 3, total_tokens: 10 } }]),
     ]);
     const usageEvents: number[] = [];
     const loop = new ToolCallLoop({
@@ -495,10 +495,37 @@ describe('ToolCallLoop — token budget and usage merging', () => {
       if (event.type === 'usage') usageEvents.push(event.usage.total_tokens ?? -1);
     });
 
-    expect(result.usage?.prompt_tokens).toBe(1);
+    expect(result.usage?.prompt_tokens).toBe(4);
     expect(result.usage?.completion_tokens).toBe(2);
     expect(result.usage?.total_tokens).toBe(10);
     expect(usageEvents).toEqual([-1, 10]);
+  });
+
+  it('keeps merged input empty, never a partial sum, once a leg has unknown input', async () => {
+    const registry = new ToolRegistry([makeEntry('library_search', async () => ({ content: '{}' }))]);
+    const runner = makeRunner([
+      handle([toolCall('c1', 'library_search'), { type: 'usage', usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 } }]),
+      handle([toolCall('c2', 'library_search'), { type: 'usage', usage: { completion_tokens: 4, total_tokens: 10 } }]),
+      handle([text('answer'), { type: 'usage', usage: { prompt_tokens: 5, completion_tokens: 6, total_tokens: 11 } }]),
+    ]);
+    const unknownFlags: Array<true | undefined> = [];
+    const loop = new ToolCallLoop({
+      registry,
+      runLeg: runner.runLeg,
+      signal,
+      limits: { maxSteps: 6 },
+    });
+
+    const result = await loop.run([{ role: 'user', content: 'hi' }], (event) => {
+      if (event.type === 'usage') unknownFlags.push(event.usage.inputUnknown);
+    });
+
+    expect(unknownFlags).toEqual([undefined, true, true]);
+    expect(result.usage?.inputUnknown).toBe(true);
+    expect(result.usage?.prompt_tokens).toBeUndefined();
+    expect(result.usage?.total_tokens).toBeUndefined();
+    expect(result.usage?.completion_tokens).toBe(12);
+    expect(result.usage?.legs).toHaveLength(3);
   });
 });
 
