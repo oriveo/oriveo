@@ -162,7 +162,7 @@
   height: 16px;
   border-radius: var(--o-radius-full);
   /* Without a stroke this needs a filled block, otherwise the "?" no longer reads as tappable */
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   font-size: 10px;
   color: var(--o-text-tertiary);
   cursor: pointer;
@@ -325,14 +325,14 @@
 }
 
 .removeBtn:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   color: var(--o-text);
 }
 
 .addStarterBtn {
   border: none;
   background: transparent;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-size: var(--o-text-sm);
   cursor: pointer;
   padding: 0;
@@ -371,7 +371,7 @@
 
 .knowledgeCta {
   border: 1px solid var(--o-border-strong);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   border-radius: var(--o-radius-md);
   padding: var(--o-space-md);
   display: flex;
@@ -465,7 +465,7 @@
 .inlineActionBtn {
   border: none;
   background: transparent;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-size: var(--o-text-xs);
   cursor: pointer;
   padding: 0;
@@ -494,7 +494,7 @@
 }
 
 .addFileBtn:hover:not(:disabled) {
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   border-color: var(--o-primary);
   background: var(--o-primary-subtle);
 }

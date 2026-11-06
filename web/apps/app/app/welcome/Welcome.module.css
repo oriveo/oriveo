@@ -267,7 +267,7 @@
 
 .guestLink:hover {
   color: var(--o-text);
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
 }
 
 .guestLink:focus-visible {

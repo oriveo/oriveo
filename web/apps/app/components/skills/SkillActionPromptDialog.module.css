@@ -18,10 +18,10 @@
   width: 44px;
   height: 44px;
   border-radius: var(--o-radius-lg);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--o-primary) 24%, transparent), transparent),
-    var(--o-surface-raised);
+    var(--o-fill-muted);
   box-shadow: var(--o-elevation-control);
 }
 
