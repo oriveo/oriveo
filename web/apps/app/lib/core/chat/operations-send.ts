@@ -119,6 +119,8 @@ import {
 } from './error-reporting';
 import { recalculateConversationCostTotals } from './usage-tracking';
 import { addMessageCost } from '../cost/cost-currency';
+import { recordOfficialInputRejection } from '../capability/input-rejection-flow';
+import { attachOfficialInputRejection, officialInputRejectionOf } from '../capability/rejection-recovery';
 import { unbilledSkillRetrievalUsage, type PromptInjectionContext } from './prompt-injection';
 import {
   afterFinishedLegs, runStreamPipeline, type FinishedLegsShown, type StreamPipelineResult,
@@ -944,6 +946,7 @@ export function sendMessage(
         && (err as { additionalBodyRetryEligible?: unknown }).additionalBodyRetryEligible === true);
       // A 400 before the stream starts that names one panel parameter exactly: the error card says which one and the user decides whether to resend without it.
       const generationParameterRejection = generationParameterRejectionOf(err);
+      const inputRejection = officialInputRejectionOf(err);
       const relayImageUnsupported = Boolean(err && typeof err === 'object'
         && (err as { relayImageUnsupported?: unknown }).relayImageUnsupported === true);
       const relayFileUnsupported = !relayImageUnsupported && Boolean(err && typeof err === 'object'
@@ -983,6 +986,7 @@ export function sendMessage(
         errorTitle: !additionalBodyRetry && pe.source === 'provider' ? PROVIDER_REQUEST_FAILED_TITLE : te(errorTitleKey),
         ...(additionalBodyRetry ? { additionalBodyRetryEligible: true } : {}),
         ...(generationParameterRejection ? { generationParameterRejection } : {}),
+        ...(inputRejection ? { inputRejection } : {}),
         ...(relayImageUnsupported ? { relayImageUnsupported: true } : {}),
         ...(relayFileUnsupported ? { relayFileUnsupported: true } : {}),
         errorDetail: additionalBodyFailure ? additionalBodyFailure.errorDetail : customFragmentFailure
@@ -2006,6 +2010,13 @@ export async function runChatOutbound<L extends { entries: LibraryEntry[] }>(
     try {
       return await runPipeline();
     } catch (error) {
+      // The upstream of an official connection rejects media / parameters by signature: record a v2 negative cache (a parameter is recorded as `param:<name>` and omitted next time), no retry;
+      // the error still lands on the failure card as usual (Relay uses its own loop).
+      if (provider.kind !== 'relay' && !req.isAbortRequested()) {
+        attachOfficialInputRejection(error, recordOfficialInputRejection({
+          provider, model, streamOptions: attachmentScopeOptions, messages: attempt.transport.messages, error,
+        }));
+      }
       const rejectionContext = error && typeof error === 'object'
         ? (error as { toolCallRejectionContext?: unknown }).toolCallRejectionContext
         : undefined;
