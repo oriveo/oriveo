@@ -93,8 +93,7 @@ final class FolderManager {
         }
 
         let partitionUID = appState.sessionPartitionUID
-        guard appState.prefersAuthoritativeConversationStore,
-              DatabaseManager.shared.hasDatabase(for: partitionUID) else {
+        guard usesAuthoritativeProjection(for: partitionUID) else {
             return conversations(in: folderID).filter { conversation in
                 conversation.title.localizedCaseInsensitiveContains(normalizedQuery) ||
                 conversation.messages.contains { $0.text.localizedCaseInsensitiveContains(normalizedQuery) }
@@ -322,8 +321,7 @@ final class FolderManager {
     }
 
     private func usesAuthoritativeProjection(for partitionUID: String) -> Bool {
-        appState.prefersAuthoritativeConversationStore &&
-        DatabaseManager.shared.hasDatabase(for: partitionUID)
+        appState.canReadAuthoritativeConversationStore(uid: partitionUID)
     }
 
     private func invalidateMergedProjectionCache() {
@@ -339,8 +337,7 @@ final class FolderManager {
 
     private func authoritativeConversationIDs(in folderID: UUID) -> [UUID] {
         let partitionUID = appState.sessionPartitionUID
-        guard appState.prefersAuthoritativeConversationStore,
-              DatabaseManager.shared.hasDatabase(for: partitionUID) else {
+        guard usesAuthoritativeProjection(for: partitionUID) else {
             return []
         }
         return (try? appState.conversationRuntimeBridge.fetchConversationIDs(in: folderID, uid: partitionUID)) ?? []
@@ -349,8 +346,7 @@ final class FolderManager {
     private func authoritativeConversations(ids: [UUID]) -> [Conversation] {
         guard !ids.isEmpty else { return [] }
         let partitionUID = appState.sessionPartitionUID
-        guard appState.prefersAuthoritativeConversationStore,
-              DatabaseManager.shared.hasDatabase(for: partitionUID) else {
+        guard usesAuthoritativeProjection(for: partitionUID) else {
             return []
         }
         return (try? appState.conversationRuntimeBridge.fetchConversationProjection(ids: ids, uid: partitionUID)) ?? []
@@ -411,8 +407,7 @@ final class FolderManager {
 
     private func authoritativeConversationForMutation(id: UUID) -> Conversation? {
         let partitionUID = appState.sessionPartitionUID
-        guard appState.prefersAuthoritativeConversationStore,
-              DatabaseManager.shared.hasDatabase(for: partitionUID) else {
+        guard usesAuthoritativeProjection(for: partitionUID) else {
             return nil
         }
         return try? appState.conversationRuntimeBridge.fetchConversationProjection(
@@ -424,8 +419,7 @@ final class FolderManager {
     private func authoritativeConversationsForMutation(ids: Set<UUID>) -> [Conversation] {
         guard !ids.isEmpty else { return [] }
         let partitionUID = appState.sessionPartitionUID
-        guard appState.prefersAuthoritativeConversationStore,
-              DatabaseManager.shared.hasDatabase(for: partitionUID) else {
+        guard usesAuthoritativeProjection(for: partitionUID) else {
             return []
         }
         return (try? appState.conversationRuntimeBridge.fetchConversationProjections(

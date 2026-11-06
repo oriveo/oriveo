@@ -586,6 +586,7 @@ final class AppState {
             prepareDemoSessionStoreIfNeeded()
         }
 
+        self.mcpServerDirectory.isSessionStoreReady = { [weak self] in self?.sessionStoreReady ?? true }
         primaryNavigation.onSelectedTabChange = { [weak self] in self?.selectedTabDidChange() }
         rebuildProviderLookup()
         rebuildConversationLookup()
@@ -1366,6 +1367,14 @@ final class AppState {
 
     var prefersAuthoritativeConversationStore: Bool {
         persistsSession
+    }
+
+    /// Whether a fallback may read `uid`'s store on the main thread: the store is open, the session persists to it and
+    /// the file exists. The root's loading state does not guarantee the first condition on its own: the outgoing view
+    /// tree still gets an update after the mirror is cleared and the store closed (and `.task` continuations land in
+    /// that window), and an empty mirror is exactly what sends these fallbacks to the store.
+    func canReadAuthoritativeConversationStore(uid: String) -> Bool {
+        sessionStoreReady && prefersAuthoritativeConversationStore && DatabaseManager.shared.hasDatabase(for: uid)
     }
 
     func resetConversationProjectionMirror() {

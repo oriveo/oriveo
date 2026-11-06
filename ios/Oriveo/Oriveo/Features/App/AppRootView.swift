@@ -151,8 +151,10 @@ struct AppRootView: View {
                     appState.loadSession()
                 }
             } else if !appState.sessionStoreReady {
-                // The partition database is still being pre-opened in the background (cold start or partition switch, usually a few tens of milliseconds): paint only the background colour and no entry point,
-                // so no screen can touch the database on the main thread before it is open (the main thread never opens it; see DatabaseManager.prepare).
+                // The partition store is still opening in the background (cold start or partition switch, usually tens
+                // of ms): only the background, no entries. The outgoing tree may still get one update after the flip,
+                // so readers gate on `sessionStoreReady` themselves (`canReadAuthoritativeConversationStore`,
+                // `McpServerDirectory.isSessionStoreReady`); the main thread never opens a store.
                 Color.clear.oriveoScreenBackground()
             } else {
                 mainContent
