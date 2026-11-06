@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "Temizle",
     "generationParameterDormantRestored": "{count} parametre geri yüklendi",
     "generationPresetName": "Ön ayar adı",
+    "capabilityControlFixedByConnection": "Bu bağlantı tarafından ayarlandı",
     "capabilityControlReasonPending": "Otomatik yapılandırma henüz hazır değil",
     "capabilityControlReasonUnsupported": "Bu istek bu model tarafından desteklenmiyor",
     "capabilityControlReasonExternalConnector": "Ayrı bir harici hizmet tarafından sağlanır, bu sohbet isteğinin dışındadır",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Oriveo'ye hoş geldiniz",
       "tagline": "Tüm Modelleriniz, Tek Uygulama.",
+      "slogan": "Anahtarlarınız, Maliyetleriniz, Verileriniz.",
       "description": "Çok modelli görüşmelere başlamak için ilk yapay zeka sağlayıcınızı kurun.",
       "addProvider": "Sağlayıcı Ekle",
       "enterHome": "Uygulamaya Git"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "API anahtarına geç",
         "disabledFallback": "ChatGPT abonelik girişi şu anda kullanılamıyor. API anahtarına geçebilir veya bu bağlantıyı kaldırabilirsin."
       },
-      "subscription": "Abonelik"
+      "subscription": "Abonelik",
+      "tokenPrices": {
+        "input": "Girdi {count}",
+        "cacheRead": "Önbellek okuma {count}",
+        "cacheWrite": "Önbellek yazma {count}",
+        "output": "Çıktı {count}",
+        "unit": "token"
+      }
     },
     "providers": {
       "title": "Sağlayıcılar",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "Gizlilik Politikası",
+      "sourceCode": "Kaynak Kodu",
       "aiSection": "AI",
       "skills": "Beceriler",
       "backupImportExport": "Yedekleme ve İçe Aktarma/Dışa Aktarma",
+      "reportIssue": "Sorun Bildir",
+      "documentation": "Belgeler",
       "aboutTagline": "Tüm modelleriniz. Bir uygulama.",
       "context": {
         "title": "Bağlam",
@@ -2054,11 +2066,14 @@
     "title": "Beceriler",
     "mySkills": "Becerilerim",
     "builtinSkills": "Yerleşik Beceriler",
+    "pinned": "Sabitlendi",
     "newSkill": "Yeni Beceri",
     "editSkill": "Beceriyi Düzenle",
     "deleteSkill": "Beceriyi Sil",
     "forkSkill": "Becerim olarak kopyala",
     "useSkill": "Bu Beceriyi Kullan",
+    "pinToHome": "Ana Sayfaya Sabitle",
+    "unpinFromHome": "Ana Sayfadaki sabitlemeyi kaldır",
     "instructions": "Çabuk",
     "instructionsPlaceholder": "örneğin Kıdemli bir kod incelemecisisiniz. Kodu güvenlik, performans ve okunabilirlik açısından inceleyin. Kullanıcının dilinde yanıt verin.",
     "starterMessages": "Konuşma Başlatıcılar",
@@ -2811,7 +2826,8 @@
       "stepLimit": "Tek bir araştırma için seçilen belgeler çok fazla ya da çok uzun. Birkaçının seçimini kaldırıp yeniden deneyin.",
       "notConnected": "Araştırmaya başlamadan önce bir Kitaplık kaynağı bağlayın.",
       "sourceForbidden": "Kaynak, izin veya politika kısıtlaması nedeniyle erişimi reddetti. Yeniden bağlanmak bunu çözmez — kaynağın kendisindeki paylaşım veya uyumluluk ayarlarını kontrol edin.",
-      "unavailable": "Kitaplık geçici olarak kullanılamıyor. Daha sonra yeniden deneyin."
+      "unavailable": "Kitaplık geçici olarak kullanılamıyor. Daha sonra yeniden deneyin.",
+      "retry": "Yeniden dene"
     }
   },
   "notes": {

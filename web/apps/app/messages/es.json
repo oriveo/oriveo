@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "Borrar",
     "generationParameterDormantRestored": "Se restauraron {count} parámetros",
     "generationPresetName": "Nombre del preset",
+    "capabilityControlFixedByConnection": "Definido por esta conexión",
     "capabilityControlReasonPending": "La configuración automática aún no está lista",
     "capabilityControlReasonUnsupported": "Este modelo no admite esta solicitud",
     "capabilityControlReasonExternalConnector": "Lo proporciona un servicio externo independiente, fuera de esta solicitud de chat",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Bienvenido a Oriveo",
       "tagline": "Todos tus modelos, una sola app.",
+      "slogan": "Tus claves, tus costos, tus datos.",
       "description": "Configura tu primer proveedor de IA para comenzar conversaciones multimodelo.",
       "addProvider": "Agregar proveedor",
       "enterHome": "Ir a la app"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "Cambiar a clave API",
         "disabledFallback": "El inicio de sesión con la suscripción de ChatGPT no está disponible ahora mismo. Puedes cambiar a una clave API o eliminar esta conexión."
       },
-      "subscription": "Suscripción"
+      "subscription": "Suscripción",
+      "tokenPrices": {
+        "input": "Entrada {count}",
+        "cacheRead": "Lectura de caché {count}",
+        "cacheWrite": "Escritura de caché {count}",
+        "output": "Salida {count}",
+        "unit": "tokens"
+      }
     },
     "providers": {
       "title": "Proveedores",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "Política de privacidad",
+      "sourceCode": "Código fuente",
       "aiSection": "IA",
       "skills": "Habilidades",
       "backupImportExport": "Copia de seguridad e importar/exportar",
+      "reportIssue": "Informar de un problema",
+      "documentation": "Documentación",
       "aboutTagline": "Todos tus modelos. Una app.",
       "context": {
         "title": "Contexto",
@@ -2054,11 +2066,14 @@
     "title": "Habilidades",
     "mySkills": "Mis habilidades",
     "builtinSkills": "Habilidades integradas",
+    "pinned": "Fijada",
     "newSkill": "Nueva habilidad",
     "editSkill": "Editar habilidad",
     "deleteSkill": "Eliminar habilidad",
     "forkSkill": "Copiar como mi habilidad",
     "useSkill": "Usar esta habilidad",
+    "pinToHome": "Fijar en inicio",
+    "unpinFromHome": "Desfijar",
     "instructions": "Prompt",
     "instructionsPlaceholder": "Ej.: Eres un revisor de código sénior. Revisa el código por seguridad, rendimiento y legibilidad. Responde en el idioma del usuario.",
     "starterMessages": "Frases de inicio",
@@ -2811,7 +2826,8 @@
       "stepLimit": "Demasiados documentos, o demasiado largos, para una sola investigación. Deselecciona algunos e inténtalo de nuevo.",
       "notConnected": "Conecta una fuente de la Biblioteca antes de investigar.",
       "sourceForbidden": "La fuente denegó el acceso debido a una restricción de permisos o políticas. Reconectar no solucionará esto: revisa la configuración de uso compartido o cumplimiento de la propia fuente.",
-      "unavailable": "La Biblioteca no está disponible temporalmente. Inténtalo más tarde."
+      "unavailable": "La Biblioteca no está disponible temporalmente. Inténtalo más tarde.",
+      "retry": "Reintentar"
     }
   },
   "notes": {
