@@ -1,5 +1,6 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import * as Sentry from '@sentry/nextjs';
 import {
   getActiveUID,
   getActiveUIDSync,
@@ -9,6 +10,7 @@ import {
   hasPartitionData,
   metaDBExists,
   legacyDBExists,
+  deletePartitionData,
 } from '../partition';
 import { openDB } from 'idb';
 
@@ -23,6 +25,55 @@ async function clearAllDatabases() {
 describe('partition.ts', () => {
   beforeEach(async () => {
     await clearAllDatabases();
+  });
+
+  describe('deletePartitionData', () => {
+    const uid = 'uid-delete';
+    const databaseExists = async () =>
+      (await indexedDB.databases()).some((database) => database.name === getDBName(uid));
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+    });
+
+    it('waits for a blocking connection to close instead of treating blocked as done', async () => {
+      // No versionchange handler, like a connection whose owner has not closed yet.
+      const blocker = await openDB(getDBName(uid), 1);
+      let settled = false;
+      const deleting = deletePartitionData(uid).then(() => { settled = true; });
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(settled).toBe(false);
+
+      blocker.close();
+      await deleting;
+      expect(await databaseExists()).toBe(false);
+    });
+
+    it('reports and returns when a connection never closes, so sign-out cannot hang', async () => {
+      const capture = vi.spyOn(Sentry, 'captureMessage');
+      const blocker = await openDB(getDBName(uid), 1);
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+
+      const deleting = deletePartitionData(uid);
+      await vi.advanceTimersByTimeAsync(5000);
+      await deleting;
+
+      expect(capture).toHaveBeenCalledWith('storage.partition_delete_incomplete');
+      blocker.close();
+    });
+
+    it('reports a failed delete and still resolves', async () => {
+      const capture = vi.spyOn(Sentry, 'captureMessage').mockClear();
+      vi.spyOn(indexedDB, 'deleteDatabase').mockImplementation(() => {
+        throw new DOMException('denied', 'SecurityError');
+      });
+
+      await deletePartitionData(uid);
+
+      expect(capture).toHaveBeenCalledTimes(4);
+    });
   });
 
   // ── 1.1 getActiveUID ──────────────────────────────────

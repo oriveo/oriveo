@@ -1,6 +1,6 @@
 import { type IDBPDatabase } from 'idb';
 import { openDB } from './idb-open';
-import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
+import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked, reportPartitionDeleteIncomplete } from './idb-lifecycle';
 
 const META_DB = 'oriveo-meta';
 // v1: meta store (activeUID)
@@ -135,20 +135,41 @@ export async function hasPartitionData(uid: string): Promise<boolean> {
   }
 }
 
+// Long enough for other tabs to close on versionchange, short enough not to hang sign-out.
+const PARTITION_DELETE_WAIT_MS = 5000;
+
 /**
- * Deletes one profile partition's data along with its image, MCP and external search databases. The MCP / search databases
- * hold that profile's credentials, so deleting the partition removes them too; a connection
- * that is still open receives `versionchange` and closes itself to make way (`blocking` in mcp-idb).
+ * Waits for the real outcome of one delete. `blocked` is not an outcome: the request stays queued
+ * and only runs once the last connection closes, so resolving there reports data that still exists.
+ */
+function deleteDatabaseSettled(dbName: string): Promise<void> {
+  return new Promise<void>((resolve) => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const settle = (outcome?: 'error' | 'timeout') => {
+      clearTimeout(timer);
+      if (outcome) reportPartitionDeleteIncomplete(dbName, outcome);
+      resolve();
+    };
+    try {
+      const request = indexedDB.deleteDatabase(dbName);
+      request.onsuccess = () => settle();
+      request.onerror = () => settle('error');
+      timer = setTimeout(() => settle('timeout'), PARTITION_DELETE_WAIT_MS);
+    } catch {
+      // Storage access can be denied outright; sign-out still has to finish.
+      settle('error');
+    }
+  });
+}
+
+/**
+ * Deletes the data, image, MCP and external search databases of a user partition. The MCP and search
+ * databases hold that account's credentials. Open connections close themselves on versionchange
+ * (the `blocking` callback of each store); this waits for them, then reports what did not finish.
  */
 export async function deletePartitionData(uid: string): Promise<void> {
   const dbNames = [getDBName(uid), getImageDBName(uid), getMcpDBName(uid), getSearchDBName(uid)];
-
-  await Promise.all(dbNames.map((dbName) => new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase(dbName);
-    request.onsuccess = () => resolve();
-    request.onerror = () => resolve();
-    request.onblocked = () => resolve();
-  })));
+  await Promise.all(dbNames.map(deleteDatabaseSettled));
 }
 
 /** Reports whether oriveo-meta already exists, which decides whether a migration is needed. */
