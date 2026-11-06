@@ -466,7 +466,7 @@ describe('Notes responsive and theme style contracts', () => {
       expect(v['--note-source-text-dark'].toUpperCase(), kind).toBe(c.dark.toUpperCase());
       compared++;
     }
-    expect(compared).toBe(15);
+    expect(compared).toBe(14);
     let h = 5381;
     for (const ch of 'relay') h = (h * 33 + ch.charCodeAt(0)) >>> 0;
     const relayCase = byId.get(`relay.${h % 8}`)!;

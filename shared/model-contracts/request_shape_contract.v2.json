@@ -4142,7 +4142,7 @@
           "operation": "edit",
           "profileRef": "openai_gpt_image",
           "modelId": "gpt-image-2",
-          "prompt": "a red fox in the snow",
+          "prompt": "  a red fox \n",
           "params": {
             "aspect": "1:1",
             "resolution": "1K",
