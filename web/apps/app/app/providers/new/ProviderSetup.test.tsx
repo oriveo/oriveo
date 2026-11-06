@@ -717,6 +717,65 @@ describe('ProviderSetup', () => {
       expect(screen.queryByTestId('provider-setup-error-banner')).toBeNull();
     });
   });
+
+  it('connects shortly after a key is pasted', async () => {
+    mockBuildOfficialEnabledModels.mockReturnValue({
+      models: [mockModel],
+      defaultModelId: mockModel.id,
+      catalogModels: [],
+    });
+
+    render(<ProviderSetup />);
+    await selectOpenRouter();
+    const input = await screen.findByPlaceholderText('sk-or-...');
+    fireEvent.change(input, { target: { value: 'sk-test-key' } });
+    fireEvent.paste(input);
+
+    await waitFor(() => expect(mockCreateDeterministicProviderId).toHaveBeenCalled());
+  });
+
+  it('does not connect when the page is gone during the paste delay', async () => {
+    mockBuildOfficialEnabledModels.mockReturnValue({
+      models: [mockModel],
+      defaultModelId: mockModel.id,
+      catalogModels: [],
+    });
+
+    const { unmount } = render(<ProviderSetup />);
+    await selectOpenRouter();
+    const input = await screen.findByPlaceholderText('sk-or-...');
+    fireEvent.change(input, { target: { value: 'sk-test-key' } });
+    fireEvent.paste(input);
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(mockCreateDeterministicProviderId).not.toHaveBeenCalled();
+  });
+
+  it('does not navigate once the page is gone during the post-connect delay', async () => {
+    mockBuildOfficialEnabledModels.mockReturnValue({
+      models: [mockModel],
+      defaultModelId: mockModel.id,
+      catalogModels: [],
+    });
+
+    const { unmount } = render(<ProviderSetup />);
+    await selectOpenRouter();
+    fireEvent.change(await screen.findByPlaceholderText('sk-or-...'), {
+      target: { value: 'sk-test-key' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'connectAndSync' }));
+
+    await waitFor(() => expect(mockTrackEvent).toHaveBeenCalledWith(
+      'provider_key_validated',
+      expect.anything(),
+    ));
+    unmount();
+    await new Promise((resolve) => setTimeout(resolve, 350));
+
+    expect(routerPush).not.toHaveBeenCalled();
+  });
+
   describe('Grok subscription sign-in entry', () => {
     const AVAILABLE_CONFIG = {
       state: 'available' as const,

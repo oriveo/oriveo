@@ -216,6 +216,8 @@ export function ProviderSetup() {
     lastErrorCode: '',
   });
   const setupStartedRef = useRef(false);
+  // The post-connect navigation is delayed; once the user has left, it must not pull them back.
+  const unmountedRef = useRef(false);
 
   // The endpoint that will actually be used (region first, then a custom baseURL, then the
   // provider default). Used both for registration and for the abandoned event: an official
@@ -243,6 +245,13 @@ export function ProviderSetup() {
     });
   }, [selectedKind, defaults, selectedRegionOptions, selectedPublicConfig, selectedRegion, baseURL, setupValues]);
   const effectiveBaseURL = setupEndpoint?.result?.baseURLText ?? setupEndpoint?.template ?? '';
+
+  useEffect(() => {
+    unmountedRef.current = false;
+    return () => {
+      unmountedRef.current = true;
+    };
+  }, []);
 
   useEffect(() => {
     setupStateRef.current.endpoint = effectiveBaseURL;
@@ -557,6 +566,7 @@ export function ProviderSetup() {
       setupStateRef.current = { ...setupStateRef.current, kind: selectedKind, completed: true };
 
       setTimeout(() => {
+        if (unmountedRef.current) return;
         router.push(isFirstProvider ? "/chat" : "/providers");
       }, 300);
     } catch (err) {
@@ -679,6 +689,7 @@ export function ProviderSetup() {
       setState("success");
       setupStateRef.current = { ...setupStateRef.current, kind: "grok", completed: true };
       setTimeout(() => {
+        if (unmountedRef.current) return;
         router.push(isFirstProvider ? "/chat" : "/providers");
       }, 300);
     } catch (err) {
@@ -794,6 +805,7 @@ export function ProviderSetup() {
       setState("success");
       setupStateRef.current = { ...setupStateRef.current, kind: "openAI", completed: true };
       setTimeout(() => {
+        if (unmountedRef.current) return;
         router.push(isFirstProvider ? "/chat" : "/providers");
       }, 300);
     } catch (err) {
@@ -1081,7 +1093,11 @@ export function ProviderSetup() {
                         }
                       }}
                       onPaste={() => {
-                        setTimeout(handleConnect, 100);
+                        // Leaving within the delay must not connect a provider behind the user's back.
+                        setTimeout(() => {
+                          if (unmountedRef.current) return;
+                          void handleConnect();
+                        }, 100);
                       }}
                       {...getApiKeyInputProps(
                         "provider-api-key",
