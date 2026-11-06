@@ -1,5 +1,5 @@
 import { type DBSchema, type IDBPDatabase } from 'idb';
-import { openDB } from './idb-open';
+import { closeAfterPendingReaders, openDB } from './idb-open';
 import { getActiveUID, getImageDBName } from './partition';
 import { openWithStaleSchemaRecovery, reportIDBUpgradeBlocked } from './idb-lifecycle';
 
@@ -42,13 +42,18 @@ async function getDB(expectedUID?: string) {
 
   if (dbPromise && currentImageDBName !== dbName) {
     try {
-      const oldDb = await dbPromise;
-      oldDb.close();
+      closeAfterPendingReaders(await dbPromise);
     } catch { /* ignore */ }
   }
 
   currentImageDBName = dbName;
   let opened: IDBPDatabase<ImageStoreSchema> | null = null;
+  const forgetConnection = () => {
+    if (currentImageDBName === dbName) {
+      dbPromise = null;
+      currentImageDBName = null;
+    }
+  };
   const openPromise = openWithStaleSchemaRecovery(() => openDB<ImageStoreSchema>(dbName, 1, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('images')) {
@@ -64,11 +69,10 @@ async function getDB(expectedUID?: string) {
     // openWithStaleSchemaRecovery handles by reloading onto the new bundle.
     blocking: () => {
       opened?.close();
-      if (currentImageDBName === dbName) {
-        dbPromise = null;
-        currentImageDBName = null;
-      }
+      forgetConnection();
     },
+    // The browser closed the connection on its own: same stale-cache failure as above.
+    terminated: forgetConnection,
   }));
   dbPromise = openPromise;
   // Never keep a failed open in the cache, or every later read and write gets the same rejection.
@@ -85,7 +89,7 @@ async function getDB(expectedUID?: string) {
 /** Reset the connection when the partition changes */
 export function resetImageDBConnection() {
   if (dbPromise) {
-    dbPromise.then((db) => db.close()).catch(() => {});
+    dbPromise.then(closeAfterPendingReaders).catch(() => {});
   }
   dbPromise = null;
   currentImageDBName = null;

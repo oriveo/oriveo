@@ -49,6 +49,19 @@ function guardDatabase<DBTypes extends DBSchema | unknown>(db: IDBPDatabase<DBTy
   return db;
 }
 
+/**
+ * Closes a connection without failing readers that already hold its promise.
+ *
+ * `close()` lets running transactions finish, but a transaction started afterwards throws
+ * InvalidStateError. A `.then(close)` on a connection that is still opening runs before the
+ * continuation of any `await getDB()` (those resolve a few microtasks later), so every reader that
+ * started before a partition switch was handed a closed connection: the longer the open takes, the
+ * wider that window. A macrotask runs after those continuations have started their transactions.
+ */
+export function closeAfterPendingReaders(db: { close(): void }): void {
+  setTimeout(() => db.close(), 0);
+}
+
 export function openDB<DBTypes extends DBSchema | unknown = unknown>(
   name: string,
   version?: number,

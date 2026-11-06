@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { openDB } from 'idb';
+import { openDB, unwrap } from 'idb';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   getAllConversations,
@@ -23,6 +23,7 @@ import {
   getSessionValue,
   setSessionValue,
   resetDBConnection,
+  getPartitionDB,
   getAllFolders,
   putFolder,
   deleteFolder,
@@ -778,6 +779,42 @@ describe('idb.ts', () => {
       }
       expect((await raw.get('conversations', 'conv-v15'))?.id).toBe('conv-v15');
       raw.close();
+    });
+  });
+
+  describe('connection lifecycle', () => {
+    it('a read waiting on an opening connection survives a reset', async () => {
+      // Reset right after the partition database starts opening (the meta database opens first).
+      const nativeOpen = indexedDB.open.bind(indexedDB);
+      let resetScheduled = false;
+      const open = vi.spyOn(indexedDB, 'open').mockImplementation((name, version) => {
+        if (name === 'oriveo--guest' && !resetScheduled) {
+          resetScheduled = true;
+          queueMicrotask(resetDBConnection);
+        }
+        return nativeOpen(name, version);
+      });
+      const read = getAllProviders();
+      await expect(read).resolves.toEqual([]);
+      open.mockRestore();
+      expect(resetScheduled).toBe(true);
+    });
+
+    it('reopens after the browser closes the connection on its own', async () => {
+      // fake-indexeddb never fires 'close' and does not export its event class: call the listener.
+      const closeListeners: EventListener[] = [];
+      const proto = IDBDatabase.prototype;
+      const original = proto.addEventListener;
+      const spy = vi.spyOn(proto, 'addEventListener').mockImplementation(function (this: IDBDatabase, ...args) {
+        if (args[0] === 'close') closeListeners.push(args[1] as EventListener);
+        original.apply(this, args as Parameters<IDBDatabase['addEventListener']>);
+      });
+      const raw = unwrap(await getPartitionDB()) as IDBDatabase;
+      spy.mockRestore();
+      expect(closeListeners).toHaveLength(1);
+      raw.close();
+      closeListeners[0](new Event('close'));
+      await expect(getAllProviders()).resolves.toEqual([]);
     });
   });
 });

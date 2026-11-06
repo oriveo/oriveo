@@ -1,5 +1,5 @@
 import 'fake-indexeddb/auto';
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   saveImage,
   loadImageData,
@@ -151,6 +151,49 @@ describe('image-store.ts', () => {
 
       await saveImage('img1', makeBlob('0123456789'), makeBlob('t'), 'image/png');
       expect(await imageSizeBytes('img1')).toBe(0);
+    });
+  });
+
+  describe('connection lifecycle', () => {
+    it('a read waiting on an opening connection survives a reset', async () => {
+      // Reset right after the partition database starts opening (the meta database opens first).
+      const nativeOpen = indexedDB.open.bind(indexedDB);
+      let resetScheduled = false;
+      const open = vi.spyOn(indexedDB, 'open').mockImplementation((name, version) => {
+        if (name === 'oriveo-images--guest' && !resetScheduled) {
+          resetScheduled = true;
+          queueMicrotask(resetImageDBConnection);
+        }
+        return nativeOpen(name, version);
+      });
+      const read = imageExists('missing');
+      await expect(read).resolves.toBe(false);
+      open.mockRestore();
+      expect(resetScheduled).toBe(true);
+    });
+
+    it('reopens after the browser closes the connection on its own', async () => {
+      // fake-indexeddb never fires 'close' and does not export its event class: call the listener.
+      const closeListeners: EventListener[] = [];
+      const proto = IDBDatabase.prototype;
+      const original = proto.addEventListener;
+      const spy = vi.spyOn(proto, 'addEventListener').mockImplementation(function (this: IDBDatabase, ...args) {
+        if (args[0] === 'close') closeListeners.push(args[1] as EventListener);
+        original.apply(this, args as Parameters<IDBDatabase['addEventListener']>);
+      });
+      const nativeTransaction = proto.transaction;
+      let connection: IDBDatabase | undefined;
+      const transactionSpy = vi.spyOn(proto, 'transaction').mockImplementation(function (this: IDBDatabase, ...args) {
+        connection = this;
+        return nativeTransaction.apply(this, args as Parameters<IDBDatabase['transaction']>);
+      });
+      await imageExists('missing');
+      transactionSpy.mockRestore();
+      spy.mockRestore();
+      expect(closeListeners).toHaveLength(1);
+      connection?.close();
+      closeListeners[0](new Event('close'));
+      await expect(imageExists('missing')).resolves.toBe(false);
     });
   });
 });

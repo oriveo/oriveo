@@ -1,5 +1,5 @@
 import { deleteDB, unwrap, type DBSchema, type IDBPDatabase } from 'idb';
-import { openDB } from './idb-open';
+import { closeAfterPendingReaders, openDB } from './idb-open';
 import type { Conversation, Provider, Folder, Note, NoteFolder } from '@oriveo/shared';
 import type { RhoCalibrationJSON } from '@oriveo/core/context/calibration';
 import type { ContextManifest } from '@oriveo/core/context/manifest';
@@ -257,6 +257,13 @@ async function openPartitionDB(dbName: string) {
   } catch { /* No such DB, which is normal */ }
 
   let opened: IDBPDatabase<OriveoDBSchema> | null = null;
+  const forgetConnection = () => {
+    if (currentDBName === dbName) {
+      dbPromise = null;
+      currentDBName = null;
+    }
+    if (syncDBName === dbName) clearSyncDB();
+  };
   const openPromise = openDB<OriveoDBSchema>(dbName, DB_VERSION, {
     blocked: (currentVersion, blockedVersion) =>
       reportIDBUpgradeBlocked(dbName, currentVersion, blockedVersion),
@@ -268,12 +275,11 @@ async function openPartitionDB(dbName: string) {
     // reloads the page onto the new bundle.
     blocking: () => {
       opened?.close();
-      if (currentDBName === dbName) {
-        dbPromise = null;
-        currentDBName = null;
-      }
-      if (syncDBName === dbName) clearSyncDB();
+      forgetConnection();
     },
+    // The browser closed the connection on its own (site data cleared, storage eviction, backend
+    // failure). Without this the cached connection fails every transaction until a reload.
+    terminated: forgetConnection,
     upgrade(db, oldVersion, _newVersion, tx) {
       // v0 -> v4: create every store on first run.
       if (!db.objectStoreNames.contains('conversations')) {
@@ -415,8 +421,7 @@ async function getDB(expectedUID?: string) {
   // Partition switch: close the old connection and open the new one
   if (dbPromise && currentDBName !== dbName) {
     try {
-      const oldDb = await dbPromise;
-      oldDb.close();
+      closeAfterPendingReaders(await dbPromise);
     } catch { /* Ignore a failed close */ }
   }
 
@@ -443,7 +448,7 @@ async function getDB(expectedUID?: string) {
 /** Force the DB connection to reset when the partition changes (sign in / sign out). */
 export function resetDBConnection() {
   if (dbPromise) {
-    dbPromise.then((db) => db.close()).catch(() => {});
+    dbPromise.then(closeAfterPendingReaders).catch(() => {});
   }
   dbPromise = null;
   currentDBName = null;
