@@ -127,6 +127,24 @@ class ChatImageDispatchContractTest {
         )
     }
 
+    @Test
+    fun baseUrlMatchesFixture() {
+        val cases = fixture.getValue("baseUrl").jsonArray.map { it.jsonObject }
+        assertTrue("baseUrl group must not be empty", cases.isNotEmpty())
+        val mismatches = mutableListOf<String>()
+        for (case in cases) {
+            val caseId = case.str("caseId")
+            val input = case.getValue("input").jsonObject
+            val raw = input["connectionBaseUrl"]
+            val connection = if (raw == null || raw is JsonNull) null else raw.jsonPrimitive.content
+            val expectRaw = case.getValue("expect").jsonObject["baseUrl"]
+            val expected = if (expectRaw == null || expectRaw is JsonNull) null else expectRaw.jsonPrimitive.content
+            val actual = ChatImageDispatch.studioBaseUrl(input.str("route"), connection)
+            if (actual != expected) mismatches += "$caseId: '$actual', expected '$expected'"
+        }
+        assertTrue(mismatches.joinToString("\n"), mismatches.isEmpty())
+    }
+
     private fun expectedFailure(category: String, message: String): ProviderServiceError = when (category) {
         "upstream_400" -> ProviderServiceError.Upstream(statusCode = 400, detail = message)
         "upstream_502" -> ProviderServiceError.Upstream(statusCode = 502, detail = message)

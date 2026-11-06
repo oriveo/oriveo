@@ -39,6 +39,11 @@ object ChatImageDispatch {
     private const val BASE_ROLE = "base"
     private const val ELEMENT_ROLE = "element"
 
+    private val SCHEME = Regex("^[a-z][a-z0-9+.-]*://", RegexOption.IGNORE_CASE)
+    private val SCHEME_AND_HOST = Regex("^[a-z][a-z0-9+.-]*://[^/?#\\s]+", RegexOption.IGNORE_CASE)
+    private const val DASHSCOPE_NATIVE_SUFFIX = "/api/v1"
+    private val DASHSCOPE_SUFFIXES = listOf("/compatible-mode/v1", DASHSCOPE_NATIVE_SUFFIX)
+
     /**
      * Studio only when the legacy gate already chose image generation, the provider is not relay /
      * managed, a profile resolved and its route is a studio route; anything else stays legacy.
@@ -60,6 +65,24 @@ object ChatImageDispatch {
         }
         if (picks.isEmpty()) return Decision.Studio(ImageOperation.GENERATE, emptyList())
         return Decision.Studio(ImageOperation.EDIT, picks)
+    }
+
+    /**
+     * Studio base URL for a chat image send, derived from the connection's effective address: trimmed,
+     * https:// added without a scheme, trailing slashes dropped. A dashscope_multimodal route swaps one
+     * trailing OpenAI-compatible or native suffix for the native /api/v1. Null (blank or no host) keeps
+     * the legacy path.
+     */
+    fun studioBaseUrl(route: String, connectionBaseUrl: String?): String? {
+        var base = connectionBaseUrl?.trim().orEmpty()
+        if (base.isEmpty()) return null
+        if (!SCHEME.containsMatchIn(base)) base = "https://$base"
+        base = base.trimEnd('/')
+        if (!SCHEME_AND_HOST.containsMatchIn(base)) return null
+        if (route != ImageRoute.DASHSCOPE_MULTIMODAL.wire) return base
+        // Native DashScope API: drop one OpenAI-compatible or native suffix (case-sensitive), then append /api/v1.
+        DASHSCOPE_SUFFIXES.firstOrNull { base.endsWith(it) }?.let { base = base.removeSuffix(it).trimEnd('/') }
+        return "$base$DASHSCOPE_NATIVE_SUFFIX"
     }
 
     /** Chat failure category of a studio error kind (spec.errorMap); null for partial, which completes. */

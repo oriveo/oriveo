@@ -65,7 +65,7 @@ class ChatImageStudioRunner(
      * when the dispatch keeps the legacy path or no base URL is known (nothing is sent then).
      */
     suspend fun run(request: Request): ProviderChatResult? {
-        val baseUrl = request.baseUrl?.takeIf { it.isNotBlank() } ?: return null
+        val connectionBaseUrl = request.baseUrl?.takeIf { it.isNotBlank() } ?: return null
         // Relay has no official catalog key; managed kinds keep their raw value, both stay legacy in decide.
         val providerKey = catalogKey(request.provider) ?: request.provider.rawValue
         val slice = profileSlice() ?: return null
@@ -83,6 +83,8 @@ class ChatImageStudioRunner(
             attachments = imageAttachments.map { ChatImageDispatch.Candidate(it.id, hasBytes = it.id in localBytes) },
         )
         if (decision !is ChatImageDispatch.Decision.Studio || profile == null) return null
+        // The studio base URL depends on the route, so it is derived once the profile is known.
+        val baseUrl = ChatImageDispatch.studioBaseUrl(profile.route.wire, connectionBaseUrl) ?: return null
 
         val byId = imageAttachments.associateBy { it.id }
         val references = decision.images.map { pick ->

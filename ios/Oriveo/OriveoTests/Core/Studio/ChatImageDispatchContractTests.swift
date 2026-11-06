@@ -141,6 +141,20 @@ struct ChatImageDispatchContractTests {
         #expect(actual == .studio(operation: .edit, images: [ChatImageDispatch.Image(attachmentId: "a1", slot: 1, role: "base")]))
     }
 
+    @Test func baseUrlMatchesFixture() throws {
+        let cases = try #require(Self.fixture()["baseUrl"] as? [[String: Any]])
+        #expect(cases.count == 19)
+        for item in cases {
+            let caseId = try #require(item["caseId"] as? String)
+            let input = try #require(item["input"] as? [String: Any], "\(caseId) input")
+            let expect = try #require(item["expect"] as? [String: Any], "\(caseId) expect")
+            let routeRaw = try #require(input["route"] as? String, "\(caseId) route")
+            let route = try #require(ImageProfile.Route(rawValue: routeRaw), "\(caseId) unknown route \(routeRaw)")
+            let got = ChatImageDispatch.studioBaseURL(route: route, connectionBaseURL: input["connectionBaseUrl"] as? String)
+            #expect(got == expect["baseUrl"] as? String, "\(caseId) got \(String(describing: got))")
+        }
+    }
+
     // MARK: - errorMap
 
     @Test func errorMapCategoriesEqualSpec() throws {
