@@ -65,6 +65,31 @@ nonisolated enum ChatImageDispatch {
         return images.isEmpty ? .studio(operation: .generate, images: []) : .studio(operation: .edit, images: images)
     }
 
+    /// Studio base URL for a chat image send, derived from the connection's effective address:
+    /// trimmed, `https://` added when there is no scheme, trailing slashes dropped. A
+    /// `dashscope_multimodal` route swaps a trailing `/compatible-mode/v1` or `/api/v1` for the
+    /// native `/api/v1`. `nil` (blank or no host) keeps the legacy path.
+    static func studioBaseURL(route: ImageProfile.Route, connectionBaseURL: String?) -> String? {
+        var base = (connectionBaseURL ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !base.isEmpty else { return nil }
+        if base.range(of: "^[A-Za-z][A-Za-z0-9+.-]*://", options: .regularExpression) == nil {
+            base = "https://" + base
+        }
+        base = trimmingTrailingSlashes(base)
+        guard base.range(of: "^[A-Za-z][A-Za-z0-9+.-]*://[^/?#\\s]+", options: .regularExpression) != nil else { return nil }
+        guard route == .dashscopeMultimodal else { return base }
+        if let suffix = ["/compatible-mode/v1", "/api/v1"].first(where: { base.hasSuffix($0) }) {
+            base = trimmingTrailingSlashes(String(base.dropLast(suffix.count)))
+        }
+        return base + "/api/v1"
+    }
+
+    private static func trimmingTrailingSlashes(_ value: String) -> String {
+        var value = value
+        while value.hasSuffix("/") { value.removeLast() }
+        return value
+    }
+
     /// `spec.errorMap` category for a studio failure kind; `nil` for `partial`, which completes.
     static func category(for kind: StudioImageErrorKind) -> String? {
         switch kind {
