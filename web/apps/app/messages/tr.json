@@ -1642,6 +1642,7 @@
       "passwordMismatch": "Şifreler eşleşmiyor",
       "wrongPassword": "Yanlış şifre",
       "invalidFile": "Geçersiz veya tanınmayan yedekleme dosyası",
+      "versionTooNew": "Bu yedekleme, Oriveo'nun daha yeni bir sürümünü ({version} biçimlendirme sürümü) gerektirir.",
       "success": "Yedekleme başarıyla dışa aktarıldı",
       "exportComplete": "Dışa Aktarma Tamamlandı",
       "legacyPasswordHint": "Bu yedekleme şifrelenmiştir. Devam etmek için şifreyi girin.",

@@ -1642,6 +1642,7 @@
       "passwordMismatch": "密碼不相符",
       "wrongPassword": "密碼錯誤",
       "invalidFile": "無效或無法辨識的備份檔案",
+      "versionTooNew": "此備份需要較新版本的 Oriveo（格式版本 {version}）。",
       "success": "備份匯出成功",
       "exportComplete": "匯出完成",
       "legacyPasswordHint": "此備份已加密，請輸入密碼以繼續。",

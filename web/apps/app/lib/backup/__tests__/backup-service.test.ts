@@ -397,7 +397,7 @@ describe('backup-service', () => {
       const blob = new Blob([JSON.stringify(json)]);
       const file = new File([blob], 'future.oriveo');
 
-      await expect(parseBackupFile(file)).rejects.toThrow('VERSION_TOO_NEW');
+      await expect(parseBackupFile(file)).rejects.toMatchObject({ message: 'VERSION_TOO_NEW', version: expect.any(Number) });
     });
 
     it('throws on an invalid format', async () => {

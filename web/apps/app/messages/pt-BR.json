@@ -1642,6 +1642,7 @@
       "passwordMismatch": "As senhas não coincidem",
       "wrongPassword": "Senha incorreta",
       "invalidFile": "Arquivo de backup inválido ou não reconhecido",
+      "versionTooNew": "Este backup requer uma versão mais recente do Oriveo (versão de formato {version}).",
       "success": "Backup exportado com sucesso",
       "exportComplete": "Exportação concluída",
       "legacyPasswordHint": "Este backup está criptografado. Digite a senha para continuar.",

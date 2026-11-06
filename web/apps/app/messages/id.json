@@ -1642,6 +1642,7 @@
       "passwordMismatch": "Kata sandi tidak cocok",
       "wrongPassword": "Kata sandi salah",
       "invalidFile": "File cadangan tidak valid atau tidak dikenal",
+      "versionTooNew": "Cadangan ini memerlukan versi Oriveo yang lebih baru (format versi {version}).",
       "success": "Cadangan berhasil diekspor",
       "exportComplete": "Ekspor Selesai",
       "legacyPasswordHint": "Cadangan ini dienkripsi. Masukkan kata sandi untuk melanjutkan.",

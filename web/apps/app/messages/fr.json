@@ -1642,6 +1642,7 @@
       "passwordMismatch": "Les mots de passe ne correspondent pas",
       "wrongPassword": "Mot de passe incorrect",
       "invalidFile": "Fichier de sauvegarde non valide ou non reconnu",
+      "versionTooNew": "Cette sauvegarde nécessite une version plus récente d'Oriveo (version au format {version}).",
       "success": "Sauvegarde exportée avec succès",
       "exportComplete": "Exportation terminée",
       "legacyPasswordHint": "Cette sauvegarde est chiffrée. Entrez le mot de passe pour continuer.",

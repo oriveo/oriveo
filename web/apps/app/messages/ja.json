@@ -1642,6 +1642,7 @@
       "passwordMismatch": "パスワードが一致しません",
       "wrongPassword": "パスワードが正しくありません",
       "invalidFile": "無効または認識できないバックアップファイルです",
+      "versionTooNew": "このバックアップには、新しいバージョンの Oriveo (フォーマット バージョン {version}) が必要です。",
       "success": "バックアップのエクスポートが完了しました",
       "exportComplete": "エクスポート完了",
       "legacyPasswordHint": "このバックアップは暗号化されています。パスワードを入力してください。",

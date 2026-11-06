@@ -48,7 +48,7 @@ async function parseZipBackup(
   const backupFile = JSON.parse(jsonStr) as BackupFile;
 
   if (!backupFile.version || !backupFile.data) throw new Error('INVALID_FORMAT');
-  if (backupFile.version > BACKUP_VERSION) throw new Error('VERSION_TOO_NEW');
+  if (backupFile.version > BACKUP_VERSION) throw Object.assign(new Error('VERSION_TOO_NEW'), { version: backupFile.version as number });
 
   // Read the images under attachments/.
   const imageEntries = new Map<string, Uint8Array>();
@@ -76,7 +76,7 @@ async function parseJsonBackup(
 
   // Newer JSON format (has version and data).
   if (parsed.version && parsed.data) {
-    if (parsed.version > BACKUP_VERSION) throw new Error('VERSION_TOO_NEW');
+    if (parsed.version > BACKUP_VERSION) throw Object.assign(new Error('VERSION_TOO_NEW'), { version: parsed.version as number });
     return { backupFile: sanitizeBackupQuoteContexts(parsed as BackupFile), imageEntries: new Map() };
   }
 

@@ -1642,6 +1642,7 @@
       "passwordMismatch": "Passwords don't match",
       "wrongPassword": "Incorrect password",
       "invalidFile": "Invalid or unrecognized backup file",
+      "versionTooNew": "This backup requires a newer version of Oriveo (format version {version}).",
       "success": "Backup exported successfully",
       "exportComplete": "Export Complete",
       "legacyPasswordHint": "This backup is encrypted. Enter the password to continue.",

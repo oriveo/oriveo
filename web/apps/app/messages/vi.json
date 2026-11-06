@@ -1642,6 +1642,7 @@
       "passwordMismatch": "Mật khẩu không khớp",
       "wrongPassword": "Mật khẩu không chính xác",
       "invalidFile": "Tệp sao lưu không hợp lệ hoặc không được nhận dạng",
+      "versionTooNew": "Bản sao lưu này yêu cầu phiên bản Oriveo mới hơn (phiên bản định dạng {version}).",
       "success": "Đã xuất bản sao lưu thành công",
       "exportComplete": "Xuất hoàn tất",
       "legacyPasswordHint": "Bản sao lưu này được mã hóa. Nhập mật khẩu để tiếp tục.",
