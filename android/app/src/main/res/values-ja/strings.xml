@@ -238,7 +238,7 @@
     <string name="result_restored_last_used_model">前回使用したモデル選択を復元しました</string>
     <string name="import_result_no_changes">このバックアップから新しいデータは取り込まれませんでした。</string>
     <string name="backup_error_invalid_format">バックアップファイルの形式が認識されません。</string>
-    <string name="backup_error_version_too_new">このバックアップには、新しいバージョンの Oriveo (フォーマット バージョン %d) が必要です。</string>
+    <string name="backup_error_version_too_new">このバックアップを読み込むには、より新しいバージョンの Oriveo が必要です（フォーマットバージョン %d）。</string>
     <string name="backup_error_wrong_password">パスワードが正しくありません。キーを復元せずに続行する場合は「API Key をスキップ」を選択してください。</string>
     <string name="backup_error_no_data_to_export">まだエクスポートできる会話または Provider がありません。</string>
     <string name="backup_error_account_changed">インポートの準備中にアカウントが変更されました。現在のアカウントでインポートをやり直してください。</string>
