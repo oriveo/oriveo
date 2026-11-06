@@ -217,6 +217,17 @@ struct IncrementalStreamingSegmentParserTests {
         #expect(!native.hasUTF8Prefix("\u{4E2D}\u{5B57}"))
     }
 
+    @Test("containsFenceOrPipe matches contains for fences and pipes")
+    func fenceOrPipeScan() {
+        let cases = ["", "plain", "a`b``c", "``", "```", "a```b", "x``y`z", "a|b", "\u{4E2D}\u{6587}", "\u{4E2D}|\u{6587}", "\u{4E2D}```"]
+        for text in cases {
+            let bridged = ((text + "\u{6587}") as NSString).substring(to: (text as NSString).length)
+            let expected = text.contains("```") || text.contains("|")
+            #expect(text.containsFenceOrPipe == expected, "\(text)")
+            #expect(bridged.containsFenceOrPipe == expected, "\(text)")
+        }
+    }
+
     private func describe(_ parsed: StreamingSegmentParser.ParsedContent) -> String {
         String(reflecting: parsed)
     }

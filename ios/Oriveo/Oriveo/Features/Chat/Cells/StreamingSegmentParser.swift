@@ -20,6 +20,24 @@ extension String {
     }
 }
 
+extension String {
+    /// Whether the text has a code fence or a table pipe, scanning bytes once.
+    /// `contains("```")` searches Character by Character, too slow to repeat over the whole reply
+    /// on every tick; both needles are ASCII, so bytes give the same answer.
+    var containsFenceOrPipe: Bool {
+        var text = self
+        return text.withUTF8 { bytes in
+            var backtickRun = 0
+            for byte in bytes {
+                if byte == UInt8(ascii: "|") { return true }
+                backtickRun = byte == UInt8(ascii: "`") ? backtickRun + 1 : 0
+                if backtickRun == 3 { return true }
+            }
+            return false
+        }
+    }
+}
+
 enum StreamingSegmentParser {
 
 
@@ -418,7 +436,7 @@ final class IncrementalStreamingSegmentParser {
 
         if text == lastInput { return lastResult }
 
-        if !text.contains("```") && !text.contains("|") {
+        if !text.containsFenceOrPipe {
             let result = StreamingSegmentParser.ParsedContent(
                 committed: [], tail: text, streamingTable: nil
             )
