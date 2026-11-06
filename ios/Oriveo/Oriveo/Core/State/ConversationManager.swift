@@ -347,8 +347,7 @@ final class ConversationManager {
         }
         let ordering = Dictionary(uniqueKeysWithValues: ids.enumerated().map { ($1, $0) })
         let partitionUID = appState.sessionPartitionUID
-        if appState.prefersAuthoritativeConversationStore,
-           DatabaseManager.shared.hasDatabase(for: partitionUID),
+        if appState.canReadAuthoritativeConversationStore(uid: partitionUID),
            let summaries = try? appState.conversationRuntimeBridge.fetchConversationSummaryProjections(
                ids: ids,
                uid: partitionUID
@@ -665,8 +664,7 @@ final class ConversationManager {
 
     private func authoritativeConversations() -> [Conversation] {
         let partitionUID = appState.sessionPartitionUID
-        guard appState.prefersAuthoritativeConversationStore,
-              DatabaseManager.shared.hasDatabase(for: partitionUID) else {
+        guard appState.canReadAuthoritativeConversationStore(uid: partitionUID) else {
             return conversations
         }
         // Cache rebuild and grouping only need conversation rows. Message bodies
@@ -696,8 +694,7 @@ final class ConversationManager {
 
     private func authoritativeSearchResults(matching query: String) async -> [Conversation]? {
         let partitionUID = appState.sessionPartitionUID
-        guard appState.prefersAuthoritativeConversationStore,
-              DatabaseManager.shared.hasDatabase(for: partitionUID) else {
+        guard appState.canReadAuthoritativeConversationStore(uid: partitionUID) else {
             return nil
         }
         return try? await appState.conversationRuntimeBridge.searchConversationProjections(
@@ -711,8 +708,7 @@ final class ConversationManager {
         now: Date
     ) -> HomeConversationSnapshot? {
         let partitionUID = appState.sessionPartitionUID
-        guard appState.prefersAuthoritativeConversationStore,
-              DatabaseManager.shared.hasDatabase(for: partitionUID) else {
+        guard appState.canReadAuthoritativeConversationStore(uid: partitionUID) else {
             return nil
         }
 

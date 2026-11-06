@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "지우기",
     "generationParameterDormantRestored": "매개변수 {count}개를 복원했습니다",
     "generationPresetName": "프리셋 이름",
+    "capabilityControlFixedByConnection": "이 연결에서 설정됨",
     "capabilityControlReasonPending": "자동 구성이 아직 준비되지 않았습니다",
     "capabilityControlReasonUnsupported": "이 모델은 이 요청을 지원하지 않습니다",
     "capabilityControlReasonExternalConnector": "별도의 외부 서비스에서 제공되며 이 채팅 요청에는 포함되지 않습니다",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Oriveo에 오신 것을 환영합니다",
       "tagline": "모든 모델, 하나의 앱.",
+      "slogan": "당신의 키, 당신의 비용, 당신의 데이터.",
       "description": "첫 AI 제공업체를 설정하고 멀티모델 대화를 시작하세요.",
       "addProvider": "제공업체 추가",
       "enterHome": "앱으로 이동"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "API 키로 전환",
         "disabledFallback": "ChatGPT 구독 로그인은 현재 사용할 수 없습니다. API 키로 전환하거나 이 연결을 삭제할 수 있습니다."
       },
-      "subscription": "구독"
+      "subscription": "구독",
+      "tokenPrices": {
+        "input": "입력 {count}",
+        "cacheRead": "캐시 읽기 {count}",
+        "cacheWrite": "캐시 쓰기 {count}",
+        "output": "출력 {count}",
+        "unit": "토큰"
+      }
     },
     "providers": {
       "title": "제공업체",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "개인정보 처리방침",
+      "sourceCode": "소스 코드",
       "aiSection": "AI",
       "skills": "스킬",
       "backupImportExport": "백업 및 가져오기/내보내기",
+      "reportIssue": "문제 신고",
+      "documentation": "문서",
       "aboutTagline": "모든 모델, 하나의 앱.",
       "context": {
         "title": "컨텍스트",
@@ -1630,6 +1642,7 @@
       "passwordMismatch": "비밀번호가 일치하지 않습니다",
       "wrongPassword": "비밀번호가 올바르지 않습니다",
       "invalidFile": "유효하지 않거나 인식할 수 없는 백업 파일",
+      "versionTooNew": "이 백업을 불러오려면 더 새로운 버전의 Oriveo가 필요해요(형식 버전 {version}).",
       "success": "백업 내보내기 완료",
       "exportComplete": "내보내기 완료",
       "legacyPasswordHint": "이 백업은 암호화되어 있습니다. 비밀번호를 입력하세요.",
@@ -2054,11 +2067,14 @@
     "title": "스킬",
     "mySkills": "내 스킬",
     "builtinSkills": "기본 스킬",
+    "pinned": "고정됨",
     "newSkill": "새 스킬",
     "editSkill": "스킬 편집",
     "deleteSkill": "스킬 삭제",
     "forkSkill": "내 스킬로 복사",
     "useSkill": "이 스킬 사용",
+    "pinToHome": "홈에 고정",
+    "unpinFromHome": "고정 해제",
     "instructions": "프롬프트",
     "instructionsPlaceholder": "예: 당신은 시니어 코드 리뷰어입니다. 보안, 성능, 가독성 관점에서 코드를 리뷰하세요. 사용자의 언어로 답변하세요.",
     "starterMessages": "대화 시작 메시지",
@@ -2811,7 +2827,8 @@
       "stepLimit": "이번에 선택한 문서가 너무 많거나 깁니다. 선택을 줄인 뒤 다시 시도하세요.",
       "notConnected": "조사를 시작하기 전에 라이브러리 소스를 연결하세요.",
       "sourceForbidden": "권한 또는 정책 제한으로 인해 소스가 액세스를 거부했습니다. 다시 연결해도 해결되지 않습니다 — 소스 자체의 공유 또는 규정 준수 설정을 확인하세요.",
-      "unavailable": "라이브러리를 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요."
+      "unavailable": "라이브러리를 일시적으로 사용할 수 없습니다. 나중에 다시 시도하세요.",
+      "retry": "다시 시도"
     }
   },
   "notes": {

@@ -72,7 +72,7 @@ struct WebSearchDetailView: View {
                 applyLaunchIntent()
             }
         }
-        .sheet(isPresented: $showsRekey, onDismiss: { Task { await reload() } }) {
+        .oriveoSheet(isPresented: $showsRekey, onDismiss: { Task { await reload() } }) {
             WebSearchRekeySheet(model: model, serviceID: serviceID, onFinished: { showsRekey = false })
         }
         .alert(deleteTitle, isPresented: $showsDeleteConfirm) {

@@ -48,7 +48,7 @@ struct ChatImageStudioRunner {
     /// Returns the chat result, `nil` for the legacy path, or throws the mapped chat error;
     /// a cancelled round throws `CancellationError` with nothing delivered.
     func run(_ request: Request) async throws -> ProviderChatResult? {
-        guard let baseURL = request.baseURL?.trimmingCharacters(in: .whitespacesAndNewlines), !baseURL.isEmpty else {
+        guard let connectionBaseURL = request.baseURL?.trimmingCharacters(in: .whitespacesAndNewlines), !connectionBaseURL.isEmpty else {
             return nil
         }
         let profile = slice().flatMap { slice in
@@ -61,6 +61,10 @@ struct ChatImageStudioRunner {
         guard case .studio = ChatImageDispatch.decide(
             providerKind: request.provider, legacyImageDispatch: true, profile: profile, attachments: []
         ), let profile else { return nil }
+        // The studio base URL depends on the route, so it is derived once the profile is known.
+        guard let baseURL = ChatImageDispatch.studioBaseURL(
+            route: profile.route, connectionBaseURL: connectionBaseURL
+        ) else { return nil }
         var loaded: [LoadedImage] = []
         if profile.operations.contains(.edit) {
             let candidates = request.attachments.compactMap { attachment -> LoadedImage? in

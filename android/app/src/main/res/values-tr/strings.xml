@@ -373,7 +373,7 @@
     <string name="result_restored_last_used_model">Son kullanılan model seçimi geri yüklendi</string>
     <string name="import_result_no_changes">Bu yedeklemeden yeni veri içe aktarılmadı.</string>
     <string name="backup_error_invalid_format">Yedekleme dosyası formatı tanınmıyor.</string>
-    <string name="backup_error_version_too_new">Bu yedekleme, Oriveo\'nun daha yeni bir sürümünü (%1$d biçimlendirme sürümü) gerektirir.</string>
+    <string name="backup_error_version_too_new">Bu yedek, Oriveo\'nun daha yeni bir sürümünü gerektiriyor (biçim sürümü %1$d).</string>
     <string name="backup_error_wrong_password">Yanlış şifre. Anahtarları geri yüklemeden devam etmek için API Anahtarları Atla seçeneğini kullanın.</string>
     <string name="backup_error_no_data_to_export">Henüz dışa aktarılacak görüşme veya sağlayıcı yok.</string>
     <string name="backup_error_account_changed">Bu içe aktarma hazırlanırken hesap değiştirildi. Mevcut hesap için içe aktarmayı yeniden başlatın.</string>

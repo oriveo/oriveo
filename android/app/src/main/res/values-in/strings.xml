@@ -372,7 +372,7 @@
     <string name="result_restored_last_used_model">Pemilihan model yang terakhir digunakan dipulihkan</string>
     <string name="import_result_no_changes">Tidak ada data baru yang diimpor dari cadangan ini.</string>
     <string name="backup_error_invalid_format">Format file cadangan tidak dikenali.</string>
-    <string name="backup_error_version_too_new">Cadangan ini memerlukan versi Oriveo yang lebih baru (format versi %1$d).</string>
+    <string name="backup_error_version_too_new">Cadangan ini memerlukan versi Oriveo yang lebih baru (versi format %1$d).</string>
     <string name="backup_error_wrong_password">Kata sandi salah. Gunakan “Lewati API key” untuk melanjutkan tanpa memulihkan kunci.</string>
     <string name="backup_error_no_data_to_export">Belum ada percakapan atau penyedia yang dapat diekspor.</string>
     <string name="backup_error_account_changed">Akun berubah saat mempersiapkan impor ini. Mulai impor lagi untuk akun saat ini.</string>

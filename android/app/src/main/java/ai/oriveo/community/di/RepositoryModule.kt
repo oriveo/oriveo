@@ -248,7 +248,8 @@ val repositoryModule = module {
 
     single {
         ai.oriveo.community.core.streaming.StreamingLifecycleObserver(
-            chatStreamingManager = get(),
+            // Resolved at ON_STOP off the main thread; Application.onCreate must not build the chat graph.
+            chatStreamingManager = { get() },
         )
     }
 

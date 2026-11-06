@@ -43,10 +43,10 @@ struct NotesView: View {
             visibleCount = NotesView.pageSize
         }
         .onChange(of: sortKey) { _, _ in visibleCount = NotesView.pageSize }
-        .sheet(isPresented: $showNewFolderSheet) {
+        .oriveoSheet(isPresented: $showNewFolderSheet) {
             CreateNoteFolderSheet()
         }
-        .sheet(item: $moveSheetNote) { summary in
+        .oriveoSheet(item: $moveSheetNote) { summary in
             MoveToNoteFolderSheet(noteID: summary.id, current: summary.noteFolderID)
         }
         .confirmationDialog(
@@ -65,7 +65,7 @@ struct NotesView: View {
         } message: { _ in
             Text(L10n.tr("This note will be permanently deleted and can't be recovered.", table: .notes))
         }
-        .sheet(item: $folderToEdit) { folder in
+        .oriveoSheet(item: $folderToEdit) { folder in
             EditNoteFolderSheet(folder: folder)
         }
     }
@@ -362,7 +362,7 @@ struct NotesView: View {
                             folderDeleteConfirming = false
                             folderToManage = folder
                         }
-                        .popover(isPresented: Binding(
+                        .oriveoPopover(isPresented: Binding(
                             get: { folderToManage?.id == folder.id },
                             set: { if !$0 { folderToManage = nil; folderDeleteConfirming = false } }
                         )) {

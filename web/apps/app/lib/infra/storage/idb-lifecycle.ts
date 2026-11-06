@@ -49,6 +49,23 @@ export function reportIDBUpgradeBlocked(
 }
 
 /**
+ * Reports that a partition database was not confirmed deleted. Account deletion keeps going either
+ * way, so this is the only trace of credentials left on the device. The uid is dropped from the name.
+ */
+export function reportPartitionDeleteIncomplete(dbName: string, outcome: 'error' | 'timeout'): void {
+  try {
+    Sentry.withScope((scope) => {
+      scope.setLevel('warning');
+      scope.setTag('storage.idb_database', dbName.split('--')[0]);
+      scope.setTag('storage.partition_delete_outcome', outcome);
+      Sentry.captureMessage('storage.partition_delete_incomplete');
+    });
+  } catch {
+    /* A failed report does not change the delete outcome. */
+  }
+}
+
+/**
  * A stale bundle opening a database that a newer bundle has already upgraded: the requested version
  * is lower than the one on disk, and the browser throws `VersionError`.
  *

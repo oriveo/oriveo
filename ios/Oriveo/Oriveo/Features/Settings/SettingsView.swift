@@ -183,7 +183,7 @@ struct SettingsView: View {
             await MetadataClient.shared.ensureInitialized()
             syncMcpEntry()
         }
-        .sheet(item: $presentedWebDestination) { destination in
+        .oriveoSheet(item: $presentedWebDestination) { destination in
             OriveoSafariSheet(url: destination.url)
         }
         .alert(L10n.tr("Language", table: .settings), isPresented: $showsLanguageSettingsMigration) {
@@ -197,7 +197,7 @@ struct SettingsView: View {
                 table: .settings
             ))
         }
-        .fullScreenCover(isPresented: $showsDeveloperSession) {
+        .oriveoFullScreenCover(isPresented: $showsDeveloperSession) {
             developerSessionContent
         }
         .onChange(of: showsDeveloperSession) { _, isPresented in

@@ -241,6 +241,37 @@ class HomeViewModelBehaviorTest {
     }
 
     @Test
+    fun `setActiveModel keeps the picked model when the managed catalog lookup fails`() = runTest {
+        // The picker lists the last good catalog; going offline after that must not crash the pick.
+        coEvery { providerRepository.getById("oriveo-ai") } throws
+            ai.oriveo.community.core.model.ProviderServiceError.Upstream(503, "catalog down")
+
+        val viewModel = HomeViewModel(
+            appPreferencesRepository = appPreferencesRepository,
+            providerRepository = providerRepository,
+            conversationRepository = conversationRepository,
+            folderRepository = folderRepository,
+            noteRepository = noteRepository,
+            globalSnackbarManager = globalSnackbarManager,
+            authController = authController,
+            accountSession = accountSession,
+            usageApi = usageApi,
+            budgetAlertChecker = budgetAlertChecker,
+            usageReporter = usageReporter,
+            skillRepository = skillRepository,
+            entitlementManager = entitlementManager,
+            chatStreamingManager = chatStreamingManager,
+            ioDispatcher = dispatcher,
+            defaultDispatcher = dispatcher,
+        )
+
+        viewModel.setActiveModel("oriveo-ai", "oriveo-chat")
+        advanceUntilIdle()
+
+        coVerify { appPreferencesRepository.setLastUsedModel("oriveo-ai", "oriveo-chat") }
+    }
+
+    @Test
     fun `setActiveModel stores matched snapshot model as canonical-capable model`() = runTest {
         MetadataTestFixtures.applyProviders(
             MetadataTestFixtures.ProviderSpec(

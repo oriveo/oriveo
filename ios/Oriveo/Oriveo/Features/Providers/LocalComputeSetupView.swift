@@ -156,7 +156,7 @@ struct LocalComputeSetupView: View {
         .safeAreaInset(edge: .bottom) {
             localActionBar
         }
-        .sheet(isPresented: $showsSecurityModePicker) {
+        .oriveoSheet(isPresented: $showsSecurityModePicker) {
             RelaySecurityModePickerSheet(
                 endpoint: endpoint,
                 currentMode: securityMode,

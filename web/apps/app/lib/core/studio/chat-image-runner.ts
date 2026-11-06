@@ -11,7 +11,7 @@ import { getActiveUIDSync } from '../../infra/storage/partition';
 import { createCanonicalUUID } from '../../utils/id-utils';
 import { runStudioByokRound, type StudioByokImage, type StudioGenerateResult } from './byok-client';
 import { persistStudioRoundImages } from './byok-persist';
-import { CHAT_IMAGE_PARAMS, chatImageErrorKind, decideChatImageDispatch } from './chat-image-dispatch';
+import { CHAT_IMAGE_PARAMS, chatImageErrorKind, chatStudioBaseUrl, decideChatImageDispatch } from './chat-image-dispatch';
 import { resolveImageProfile, type ImageMetadataSlice } from './image-profile';
 
 export interface ChatImageStudioInput {
@@ -116,6 +116,9 @@ export async function runChatImageStudio(
     })),
   });
   if (dispatch.path === 'legacy' || !profile) return null;
+  // The studio request needs a concrete base URL; one that cannot be derived keeps the legacy path.
+  const baseURL = chatStudioBaseUrl(profile.route, input.baseURL);
+  if (baseURL === null) return null;
 
   const images: StudioByokImage[] = dispatch.images.map((image) => {
     const local = bytes.get(image.attachmentId)!;
@@ -127,7 +130,7 @@ export async function runChatImageStudio(
     {
       providerKind: input.providerKind,
       apiKey: input.apiKey,
-      baseURL: input.baseURL,
+      baseURL,
       modelId: input.model,
       profile,
       operation: dispatch.operation,

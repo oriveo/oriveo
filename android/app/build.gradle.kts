@@ -178,7 +178,12 @@ android {
             // classpath (same version MockK uses) and is looked up at execution time, because AGP replaces
             // the classpath after this block runs.
             it.jvmArgumentProviders.add(CommandLineArgumentProvider {
-                listOf("-javaagent:${it.classpath.single { file -> file.name.startsWith("byte-buddy-agent-") }.absolutePath}")
+                // Match on Installer.class: newer plugin versions add a same-named jar with the classes stripped.
+                val agentJar = it.classpath.single { file ->
+                    file.name.startsWith("byte-buddy-agent-") &&
+                        java.util.zip.ZipFile(file).use { zip -> zip.getEntry("net/bytebuddy/agent/Installer.class") != null }
+                }
+                listOf("-javaagent:${agentJar.absolutePath}")
             })
         }
     }

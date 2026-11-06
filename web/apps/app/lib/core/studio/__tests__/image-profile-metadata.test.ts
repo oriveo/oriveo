@@ -18,8 +18,8 @@ import {
 } from '../../metadata/metadata-split';
 import { imageMetadataSliceFromMetadata, resolveImageProfile } from '../image-profile';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, '\u5171\u4eab/model-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 
 type JsonRecord = Record<string, unknown>;
 

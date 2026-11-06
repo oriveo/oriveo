@@ -126,6 +126,28 @@ export function decideChatImageDispatch(input: ChatImageDispatchInput): ChatImag
   return { path: 'studio', operation: 'edit', images };
 }
 
+/**
+ * Studio base URL for a chat image send, derived from the connection's effective base URL.
+ * Null keeps the legacy path (same as a missing base URL).
+ */
+export function chatStudioBaseUrl(route: ImageRoute, connectionBaseUrl: string | null | undefined): string | null {
+  let base = String(connectionBaseUrl ?? '').trim();
+  if (!base) return null;
+  // A schemeless address gets https, so the generate endpoint does not reject it as invalid_request.
+  if (!/^[a-z][a-z0-9+.-]*:\/\//i.test(base)) base = `https://${base}`;
+  base = base.replace(/\/+$/, '');
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^/?#\s]+/i.test(base)) return null;
+  if (route !== 'dashscope_multimodal') return base;
+  // DashScope connections store the compatible-mode (or native) root; the studio route needs the native /api/v1 root.
+  for (const suffix of ['/compatible-mode/v1', '/api/v1']) {
+    if (base.endsWith(suffix)) {
+      base = base.slice(0, -suffix.length).replace(/\/+$/, '');
+      break;
+    }
+  }
+  return `${base}/api/v1`;
+}
+
 export function chatImageErrorCategory(kind: ChatImageFailureKind): ChatImageErrorCategory {
   return CHAT_IMAGE_ERROR_MAP[kind];
 }

@@ -70,11 +70,11 @@ struct WebSearchSettingsView: View {
         // Arrived from model options "Add search service" but left without adding: invalidate that "select after adding", so services added directly here afterwards do not send pick_service.
         .onDisappear { SearchArmAfterAdd.shared.clear(origin: .settings) }
         #if DEBUG
-        .sheet(isPresented: Binding(get: { shotModelOptions != nil }, set: { if !$0 { shotModelOptions = nil } })) {
+        .oriveoSheet(isPresented: Binding(get: { shotModelOptions != nil }, set: { if !$0 { shotModelOptions = nil } })) {
             if let shotModelOptions { WebSearchShotModelOptionsHost(shot: shotModelOptions) }
         }
         #endif
-        .sheet(isPresented: $showsAddSheet, onDismiss: { Task { await model.load(appState: appState) } }) {
+        .oriveoSheet(isPresented: $showsAddSheet, onDismiss: { Task { await model.load(appState: appState) } }) {
             WebSearchAddSheet(model: model) { serviceID in
                 showsAddSheet = false
                 appState.navigation.attemptNavigate(to: .webSearchServiceDetail(serviceID: serviceID))

@@ -1,0 +1,1479 @@
+{
+  "$comment": "Studio section of the cross-platform backup zip. Recomputed by scripts/lib/studio-backup-reference.mjs in scripts/studio-contracts-check.mjs. Local rows use epoch-millisecond times (iOS / Android storage form; Web converts with toISOString). iOS has one database per account: seed rows whose accountPartition is not seed.partition, and assets only they reference, are not inserted there; iOS drops those ids from the expected lists too (expected assetIds include 4D…0006, referenced only by uid-b). Expected updatedAt is epoch milliseconds (Web compares Date.parse of its ISO value). Placeholders: $seed / $empty = the local states below; $export = exportCase.expect.studio or.entries; $exportLower = the same studio with every id except assetId lowercased; $exportWithoutA2 = export entries minus the original entry of asset 4D…0002.",
+  "contractId": "studio_backup",
+  "version": 1,
+  "spec": {
+    "dataKey": "studio",
+    "fileVersion": {
+      "withoutStudio": 1,
+      "withStudio": 2,
+      "maxReadable": 2
+    },
+    "entries": {
+      "original": "studio-assets/{assetId}",
+      "thumbnail": "studio-assets/{assetId}.thumb"
+    },
+    "exportedRoundStatuses": [
+      "completed",
+      "partial",
+      "failed",
+      "cancelled",
+      "interrupted",
+      "expired"
+    ],
+    "fields": {
+      "works": [
+        "id",
+        "title",
+        "currentVersionId",
+        "source",
+        "chatConversationId",
+        "chatMessageId",
+        "favorite",
+        "selectedVersionIds",
+        "deletedVersionIds",
+        "createdAt",
+        "updatedAt",
+        "deletedAt",
+        "revision"
+      ],
+      "rounds": [
+        "id",
+        "workId",
+        "index",
+        "baseVersionId",
+        "operation",
+        "prompt",
+        "composedPrompt",
+        "enhancedPrompt",
+        "presetIds",
+        "params",
+        "modelRef",
+        "status",
+        "errorKind",
+        "adjustments",
+        "nRequested",
+        "nDelivered",
+        "costEstimateUsd",
+        "chargedUsd",
+        "fundingSource",
+        "managedJobId",
+        "clientJobId",
+        "startedAt",
+        "finishedAt"
+      ],
+      "versions": [
+        "id",
+        "roundId",
+        "workId",
+        "parentVersionId",
+        "assetId",
+        "width",
+        "height",
+        "mime",
+        "kept",
+        "createdAt"
+      ],
+      "roundRefs": [
+        "roundId",
+        "order",
+        "assetId",
+        "role"
+      ],
+      "assets": [
+        "assetId",
+        "mime"
+      ]
+    },
+    "rules": [
+      "data.studio is written only when the current partition has at least one non-deleted work; then BackupFile.version = 2, otherwise the file is byte-for-byte the version-1 format.",
+      "Readers accept version <= 2; above that the whole import is rejected (version_too_new). A file without data.studio leaves local works, rounds, versions, refs and their assets untouched in every import mode.",
+      "Exported scope: non-deleted works of the current partition; their rounds whose status is in exportedRoundStatuses; versions and roundRefs of those rounds; assets = distinct assetId of those versions and refs whose original bytes exist locally.",
+      "Row shape: exactly spec.fields per table, every field present (null when absent; readers accept null in every field and fill their own NOT NULL defaults); UUID-shaped work / round / version / chat ids uppercase, other strings verbatim, assetId verbatim (image-store key, case-sensitive; asset 4d…0001 is lowercase); times ISO-8601 UTC with milliseconds; presetIds / params / modelRef / adjustments as JSON values, not strings; arrays sorted by primary key ascending in UTF-16 code-unit order, case-sensitive (roundRefs by roundId then order).",
+      "asset.mime = mime of the lowest-id version using that asset, else the sniffed mime of the original bytes, else application/octet-stream (never null). Entries: original studio-assets/<assetId>, thumbnail studio-assets/<assetId>.thumb (assetId verbatim) (only when stored locally); both recorded in attachmentChecksums under the full entry name.",
+      "Import, importNew and merge: a backup work whose id already exists in the current partition (tombstone included) is skipped with all its rounds, versions, refs and assets. Otherwise the work and its rounds / versions / refs are written with accountPartition = current partition, baseRevision = 0, syncState = pending, other fields as in the backup.",
+      "Import, replaceAll with data.studio: all works of the current partition (tombstones included) and their child rows are deleted first, then every backup work is written as above. Asset ids of deleted rows are handed to the orphan sweeper purge after commit (it rechecks every studio and chat reference); never delete them directly.",
+      "Assets: an asset already stored locally is kept as is. Otherwise its original is written when the entry exists, and its thumbnail when the .thumb entry exists, else ensureThumbnail runs after the rows commit. A missing original leaves the rows written.",
+      "All studio rows of one import are committed in one database transaction; assets written by this import are deleted again if that transaction fails.",
+      "Any import mode (v1 or v2) must not remove assets still referenced by studio rows: image cleanup after a conversation replaceAll goes through the orphan sweeper purge, not a direct delete or a whole-directory swap."
+    ]
+  },
+  "seed": {
+    "partition": "uid-a",
+    "works": [
+      {
+        "id": "1A000000-0000-4000-8000-000000000001",
+        "accountPartition": "uid-a",
+        "title": "Window coffee",
+        "currentVersionId": "3C000000-0000-4000-8000-000000000003",
+        "source": "studio",
+        "chatConversationId": null,
+        "chatMessageId": null,
+        "favorite": true,
+        "selectedVersionIds": [
+          "3C000000-0000-4000-8000-000000000001",
+          "3C000000-0000-4000-8000-000000000003"
+        ],
+        "deletedVersionIds": [],
+        "createdAt": 1793174400001,
+        "updatedAt": 1793174401000,
+        "deletedAt": null,
+        "revision": 3,
+        "baseRevision": 2,
+        "syncState": "synced"
+      },
+      {
+        "id": "1A000000-0000-4000-8000-000000000002",
+        "accountPartition": "uid-a",
+        "title": "Work 2",
+        "currentVersionId": "3C000000-0000-4000-8000-000000000004",
+        "source": "chat",
+        "chatConversationId": "6F000000-0000-4000-8000-000000000001",
+        "chatMessageId": "6F000000-0000-4000-8000-000000000002",
+        "favorite": false,
+        "selectedVersionIds": [
+          "3C000000-0000-4000-8000-000000000004"
+        ],
+        "deletedVersionIds": [],
+        "createdAt": 1793174400002,
+        "updatedAt": 1793174402000,
+        "deletedAt": null,
+        "revision": 1,
+        "baseRevision": 0,
+        "syncState": "pending"
+      },
+      {
+        "id": "1A000000-0000-4000-8000-000000000003",
+        "accountPartition": "uid-a",
+        "title": "",
+        "currentVersionId": null,
+        "source": "studio",
+        "chatConversationId": null,
+        "chatMessageId": null,
+        "favorite": false,
+        "selectedVersionIds": [],
+        "deletedVersionIds": [],
+        "createdAt": 1793174400003,
+        "updatedAt": 1793174403000,
+        "deletedAt": 1793174409000,
+        "revision": 4,
+        "baseRevision": 4,
+        "syncState": "synced"
+      },
+      {
+        "id": "1A000000-0000-4000-8000-000000000004",
+        "accountPartition": "uid-b",
+        "title": "Work 4",
+        "currentVersionId": "3C000000-0000-4000-8000-000000000006",
+        "source": "studio",
+        "chatConversationId": null,
+        "chatMessageId": null,
+        "favorite": false,
+        "selectedVersionIds": [
+          "3C000000-0000-4000-8000-000000000006"
+        ],
+        "deletedVersionIds": [],
+        "createdAt": 1793174400004,
+        "updatedAt": 1793174404000,
+        "deletedAt": null,
+        "revision": 1,
+        "baseRevision": 0,
+        "syncState": "pending"
+      }
+    ],
+    "rounds": [
+      {
+        "id": "2B000000-0000-4000-8000-000000000001",
+        "workId": "1A000000-0000-4000-8000-000000000001",
+        "index": 1,
+        "baseVersionId": null,
+        "operation": "generate",
+        "prompt": "prompt 1",
+        "composedPrompt": "composed 1",
+        "enhancedPrompt": null,
+        "presetIds": {
+          "style": "watercolor",
+          "effects": []
+        },
+        "params": {
+          "aspect": "1:1",
+          "resolution": "1K",
+          "quality": "standard",
+          "n": 2
+        },
+        "modelRef": {
+          "source": "byok",
+          "providerKind": "openAI",
+          "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+          "modelId": "gpt-image-2",
+          "route": "openai_images"
+        },
+        "status": "completed",
+        "errorKind": null,
+        "adjustments": [],
+        "nRequested": 2,
+        "nDelivered": 2,
+        "costEstimateUsd": 0.106,
+        "chargedUsd": null,
+        "fundingSource": "byok",
+        "managedJobId": null,
+        "clientJobId": "5E000000-0000-4000-8000-000000000001",
+        "startedAt": 1793174460000,
+        "finishedAt": 1793174491000
+      },
+      {
+        "id": "2B000000-0000-4000-8000-000000000002",
+        "workId": "1A000000-0000-4000-8000-000000000001",
+        "index": 2,
+        "baseVersionId": "3C000000-0000-4000-8000-000000000001",
+        "operation": "edit",
+        "prompt": "prompt 2",
+        "composedPrompt": "composed 2",
+        "enhancedPrompt": null,
+        "presetIds": {
+          "style": "watercolor",
+          "effects": []
+        },
+        "params": {
+          "aspect": "1:1",
+          "resolution": "1K",
+          "quality": "standard",
+          "n": 2
+        },
+        "modelRef": {
+          "source": "byok",
+          "providerKind": "openAI",
+          "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+          "modelId": "gpt-image-2",
+          "route": "openai_images"
+        },
+        "status": "completed",
+        "errorKind": null,
+        "adjustments": [],
+        "nRequested": 2,
+        "nDelivered": 2,
+        "costEstimateUsd": 0.25,
+        "chargedUsd": 0.2,
+        "fundingSource": "byok",
+        "managedJobId": null,
+        "clientJobId": "5E000000-0000-4000-8000-000000000002",
+        "startedAt": 1793174520000,
+        "finishedAt": 1793174551000
+      },
+      {
+        "id": "2B000000-0000-4000-8000-000000000003",
+        "workId": "1A000000-0000-4000-8000-000000000001",
+        "index": 3,
+        "baseVersionId": "3C000000-0000-4000-8000-000000000003",
+        "operation": "edit",
+        "prompt": "prompt 3",
+        "composedPrompt": "composed 3",
+        "enhancedPrompt": null,
+        "presetIds": {
+          "style": "watercolor",
+          "effects": []
+        },
+        "params": {
+          "aspect": "1:1",
+          "resolution": "1K",
+          "quality": "standard",
+          "n": 2
+        },
+        "modelRef": {
+          "source": "byok",
+          "providerKind": "openAI",
+          "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+          "modelId": "gpt-image-2",
+          "route": "openai_images"
+        },
+        "status": "running",
+        "errorKind": null,
+        "adjustments": [],
+        "nRequested": 2,
+        "nDelivered": 0,
+        "costEstimateUsd": 0.106,
+        "chargedUsd": null,
+        "fundingSource": "byok",
+        "managedJobId": null,
+        "clientJobId": "5E000000-0000-4000-8000-000000000003",
+        "startedAt": 1793174580000,
+        "finishedAt": null
+      },
+      {
+        "id": "2B000000-0000-4000-8000-000000000004",
+        "workId": "1A000000-0000-4000-8000-000000000002",
+        "index": 1,
+        "baseVersionId": null,
+        "operation": "generate",
+        "prompt": "prompt 4",
+        "composedPrompt": "composed 4",
+        "enhancedPrompt": null,
+        "presetIds": {
+          "style": "watercolor",
+          "effects": []
+        },
+        "params": {
+          "aspect": "1:1",
+          "resolution": "1K",
+          "quality": "standard",
+          "n": 2
+        },
+        "modelRef": {
+          "source": "byok",
+          "providerKind": "openAI",
+          "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+          "modelId": "gpt-image-2",
+          "route": "openai_images"
+        },
+        "status": "completed",
+        "errorKind": null,
+        "adjustments": [],
+        "nRequested": 2,
+        "nDelivered": 2,
+        "costEstimateUsd": 0.106,
+        "chargedUsd": null,
+        "fundingSource": "byok",
+        "managedJobId": null,
+        "clientJobId": "5E000000-0000-4000-8000-000000000004",
+        "startedAt": 1793174640000,
+        "finishedAt": 1793174671000
+      },
+      {
+        "id": "2B000000-0000-4000-8000-000000000006",
+        "workId": "1A000000-0000-4000-8000-000000000004",
+        "index": 1,
+        "baseVersionId": null,
+        "operation": "generate",
+        "prompt": "prompt 6",
+        "composedPrompt": "composed 6",
+        "enhancedPrompt": null,
+        "presetIds": {
+          "style": "watercolor",
+          "effects": []
+        },
+        "params": {
+          "aspect": "1:1",
+          "resolution": "1K",
+          "quality": "standard",
+          "n": 2
+        },
+        "modelRef": {
+          "source": "byok",
+          "providerKind": "openAI",
+          "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+          "modelId": "gpt-image-2",
+          "route": "openai_images"
+        },
+        "status": "completed",
+        "errorKind": null,
+        "adjustments": [],
+        "nRequested": 2,
+        "nDelivered": 2,
+        "costEstimateUsd": 0.106,
+        "chargedUsd": null,
+        "fundingSource": "byok",
+        "managedJobId": null,
+        "clientJobId": "5E000000-0000-4000-8000-000000000006",
+        "startedAt": 1793174760000,
+        "finishedAt": 1793174791000
+      }
+    ],
+    "versions": [
+      {
+        "id": "3C000000-0000-4000-8000-000000000001",
+        "roundId": "2B000000-0000-4000-8000-000000000001",
+        "workId": "1A000000-0000-4000-8000-000000000001",
+        "parentVersionId": null,
+        "assetId": "4d000000-0000-4000-8000-000000000001",
+        "width": 1024,
+        "height": 1024,
+        "mime": "image/png",
+        "kept": true,
+        "createdAt": 1793174491001
+      },
+      {
+        "id": "3C000000-0000-4000-8000-000000000002",
+        "roundId": "2B000000-0000-4000-8000-000000000001",
+        "workId": "1A000000-0000-4000-8000-000000000001",
+        "parentVersionId": null,
+        "assetId": "4D000000-0000-4000-8000-000000000002",
+        "width": 1024,
+        "height": 1024,
+        "mime": "image/png",
+        "kept": false,
+        "createdAt": 1793174491002
+      },
+      {
+        "id": "3C000000-0000-4000-8000-000000000003",
+        "roundId": "2B000000-0000-4000-8000-000000000002",
+        "workId": "1A000000-0000-4000-8000-000000000001",
+        "parentVersionId": "3C000000-0000-4000-8000-000000000001",
+        "assetId": "4D000000-0000-4000-8000-000000000003",
+        "width": 1024,
+        "height": 1024,
+        "mime": "image/jpeg",
+        "kept": true,
+        "createdAt": 1793174551003
+      },
+      {
+        "id": "3C000000-0000-4000-8000-000000000004",
+        "roundId": "2B000000-0000-4000-8000-000000000004",
+        "workId": "1A000000-0000-4000-8000-000000000002",
+        "parentVersionId": null,
+        "assetId": "4D000000-0000-4000-8000-000000000005",
+        "width": 1024,
+        "height": 1024,
+        "mime": "image/png",
+        "kept": true,
+        "createdAt": 1793174671004
+      },
+      {
+        "id": "3C000000-0000-4000-8000-000000000006",
+        "roundId": "2B000000-0000-4000-8000-000000000006",
+        "workId": "1A000000-0000-4000-8000-000000000004",
+        "parentVersionId": null,
+        "assetId": "4D000000-0000-4000-8000-000000000006",
+        "width": 1024,
+        "height": 1024,
+        "mime": "image/png",
+        "kept": true,
+        "createdAt": 1793174791006
+      }
+    ],
+    "refs": [
+      {
+        "roundId": "2B000000-0000-4000-8000-000000000002",
+        "order": 0,
+        "assetId": "4d000000-0000-4000-8000-000000000001",
+        "role": "base"
+      },
+      {
+        "roundId": "2B000000-0000-4000-8000-000000000002",
+        "order": 1,
+        "assetId": "4D000000-0000-4000-8000-000000000004",
+        "role": "style"
+      },
+      {
+        "roundId": "2B000000-0000-4000-8000-000000000003",
+        "order": 0,
+        "assetId": "4D000000-0000-4000-8000-000000000003",
+        "role": "base"
+      }
+    ],
+    "assets": {
+      "4d000000-0000-4000-8000-000000000001": {
+        "thumbnail": true,
+        "sniffedMime": "image/png"
+      },
+      "4D000000-0000-4000-8000-000000000002": {
+        "thumbnail": true,
+        "sniffedMime": "image/png"
+      },
+      "4D000000-0000-4000-8000-000000000003": {
+        "thumbnail": true,
+        "sniffedMime": "image/jpeg"
+      },
+      "4D000000-0000-4000-8000-000000000004": {
+        "thumbnail": false,
+        "sniffedMime": "image/jpeg"
+      },
+      "4D000000-0000-4000-8000-000000000006": {
+        "thumbnail": true,
+        "sniffedMime": "image/png"
+      }
+    },
+    "chatAssetIds": []
+  },
+  "empty": {
+    "partition": "uid-a",
+    "works": [],
+    "rounds": [],
+    "versions": [],
+    "refs": [],
+    "assets": {},
+    "chatAssetIds": []
+  },
+  "exportCase": {
+    "caseId": "export_seed",
+    "input": "$seed",
+    "expect": {
+      "fileVersion": 2,
+      "studio": {
+        "works": [
+          {
+            "id": "1A000000-0000-4000-8000-000000000001",
+            "title": "Window coffee",
+            "currentVersionId": "3C000000-0000-4000-8000-000000000003",
+            "source": "studio",
+            "chatConversationId": null,
+            "chatMessageId": null,
+            "favorite": true,
+            "selectedVersionIds": [
+              "3C000000-0000-4000-8000-000000000001",
+              "3C000000-0000-4000-8000-000000000003"
+            ],
+            "deletedVersionIds": [],
+            "createdAt": "2026-10-28T08:00:00.001Z",
+            "updatedAt": "2026-10-28T08:00:01.000Z",
+            "deletedAt": null,
+            "revision": 3
+          },
+          {
+            "id": "1A000000-0000-4000-8000-000000000002",
+            "title": "Work 2",
+            "currentVersionId": "3C000000-0000-4000-8000-000000000004",
+            "source": "chat",
+            "chatConversationId": "6F000000-0000-4000-8000-000000000001",
+            "chatMessageId": "6F000000-0000-4000-8000-000000000002",
+            "favorite": false,
+            "selectedVersionIds": [
+              "3C000000-0000-4000-8000-000000000004"
+            ],
+            "deletedVersionIds": [],
+            "createdAt": "2026-10-28T08:00:00.002Z",
+            "updatedAt": "2026-10-28T08:00:02.000Z",
+            "deletedAt": null,
+            "revision": 1
+          }
+        ],
+        "rounds": [
+          {
+            "id": "2B000000-0000-4000-8000-000000000001",
+            "workId": "1A000000-0000-4000-8000-000000000001",
+            "index": 1,
+            "baseVersionId": null,
+            "operation": "generate",
+            "prompt": "prompt 1",
+            "composedPrompt": "composed 1",
+            "enhancedPrompt": null,
+            "presetIds": {
+              "style": "watercolor",
+              "effects": []
+            },
+            "params": {
+              "aspect": "1:1",
+              "resolution": "1K",
+              "quality": "standard",
+              "n": 2
+            },
+            "modelRef": {
+              "source": "byok",
+              "providerKind": "openAI",
+              "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+              "modelId": "gpt-image-2",
+              "route": "openai_images"
+            },
+            "status": "completed",
+            "errorKind": null,
+            "adjustments": [],
+            "nRequested": 2,
+            "nDelivered": 2,
+            "costEstimateUsd": 0.106,
+            "chargedUsd": null,
+            "fundingSource": "byok",
+            "managedJobId": null,
+            "clientJobId": "5E000000-0000-4000-8000-000000000001",
+            "startedAt": "2026-10-28T08:01:00.000Z",
+            "finishedAt": "2026-10-28T08:01:31.000Z"
+          },
+          {
+            "id": "2B000000-0000-4000-8000-000000000002",
+            "workId": "1A000000-0000-4000-8000-000000000001",
+            "index": 2,
+            "baseVersionId": "3C000000-0000-4000-8000-000000000001",
+            "operation": "edit",
+            "prompt": "prompt 2",
+            "composedPrompt": "composed 2",
+            "enhancedPrompt": null,
+            "presetIds": {
+              "style": "watercolor",
+              "effects": []
+            },
+            "params": {
+              "aspect": "1:1",
+              "resolution": "1K",
+              "quality": "standard",
+              "n": 2
+            },
+            "modelRef": {
+              "source": "byok",
+              "providerKind": "openAI",
+              "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+              "modelId": "gpt-image-2",
+              "route": "openai_images"
+            },
+            "status": "completed",
+            "errorKind": null,
+            "adjustments": [],
+            "nRequested": 2,
+            "nDelivered": 2,
+            "costEstimateUsd": 0.25,
+            "chargedUsd": 0.2,
+            "fundingSource": "byok",
+            "managedJobId": null,
+            "clientJobId": "5E000000-0000-4000-8000-000000000002",
+            "startedAt": "2026-10-28T08:02:00.000Z",
+            "finishedAt": "2026-10-28T08:02:31.000Z"
+          },
+          {
+            "id": "2B000000-0000-4000-8000-000000000004",
+            "workId": "1A000000-0000-4000-8000-000000000002",
+            "index": 1,
+            "baseVersionId": null,
+            "operation": "generate",
+            "prompt": "prompt 4",
+            "composedPrompt": "composed 4",
+            "enhancedPrompt": null,
+            "presetIds": {
+              "style": "watercolor",
+              "effects": []
+            },
+            "params": {
+              "aspect": "1:1",
+              "resolution": "1K",
+              "quality": "standard",
+              "n": 2
+            },
+            "modelRef": {
+              "source": "byok",
+              "providerKind": "openAI",
+              "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+              "modelId": "gpt-image-2",
+              "route": "openai_images"
+            },
+            "status": "completed",
+            "errorKind": null,
+            "adjustments": [],
+            "nRequested": 2,
+            "nDelivered": 2,
+            "costEstimateUsd": 0.106,
+            "chargedUsd": null,
+            "fundingSource": "byok",
+            "managedJobId": null,
+            "clientJobId": "5E000000-0000-4000-8000-000000000004",
+            "startedAt": "2026-10-28T08:04:00.000Z",
+            "finishedAt": "2026-10-28T08:04:31.000Z"
+          }
+        ],
+        "versions": [
+          {
+            "id": "3C000000-0000-4000-8000-000000000001",
+            "roundId": "2B000000-0000-4000-8000-000000000001",
+            "workId": "1A000000-0000-4000-8000-000000000001",
+            "parentVersionId": null,
+            "assetId": "4d000000-0000-4000-8000-000000000001",
+            "width": 1024,
+            "height": 1024,
+            "mime": "image/png",
+            "kept": true,
+            "createdAt": "2026-10-28T08:01:31.001Z"
+          },
+          {
+            "id": "3C000000-0000-4000-8000-000000000002",
+            "roundId": "2B000000-0000-4000-8000-000000000001",
+            "workId": "1A000000-0000-4000-8000-000000000001",
+            "parentVersionId": null,
+            "assetId": "4D000000-0000-4000-8000-000000000002",
+            "width": 1024,
+            "height": 1024,
+            "mime": "image/png",
+            "kept": false,
+            "createdAt": "2026-10-28T08:01:31.002Z"
+          },
+          {
+            "id": "3C000000-0000-4000-8000-000000000003",
+            "roundId": "2B000000-0000-4000-8000-000000000002",
+            "workId": "1A000000-0000-4000-8000-000000000001",
+            "parentVersionId": "3C000000-0000-4000-8000-000000000001",
+            "assetId": "4D000000-0000-4000-8000-000000000003",
+            "width": 1024,
+            "height": 1024,
+            "mime": "image/jpeg",
+            "kept": true,
+            "createdAt": "2026-10-28T08:02:31.003Z"
+          },
+          {
+            "id": "3C000000-0000-4000-8000-000000000004",
+            "roundId": "2B000000-0000-4000-8000-000000000004",
+            "workId": "1A000000-0000-4000-8000-000000000002",
+            "parentVersionId": null,
+            "assetId": "4D000000-0000-4000-8000-000000000005",
+            "width": 1024,
+            "height": 1024,
+            "mime": "image/png",
+            "kept": true,
+            "createdAt": "2026-10-28T08:04:31.004Z"
+          }
+        ],
+        "roundRefs": [
+          {
+            "roundId": "2B000000-0000-4000-8000-000000000002",
+            "order": 0,
+            "assetId": "4d000000-0000-4000-8000-000000000001",
+            "role": "base"
+          },
+          {
+            "roundId": "2B000000-0000-4000-8000-000000000002",
+            "order": 1,
+            "assetId": "4D000000-0000-4000-8000-000000000004",
+            "role": "style"
+          }
+        ],
+        "assets": [
+          {
+            "assetId": "4D000000-0000-4000-8000-000000000002",
+            "mime": "image/png"
+          },
+          {
+            "assetId": "4D000000-0000-4000-8000-000000000003",
+            "mime": "image/jpeg"
+          },
+          {
+            "assetId": "4D000000-0000-4000-8000-000000000004",
+            "mime": "image/jpeg"
+          },
+          {
+            "assetId": "4d000000-0000-4000-8000-000000000001",
+            "mime": "image/png"
+          }
+        ]
+      },
+      "entries": [
+        "studio-assets/4D000000-0000-4000-8000-000000000002",
+        "studio-assets/4D000000-0000-4000-8000-000000000002.thumb",
+        "studio-assets/4D000000-0000-4000-8000-000000000003",
+        "studio-assets/4D000000-0000-4000-8000-000000000003.thumb",
+        "studio-assets/4D000000-0000-4000-8000-000000000004",
+        "studio-assets/4d000000-0000-4000-8000-000000000001",
+        "studio-assets/4d000000-0000-4000-8000-000000000001.thumb"
+      ]
+    }
+  },
+  "importCases": [
+    {
+      "caseId": "v1_replaceAll_keepsWorks",
+      "note": "Backup without studio section: local works, rounds and assets untouched in every mode, replaceAll included.",
+      "input": {
+        "mode": "replaceAll",
+        "fileVersion": 1,
+        "studio": null,
+        "entries": [],
+        "local": "$seed"
+      },
+      "expect": {
+        "works": [
+          {
+            "id": "1A000000-0000-4000-8000-000000000001",
+            "revision": 3,
+            "baseRevision": 2,
+            "syncState": "synced",
+            "updatedAt": 1793174401000
+          },
+          {
+            "id": "1A000000-0000-4000-8000-000000000002",
+            "revision": 1,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174402000
+          },
+          {
+            "id": "1A000000-0000-4000-8000-000000000003",
+            "revision": 4,
+            "baseRevision": 4,
+            "syncState": "synced",
+            "updatedAt": 1793174403000
+          }
+        ],
+        "roundIds": [
+          "2B000000-0000-4000-8000-000000000001",
+          "2B000000-0000-4000-8000-000000000002",
+          "2B000000-0000-4000-8000-000000000003",
+          "2B000000-0000-4000-8000-000000000004"
+        ],
+        "versionIds": [
+          "3C000000-0000-4000-8000-000000000001",
+          "3C000000-0000-4000-8000-000000000002",
+          "3C000000-0000-4000-8000-000000000003",
+          "3C000000-0000-4000-8000-000000000004"
+        ],
+        "refKeys": [
+          "2B000000-0000-4000-8000-000000000002:0",
+          "2B000000-0000-4000-8000-000000000002:1",
+          "2B000000-0000-4000-8000-000000000003:0"
+        ],
+        "skippedWorkIds": [],
+        "writtenAssetIds": [],
+        "thumbnailsToEnsure": [],
+        "purgedAssetIds": [],
+        "assetIds": [
+          "4D000000-0000-4000-8000-000000000002",
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004",
+          "4D000000-0000-4000-8000-000000000006",
+          "4d000000-0000-4000-8000-000000000001"
+        ]
+      }
+    },
+    {
+      "caseId": "importNew_intoEmpty",
+      "note": "Fresh device restore; A4 has no thumbnail entry so it is regenerated.",
+      "input": {
+        "mode": "importNew",
+        "fileVersion": 2,
+        "studio": "$export",
+        "entries": "$export",
+        "local": "$empty"
+      },
+      "expect": {
+        "works": [
+          {
+            "id": "1A000000-0000-4000-8000-000000000001",
+            "revision": 3,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174401000
+          },
+          {
+            "id": "1A000000-0000-4000-8000-000000000002",
+            "revision": 1,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174402000
+          }
+        ],
+        "roundIds": [
+          "2B000000-0000-4000-8000-000000000001",
+          "2B000000-0000-4000-8000-000000000002",
+          "2B000000-0000-4000-8000-000000000004"
+        ],
+        "versionIds": [
+          "3C000000-0000-4000-8000-000000000001",
+          "3C000000-0000-4000-8000-000000000002",
+          "3C000000-0000-4000-8000-000000000003",
+          "3C000000-0000-4000-8000-000000000004"
+        ],
+        "refKeys": [
+          "2B000000-0000-4000-8000-000000000002:0",
+          "2B000000-0000-4000-8000-000000000002:1"
+        ],
+        "skippedWorkIds": [],
+        "writtenAssetIds": [
+          "4D000000-0000-4000-8000-000000000002",
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004",
+          "4d000000-0000-4000-8000-000000000001"
+        ],
+        "thumbnailsToEnsure": [
+          "4D000000-0000-4000-8000-000000000004"
+        ],
+        "purgedAssetIds": [],
+        "assetIds": [
+          "4D000000-0000-4000-8000-000000000002",
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004",
+          "4d000000-0000-4000-8000-000000000001"
+        ]
+      }
+    },
+    {
+      "caseId": "merge_skipsExistingAndTombstone",
+      "note": "Same work id already in this partition (tombstone included): whole work skipped, local row kept.",
+      "input": {
+        "mode": "merge",
+        "fileVersion": 2,
+        "studio": "$export",
+        "entries": "$export",
+        "local": {
+          "partition": "uid-a",
+          "works": [
+            {
+              "id": "1A000000-0000-4000-8000-000000000001",
+              "accountPartition": "uid-a",
+              "title": "Work 1",
+              "currentVersionId": "3C000000-0000-4000-8000-000000000001",
+              "source": "studio",
+              "chatConversationId": null,
+              "chatMessageId": null,
+              "favorite": false,
+              "selectedVersionIds": [
+                "3C000000-0000-4000-8000-000000000001"
+              ],
+              "deletedVersionIds": [],
+              "createdAt": 1793174400001,
+              "updatedAt": 1793174401000,
+              "deletedAt": null,
+              "revision": 5,
+              "baseRevision": 5,
+              "syncState": "synced"
+            },
+            {
+              "id": "1A000000-0000-4000-8000-000000000002",
+              "accountPartition": "uid-a",
+              "title": "Work 2",
+              "currentVersionId": null,
+              "source": "studio",
+              "chatConversationId": null,
+              "chatMessageId": null,
+              "favorite": false,
+              "selectedVersionIds": [],
+              "deletedVersionIds": [],
+              "createdAt": 1793174400002,
+              "updatedAt": 1793174402000,
+              "deletedAt": 1793174407000,
+              "revision": 2,
+              "baseRevision": 2,
+              "syncState": "synced"
+            }
+          ],
+          "rounds": [
+            {
+              "id": "2B000000-0000-4000-8000-000000000001",
+              "workId": "1A000000-0000-4000-8000-000000000001",
+              "index": 1,
+              "baseVersionId": null,
+              "operation": "generate",
+              "prompt": "prompt 1",
+              "composedPrompt": "composed 1",
+              "enhancedPrompt": null,
+              "presetIds": {
+                "style": "watercolor",
+                "effects": []
+              },
+              "params": {
+                "aspect": "1:1",
+                "resolution": "1K",
+                "quality": "standard",
+                "n": 2
+              },
+              "modelRef": {
+                "source": "byok",
+                "providerKind": "openAI",
+                "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+                "modelId": "gpt-image-2",
+                "route": "openai_images"
+              },
+              "status": "completed",
+              "errorKind": null,
+              "adjustments": [],
+              "nRequested": 2,
+              "nDelivered": 2,
+              "costEstimateUsd": 0.106,
+              "chargedUsd": null,
+              "fundingSource": "byok",
+              "managedJobId": null,
+              "clientJobId": "5E000000-0000-4000-8000-000000000001",
+              "startedAt": 1793174460000,
+              "finishedAt": 1793174491000
+            }
+          ],
+          "versions": [
+            {
+              "id": "3C000000-0000-4000-8000-000000000001",
+              "roundId": "2B000000-0000-4000-8000-000000000001",
+              "workId": "1A000000-0000-4000-8000-000000000001",
+              "parentVersionId": null,
+              "assetId": "4d000000-0000-4000-8000-000000000001",
+              "width": 1024,
+              "height": 1024,
+              "mime": "image/png",
+              "kept": true,
+              "createdAt": 1793174491001
+            }
+          ],
+          "refs": [],
+          "assets": {
+            "4d000000-0000-4000-8000-000000000001": {
+              "thumbnail": true,
+              "sniffedMime": "image/png"
+            }
+          },
+          "chatAssetIds": []
+        }
+      },
+      "expect": {
+        "works": [
+          {
+            "id": "1A000000-0000-4000-8000-000000000001",
+            "revision": 5,
+            "baseRevision": 5,
+            "syncState": "synced",
+            "updatedAt": 1793174401000
+          },
+          {
+            "id": "1A000000-0000-4000-8000-000000000002",
+            "revision": 2,
+            "baseRevision": 2,
+            "syncState": "synced",
+            "updatedAt": 1793174402000
+          }
+        ],
+        "roundIds": [
+          "2B000000-0000-4000-8000-000000000001"
+        ],
+        "versionIds": [
+          "3C000000-0000-4000-8000-000000000001"
+        ],
+        "refKeys": [],
+        "skippedWorkIds": [
+          "1A000000-0000-4000-8000-000000000001",
+          "1A000000-0000-4000-8000-000000000002"
+        ],
+        "writtenAssetIds": [],
+        "thumbnailsToEnsure": [],
+        "purgedAssetIds": [],
+        "assetIds": [
+          "4d000000-0000-4000-8000-000000000001"
+        ]
+      }
+    },
+    {
+      "caseId": "replaceAll_replacesPartitionWorks",
+      "note": "Partition works replaced; old assets go to the orphan sweeper, which keeps A1 (new W1) and A9 (chat) and purges A10; other partition untouched.",
+      "input": {
+        "mode": "replaceAll",
+        "fileVersion": 2,
+        "studio": "$export",
+        "entries": "$export",
+        "local": {
+          "partition": "uid-a",
+          "works": [
+            {
+              "id": "1A000000-0000-4000-8000-000000000001",
+              "accountPartition": "uid-a",
+              "title": "Work 1",
+              "currentVersionId": "3C000000-0000-4000-8000-000000000001",
+              "source": "studio",
+              "chatConversationId": null,
+              "chatMessageId": null,
+              "favorite": false,
+              "selectedVersionIds": [
+                "3C000000-0000-4000-8000-000000000001"
+              ],
+              "deletedVersionIds": [],
+              "createdAt": 1793174400001,
+              "updatedAt": 1793174401000,
+              "deletedAt": null,
+              "revision": 5,
+              "baseRevision": 5,
+              "syncState": "synced"
+            },
+            {
+              "id": "1A000000-0000-4000-8000-000000000009",
+              "accountPartition": "uid-a",
+              "title": "Work 9",
+              "currentVersionId": "3C000000-0000-4000-8000-000000000009",
+              "source": "studio",
+              "chatConversationId": null,
+              "chatMessageId": null,
+              "favorite": false,
+              "selectedVersionIds": [
+                "3C000000-0000-4000-8000-000000000009"
+              ],
+              "deletedVersionIds": [],
+              "createdAt": 1793174400009,
+              "updatedAt": 1793174409000,
+              "deletedAt": null,
+              "revision": 1,
+              "baseRevision": 0,
+              "syncState": "pending"
+            },
+            {
+              "id": "1A000000-0000-4000-8000-000000000004",
+              "accountPartition": "uid-b",
+              "title": "Work 4",
+              "currentVersionId": "3C000000-0000-4000-8000-000000000006",
+              "source": "studio",
+              "chatConversationId": null,
+              "chatMessageId": null,
+              "favorite": false,
+              "selectedVersionIds": [
+                "3C000000-0000-4000-8000-000000000006"
+              ],
+              "deletedVersionIds": [],
+              "createdAt": 1793174400004,
+              "updatedAt": 1793174404000,
+              "deletedAt": null,
+              "revision": 1,
+              "baseRevision": 0,
+              "syncState": "pending"
+            }
+          ],
+          "rounds": [
+            {
+              "id": "2B000000-0000-4000-8000-000000000001",
+              "workId": "1A000000-0000-4000-8000-000000000001",
+              "index": 1,
+              "baseVersionId": null,
+              "operation": "generate",
+              "prompt": "prompt 1",
+              "composedPrompt": "composed 1",
+              "enhancedPrompt": null,
+              "presetIds": {
+                "style": "watercolor",
+                "effects": []
+              },
+              "params": {
+                "aspect": "1:1",
+                "resolution": "1K",
+                "quality": "standard",
+                "n": 2
+              },
+              "modelRef": {
+                "source": "byok",
+                "providerKind": "openAI",
+                "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+                "modelId": "gpt-image-2",
+                "route": "openai_images"
+              },
+              "status": "completed",
+              "errorKind": null,
+              "adjustments": [],
+              "nRequested": 2,
+              "nDelivered": 2,
+              "costEstimateUsd": 0.106,
+              "chargedUsd": null,
+              "fundingSource": "byok",
+              "managedJobId": null,
+              "clientJobId": "5E000000-0000-4000-8000-000000000001",
+              "startedAt": 1793174460000,
+              "finishedAt": 1793174491000
+            },
+            {
+              "id": "2B000000-0000-4000-8000-000000000009",
+              "workId": "1A000000-0000-4000-8000-000000000009",
+              "index": 1,
+              "baseVersionId": null,
+              "operation": "generate",
+              "prompt": "prompt 9",
+              "composedPrompt": "composed 9",
+              "enhancedPrompt": null,
+              "presetIds": {
+                "style": "watercolor",
+                "effects": []
+              },
+              "params": {
+                "aspect": "1:1",
+                "resolution": "1K",
+                "quality": "standard",
+                "n": 2
+              },
+              "modelRef": {
+                "source": "byok",
+                "providerKind": "openAI",
+                "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+                "modelId": "gpt-image-2",
+                "route": "openai_images"
+              },
+              "status": "completed",
+              "errorKind": null,
+              "adjustments": [],
+              "nRequested": 2,
+              "nDelivered": 2,
+              "costEstimateUsd": 0.106,
+              "chargedUsd": null,
+              "fundingSource": "byok",
+              "managedJobId": null,
+              "clientJobId": "5E000000-0000-4000-8000-000000000009",
+              "startedAt": 1793174940000,
+              "finishedAt": 1793174971000
+            },
+            {
+              "id": "2B000000-0000-4000-8000-000000000006",
+              "workId": "1A000000-0000-4000-8000-000000000004",
+              "index": 1,
+              "baseVersionId": null,
+              "operation": "generate",
+              "prompt": "prompt 6",
+              "composedPrompt": "composed 6",
+              "enhancedPrompt": null,
+              "presetIds": {
+                "style": "watercolor",
+                "effects": []
+              },
+              "params": {
+                "aspect": "1:1",
+                "resolution": "1K",
+                "quality": "standard",
+                "n": 2
+              },
+              "modelRef": {
+                "source": "byok",
+                "providerKind": "openAI",
+                "connectionId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
+                "modelId": "gpt-image-2",
+                "route": "openai_images"
+              },
+              "status": "completed",
+              "errorKind": null,
+              "adjustments": [],
+              "nRequested": 2,
+              "nDelivered": 2,
+              "costEstimateUsd": 0.106,
+              "chargedUsd": null,
+              "fundingSource": "byok",
+              "managedJobId": null,
+              "clientJobId": "5E000000-0000-4000-8000-000000000006",
+              "startedAt": 1793174760000,
+              "finishedAt": 1793174791000
+            }
+          ],
+          "versions": [
+            {
+              "id": "3C000000-0000-4000-8000-000000000001",
+              "roundId": "2B000000-0000-4000-8000-000000000001",
+              "workId": "1A000000-0000-4000-8000-000000000001",
+              "parentVersionId": null,
+              "assetId": "4d000000-0000-4000-8000-000000000001",
+              "width": 1024,
+              "height": 1024,
+              "mime": "image/png",
+              "kept": true,
+              "createdAt": 1793174491001
+            },
+            {
+              "id": "3C000000-0000-4000-8000-000000000009",
+              "roundId": "2B000000-0000-4000-8000-000000000009",
+              "workId": "1A000000-0000-4000-8000-000000000009",
+              "parentVersionId": null,
+              "assetId": "4D000000-0000-4000-8000-000000000009",
+              "width": 1024,
+              "height": 1024,
+              "mime": "image/png",
+              "kept": true,
+              "createdAt": 1793174971009
+            },
+            {
+              "id": "3C000000-0000-4000-8000-000000000010",
+              "roundId": "2B000000-0000-4000-8000-000000000009",
+              "workId": "1A000000-0000-4000-8000-000000000009",
+              "parentVersionId": null,
+              "assetId": "4D000000-0000-4000-8000-000000000010",
+              "width": 1024,
+              "height": 1024,
+              "mime": "image/png",
+              "kept": false,
+              "createdAt": 1793174971010
+            },
+            {
+              "id": "3C000000-0000-4000-8000-000000000006",
+              "roundId": "2B000000-0000-4000-8000-000000000006",
+              "workId": "1A000000-0000-4000-8000-000000000004",
+              "parentVersionId": null,
+              "assetId": "4D000000-0000-4000-8000-000000000006",
+              "width": 1024,
+              "height": 1024,
+              "mime": "image/png",
+              "kept": true,
+              "createdAt": 1793174791006
+            }
+          ],
+          "refs": [],
+          "assets": {
+            "4d000000-0000-4000-8000-000000000001": {
+              "thumbnail": true
+            },
+            "4D000000-0000-4000-8000-000000000009": {
+              "thumbnail": true
+            },
+            "4D000000-0000-4000-8000-000000000010": {
+              "thumbnail": true
+            },
+            "4D000000-0000-4000-8000-000000000006": {
+              "thumbnail": true
+            }
+          },
+          "chatAssetIds": [
+            "4D000000-0000-4000-8000-000000000009"
+          ]
+        }
+      },
+      "expect": {
+        "works": [
+          {
+            "id": "1A000000-0000-4000-8000-000000000001",
+            "revision": 3,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174401000
+          },
+          {
+            "id": "1A000000-0000-4000-8000-000000000002",
+            "revision": 1,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174402000
+          }
+        ],
+        "roundIds": [
+          "2B000000-0000-4000-8000-000000000001",
+          "2B000000-0000-4000-8000-000000000002",
+          "2B000000-0000-4000-8000-000000000004"
+        ],
+        "versionIds": [
+          "3C000000-0000-4000-8000-000000000001",
+          "3C000000-0000-4000-8000-000000000002",
+          "3C000000-0000-4000-8000-000000000003",
+          "3C000000-0000-4000-8000-000000000004"
+        ],
+        "refKeys": [
+          "2B000000-0000-4000-8000-000000000002:0",
+          "2B000000-0000-4000-8000-000000000002:1"
+        ],
+        "skippedWorkIds": [],
+        "writtenAssetIds": [
+          "4D000000-0000-4000-8000-000000000002",
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004"
+        ],
+        "thumbnailsToEnsure": [
+          "4D000000-0000-4000-8000-000000000004"
+        ],
+        "purgedAssetIds": [
+          "4D000000-0000-4000-8000-000000000010"
+        ],
+        "assetIds": [
+          "4D000000-0000-4000-8000-000000000002",
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004",
+          "4D000000-0000-4000-8000-000000000006",
+          "4D000000-0000-4000-8000-000000000009",
+          "4d000000-0000-4000-8000-000000000001"
+        ]
+      }
+    },
+    {
+      "caseId": "lowercaseIds_canonicalized",
+      "note": "Work / round / version ids read case-insensitively and stored uppercase; assetId (and entry names) kept verbatim.",
+      "input": {
+        "mode": "importNew",
+        "fileVersion": 2,
+        "studio": "$exportLower",
+        "entries": "$export",
+        "local": "$empty"
+      },
+      "expect": {
+        "works": [
+          {
+            "id": "1A000000-0000-4000-8000-000000000001",
+            "revision": 3,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174401000
+          },
+          {
+            "id": "1A000000-0000-4000-8000-000000000002",
+            "revision": 1,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174402000
+          }
+        ],
+        "roundIds": [
+          "2B000000-0000-4000-8000-000000000001",
+          "2B000000-0000-4000-8000-000000000002",
+          "2B000000-0000-4000-8000-000000000004"
+        ],
+        "versionIds": [
+          "3C000000-0000-4000-8000-000000000001",
+          "3C000000-0000-4000-8000-000000000002",
+          "3C000000-0000-4000-8000-000000000003",
+          "3C000000-0000-4000-8000-000000000004"
+        ],
+        "refKeys": [
+          "2B000000-0000-4000-8000-000000000002:0",
+          "2B000000-0000-4000-8000-000000000002:1"
+        ],
+        "skippedWorkIds": [],
+        "writtenAssetIds": [
+          "4D000000-0000-4000-8000-000000000002",
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004",
+          "4d000000-0000-4000-8000-000000000001"
+        ],
+        "thumbnailsToEnsure": [
+          "4D000000-0000-4000-8000-000000000004"
+        ],
+        "purgedAssetIds": [],
+        "assetIds": [
+          "4D000000-0000-4000-8000-000000000002",
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004",
+          "4d000000-0000-4000-8000-000000000001"
+        ]
+      }
+    },
+    {
+      "caseId": "missingOriginalEntry_rowsKept",
+      "note": "Original entry missing: rows still written, asset not written, no thumbnail work for it.",
+      "input": {
+        "mode": "importNew",
+        "fileVersion": 2,
+        "studio": "$export",
+        "entries": "$exportWithoutA2",
+        "local": "$empty"
+      },
+      "expect": {
+        "works": [
+          {
+            "id": "1A000000-0000-4000-8000-000000000001",
+            "revision": 3,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174401000
+          },
+          {
+            "id": "1A000000-0000-4000-8000-000000000002",
+            "revision": 1,
+            "baseRevision": 0,
+            "syncState": "pending",
+            "updatedAt": 1793174402000
+          }
+        ],
+        "roundIds": [
+          "2B000000-0000-4000-8000-000000000001",
+          "2B000000-0000-4000-8000-000000000002",
+          "2B000000-0000-4000-8000-000000000004"
+        ],
+        "versionIds": [
+          "3C000000-0000-4000-8000-000000000001",
+          "3C000000-0000-4000-8000-000000000002",
+          "3C000000-0000-4000-8000-000000000003",
+          "3C000000-0000-4000-8000-000000000004"
+        ],
+        "refKeys": [
+          "2B000000-0000-4000-8000-000000000002:0",
+          "2B000000-0000-4000-8000-000000000002:1"
+        ],
+        "skippedWorkIds": [],
+        "writtenAssetIds": [
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004",
+          "4d000000-0000-4000-8000-000000000001"
+        ],
+        "thumbnailsToEnsure": [
+          "4D000000-0000-4000-8000-000000000004"
+        ],
+        "purgedAssetIds": [],
+        "assetIds": [
+          "4D000000-0000-4000-8000-000000000003",
+          "4D000000-0000-4000-8000-000000000004",
+          "4d000000-0000-4000-8000-000000000001"
+        ]
+      }
+    },
+    {
+      "caseId": "versionTooNew_rejected",
+      "note": "fileVersion above maxReadable rejects the whole import before any write.",
+      "input": {
+        "mode": "importNew",
+        "fileVersion": 3,
+        "studio": "$export",
+        "entries": "$export",
+        "local": "$empty"
+      },
+      "expect": {
+        "error": "version_too_new"
+      }
+    }
+  ]
+}

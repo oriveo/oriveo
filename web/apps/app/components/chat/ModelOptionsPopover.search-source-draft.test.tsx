@@ -48,7 +48,7 @@ vi.mock('../../lib/core/chat/composer-web-preference', async (importOriginal) =>
 function loadManifest() {
   for (let dir = resolve(import.meta.dirname); ; dir = dirname(dir)) {
     try {
-      return JSON.parse(readFileSync(join(dir, '\u5171\u4eab', 'test-fixtures', 'shots', 'webSearch.v1.json'), 'utf8'));
+      return JSON.parse(readFileSync(join(dir, 'shared', 'test-fixtures', 'shots', 'webSearch.v1.json'), 'utf8'));
     } catch (error) {
       if (dirname(dir) === dir) throw error;
     }

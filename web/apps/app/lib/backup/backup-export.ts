@@ -96,10 +96,10 @@ export async function exportBackupToAutomaticStorage(
 }
 
 /**
- * Message fields kept only on this device and left out of the backup: memoryItemIds (local memory item ids).
+ * Message fields kept only on this device and left out of the backup: memoryItemIds (local memory item ids), skillManifestTokens (local skill manifest estimate).
  * Import drops them as well, so a backup exported elsewhere that carries them is ignored.
  */
-const BACKUP_LOCAL_ONLY_MESSAGE_FIELDS: readonly string[] = ['memoryItemIds'];
+const BACKUP_LOCAL_ONLY_MESSAGE_FIELDS: readonly string[] = ['memoryItemIds', 'skillManifestTokens'];
 
 /** Remove the device-local fields from a message; returns the same object when it has none. */
 export function stripBackupLocalOnlyMessageFields<T extends object>(msg: T): T {

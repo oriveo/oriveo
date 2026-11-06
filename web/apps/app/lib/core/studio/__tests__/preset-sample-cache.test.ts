@@ -18,8 +18,8 @@ import {
 } from '../preset-sample-cache';
 import type { StudioPresetSample } from '../presets';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
-const CONTRACTS = resolve(ROOT, String.fromCharCode(0x5171, 0x4eab), 'studio-contracts');
+const ROOT = resolve(__dirname, '../../../../../../..');
+const CONTRACTS = resolve(ROOT, 'shared', 'studio-contracts');
 
 interface SampleCacheCases {
   policy: { maxBytes: number };

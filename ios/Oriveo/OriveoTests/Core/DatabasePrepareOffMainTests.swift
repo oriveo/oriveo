@@ -179,6 +179,68 @@ struct DatabasePrepareOffMainTests {
         await TestPartitionCleanup.remove(uidA, uidB)
     }
 
+    /// The outgoing view tree still gets one update (and `.task` continuations still land) after the mirror is cleared
+    /// and the partition store is closed, before the root swaps to the loading state. Production stacks:
+    /// `SettingsView.syncMcpEntry` and `HomeView.topBarTrailing`. Every fallback that reads the store when the mirror
+    /// is empty has to stay off it until `sessionStoreReady`.
+    @Test("Partition switch window: list, folder and MCP reads stay off the closed store, then see the new partition")
+    func partitionSwitchWindowReadsStayOffTheStore() async throws {
+        let uidA = "prepare-window-a-\(UUID().uuidString)"
+        let uidB = "prepare-window-b-\(UUID().uuidString)"
+        defer {
+            DatabaseOpenDiagnostics.sink = Observability.sink
+            DatabaseOpenDiagnostics.resetForTesting()
+            DatabaseManager.shared.close()
+        }
+        DatabaseManager.shared.close()
+        let folderID = UUID()
+        let inB = TestFactories.makeConversation(title: "In B", hasCustomTitle: true)
+        let inFolder = TestFactories.makeConversation(title: "In B folder", hasCustomTitle: true, folderID: folderID)
+        try Self.seed(uid: uidB, [inB, inFolder])
+        let serverInB = McpTestRecords.record(slug: "window")
+        try McpServerStore(dbPool: DatabaseManager.shared.openIfNeeded(for: uidB)).insertServer(serverInB)
+        DatabaseManager.shared.close()
+        let sink = RecordingObservabilitySink()
+        DatabaseOpenDiagnostics.sink = sink
+        DatabaseOpenDiagnostics.resetForTesting()
+
+        let state = AppState(sessionUID: uidA)
+        let originalPreferences = state.preferences
+        defer { state.preferences = originalPreferences }
+        let result = await productionOpening {
+            state.closeSessionStoreForPartitionSwitch()
+            state.loadSession(boundTo: uidB)
+            #expect(!state.sessionStoreReady)
+            state.preferences.pinnedConversationIDs = [inB.id]
+
+            #expect(state.recentConversations.isEmpty)
+            #expect(state.recentConversationSections.isEmpty)
+            let homeConversations = state.homeConversationSections(earlierLimit: 10).flatMap { $0.conversations }
+            #expect(homeConversations.isEmpty)
+            #expect(state.conversationManager.pinnedConversations.isEmpty)
+            #expect(state.folderManager.conversations(in: folderID).isEmpty)
+            #expect(state.folderManager.conversationCount(in: folderID) == 0)
+            #expect(state.folderManager.searchConversations(in: folderID, matching: "In B").isEmpty)
+            #expect(throws: McpServerDirectoryError.sessionStoreNotReady) {
+                try state.mcpServerDirectory.overview(uid: state.sessionPartitionUID)
+            }
+            _ = await state.searchConversations(matching: "In B")
+
+            await state.waitForSessionStore()
+            #expect(state.recentConversations.map(\.id) == [inB.id])
+            #expect(state.conversationManager.pinnedConversations.map(\.id) == [inB.id])
+            #expect(state.folderManager.conversations(in: folderID).map(\.id) == [inFolder.id])
+            #expect(state.folderManager.conversationCount(in: folderID) == 1)
+            let overview = try? state.mcpServerDirectory.overview(uid: state.sessionPartitionUID)
+            #expect(overview?.map(\.record.id) == [serverInB.id], "The settings entry reads the new partition once ready")
+            state.flushConversationPersistQueue()
+        }
+        #expect(result.misses.isEmpty, "\(result.misses)")
+        #expect(result.violations.isEmpty, "\(result.violations)")
+        #expect(sink.issues.isEmpty, "\(sink.issues.map(\.fingerprint))")
+        await TestPartitionCleanup.remove(uidA, uidB)
+    }
+
     /// Puts a non-SQLite database file in the partition: the prepare necessarily fails.
     private static func corruptDatabase(uid: String) throws {
         try FileManager.default.createDirectory(at: AppSessionStore.userDir(for: uid), withIntermediateDirectories: true)

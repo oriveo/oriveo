@@ -109,7 +109,7 @@
 }
 
 .filterPill:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   color: var(--o-text);
 }
 
@@ -282,7 +282,7 @@
   height: 24px;
   border-radius: 12px;
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   flex-shrink: 0;
 }
 
@@ -375,7 +375,7 @@
 
 .forkBtn:hover {
   border-color: var(--o-primary);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   background: var(--o-primary-subtle);
 }
 
@@ -396,7 +396,7 @@
 }
 
 .iconBtn:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   color: var(--o-text);
 }
 
@@ -442,7 +442,7 @@
   height: 64px;
   border-radius: 50%;
   background: color-mix(in srgb, var(--o-primary) 10%, transparent);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .emptyIconWrap svg {
@@ -545,7 +545,7 @@
 }
 
 .cancelBtn:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
 }
 
 /* ── Skeleton ─────────────────────────── */
@@ -555,9 +555,9 @@
   border-radius: 18px;
   background: linear-gradient(
     110deg,
-    var(--o-surface-raised) 30%,
+    var(--o-fill-muted) 30%,
     var(--o-surface) 50%,
-    var(--o-surface-raised) 70%
+    var(--o-fill-muted) 70%
   );
   background-size: 200% 100%;
   animation: shimmer 1.8s ease infinite;

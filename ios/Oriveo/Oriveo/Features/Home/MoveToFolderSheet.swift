@@ -87,7 +87,7 @@ struct MoveToFolderSheet: View {
                     onComplete?()
                 }
             }
-            .sheet(isPresented: $showFolderLimitSheet) {
+            .oriveoSheet(isPresented: $showFolderLimitSheet) {
                 EmptyView()
             }
         }

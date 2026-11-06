@@ -59,9 +59,9 @@ import { createAppStore } from '../../store/app-store';
 import { sendMessage } from '../operations';
 import { setActiveUID } from '../../../infra/storage/partition';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
+const ROOT = resolve(__dirname, '../../../../../../..');
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
-const SHARED = resolve(ROOT, String.fromCharCode(0x5171, 0x4eab));
+const SHARED = resolve(ROOT, 'shared');
 const fixture = JSON.parse(readFileSync(resolve(SHARED, 'studio-contracts/chat_image_dispatch.v1.json'), 'utf8')) as {
   profiles: Record<string, Record<string, unknown>>;
 };
@@ -275,6 +275,25 @@ describe('chat send path for studio image generation', () => {
     expect(mocks.sendStream).toHaveBeenCalledTimes(1);
     expect(message.state).toBe('delivered');
     expect(message.attachments).toHaveLength(1);
+  });
+
+  it('dashscopeConnectionUsesNativeApiV1', async () => {
+    // A DashScope connection stores the compatible-mode address; the studio request goes to the native /api/v1 root.
+    const qwenModel = { ...imageModel, id: 'qwen-image', name: 'qwen-image' } as AIModel;
+    const qwenProvider = {
+      ...officialProvider, id: 'p-qwen', kind: 'qwen', models: [qwenModel], apiKey: 'sk-qwen',
+      baseURLText: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    } as unknown as Provider;
+    mocks.slice = {
+      profiles: { image: { dashscope_square: fixture.profiles.dashscope_square } },
+      providers: { qwen: { models: { 'qwen-image': { imageProfile: 'dashscope_square' } } } },
+    };
+    await sendImageTurn(qwenProvider, qwenModel);
+    expect(mocks.sendStream).not.toHaveBeenCalled();
+    expect(mocks.round).toHaveBeenCalledTimes(1);
+    const roundInput = mocks.round.mock.calls[0]![0] as { providerKind: string; baseURL: string };
+    expect(roundInput.providerKind).toBe('qwen');
+    expect(roundInput.baseURL).toBe('https://dashscope-intl.aliyuncs.com/api/v1');
   });
 
   it('cancelLeavesNoAttachments', async () => {

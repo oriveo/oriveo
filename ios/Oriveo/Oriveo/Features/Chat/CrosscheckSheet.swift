@@ -215,7 +215,7 @@ struct CrosscheckSheet: View {
             }
             .onAppear(perform: setupDefaultModel)
             .onDisappear(perform: cancelRun)
-            .sheet(item: $modelPickerPresentation) { presentation in
+            .oriveoSheet(item: $modelPickerPresentation) { presentation in
                 ModelPickerSheet(
                     context: .crosscheck,
                     presentation: presentation.picker,

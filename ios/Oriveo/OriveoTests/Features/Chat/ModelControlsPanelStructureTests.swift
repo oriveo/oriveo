@@ -35,7 +35,7 @@ struct ModelControlsPanelStructureTests {
         #expect(composer.contains("transportIdentity: modelControlTransportIdentity"))
         #expect(composer.contains("runtimeIsReadOnly: controlsDisabled"))
         let entry = try #require(composer.range(of: "Button { showsModelControls = true }"))
-        let sheet = try #require(composer.range(of: ".sheet(isPresented: $showsModelControls,", range: entry.lowerBound..<composer.endIndex))
+        let sheet = try #require(composer.range(of: ".oriveoSheet(isPresented: $showsModelControls,", range: entry.lowerBound..<composer.endIndex))
         let entrySource = String(composer[entry.lowerBound..<sheet.lowerBound])
         #expect(entrySource.contains("disabled: false"))
         #expect(!entrySource.contains(".disabled("), "controlsDisabled while generating locked away the only entry point that explains the state")
@@ -262,9 +262,9 @@ struct ModelControlsPanelStructureTests {
         #expect(sheet.contains("case .openAdditionalRequestBody:\n            // Goes straight to the editor without passing through the advanced settings page; back returns to the panel.\n            path.append(.additionalRequestBody)"))
         #expect(sheet.contains("AdditionalRequestBodyPage("))
         #expect(sheet.contains("presentation: .embeddedPage"))
-        #expect(!sheet.contains(".fullScreenCover("))
+        #expect(!sheet.contains(".oriveoFullScreenCover("))
         // No `.sheet(` anywhere in the file: sub-pages are always pushed.
-        #expect(!sheet.contains(".sheet("), "the panel opens another modal again")
+        #expect(!sheet.contains(".oriveoSheet("), "the panel opens another modal again")
         #expect(!sheet.contains(".alert("), "the explanation for an unavailable item is back in an alert")
     }
 

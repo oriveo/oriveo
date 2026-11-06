@@ -82,7 +82,7 @@ struct RelayEditView: View {
             RelayFamilyDebugShots.feedEditFailure(for: provider) { saveError = $0 }
             #endif
         }
-        .sheet(isPresented: $showSecurityModePicker) {
+        .oriveoSheet(isPresented: $showSecurityModePicker) {
             if let provider, let editor {
                 RelaySecurityModePickerSheet(
                     endpoint: editor.endpoint,

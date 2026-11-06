@@ -13,7 +13,7 @@ import {
   type StudioAvailabilityInput,
 } from '../availability';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
+const ROOT = resolve(__dirname, '../../../../../../..');
 
 interface AvailabilityCase {
   caseId: string;
@@ -22,7 +22,7 @@ interface AvailabilityCase {
 }
 
 const fixture = JSON.parse(readFileSync(
-  resolve(ROOT, '\u5171\u4eab/studio-contracts/studio_availability.v1.json'), 'utf8',
+  resolve(ROOT, 'shared/studio-contracts/studio_availability.v1.json'), 'utf8',
 )) as { cases: AvailabilityCase[] };
 
 describe('studio_availability.v1', () => {

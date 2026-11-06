@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "Effacer",
     "generationParameterDormantRestored": "{count} paramètres restaurés",
     "generationPresetName": "Nom du préréglage",
+    "capabilityControlFixedByConnection": "Défini par cette connexion",
     "capabilityControlReasonPending": "La configuration automatique n'est pas encore prête",
     "capabilityControlReasonUnsupported": "Cette demande n'est pas prise en charge par ce modèle",
     "capabilityControlReasonExternalConnector": "Fourni par un service externe distinct, en dehors de cette requête de conversation",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Bienvenue sur Oriveo",
       "tagline": "Tous vos modèles, une seule app.",
+      "slogan": "Vos clés, vos coûts, vos données.",
       "description": "Configurez votre premier fournisseur d'IA pour commencer des conversations multi-modèles.",
       "addProvider": "Ajouter un fournisseur",
       "enterHome": "Aller à l'app"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "Passer à une clé API",
         "disabledFallback": "La connexion par abonnement ChatGPT est actuellement indisponible. Vous pouvez passer à une clé API ou supprimer cette connexion."
       },
-      "subscription": "Abonnement"
+      "subscription": "Abonnement",
+      "tokenPrices": {
+        "input": "Entrée {count}",
+        "cacheRead": "Lecture cache {count}",
+        "cacheWrite": "Écriture cache {count}",
+        "output": "Sortie {count}",
+        "unit": "tokens"
+      }
     },
     "providers": {
       "title": "Fournisseurs",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "Cmd + Entrée",
       "shortcutEnter": "Entrée",
       "privacyPolicy": "Politique de confidentialité",
+      "sourceCode": "Code source",
       "aiSection": "IA",
       "skills": "Compétences",
       "backupImportExport": "Sauvegarde et import/export",
+      "reportIssue": "Signaler un problème",
+      "documentation": "Documentation",
       "aboutTagline": "Tous vos modèles. Une seule app.",
       "context": {
         "title": "Contexte",
@@ -1630,6 +1642,7 @@
       "passwordMismatch": "Les mots de passe ne correspondent pas",
       "wrongPassword": "Mot de passe incorrect",
       "invalidFile": "Fichier de sauvegarde non valide ou non reconnu",
+      "versionTooNew": "Cette sauvegarde nécessite une version plus récente d'Oriveo (version de format {version}).",
       "success": "Sauvegarde exportée avec succès",
       "exportComplete": "Exportation terminée",
       "legacyPasswordHint": "Cette sauvegarde est chiffrée. Entrez le mot de passe pour continuer.",
@@ -2054,11 +2067,14 @@
     "title": "Compétences",
     "mySkills": "Mes compétences",
     "builtinSkills": "Compétences intégrées",
+    "pinned": "Épinglée",
     "newSkill": "Nouvelle compétence",
     "editSkill": "Modifier la compétence",
     "deleteSkill": "Supprimer la compétence",
     "forkSkill": "Copier comme ma compétence",
     "useSkill": "Utiliser cette compétence",
+    "pinToHome": "Épingler à l'accueil",
+    "unpinFromHome": "Désépingler",
     "instructions": "Prompt",
     "instructionsPlaceholder": "Ex. : Vous êtes un réviseur de code senior. Examinez le code pour la sécurité, les performances et la lisibilité. Répondez dans la langue de l'utilisateur.",
     "starterMessages": "Phrases de démarrage",
@@ -2811,7 +2827,8 @@
       "stepLimit": "Trop de documents, ou des documents trop longs, pour une seule recherche. Désélectionnez-en quelques-uns et réessayez.",
       "notConnected": "Connectez une source de la Bibliothèque avant de commencer.",
       "sourceForbidden": "La source a refusé l'accès en raison d'une restriction de permission ou de politique. Se reconnecter ne résoudra pas le problème : vérifiez les paramètres de partage ou de conformité de la source elle-même.",
-      "unavailable": "La Bibliothèque est temporairement indisponible. Réessayez plus tard."
+      "unavailable": "La Bibliothèque est temporairement indisponible. Réessayez plus tard.",
+      "retry": "Réessayer"
     }
   },
   "notes": {

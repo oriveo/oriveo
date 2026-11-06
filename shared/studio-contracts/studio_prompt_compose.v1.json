@@ -1,0 +1,378 @@
+{
+  "$comment": "composedPrompt assembly. Fragments come from studio_presets.v1.json (English). maxPromptChars comes from ImageProfile.maxPromptChars (default 32000). Adjustments surface in the round card. Executable reference: scripts/lib/studio-image-reference.mjs composePrompt.",
+  "contractId": "studio_prompt_compose.v1",
+  "version": 1,
+  "spec": {
+    "sectionSeparator": "\n\n",
+    "inlineReference": "image {n}",
+    "referenceTemplate": "Image {n} is the {role} reference.",
+    "baseTemplate": "Image {n} is the image to edit.",
+    "styleTemplate": "Style: {fragment}.",
+    "effectsTemplate": "Effects: {fragments}.",
+    "effectsJoiner": "; ",
+    "roleWords": {
+      "subject": "subject",
+      "style": "style",
+      "composition": "composition",
+      "person": "character",
+      "element": "element"
+    },
+    "order": [
+      "user",
+      "references",
+      "style",
+      "effects"
+    ],
+    "userPromptMaxChars": 1000,
+    "truncation": "drop effects from the last one, then the style; the user text is never cut; still too long → prompt_too_long (composer blocks send)"
+  },
+  "cases": [
+    {
+      "caseId": "plain_prompt",
+      "input": {
+        "userPrompt": "a cup of coffee and a book on a wooden table",
+        "references": [],
+        "styleFragment": null,
+        "effectFragments": [],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "a cup of coffee and a book on a wooden table",
+        "error": null,
+        "adjustments": []
+      }
+    },
+    {
+      "caseId": "style_and_effects",
+      "input": {
+        "userPrompt": "a cup of coffee",
+        "references": [],
+        "styleFragment": "watercolor painting, soft washes",
+        "effectFragments": [
+          "golden hour light",
+          "shallow depth of field"
+        ],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "a cup of coffee\n\nStyle: watercolor painting, soft washes.\n\nEffects: golden hour light; shallow depth of field.",
+        "error": null,
+        "adjustments": []
+      }
+    },
+    {
+      "caseId": "base_and_reference_mentions",
+      "input": {
+        "userPrompt": "把 @2 的 logo 印在 @1 的杯身上",
+        "references": [
+          {
+            "n": 1,
+            "role": "base"
+          },
+          {
+            "n": 2,
+            "role": "element"
+          }
+        ],
+        "styleFragment": null,
+        "effectFragments": [],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "把 image 2 的 logo 印在 image 1 的杯身上\n\nImage 1 is the image to edit. Image 2 is the element reference.",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "@n chips expand inline; the user text itself is never translated here (enhancement is a separate, visible step)."
+    },
+    {
+      "caseId": "reference_roles_without_base",
+      "input": {
+        "userPrompt": "a portrait",
+        "references": [
+          {
+            "n": 1,
+            "role": "person"
+          },
+          {
+            "n": 2,
+            "role": "style"
+          },
+          {
+            "n": 3,
+            "role": "composition"
+          }
+        ],
+        "styleFragment": null,
+        "effectFragments": [],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "a portrait\n\nImage 1 is the character reference. Image 2 is the style reference. Image 3 is the composition reference.",
+        "error": null,
+        "adjustments": []
+      }
+    },
+    {
+      "caseId": "truncate_effects_first",
+      "input": {
+        "userPrompt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "references": [],
+        "styleFragment": "oil painting",
+        "effectFragments": [
+          "warm tones",
+          "backlight"
+        ],
+        "maxPromptChars": 100
+      },
+      "expect": {
+        "composed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\nStyle: oil painting.",
+        "error": null,
+        "adjustments": [
+          {
+            "field": "effect",
+            "dropped": "backlight"
+          },
+          {
+            "field": "effect",
+            "dropped": "warm tones"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "truncate_style_after_effects",
+      "input": {
+        "userPrompt": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "references": [],
+        "styleFragment": "oil painting with visible brushstrokes and rich impasto texture",
+        "effectFragments": [
+          "warm tones"
+        ],
+        "maxPromptChars": 70
+      },
+      "expect": {
+        "composed": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "error": null,
+        "adjustments": [
+          {
+            "field": "effect",
+            "dropped": "warm tones"
+          },
+          {
+            "field": "style",
+            "dropped": "oil painting with visible brushstrokes and rich impasto texture"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "user_text_never_cut",
+      "input": {
+        "userPrompt": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+        "references": [],
+        "styleFragment": "ink",
+        "effectFragments": [],
+        "maxPromptChars": 50
+      },
+      "expect": {
+        "composed": null,
+        "error": "prompt_too_long",
+        "adjustments": [
+          {
+            "field": "style",
+            "dropped": "ink"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "counts_graphemes_not_bytes",
+      "input": {
+        "userPrompt": "窗边木桌上的一杯咖啡",
+        "references": [],
+        "styleFragment": "ink wash",
+        "effectFragments": [],
+        "maxPromptChars": 28
+      },
+      "expect": {
+        "composed": "窗边木桌上的一杯咖啡\n\nStyle: ink wash.",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "Length is counted in Unicode code points of the composed text (10 + 2 + 16 = 28)."
+    },
+    {
+      "caseId": "length_counts_code_points_not_utf16_units",
+      "input": {
+        "userPrompt": "👍🏽👍🏽",
+        "references": [],
+        "styleFragment": "ink",
+        "effectFragments": [],
+        "maxPromptChars": 17
+      },
+      "expect": {
+        "composed": "👍🏽👍🏽\n\nStyle: ink.",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "Two thumbs-up with skin tone = 4 code points (2 grapheme clusters, 8 UTF-16 units); composed = 4 + 2 + 11 = 17 code points, so it fits. Counting UTF-16 units (21) would wrongly drop the style."
+    },
+    {
+      "caseId": "length_counts_code_points_not_graphemes",
+      "input": {
+        "userPrompt": "👍🏽👍🏽",
+        "references": [],
+        "styleFragment": "ink",
+        "effectFragments": [],
+        "maxPromptChars": 16
+      },
+      "expect": {
+        "composed": "👍🏽👍🏽",
+        "error": null,
+        "adjustments": [
+          {
+            "field": "style",
+            "dropped": "ink"
+          }
+        ]
+      },
+      "$comment": "Same text, limit 16: 17 code points is over. Counting grapheme clusters (15) would wrongly keep the style."
+    },
+    {
+      "caseId": "template_values_are_literal",
+      "input": {
+        "userPrompt": "a sign",
+        "references": [],
+        "styleFragment": "neon sign reading $& and $1",
+        "effectFragments": [
+          "price $$5",
+          "{fragment}"
+        ],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "a sign\n\nStyle: neon sign reading $& and $1.\n\nEffects: price $$5; {fragment}.",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "Fragments are inserted verbatim: no $-substitution patterns, no second template pass."
+    },
+    {
+      "caseId": "mentions_ascii_digits_only",
+      "input": {
+        "userPrompt": "put @12 next to @1, keep @ and a@b, not @١",
+        "references": [
+          {
+            "n": 1,
+            "role": "subject"
+          }
+        ],
+        "styleFragment": null,
+        "effectFragments": [],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "put image 12 next to image 1, keep @ and a@b, not @١\n\nImage 1 is the subject reference.",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "@ followed by ASCII digits 0-9 expands (all digits, even with no matching reference); Unicode digits such as Arabic-Indic U+0661 stay literal."
+    },
+    {
+      "caseId": "references_keep_input_order",
+      "input": {
+        "userPrompt": "mix",
+        "references": [
+          {
+            "n": 2,
+            "role": "style"
+          },
+          {
+            "n": 1,
+            "role": "base"
+          }
+        ],
+        "styleFragment": null,
+        "effectFragments": [],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "mix\n\nImage 2 is the style reference. Image 1 is the image to edit.",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "Reference sentences follow the input order; callers pass references ascending by n."
+    },
+    {
+      "caseId": "empty_style_fragment_is_absent",
+      "input": {
+        "userPrompt": "a cat",
+        "references": [],
+        "styleFragment": "",
+        "effectFragments": [
+          "soft light"
+        ],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "a cat\n\nEffects: soft light.",
+        "error": null,
+        "adjustments": []
+      }
+    },
+    {
+      "caseId": "empty_user_prompt_omits_user_section",
+      "input": {
+        "userPrompt": "",
+        "references": [
+          {
+            "n": 1,
+            "role": "base"
+          }
+        ],
+        "styleFragment": "ink",
+        "effectFragments": [],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "Image 1 is the image to edit.\n\nStyle: ink.",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "An empty user text (exactly \"\", no trimming) contributes no section and no separator."
+    },
+    {
+      "caseId": "all_empty_composes_empty_string",
+      "input": {
+        "userPrompt": "",
+        "references": [],
+        "styleFragment": null,
+        "effectFragments": [],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "Nothing to send composes to \"\"; blocking send is the composer's job."
+    },
+    {
+      "caseId": "user_prompt_limit_not_enforced_here",
+      "input": {
+        "userPrompt": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "references": [],
+        "styleFragment": null,
+        "effectFragments": [],
+        "maxPromptChars": 32000
+      },
+      "expect": {
+        "composed": "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz",
+        "error": null,
+        "adjustments": []
+      },
+      "$comment": "userPromptMaxChars (1000) is the composer input limit (send button disabled); composePrompt only enforces maxPromptChars."
+    }
+  ]
+}

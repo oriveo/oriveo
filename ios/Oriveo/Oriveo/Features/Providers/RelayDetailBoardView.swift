@@ -60,7 +60,7 @@ struct RelayDetailBoardView: View {
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel(L10n.tr(RelayDetailBoardModel.changeIconKey, table: .providers))
-                .sheet(isPresented: $showAvatarPicker) {
+                .oriveoSheet(isPresented: $showAvatarPicker) {
                     RelayAvatarPickerSheet(provider: provider)
                 }
             } else {

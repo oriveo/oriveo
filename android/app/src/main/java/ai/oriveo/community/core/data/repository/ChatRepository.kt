@@ -2282,7 +2282,7 @@ class ChatRepository(
 
     /** The rhoHi from the same source as sending (ledger calibration, by the conversation's provider and runtime model); falls back to RHO0 when the provider is gone. */
     suspend fun currentRhoHi(conversation: Conversation): Double {
-        val provider = providerRepository.getById(conversation.providerID)
+        val provider = providerRepository.getByIdOrNull(conversation.providerID)
             ?: return ai.oriveo.community.core.context.ContextBudget.RHO0
         return rhoHiFor(provider, resolveSendModelSelection(provider, conversation.modelID).runtimeModelId)
     }

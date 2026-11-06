@@ -443,7 +443,7 @@ describe('Notes responsive and theme style contracts', () => {
   // Notes carry no connection id: Relay seeds on "relay" like iOS fallbackId "".
   it('noteSourceColorMatchesProviderTintFixture', () => {
     const fixture = JSON.parse(
-      readFileSync(resolve(process.cwd(), '../../../../\u5171\u4eab/test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
+      readFileSync(resolve(process.cwd(), '../../../shared/test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
     ) as { cases: { id: string; brand: string; light: string; dark: string }[] };
     const byId = new Map(fixture.cases.map((c) => [c.id, c]));
     const vars = (kind: Parameters<typeof noteSourceVars>[0]) =>
@@ -466,7 +466,7 @@ describe('Notes responsive and theme style contracts', () => {
       expect(v['--note-source-text-dark'].toUpperCase(), kind).toBe(c.dark.toUpperCase());
       compared++;
     }
-    expect(compared).toBe(15);
+    expect(compared).toBe(14);
     let h = 5381;
     for (const ch of 'relay') h = (h * 33 + ch.charCodeAt(0)) >>> 0;
     const relayCase = byId.get(`relay.${h % 8}`)!;

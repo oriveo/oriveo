@@ -440,6 +440,10 @@ class ProviderRepository(
         return normalizeProviderIds(entity.toDomainWithKeys(apiKey))
     }
 
+    /**
+     * Throws when the lookup itself fails, so a caller can tell "unavailable" from "gone". Readers that can carry on
+     * without the connection take [getByIdOrNull].
+     */
     suspend fun getById(id: String): Provider? {
         val targetAccountId = accountId
         return getById(targetAccountId, id)
@@ -4196,4 +4200,17 @@ class ProviderRepository(
 
         return false
     }
+}
+
+/**
+ * [ProviderRepository.getById] for a reader that can carry on without the connection: a failed lookup reads as
+ * unresolved. It says nothing about the connection still existing, so it must not be stored or shown as "removed".
+ * Entries that have to tell the user why go through [ai.oriveo.community.feature.chat.resolveChatProvider].
+ */
+suspend fun ProviderRepository.getByIdOrNull(id: String): Provider? = try {
+    getById(id)
+} catch (cancellation: CancellationException) {
+    throw cancellation
+} catch (_: Exception) {
+    null
 }

@@ -238,7 +238,7 @@
     <string name="result_restored_last_used_model">La dernière sélection de modèle a été restaurée</string>
     <string name="import_result_no_changes">Aucune nouvelle donnée importée depuis cette sauvegarde.</string>
     <string name="backup_error_invalid_format">Le format du fichier de sauvegarde n\'est pas reconnu.</string>
-    <string name="backup_error_version_too_new">Cette sauvegarde nécessite une version plus récente d\'Oriveo (version au format %d).</string>
+    <string name="backup_error_version_too_new">Cette sauvegarde nécessite une version plus récente d\'Oriveo (version de format %d).</string>
     <string name="backup_error_wrong_password">Mot de passe incorrect. Utilisez « Ignorer les API Keys » pour continuer sans restaurer les clés.</string>
     <string name="backup_error_no_data_to_export">Aucune conversation ni aucun Provider à exporter pour le moment.</string>
     <string name="backup_error_account_changed">Le compte a changé pendant la préparation de cet import. Recommencez l\'importation pour le compte actuel.</string>

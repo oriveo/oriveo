@@ -18,9 +18,9 @@ vi.mock('./executor', async (importOriginal) => {
   return { ...actual, runStudioGenerate: vi.fn(actual.runStudioGenerate) };
 });
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
+const ROOT = resolve(__dirname, '../../../../../../..');
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
-const CONTRACTS = resolve(ROOT, String.fromCharCode(0x5171, 0x4eab), 'model-contracts');
+const CONTRACTS = resolve(ROOT, 'shared', 'model-contracts');
 const normalization = JSON.parse(
   readFileSync(resolve(CONTRACTS, 'image_param_normalization.v1.json'), 'utf8'),
 ) as { profiles: Record<string, Record<string, unknown>> };

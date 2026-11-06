@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "清除",
     "generationParameterDormantRestored": "已恢复 {count} 项参数",
     "generationPresetName": "预设名称",
+    "capabilityControlFixedByConnection": "由当前连接决定",
     "capabilityControlReasonPending": "自动配置暂未就绪",
     "capabilityControlReasonUnsupported": "此模型不支持该请求",
     "capabilityControlReasonExternalConnector": "由独立的外部服务提供，不在此聊天请求中",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "欢迎使用 Oriveo",
       "tagline": "所有模型，一个应用。",
+      "slogan": "你的密钥，你的成本，你的数据。",
       "description": "配置你的第一个 AI 供应商，开始多模型对话。",
       "addProvider": "添加供应商",
       "enterHome": "进入首页"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "改用 API Key",
         "disabledFallback": "ChatGPT 订阅登录当前不可用。你可以改用 API Key，或删除此连接。"
       },
-      "subscription": "订阅"
+      "subscription": "订阅",
+      "tokenPrices": {
+        "input": "输入 {count}",
+        "cacheRead": "缓存读 {count}",
+        "cacheWrite": "缓存写 {count}",
+        "output": "输出 {count}",
+        "unit": "tokens"
+      }
     },
     "providers": {
       "title": "供应商",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "隐私政策",
+      "sourceCode": "源代码",
       "aiSection": "AI",
       "skills": "技能",
       "backupImportExport": "备份与导入/导出",
+      "reportIssue": "反馈问题",
+      "documentation": "文档",
       "aboutTagline": "所有模型，一个应用。",
       "context": {
         "title": "上下文",
@@ -1630,6 +1642,7 @@
       "passwordMismatch": "密码不匹配",
       "wrongPassword": "密码错误",
       "invalidFile": "无效或无法识别的备份文件",
+      "versionTooNew": "此备份需要更新版本的 Oriveo（格式版本 {version}）。",
       "success": "备份导出成功",
       "exportComplete": "导出完成",
       "legacyPasswordHint": "此备份已加密，请输入密码以继续。",
@@ -2054,11 +2067,14 @@
     "title": "技能",
     "mySkills": "我的技能",
     "builtinSkills": "内置技能",
+    "pinned": "已置顶",
     "newSkill": "新建技能",
     "editSkill": "编辑技能",
     "deleteSkill": "删除技能",
     "forkSkill": "复制为我的技能",
     "useSkill": "使用此技能",
+    "pinToHome": "置顶到首页",
+    "unpinFromHome": "取消置顶",
     "instructions": "提示词",
     "instructionsPlaceholder": "例如：你是一位资深代码审查员，擅长安全性和性能审查。用用户的语言回复。",
     "starterMessages": "对话开场白",
@@ -2811,7 +2827,8 @@
       "stepLimit": "本次选择的文档过多或过长，请减少勾选后重试。",
       "notConnected": "开始研究前，请先连接资料库来源。",
       "sourceForbidden": "来源因权限或策略限制拒绝了访问，重新连接无法解决，请检查来源端的共享/合规设置。",
-      "unavailable": "资料库暂时不可用，请稍后重试。"
+      "unavailable": "资料库暂时不可用，请稍后重试。",
+      "retry": "重试"
     }
   },
   "notes": {

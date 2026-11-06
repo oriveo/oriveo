@@ -156,10 +156,10 @@ struct VoiceSettingsView: View {
         .accessibilityIdentifier("voice_settings_screen")
         .oriveoScreenBackground()
         .onDisappear { flow.disappear() }
-        .sheet(item: $flow.engineSheet, onDismiss: { flow.engineSheetDismissed() }) { presentation in
+        .oriveoSheet(item: $flow.engineSheet, onDismiss: { flow.engineSheetDismissed() }) { presentation in
             VoiceEngineSheet(model: presentation.model)
         }
-        .sheet(item: $realtimeDisclosure, onDismiss: { answerRealtimeDisclosure(accepted: false) }) { request in
+        .oriveoSheet(item: $realtimeDisclosure, onDismiss: { answerRealtimeDisclosure(accepted: false) }) { request in
             VoiceDisclosureSheet(
                 provider: request.selection.providerKind,
                 direction: .realtime,

@@ -21,7 +21,7 @@
 .deviceOnly { flex:1; min-width:0; font-size:12px; color:#a1a5ae; }
 .barButton { min-height:30px; padding:0 12px; border:0; border-radius:999px; background:var(--o-bg-subtle, #f1f2f5); color:var(--o-text, #3f3f46); font:inherit; font-size:13px; cursor:pointer; }
 .codeBar .barButton { background:rgba(255, 255, 255, .1); color:#e6e6eb; }
-.barButton:focus-visible { outline:2px solid var(--o-focus-ring, #7c3aed); outline-offset:2px; }
+.barButton:focus-visible { outline:2px solid var(--o-primary); outline-offset:2px; }
 .confirm { display:flex; flex-direction:column; gap:6px; padding:10px 12px; border-radius:12px; background:var(--o-bg-subtle, #f1f2f5); font-size:13px; }
 .confirmActions { display:flex; justify-content:flex-end; gap:8px; }
 .listSection { display:flex; flex-direction:column; gap:6px; }

@@ -35,9 +35,9 @@ import { resetDBConnection } from '../../../../lib/infra/storage/idb';
 import { setActiveUID } from '../../../../lib/infra/storage/partition';
 import { POST } from './route';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
+const ROOT = resolve(__dirname, '../../../../../../..');
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
-const CONTRACTS = resolve(ROOT, String.fromCharCode(0x5171, 0x4eab), 'model-contracts');
+const CONTRACTS = resolve(ROOT, 'shared', 'model-contracts');
 const SAMPLES_DIR = resolve(CONTRACTS, 'image_response_samples.v1');
 const UID = 'guest';
 

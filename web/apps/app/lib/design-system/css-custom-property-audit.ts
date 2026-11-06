@@ -91,7 +91,6 @@ export const ALLOWED: readonly AllowedCustomProperty[] = [
     files: [
       'apps/app/app/skills/SkillsPage.module.css',
       'apps/app/components/chat/SkillStarterView.module.css',
-      'apps/app/components/mobile/MobileHomeView.module.css',
       'apps/app/components/sidebar/SkillsPills.module.css',
     ],
     reason: 'Set as an inline style from skill.color by app/skills/SkillsPage.tsx, components/chat/SkillStarterView.tsx and components/chat/SkillIntro.tsx.',

@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "Hapus",
     "generationParameterDormantRestored": "{count} parameter dipulihkan",
     "generationPresetName": "Nama preset",
+    "capabilityControlFixedByConnection": "Ditetapkan oleh koneksi ini",
     "capabilityControlReasonPending": "Konfigurasi otomatis belum siap",
     "capabilityControlReasonUnsupported": "Permintaan ini tidak didukung oleh model ini",
     "capabilityControlReasonExternalConnector": "Disediakan oleh layanan eksternal terpisah, di luar permintaan chat ini",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Selamat datang di Oriveo",
       "tagline": "Semua Model Anda, Satu Aplikasi.",
+      "slogan": "Kunci Anda, Biaya Anda, Data Anda.",
       "description": "Siapkan penyedia AI pertama Anda untuk memulai percakapan multi-model.",
       "addProvider": "Tambahkan Penyedia",
       "enterHome": "Lanjut ke Aplikasi"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "Ganti ke API key",
         "disabledFallback": "Masuk dengan langganan ChatGPT sedang tidak tersedia. Anda bisa beralih ke API key atau menghapus koneksi ini."
       },
-      "subscription": "Langganan"
+      "subscription": "Langganan",
+      "tokenPrices": {
+        "input": "Masukan {count}",
+        "cacheRead": "Baca cache {count}",
+        "cacheWrite": "Tulis cache {count}",
+        "output": "Keluaran {count}",
+        "unit": "token"
+      }
     },
     "providers": {
       "title": "Penyedia",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "⌘ Enter",
       "shortcutEnter": "Memasuki",
       "privacyPolicy": "Kebijakan Privasi",
+      "sourceCode": "Kode Sumber",
       "aiSection": "AI",
       "skills": "Keterampilan",
       "backupImportExport": "Cadangan & Impor/Ekspor",
+      "reportIssue": "Laporkan Masalah",
+      "documentation": "Dokumentasi",
       "aboutTagline": "Semua model Anda. Satu aplikasi.",
       "context": {
         "title": "Konteks",
@@ -1630,6 +1642,7 @@
       "passwordMismatch": "Kata sandi tidak cocok",
       "wrongPassword": "Kata sandi salah",
       "invalidFile": "File cadangan tidak valid atau tidak dikenal",
+      "versionTooNew": "Cadangan ini memerlukan versi Oriveo yang lebih baru (versi format {version}).",
       "success": "Cadangan berhasil diekspor",
       "exportComplete": "Ekspor Selesai",
       "legacyPasswordHint": "Cadangan ini dienkripsi. Masukkan kata sandi untuk melanjutkan.",
@@ -2054,11 +2067,14 @@
     "title": "Keterampilan",
     "mySkills": "Keterampilan saya",
     "builtinSkills": "Keterampilan Bawaan",
+    "pinned": "Disematkan",
     "newSkill": "Keterampilan Baru",
     "editSkill": "Sunting Keterampilan",
     "deleteSkill": "Hapus Keterampilan",
     "forkSkill": "Salin sebagai Keahlian Saya",
     "useSkill": "Gunakan Keterampilan ini",
+    "pinToHome": "Sematkan ke Beranda",
+    "unpinFromHome": "Lepas sematan dari Rumah",
     "instructions": "Mengingatkan",
     "instructionsPlaceholder": "misalnya Anda adalah peninjau kode senior. Tinjau kode untuk keamanan, kinerja, dan keterbacaan. Balasan dalam bahasa pengguna.",
     "starterMessages": "Pembuka Percakapan",
@@ -2811,7 +2827,8 @@
       "stepLimit": "Dokumen yang dipilih terlalu banyak atau terlalu panjang untuk satu riset. Batalkan pilihan beberapa lalu coba lagi.",
       "notConnected": "Hubungkan sumber Pustaka sebelum memulai riset.",
       "sourceForbidden": "Sumber menolak akses karena pembatasan izin atau kebijakan. Menyambungkan ulang tidak akan memperbaikinya — periksa pengaturan berbagi atau kepatuhan pada sumber itu sendiri.",
-      "unavailable": "Pustaka sementara tidak tersedia. Coba lagi nanti."
+      "unavailable": "Pustaka sementara tidak tersedia. Coba lagi nanti.",
+      "retry": "Coba Lagi"
     }
   },
   "notes": {

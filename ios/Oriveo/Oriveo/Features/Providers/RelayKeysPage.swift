@@ -574,14 +574,14 @@ struct RelayKeysPage: View {
                 } message: { item in
                     Text(alertMessage(item.prompt))
                 }
-                .sheet(isPresented: $showAddKey) {
+                .oriveoSheet(isPresented: $showAddKey) {
                     RelayKeyInputSheet(mode: .add) { name, secret in
                         apply(Board.addOperation(id: "k-\(UUID().uuidString.lowercased())", name: name, apiKey: secret))
                     }
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
                 }
-                .sheet(item: renamingSheetItem) { item in
+                .oriveoSheet(item: renamingSheetItem) { item in
                     RelayKeyInputSheet(
                         mode: .rename,
                         currentName: provider.relayKeys?.first(where: { $0.id == item.id })?.name ?? "",
@@ -593,14 +593,14 @@ struct RelayKeysPage: View {
                     .presentationDetents([.height(340)])
                     .presentationDragIndicator(.visible)
                 }
-                .sheet(item: replacingSheetItem) { item in
+                .oriveoSheet(item: replacingSheetItem) { item in
                     RelayKeyInputSheet(mode: .replace) { _, secret in
                         apply(Board.replaceOperation(id: item.id, apiKey: secret))
                     }
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
                 }
-                .sheet(isPresented: $showSingleKeySheet) {
+                .oriveoSheet(isPresented: $showSingleKeySheet) {
                     EditAPIKeySheet(providerID: providerID)
                         .presentationDetents([.medium])
                         .presentationDragIndicator(.visible)

@@ -118,7 +118,7 @@ struct ChatToolbar: View {
                         .contentShape(.rect)
                 }
                 .buttonStyle(ChatToolbarPressableStyle())
-                .popover(isPresented: $showMemoryPopover) {
+                .oriveoPopover(isPresented: $showMemoryPopover) {
                     memoryPopoverContent
                 }
                 .accessibilityLabel(L10n.tr("This conversation is using memory", table: .chat))
@@ -181,7 +181,7 @@ struct ChatToolbar: View {
                 .ignoresSafeArea(.container, edges: [.top, .horizontal])
             }
         }
-        .sheet(item: $pendingExport) { item in
+        .oriveoSheet(item: $pendingExport) { item in
             ChatExportShareSheet(item: item.url) { completed in
                 pendingExport = nil
                 if completed {
@@ -282,7 +282,7 @@ struct ChatToolbar: View {
                         } label: {
                             Label(L10n.tr("Memory"), systemImage: "brain")
                         }
-                        .popover(isPresented: $showMemoryPopover) {
+                        .oriveoPopover(isPresented: $showMemoryPopover) {
                             memoryPopoverContent
                         }
                         .accessibilityLabel(L10n.tr("This conversation is using memory", table: .chat))

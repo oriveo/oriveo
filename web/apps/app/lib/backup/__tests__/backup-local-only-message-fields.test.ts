@@ -108,7 +108,7 @@ describe('backup local-only message fields', () => {
 
     const exported = await readDataJson(await exportBackup({ includeApiKeys: false }));
     const [message] = exported.data.conversations[0].messages;
-    expect(message.text).toBe('Balance is not enough.');
+    expect(message.text).toBe('Hello there.');
     expect(message).not.toHaveProperty('skillManifestTokens');
   });
 

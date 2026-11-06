@@ -6681,7 +6681,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cette sauvegarde nécessite une version plus récente d'Oriveo (version au format %d)."
+            "value" : "Cette sauvegarde nécessite une version plus récente d'Oriveo (version de format %d)."
           }
         },
         "hi" : {
@@ -6699,13 +6699,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このバックアップには、新しいバージョンの Oriveo (フォーマット バージョン %d) が必要です。"
+            "value" : "このバックアップを読み込むには、より新しいバージョンの Oriveo が必要です（フォーマットバージョン %d）。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 백업에는 최신 버전의 Oriveo(형식 버전 %d)가 필요합니다."
+            "value" : "이 백업을 불러오려면 더 새로운 버전의 Oriveo가 필요해요(형식 버전 %d)."
           }
         },
         "pt-BR" : {
@@ -6723,13 +6723,13 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "การสำรองข้อมูลนี้ต้องใช้ Oriveo เวอร์ชันใหม่กว่า (เวอร์ชันรูปแบบ %d)"
+            "value" : "การสำรองข้อมูลนี้ต้องใช้ Oriveo เวอร์ชันใหม่กว่า (รูปแบบเวอร์ชัน %d)"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu yedekleme, Oriveo'nun daha yeni bir sürümünü gerektirir (biçim sürümü %d)."
+            "value" : "Bu yedek, Oriveo'nun daha yeni bir sürümünü gerektiriyor (biçim sürümü %d)."
           }
         },
         "vi" : {

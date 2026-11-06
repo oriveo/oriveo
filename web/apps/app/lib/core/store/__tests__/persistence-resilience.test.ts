@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   getAllFolders: vi.fn(),
   getAllNotes: vi.fn(),
   getAllNoteFolders: vi.fn(),
+  getPartitionDB: vi.fn(),
   getSessionValue: vi.fn(),
   putConversationsBatch: vi.fn(),
   putProvider: vi.fn(),
@@ -58,6 +59,7 @@ vi.mock('../../../infra/storage/idb', () => ({
   getAllFolders: h.getAllFolders,
   getAllNotes: h.getAllNotes,
   getAllNoteFolders: h.getAllNoteFolders,
+  getPartitionDB: h.getPartitionDB,
   getSessionValue: h.getSessionValue,
   putConversationsBatch: h.putConversationsBatch,
   putProvider: h.putProvider,
@@ -137,6 +139,12 @@ beforeEach(() => {
       if (conversations.length > 0) visit(conversations);
     },
   );
+  // The studio half of the reference set reads the real partition DB, as in production: a missing
+  // export here is swallowed by the fail-closed reference read and silently turns every purge off.
+  h.getPartitionDB.mockImplementation(async (uid?: string) => {
+    const realIdb = await vi.importActual<typeof import('../../../infra/storage/idb')>('../../../infra/storage/idb');
+    return realIdb.getPartitionDB(uid);
+  });
   h.getAllFolders.mockResolvedValue([]);
   h.getAllNotes.mockResolvedValue([]);
   h.getAllNoteFolders.mockResolvedValue([]);
@@ -474,6 +482,45 @@ describe('delete paths clean up images through purgeUnreferencedImages', () => {
     unsub();
   });
 
+  it('conversationDelete_keepsImagesReferencedByStudio', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const realIdb = await vi.importActual<typeof import('../../../infra/storage/idb')>('../../../infra/storage/idb');
+    const db = await realIdb.getPartitionDB('user-A');
+    await db.put('studio_versions', {
+      id: 'version-kept', roundId: 'round-kept', workId: 'work-kept', parentVersionId: null, assetId: 'img-studio-version',
+      width: 1, height: 1, mime: 'image/png', kept: true, createdAt: new Date().toISOString(),
+    });
+    await db.put('studio_round_refs', { roundId: 'round-kept', order: 0, assetId: 'img-studio-ref', role: 'subject' });
+    h.getConversationById.mockResolvedValue(makeConversation({
+      id: 'c-studio',
+      messages: [
+        imageMessage('m1', 'att-gone', 'img-gone'),
+        imageMessage('m2', 'att-version', 'img-studio-version'),
+        imageMessage('m3', 'att-ref', 'img-studio-ref'),
+      ],
+    }));
+    const store = createAppStore();
+    store.setState({
+      hydrationPhase: 'ready',
+      conversations: [makeConversation({ id: 'c-studio', messages: [], remoteMessageCount: 3 })],
+    });
+    const unsub = subscribeConversations(store);
+
+    store.setState({ conversations: [] });
+
+    // The round's own log line marks it finished, so a late delete of a studio key cannot slip past.
+    await vi.waitFor(() => expect(info).toHaveBeenCalledWith(
+      '[ImagePurge] candidates=6 deleted=4 bytes=0 aborted=none',
+    ));
+    expect(h.deleteImage.mock.calls.map((call) => call[0]).sort()).toEqual(
+      ['att-gone', 'att-ref', 'att-version', 'img-gone'],
+    );
+    await db.delete('studio_versions', 'version-kept');
+    await db.delete('studio_round_refs', ['round-kept', 0]);
+    info.mockRestore();
+    unsub();
+  });
+
   it('messageRemoval_purgesUnreferencedImages', async () => {
     // subscriber -> conversation-rewrite-image-purge -> real IDB write -> real purge (the reference set is read from the real IDB after the commit)
     const realIdb = await vi.importActual<typeof import('../../../infra/storage/idb')>('../../../infra/storage/idb');
@@ -525,6 +572,7 @@ describe('delete paths clean up images through purgeUnreferencedImages', () => {
     expect(h.deleteConversation).toHaveBeenCalledTimes(5);
     expect(h.scanConversationsInChunks.mock.calls.length).toBeLessThanOrEqual(2);
     expect(h.getAllConversations.mock.calls.length).toBeLessThanOrEqual(2);
+    expect(h.getPartitionDB.mock.calls.length).toBeLessThanOrEqual(2);
     expect(h.deleteImage.mock.calls.map((call) => call[0]).sort()).toEqual(
       ids.flatMap((id) => [`att-${id}`, `img-${id}`]).sort(),
     );

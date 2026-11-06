@@ -40,7 +40,7 @@ describe('providerTint', () => {
 
 // Provider text tint (shared fixture provider-text-tint.v1.json).
 const fixture = JSON.parse(
-  readFileSync(resolve(process.cwd(), '../../../../\u5171\u4eab/test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
+  readFileSync(resolve(process.cwd(), '../../../shared/test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
 ) as { pillLabel: { worstBackground: string }; cases: { id: string; brand: string; light: string; dark: string }[] };
 
 function luminance(hex: string): number {

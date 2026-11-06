@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { normalizeModelId } from '../model-id-normalization';
 
-const ROOT = resolve(__dirname, '../../../../../../../..');
+const ROOT = resolve(__dirname, '../../../../../../..');
 
 interface NormalizationCase {
   caseId: string;
@@ -16,7 +16,7 @@ interface NormalizationCase {
 }
 
 const fixture = JSON.parse(readFileSync(
-  resolve(ROOT, '\u5171\u4eab/model-contracts/model_id_normalization.v1.json'), 'utf8',
+  resolve(ROOT, 'shared/model-contracts/model_id_normalization.v1.json'), 'utf8',
 )) as { cases: NormalizationCase[] };
 
 describe('model_id_normalization.v1', () => {

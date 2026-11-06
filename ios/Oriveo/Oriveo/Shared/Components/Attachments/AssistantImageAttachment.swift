@@ -29,7 +29,7 @@ struct AssistantImageAttachment: View {
                     savedToPhotos: $savedToPhotos
                 )
             }
-            .fullScreenCover(isPresented: $showFullScreen) {
+            .oriveoFullScreenCover(isPresented: $showFullScreen) {
                 ImageViewerSheet(
                     attachment: attachment,
                     partitionUID: AppSessionStore.activeUID

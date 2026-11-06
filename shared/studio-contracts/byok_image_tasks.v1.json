@@ -1,0 +1,1503 @@
+{
+  "$comment": "BYOK image task management. Pure logic shared by iOS / Android / Web; scripts/studio-contracts-check.mjs recomputes every case with scripts/lib/studio-image-reference.mjs. Inputs are already-typed values (profile fields were validated by profile resolution, n and batches by param normalization), so nothing here is decoded from the wire. Test groups, same name on every end: spec, timeout, retry, transportPhase, aggregate, queue, reconcile.",
+  "contractId": "byok_image_tasks.v1",
+  "version": 1,
+  "spec": {
+    "defaultTimeoutSeconds": 180,
+    "maxTimeoutSeconds": 180,
+    "maxConcurrentRounds": 4,
+    "maxAutoRetries": 1,
+    "phases": [
+      "pre_connect",
+      "after_send",
+      "timeout",
+      "cancelled"
+    ],
+    "reconcileActions": [
+      "keep",
+      "process",
+      "keep_running",
+      "interrupted",
+      "failed_timeout"
+    ],
+    "roundStatuses": [
+      "completed",
+      "partial",
+      "failed",
+      "cancelled"
+    ],
+    "rules": [
+      "timeout: per HTTP attempt total duration = profile.timeoutSeconds; missing (null) or <= 0 -> 180; capped at 180. A retry gets a fresh full timeout.",
+      "retry: only a pre_connect failure (DNS, refused, no route, TLS handshake / certificate, offline) on the first attempt (attempt 0) is retried, once. after_send, timeout and cancelled are never retried; HTTP responses never reach this function (error classification decides). Output errorKind uses image_error_samples.v1.json kinds; mayBeBilled is true once the body may have reached the provider (after_send, timeout).",
+      "transportPhase: per-end mapping of platform transport errors to a phase; checks run in the listed order and anything unknown is after_send (no retry). Only a signal that proves the body was not sent is pre_connect: a timeout an end cannot place before the body (iOS -1001, Android SocketTimeoutException incl. OkHttp connect timeout) is timeout, while Web undici UND_ERR_CONNECT_TIMEOUT is pre_connect. Wrapped errors: check the error itself, then its cause chain outer-first; the first layer that matches wins (Android cause, Web cause.cause...).",
+      "aggregate: only results[0 ..< batches.length] count (extra results are ignored, missing ones count as 0 images without errorKind); each batch's images are capped at that batch size (negative -> 0), then summed. delivered >= n -> completed; 0 < delivered < n -> partial; 0 -> failed. errorKind = first non-null batch errorKind by batch index; if none, partial -> 'partial', failed -> 'decode_failed'. cancelled wins and drops everything (delivered 0).",
+      "queue: one slot per round (a multi-model comparison is one round per model); all batches of a round run inside its slot. FIFO. submit of an id already running or queued is a no-op. cancel of a running round frees the slot immediately (mayBeBilled true) and promotes the queue head; cancel of a queued round never sends a request (mayBeBilled false); cancel / finish of an unknown id is a no-op. response for a running id -> accept, otherwise drop (late reply after cancel is never persisted). Effects are listed in emission order.",
+      "reconcile: on launch, terminal statuses -> keep; queued -> interrupted (never sent, not re-queued); running: responseReceived -> process; transferActive -> keep_running; no startedAtMs or clock went backwards (nowMs < startedAtMs) -> interrupted; nowMs - startedAtMs >= effective timeout * 1000 -> failed_timeout; otherwise interrupted."
+    ]
+  },
+  "timeout": [
+    {
+      "caseId": "timeout.missing",
+      "timeoutSeconds": null,
+      "expect": 180
+    },
+    {
+      "caseId": "timeout.zero",
+      "timeoutSeconds": 0,
+      "expect": 180
+    },
+    {
+      "caseId": "timeout.negative",
+      "timeoutSeconds": -5,
+      "expect": 180
+    },
+    {
+      "caseId": "timeout.one",
+      "timeoutSeconds": 1,
+      "expect": 1
+    },
+    {
+      "caseId": "timeout.short",
+      "timeoutSeconds": 60,
+      "expect": 60
+    },
+    {
+      "caseId": "timeout.at_cap",
+      "timeoutSeconds": 180,
+      "expect": 180
+    },
+    {
+      "caseId": "timeout.over_cap",
+      "timeoutSeconds": 181,
+      "expect": 180
+    },
+    {
+      "caseId": "timeout.managed_value_capped",
+      "timeoutSeconds": 240,
+      "expect": 180
+    }
+  ],
+  "retry": [
+    {
+      "caseId": "retry.pre_connect.first",
+      "phase": "pre_connect",
+      "attempt": 0,
+      "expect": {
+        "retry": true,
+        "errorKind": null,
+        "retried": false,
+        "mayBeBilled": false
+      }
+    },
+    {
+      "caseId": "retry.pre_connect.second",
+      "phase": "pre_connect",
+      "attempt": 1,
+      "expect": {
+        "retry": false,
+        "errorKind": "network",
+        "retried": true,
+        "mayBeBilled": false
+      }
+    },
+    {
+      "caseId": "retry.after_send.first",
+      "phase": "after_send",
+      "attempt": 0,
+      "expect": {
+        "retry": false,
+        "errorKind": "network",
+        "retried": false,
+        "mayBeBilled": true
+      }
+    },
+    {
+      "caseId": "retry.after_send.after_retry",
+      "phase": "after_send",
+      "attempt": 1,
+      "expect": {
+        "retry": false,
+        "errorKind": "network",
+        "retried": true,
+        "mayBeBilled": true
+      }
+    },
+    {
+      "caseId": "retry.timeout.first",
+      "phase": "timeout",
+      "attempt": 0,
+      "expect": {
+        "retry": false,
+        "errorKind": "timeout",
+        "retried": false,
+        "mayBeBilled": true
+      }
+    },
+    {
+      "caseId": "retry.timeout.after_retry",
+      "phase": "timeout",
+      "attempt": 1,
+      "expect": {
+        "retry": false,
+        "errorKind": "timeout",
+        "retried": true,
+        "mayBeBilled": true
+      }
+    },
+    {
+      "caseId": "retry.cancelled.first",
+      "phase": "cancelled",
+      "attempt": 0,
+      "expect": {
+        "retry": false,
+        "errorKind": null,
+        "retried": false,
+        "mayBeBilled": false
+      }
+    },
+    {
+      "caseId": "retry.pre_connect.attempt_beyond_cap",
+      "phase": "pre_connect",
+      "attempt": 2,
+      "expect": {
+        "retry": false,
+        "errorKind": "network",
+        "retried": true,
+        "mayBeBilled": false
+      }
+    }
+  ],
+  "transportPhase": {
+    "ios": [
+      {
+        "caseId": "ios.cancelled",
+        "urlErrorCode": -999,
+        "expect": "cancelled"
+      },
+      {
+        "caseId": "ios.timed_out",
+        "urlErrorCode": -1001,
+        "expect": "timeout"
+      },
+      {
+        "caseId": "ios.cannot_find_host",
+        "urlErrorCode": -1003,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.cannot_connect",
+        "urlErrorCode": -1004,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.dns_lookup_failed",
+        "urlErrorCode": -1006,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.not_connected",
+        "urlErrorCode": -1009,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.roaming_off",
+        "urlErrorCode": -1018,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.data_not_allowed",
+        "urlErrorCode": -1020,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.ats_requires_https",
+        "urlErrorCode": -1022,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.tls_failed",
+        "urlErrorCode": -1200,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.cert_bad_date",
+        "urlErrorCode": -1201,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.cert_untrusted",
+        "urlErrorCode": -1202,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.cert_unknown_root",
+        "urlErrorCode": -1203,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.cert_not_yet_valid",
+        "urlErrorCode": -1204,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.client_cert_rejected",
+        "urlErrorCode": -1205,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.client_cert_required",
+        "urlErrorCode": -1206,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "ios.connection_lost",
+        "urlErrorCode": -1005,
+        "expect": "after_send"
+      },
+      {
+        "caseId": "ios.bad_server_response",
+        "urlErrorCode": -1011,
+        "expect": "after_send"
+      },
+      {
+        "caseId": "ios.unknown_code",
+        "urlErrorCode": -1,
+        "expect": "after_send"
+      }
+    ],
+    "android": [
+      {
+        "caseId": "android.call_canceled_wins",
+        "exception": "java.net.UnknownHostException",
+        "message": "api.example.com",
+        "callCanceled": true,
+        "expect": "cancelled"
+      },
+      {
+        "caseId": "android.call_timeout",
+        "exception": "java.io.InterruptedIOException",
+        "message": "timeout",
+        "callCanceled": false,
+        "expect": "timeout"
+      },
+      {
+        "caseId": "android.socket_timeout",
+        "exception": "java.net.SocketTimeoutException",
+        "message": "timeout",
+        "callCanceled": false,
+        "expect": "timeout"
+      },
+      {
+        "caseId": "android.unknown_host",
+        "exception": "java.net.UnknownHostException",
+        "message": "api.example.com",
+        "callCanceled": false,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "android.connect_refused",
+        "exception": "java.net.ConnectException",
+        "message": "Failed to connect",
+        "callCanceled": false,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "android.no_route",
+        "exception": "java.net.NoRouteToHostException",
+        "message": "No route to host",
+        "callCanceled": false,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "android.tls_handshake",
+        "exception": "javax.net.ssl.SSLHandshakeException",
+        "message": "handshake failed",
+        "callCanceled": false,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "android.peer_unverified",
+        "exception": "javax.net.ssl.SSLPeerUnverifiedException",
+        "message": "hostname not verified",
+        "callCanceled": false,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "android.wrapped_unknown_host",
+        "exception": "java.io.IOException",
+        "message": "wrapper",
+        "cause": "java.net.UnknownHostException",
+        "callCanceled": false,
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "android.connect_timeout",
+        "exception": "java.net.SocketTimeoutException",
+        "message": "failed to connect to api.example.com/203.0.113.1 (port 443) after 10000ms",
+        "callCanceled": false,
+        "expect": "timeout"
+      },
+      {
+        "caseId": "android.connection_reset",
+        "exception": "java.net.SocketException",
+        "message": "Connection reset",
+        "callCanceled": false,
+        "expect": "after_send"
+      },
+      {
+        "caseId": "android.unexpected_end",
+        "exception": "java.io.IOException",
+        "message": "unexpected end of stream",
+        "callCanceled": false,
+        "expect": "after_send"
+      }
+    ],
+    "web": [
+      {
+        "caseId": "web.abort_by_user",
+        "name": "AbortError",
+        "causeCode": null,
+        "expect": "cancelled"
+      },
+      {
+        "caseId": "web.abort_signal_timeout",
+        "name": "TimeoutError",
+        "causeCode": null,
+        "expect": "timeout"
+      },
+      {
+        "caseId": "web.undici_headers_timeout",
+        "name": "TypeError",
+        "causeCode": "UND_ERR_HEADERS_TIMEOUT",
+        "expect": "timeout"
+      },
+      {
+        "caseId": "web.undici_body_timeout",
+        "name": "TypeError",
+        "causeCode": "UND_ERR_BODY_TIMEOUT",
+        "expect": "timeout"
+      },
+      {
+        "caseId": "web.enotfound",
+        "name": "TypeError",
+        "causeCode": "ENOTFOUND",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.eai_again",
+        "name": "TypeError",
+        "causeCode": "EAI_AGAIN",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.econnrefused",
+        "name": "TypeError",
+        "causeCode": "ECONNREFUSED",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.ehostunreach",
+        "name": "TypeError",
+        "causeCode": "EHOSTUNREACH",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.enetunreach",
+        "name": "TypeError",
+        "causeCode": "ENETUNREACH",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.undici_connect_timeout",
+        "name": "TypeError",
+        "causeCode": "UND_ERR_CONNECT_TIMEOUT",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.cert_expired",
+        "name": "TypeError",
+        "causeCode": "CERT_HAS_EXPIRED",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.self_signed",
+        "name": "TypeError",
+        "causeCode": "DEPTH_ZERO_SELF_SIGNED_CERT",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.self_signed_chain",
+        "name": "TypeError",
+        "causeCode": "SELF_SIGNED_CERT_IN_CHAIN",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.leaf_unverified",
+        "name": "TypeError",
+        "causeCode": "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.altname_invalid",
+        "name": "TypeError",
+        "causeCode": "ERR_TLS_CERT_ALTNAME_INVALID",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.nested_cause",
+        "name": "TypeError",
+        "causeCode": null,
+        "nestedCauseCode": "ECONNREFUSED",
+        "expect": "pre_connect"
+      },
+      {
+        "caseId": "web.econnreset",
+        "name": "TypeError",
+        "causeCode": "ECONNRESET",
+        "expect": "after_send"
+      },
+      {
+        "caseId": "web.undici_socket",
+        "name": "TypeError",
+        "causeCode": "UND_ERR_SOCKET",
+        "expect": "after_send"
+      },
+      {
+        "caseId": "web.browser_failed_fetch_no_cause",
+        "name": "TypeError",
+        "causeCode": null,
+        "expect": "after_send"
+      }
+    ]
+  },
+  "aggregate": [
+    {
+      "caseId": "aggregate.single_batch_full",
+      "input": {
+        "n": 1,
+        "batches": [
+          1
+        ],
+        "results": [
+          {
+            "images": 1,
+            "errorKind": null
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "completed",
+        "delivered": 1,
+        "errorKind": null
+      }
+    },
+    {
+      "caseId": "aggregate.split_all_ok",
+      "input": {
+        "n": 5,
+        "batches": [
+          2,
+          2,
+          1
+        ],
+        "results": [
+          {
+            "images": 2,
+            "errorKind": null
+          },
+          {
+            "images": 2,
+            "errorKind": null
+          },
+          {
+            "images": 1,
+            "errorKind": null
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "completed",
+        "delivered": 5,
+        "errorKind": null
+      }
+    },
+    {
+      "caseId": "aggregate.over_delivery_capped_per_batch",
+      "input": {
+        "n": 2,
+        "batches": [
+          1,
+          1
+        ],
+        "results": [
+          {
+            "images": 3,
+            "errorKind": null
+          },
+          {
+            "images": 0,
+            "errorKind": "timeout"
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "partial",
+        "delivered": 1,
+        "errorKind": "timeout"
+      }
+    },
+    {
+      "caseId": "aggregate.one_batch_failed",
+      "input": {
+        "n": 4,
+        "batches": [
+          1,
+          1,
+          1,
+          1
+        ],
+        "results": [
+          {
+            "images": 1,
+            "errorKind": null
+          },
+          {
+            "images": 0,
+            "errorKind": "rate_limited"
+          },
+          {
+            "images": 1,
+            "errorKind": null
+          },
+          {
+            "images": 0,
+            "errorKind": "network"
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "partial",
+        "delivered": 2,
+        "errorKind": "rate_limited"
+      }
+    },
+    {
+      "caseId": "aggregate.under_delivery_in_batch",
+      "input": {
+        "n": 4,
+        "batches": [
+          4
+        ],
+        "results": [
+          {
+            "images": 3,
+            "errorKind": "partial"
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "partial",
+        "delivered": 3,
+        "errorKind": "partial"
+      }
+    },
+    {
+      "caseId": "aggregate.under_delivery_no_kind",
+      "input": {
+        "n": 2,
+        "batches": [
+          2
+        ],
+        "results": [
+          {
+            "images": 1,
+            "errorKind": null
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "partial",
+        "delivered": 1,
+        "errorKind": "partial"
+      }
+    },
+    {
+      "caseId": "aggregate.all_failed_first_kind_wins",
+      "input": {
+        "n": 2,
+        "batches": [
+          1,
+          1
+        ],
+        "results": [
+          {
+            "images": 0,
+            "errorKind": "refused"
+          },
+          {
+            "images": 0,
+            "errorKind": "auth"
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "failed",
+        "delivered": 0,
+        "errorKind": "refused"
+      }
+    },
+    {
+      "caseId": "aggregate.all_failed_later_batch_kind",
+      "input": {
+        "n": 2,
+        "batches": [
+          1,
+          1
+        ],
+        "results": [
+          {
+            "images": 0,
+            "errorKind": null
+          },
+          {
+            "images": 0,
+            "errorKind": "upstream_error"
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "failed",
+        "delivered": 0,
+        "errorKind": "upstream_error"
+      }
+    },
+    {
+      "caseId": "aggregate.zero_images_no_kind",
+      "input": {
+        "n": 1,
+        "batches": [
+          1
+        ],
+        "results": [
+          {
+            "images": 0,
+            "errorKind": null
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "failed",
+        "delivered": 0,
+        "errorKind": "decode_failed"
+      }
+    },
+    {
+      "caseId": "aggregate.extra_result_ignored",
+      "input": {
+        "n": 1,
+        "batches": [
+          1
+        ],
+        "results": [
+          {
+            "images": 0,
+            "errorKind": null
+          },
+          {
+            "images": 1,
+            "errorKind": "auth"
+          }
+        ],
+        "cancelled": false
+      },
+      "expect": {
+        "status": "failed",
+        "delivered": 0,
+        "errorKind": "decode_failed"
+      }
+    },
+    {
+      "caseId": "aggregate.cancelled_drops_delivered",
+      "input": {
+        "n": 2,
+        "batches": [
+          1,
+          1
+        ],
+        "results": [
+          {
+            "images": 1,
+            "errorKind": null
+          },
+          {
+            "images": 1,
+            "errorKind": null
+          }
+        ],
+        "cancelled": true
+      },
+      "expect": {
+        "status": "cancelled",
+        "delivered": 0,
+        "errorKind": null
+      }
+    }
+  ],
+  "queue": [
+    {
+      "caseId": "queue.fifth_waits_then_starts_on_finish",
+      "steps": [
+        {
+          "event": {
+            "type": "submit",
+            "id": "r1"
+          },
+          "expect": {
+            "running": [
+              "r1"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "r1"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "r2"
+          },
+          "expect": {
+            "running": [
+              "r1",
+              "r2"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "r2"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "r3"
+          },
+          "expect": {
+            "running": [
+              "r1",
+              "r2",
+              "r3"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "r3"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "r4"
+          },
+          "expect": {
+            "running": [
+              "r1",
+              "r2",
+              "r3",
+              "r4"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "r4"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "r5"
+          },
+          "expect": {
+            "running": [
+              "r1",
+              "r2",
+              "r3",
+              "r4"
+            ],
+            "queued": [
+              "r5"
+            ],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "r6"
+          },
+          "expect": {
+            "running": [
+              "r1",
+              "r2",
+              "r3",
+              "r4"
+            ],
+            "queued": [
+              "r5",
+              "r6"
+            ],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "finish",
+            "id": "r2"
+          },
+          "expect": {
+            "running": [
+              "r1",
+              "r3",
+              "r4",
+              "r5"
+            ],
+            "queued": [
+              "r6"
+            ],
+            "effects": [
+              {
+                "type": "start",
+                "id": "r5"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "queue.cancel_running_frees_slot_and_drops_late_reply",
+      "steps": [
+        {
+          "event": {
+            "type": "submit",
+            "id": "a"
+          },
+          "expect": {
+            "running": [
+              "a"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "a"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "b"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "b"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "c"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "c"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "d"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "d"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "e"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "queued": [
+              "e"
+            ],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "cancel",
+            "id": "b"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "c",
+              "d",
+              "e"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "cancelled",
+                "id": "b",
+                "mayBeBilled": true
+              },
+              {
+                "type": "start",
+                "id": "e"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "response",
+            "id": "b"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "c",
+              "d",
+              "e"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "drop",
+                "id": "b"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "response",
+            "id": "a"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "c",
+              "d",
+              "e"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "accept",
+                "id": "a"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "queue.cancel_queued_never_sent",
+      "steps": [
+        {
+          "event": {
+            "type": "submit",
+            "id": "a"
+          },
+          "expect": {
+            "running": [
+              "a"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "a"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "b"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "b"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "c"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "c"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "d"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "d"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "e"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "queued": [
+              "e"
+            ],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "f"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "queued": [
+              "e",
+              "f"
+            ],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "cancel",
+            "id": "e"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "queued": [
+              "f"
+            ],
+            "effects": [
+              {
+                "type": "cancelled",
+                "id": "e",
+                "mayBeBilled": false
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "response",
+            "id": "e"
+          },
+          "expect": {
+            "running": [
+              "a",
+              "b",
+              "c",
+              "d"
+            ],
+            "queued": [
+              "f"
+            ],
+            "effects": [
+              {
+                "type": "drop",
+                "id": "e"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "finish",
+            "id": "a"
+          },
+          "expect": {
+            "running": [
+              "b",
+              "c",
+              "d",
+              "f"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "f"
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "caseId": "queue.noops_and_reply_after_finish",
+      "steps": [
+        {
+          "event": {
+            "type": "submit",
+            "id": "a"
+          },
+          "expect": {
+            "running": [
+              "a"
+            ],
+            "queued": [],
+            "effects": [
+              {
+                "type": "start",
+                "id": "a"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "submit",
+            "id": "a"
+          },
+          "expect": {
+            "running": [
+              "a"
+            ],
+            "queued": [],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "cancel",
+            "id": "zz"
+          },
+          "expect": {
+            "running": [
+              "a"
+            ],
+            "queued": [],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "finish",
+            "id": "zz"
+          },
+          "expect": {
+            "running": [
+              "a"
+            ],
+            "queued": [],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "finish",
+            "id": "a"
+          },
+          "expect": {
+            "running": [],
+            "queued": [],
+            "effects": []
+          }
+        },
+        {
+          "event": {
+            "type": "response",
+            "id": "a"
+          },
+          "expect": {
+            "running": [],
+            "queued": [],
+            "effects": [
+              {
+                "type": "drop",
+                "id": "a"
+              }
+            ]
+          }
+        },
+        {
+          "event": {
+            "type": "cancel",
+            "id": "a"
+          },
+          "expect": {
+            "running": [],
+            "queued": [],
+            "effects": []
+          }
+        }
+      ]
+    }
+  ],
+  "reconcile": [
+    {
+      "caseId": "reconcile.terminal_kept",
+      "input": {
+        "status": "completed",
+        "startedAtMs": 0,
+        "nowMs": 999999999,
+        "timeoutSeconds": 180,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "keep"
+    },
+    {
+      "caseId": "reconcile.interrupted_kept",
+      "input": {
+        "status": "interrupted",
+        "startedAtMs": 0,
+        "nowMs": 10,
+        "timeoutSeconds": 180,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "keep"
+    },
+    {
+      "caseId": "reconcile.queued_interrupted",
+      "input": {
+        "status": "queued",
+        "startedAtMs": null,
+        "nowMs": 1000000,
+        "timeoutSeconds": 180,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "interrupted"
+    },
+    {
+      "caseId": "reconcile.response_received_processed_even_past_timeout",
+      "input": {
+        "status": "running",
+        "startedAtMs": 0,
+        "nowMs": 900000,
+        "timeoutSeconds": 180,
+        "responseReceived": true,
+        "transferActive": false
+      },
+      "expect": "process"
+    },
+    {
+      "caseId": "reconcile.transfer_still_active",
+      "input": {
+        "status": "running",
+        "startedAtMs": 0,
+        "nowMs": 900000,
+        "timeoutSeconds": 180,
+        "responseReceived": false,
+        "transferActive": true
+      },
+      "expect": "keep_running"
+    },
+    {
+      "caseId": "reconcile.within_timeout_interrupted",
+      "input": {
+        "status": "running",
+        "startedAtMs": 1000,
+        "nowMs": 180999,
+        "timeoutSeconds": 180,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "interrupted"
+    },
+    {
+      "caseId": "reconcile.exactly_timeout_failed",
+      "input": {
+        "status": "running",
+        "startedAtMs": 1000,
+        "nowMs": 181000,
+        "timeoutSeconds": 180,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "failed_timeout"
+    },
+    {
+      "caseId": "reconcile.short_profile_timeout",
+      "input": {
+        "status": "running",
+        "startedAtMs": 0,
+        "nowMs": 60000,
+        "timeoutSeconds": 60,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "failed_timeout"
+    },
+    {
+      "caseId": "reconcile.managed_timeout_capped",
+      "input": {
+        "status": "running",
+        "startedAtMs": 0,
+        "nowMs": 200000,
+        "timeoutSeconds": 240,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "failed_timeout"
+    },
+    {
+      "caseId": "reconcile.missing_timeout_defaults",
+      "input": {
+        "status": "running",
+        "startedAtMs": 0,
+        "nowMs": 179999,
+        "timeoutSeconds": null,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "interrupted"
+    },
+    {
+      "caseId": "reconcile.no_started_at",
+      "input": {
+        "status": "running",
+        "startedAtMs": null,
+        "nowMs": 900000,
+        "timeoutSeconds": 180,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "interrupted"
+    },
+    {
+      "caseId": "reconcile.clock_went_backwards",
+      "input": {
+        "status": "running",
+        "startedAtMs": 500000,
+        "nowMs": 100000,
+        "timeoutSeconds": 180,
+        "responseReceived": false,
+        "transferActive": false
+      },
+      "expect": "interrupted"
+    }
+  ]
+}

@@ -6,9 +6,14 @@ import Foundation
 @MainActor
 final class McpServerDirectory {
     let credentialStore: McpCredentialStore
-    private let openStore: (String) throws -> McpServerStore
+    private let makeStore: (String) throws -> McpServerStore
     private let makeAuthorizer: (McpCredentialStore) -> McpAuthorizer
     private var authorizers: [String: McpAuthorizer] = [:]
+
+    /// Whether the session's partition store may be touched; `AppState` wires it to `sessionStoreReady`. Everything
+    /// here runs on the main actor, and the main thread never opens a store: while a partition switch has it closed
+    /// or opening, a request is refused up front instead of reaching `DatabaseManager`.
+    var isSessionStoreReady: () -> Bool = { true }
 
     init(
         credentialStore: McpCredentialStore = .shared,
@@ -24,8 +29,13 @@ final class McpServerDirectory {
         }
     ) {
         self.credentialStore = credentialStore
-        self.openStore = openStore
+        self.makeStore = openStore
         self.makeAuthorizer = makeAuthorizer
+    }
+
+    private func openStore(_ uid: String) throws -> McpServerStore {
+        guard isSessionStoreReady() else { throw McpServerDirectoryError.sessionStoreNotReady }
+        return try makeStore(uid)
     }
 
     /// The authorizer for this partition; there is exactly one per process. Serialization of concurrent refreshes lives
@@ -144,4 +154,6 @@ final class McpServerDirectory {
 nonisolated enum McpServerDirectoryError: Error, Equatable {
     /// The re-entered address is invalid, or not same-origin with the recorded server.
     case endpointMismatch
+    /// The partition store is closed or still opening (partition switch, cold start).
+    case sessionStoreNotReady
 }

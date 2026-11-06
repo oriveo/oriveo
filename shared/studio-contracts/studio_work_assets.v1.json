@@ -1,0 +1,617 @@
+{
+  "$comment": "Studio work asset writes. Pure decisions replayed by iOS / Android / Web: sniffImportMime (magic bytes of the first <= 64 bytes; extension and declared type ignored), planReferenceImport (format -> input bytes -> decodable size -> pixels -> plan, first hit wins), checkReferenceImportOutput (encoded result), planWorkThumbnail (work wall thumbnail). width / height are the decoded size after EXIF orientation. Resizing keeps the long side at exactly maxLongEdge; the short side is round-half-up(short * maxLongEdge / long) computed in 64-bit integers as (2*short*max + long) div (2*long), at least 1; never upscales. hasAlpha = the platform decoder reports an alpha channel (Web: any decoded pixel with alpha < 255). Reference: scripts/lib/studio-work-assets-reference.mjs.",
+  "contractId": "studio_work_assets",
+  "version": 1,
+  "spec": {
+    "import": {
+      "acceptedMimes": [
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+        "image/heif",
+        "image/avif",
+        "image/gif"
+      ],
+      "losslessMimes": [
+        "image/png",
+        "image/gif"
+      ],
+      "maxInputBytes": 20971520,
+      "maxPixels": 50000000,
+      "maxLongEdge": 4096,
+      "maxOutputBytes": 20971520,
+      "jpegQuality": 0.92,
+      "rejectReasons": [
+        "unsupported_format",
+        "too_large",
+        "decode_failed",
+        "too_many_pixels"
+      ],
+      "pipeline": "Every accepted import is decoded (GIF: first frame), oriented by EXIF, resized per plan and re-encoded to plan.mime; the output carries no EXIF / GPS / device metadata. too_large maps to copy key studio.reference.tooLarge."
+    },
+    "thumbnail": {
+      "maxLongEdge": 360,
+      "jpegQuality": 0.8,
+      "alphaMime": "image/png",
+      "opaqueMime": "image/jpeg"
+    },
+    "storage": {
+      "original": "Generated originals are stored byte-for-byte (no resize, no re-encode); the 360px thumbnail is stored in the same asset id's thumbnail slot, so the orphan sweepers need no derived ids.",
+      "writeResults": [
+        "saved",
+        "storage_full",
+        "write_failed"
+      ],
+      "storageFull": "Out-of-space / quota errors only (iOS fileWriteOutOfSpace or ENOSPC, Android ENOSPC, Web QuotaExceededError); any other write error is write_failed.",
+      "webPersist": "Before the first original write of a page load, call navigator.storage.persisted() and, when false, navigator.storage.persist() once; missing API or rejection never fails the write."
+    }
+  },
+  "sniff": [
+    {
+      "caseId": "sniff.jpeg",
+      "input": "ffd8ffe000104a46494600",
+      "expect": "image/jpeg"
+    },
+    {
+      "caseId": "sniff.png",
+      "input": "89504e470d0a1a0a0000000d49484452",
+      "expect": "image/png"
+    },
+    {
+      "caseId": "sniff.gif89a",
+      "input": "47494638396101000100",
+      "expect": "image/gif"
+    },
+    {
+      "caseId": "sniff.gif87a",
+      "input": "47494638376101000100",
+      "expect": "image/gif"
+    },
+    {
+      "caseId": "sniff.webp",
+      "input": "524946462400000057454250565038",
+      "expect": "image/webp"
+    },
+    {
+      "caseId": "sniff.heic_major",
+      "input": "00000018667479706865696300000000",
+      "expect": "image/heic"
+    },
+    {
+      "caseId": "sniff.heix_major",
+      "input": "00000018667479706865697800000000",
+      "expect": "image/heic"
+    },
+    {
+      "caseId": "sniff.avif_major",
+      "input": "0000001c6674797061766966000000006d696631",
+      "expect": "image/avif"
+    },
+    {
+      "caseId": "sniff.mif1_compatible_heic",
+      "input": "00000018667479706d69663100000000686569636d696631",
+      "expect": "image/heic"
+    },
+    {
+      "caseId": "sniff.mif1_compatible_avif",
+      "input": "00000018667479706d69663100000000617669666d696631",
+      "expect": "image/avif"
+    },
+    {
+      "caseId": "sniff.mif1_only",
+      "input": "00000014667479706d696631000000006d696631",
+      "expect": "image/heif"
+    },
+    {
+      "caseId": "sniff.msf1_only",
+      "input": "00000014667479706d736631000000006d736631",
+      "expect": "image/heif"
+    },
+    {
+      "caseId": "sniff.mif1_brand_after_box_ignored",
+      "input": "00000014667479706d696631000000006d69663161766966",
+      "expect": "image/heif"
+    },
+    {
+      "caseId": "sniff.mp4_ftyp",
+      "input": "000000186674797069736f6d00000200",
+      "expect": null
+    },
+    {
+      "caseId": "sniff.bmp",
+      "input": "424d3a000000",
+      "expect": null
+    },
+    {
+      "caseId": "sniff.tiff",
+      "input": "49492a0008000000",
+      "expect": null
+    },
+    {
+      "caseId": "sniff.riff_wave",
+      "input": "524946462400000057415645666d7420",
+      "expect": null
+    },
+    {
+      "caseId": "sniff.truncated_jpeg",
+      "input": "ffd8",
+      "expect": null
+    },
+    {
+      "caseId": "sniff.empty",
+      "input": "",
+      "expect": null
+    }
+  ],
+  "importPlan": [
+    {
+      "caseId": "plan.jpeg_small",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 800000,
+        "width": 1200,
+        "height": 800,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 1200,
+        "height": 800,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.png_opaque_stays_png",
+      "input": {
+        "mime": "image/png",
+        "bytes": 900000,
+        "width": 1000,
+        "height": 1000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 1000,
+        "height": 1000,
+        "mime": "image/png",
+        "quality": null
+      }
+    },
+    {
+      "caseId": "plan.gif_first_frame_png",
+      "input": {
+        "mime": "image/gif",
+        "bytes": 300000,
+        "width": 480,
+        "height": 270,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 480,
+        "height": 270,
+        "mime": "image/png",
+        "quality": null
+      }
+    },
+    {
+      "caseId": "plan.webp_opaque_jpeg",
+      "input": {
+        "mime": "image/webp",
+        "bytes": 400000,
+        "width": 1600,
+        "height": 900,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 1600,
+        "height": 900,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.webp_alpha_png",
+      "input": {
+        "mime": "image/webp",
+        "bytes": 400000,
+        "width": 512,
+        "height": 512,
+        "hasAlpha": true
+      },
+      "expect": {
+        "width": 512,
+        "height": 512,
+        "mime": "image/png",
+        "quality": null
+      }
+    },
+    {
+      "caseId": "plan.heic_opaque_jpeg",
+      "input": {
+        "mime": "image/heic",
+        "bytes": 3000000,
+        "width": 3024,
+        "height": 4032,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 3024,
+        "height": 4032,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.heif_alpha_png",
+      "input": {
+        "mime": "image/heif",
+        "bytes": 2000000,
+        "width": 2000,
+        "height": 1500,
+        "hasAlpha": true
+      },
+      "expect": {
+        "width": 2000,
+        "height": 1500,
+        "mime": "image/png",
+        "quality": null
+      }
+    },
+    {
+      "caseId": "plan.avif_downscaled",
+      "input": {
+        "mime": "image/avif",
+        "bytes": 5000000,
+        "width": 8000,
+        "height": 6000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 4096,
+        "height": 3072,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.long_edge_exactly_max",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 5000000,
+        "width": 4096,
+        "height": 2304,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 4096,
+        "height": 2304,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.square_one_over",
+      "input": {
+        "mime": "image/png",
+        "bytes": 9000000,
+        "width": 4097,
+        "height": 4097,
+        "hasAlpha": true
+      },
+      "expect": {
+        "width": 4096,
+        "height": 4096,
+        "mime": "image/png",
+        "quality": null
+      }
+    },
+    {
+      "caseId": "plan.landscape_rounds_up",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 7000000,
+        "width": 6000,
+        "height": 4000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 4096,
+        "height": 2731,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.portrait_rounds_down",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 7000000,
+        "width": 3000,
+        "height": 9000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 1365,
+        "height": 4096,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.half_rounds_up",
+      "input": {
+        "mime": "image/png",
+        "bytes": 100000,
+        "width": 8192,
+        "height": 3,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 4096,
+        "height": 2,
+        "mime": "image/png",
+        "quality": null
+      }
+    },
+    {
+      "caseId": "plan.extreme_strip_min_one",
+      "input": {
+        "mime": "image/png",
+        "bytes": 100000,
+        "width": 50000000,
+        "height": 1,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 4096,
+        "height": 1,
+        "mime": "image/png",
+        "quality": null
+      }
+    },
+    {
+      "caseId": "plan.pixels_exactly_max",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 15000000,
+        "width": 10000,
+        "height": 5000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 4096,
+        "height": 2048,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.pixels_over_max",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 15000000,
+        "width": 7072,
+        "height": 7071,
+        "hasAlpha": false
+      },
+      "expect": {
+        "reject": "too_many_pixels"
+      }
+    },
+    {
+      "caseId": "plan.bytes_exactly_max",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 20971520,
+        "width": 4000,
+        "height": 3000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 4000,
+        "height": 3000,
+        "mime": "image/jpeg",
+        "quality": 0.92
+      }
+    },
+    {
+      "caseId": "plan.bytes_over_max",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 20971521,
+        "width": 4000,
+        "height": 3000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "reject": "too_large"
+      }
+    },
+    {
+      "caseId": "plan.too_large_before_pixels",
+      "input": {
+        "mime": "image/jpeg",
+        "bytes": 31457280,
+        "width": 12000,
+        "height": 9000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "reject": "too_large"
+      }
+    },
+    {
+      "caseId": "plan.unsupported_before_size",
+      "input": {
+        "mime": null,
+        "bytes": 31457280,
+        "width": 12000,
+        "height": 9000,
+        "hasAlpha": false
+      },
+      "expect": {
+        "reject": "unsupported_format"
+      }
+    },
+    {
+      "caseId": "plan.unlisted_mime",
+      "input": {
+        "mime": "image/bmp",
+        "bytes": 1000,
+        "width": 10,
+        "height": 10,
+        "hasAlpha": false
+      },
+      "expect": {
+        "reject": "unsupported_format"
+      }
+    },
+    {
+      "caseId": "plan.zero_size_decode_failed",
+      "input": {
+        "mime": "image/png",
+        "bytes": 1000,
+        "width": 0,
+        "height": 0,
+        "hasAlpha": false
+      },
+      "expect": {
+        "reject": "decode_failed"
+      }
+    }
+  ],
+  "importOutput": [
+    {
+      "caseId": "output.exactly_max",
+      "input": {
+        "bytes": 20971520
+      },
+      "expect": {
+        "accept": true
+      }
+    },
+    {
+      "caseId": "output.over_max",
+      "input": {
+        "bytes": 20971521
+      },
+      "expect": {
+        "reject": "too_large"
+      }
+    }
+  ],
+  "thumbnail": [
+    {
+      "caseId": "thumb.square",
+      "input": {
+        "width": 1024,
+        "height": 1024,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 360,
+        "height": 360,
+        "mime": "image/jpeg",
+        "quality": 0.8
+      }
+    },
+    {
+      "caseId": "thumb.landscape",
+      "input": {
+        "width": 1536,
+        "height": 1024,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 360,
+        "height": 240,
+        "mime": "image/jpeg",
+        "quality": 0.8
+      }
+    },
+    {
+      "caseId": "thumb.portrait_alpha_png",
+      "input": {
+        "width": 1024,
+        "height": 1536,
+        "hasAlpha": true
+      },
+      "expect": {
+        "width": 240,
+        "height": 360,
+        "mime": "image/png",
+        "quality": null
+      }
+    },
+    {
+      "caseId": "thumb.rounds_to_nearest",
+      "input": {
+        "width": 1000,
+        "height": 333,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 360,
+        "height": 120,
+        "mime": "image/jpeg",
+        "quality": 0.8
+      }
+    },
+    {
+      "caseId": "thumb.smaller_no_upscale",
+      "input": {
+        "width": 300,
+        "height": 200,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 300,
+        "height": 200,
+        "mime": "image/jpeg",
+        "quality": 0.8
+      }
+    },
+    {
+      "caseId": "thumb.long_edge_exactly_max",
+      "input": {
+        "width": 360,
+        "height": 100,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 360,
+        "height": 100,
+        "mime": "image/jpeg",
+        "quality": 0.8
+      }
+    },
+    {
+      "caseId": "thumb.one_over",
+      "input": {
+        "width": 361,
+        "height": 1,
+        "hasAlpha": false
+      },
+      "expect": {
+        "width": 360,
+        "height": 1,
+        "mime": "image/jpeg",
+        "quality": 0.8
+      }
+    },
+    {
+      "caseId": "thumb.strip_min_one",
+      "input": {
+        "width": 4096,
+        "height": 1,
+        "hasAlpha": true
+      },
+      "expect": {
+        "width": 360,
+        "height": 1,
+        "mime": "image/png",
+        "quality": null
+      }
+    }
+  ]
+}

@@ -180,6 +180,23 @@ describe('ImportSection', () => {
     });
   });
 
+  it('tells the user to update when the backup is newer than this app', async () => {
+    mocks.parseBackupFile.mockRejectedValue(Object.assign(new Error('VERSION_TOO_NEW'), { version: 3 }));
+
+    const { container } = render(<ImportSection />);
+    const fileInput = container.querySelector('input[type="file"]');
+    if (!fileInput) throw new Error('file input not found');
+
+    fireEvent.change(fileInput, {
+      target: { files: [new File(['future'], 'future.oriveo')] },
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('versionTooNew')).toBeTruthy();
+    });
+    expect(screen.queryByText('invalidFile')).toBeNull();
+  });
+
   it('requests the legacy password and continues to preview after decrypting', async () => {
     const file = new File(['legacy'], 'legacy.oriveo');
     const preview = buildPreview();

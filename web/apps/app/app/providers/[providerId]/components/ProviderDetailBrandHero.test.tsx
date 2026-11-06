@@ -48,9 +48,9 @@ const provider: Provider = {
   baseURLText: 'https://api.openai.com/v1',
 };
 
-const REPO_ROOT = join(process.cwd(), '../../../..');
+const REPO_ROOT = join(process.cwd(), '../../..');
 const darkPalettes = JSON.parse(
-  readFileSync(join(REPO_ROOT, '\u5171\u4eab/theme-contracts/dark-palettes.v1.json'), 'utf8'),
+  readFileSync(join(REPO_ROOT, 'shared/theme-contracts/dark-palettes.v1.json'), 'utf8'),
 ) as { order: string[]; palettes: Record<string, { primary: string }> };
 
 function luminance(hex: string): number {

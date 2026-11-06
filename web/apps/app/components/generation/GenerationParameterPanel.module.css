@@ -98,7 +98,7 @@
    inline. It is a statement of fact, not a control, so it uses tertiary secondary-copy typography rather
    than a second button. */
 .notAdjustableCandidates { text-transform:none; color:var(--o-text-secondary); font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
-.notAdjustableAction:focus-visible { outline:2px solid var(--o-focus-ring); outline-offset:2px; border-radius:4px; }
+.notAdjustableAction:focus-visible { outline:2px solid var(--o-primary); outline-offset:2px; border-radius:4px; }
 /* ── Custom request fields: multiple owners on one page ────── */
 .customFields { display:flex; flex-direction:column; gap:14px; }
 .customOwner { display:flex; flex-direction:column; gap:7px; padding:12px 0 0; border-top:1px solid var(--o-border, #e5e7eb); }
@@ -118,7 +118,7 @@
 .customDangerAction { position:relative; align-self:flex-start; display:inline-flex; align-items:center; min-height:36px; padding:0; border:0; background:none; color:var(--o-error-text); font-size:12px; font-weight:600; text-align:left; cursor:pointer; }
 .customDangerAction::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
 .customDangerAction:disabled { color:var(--o-text-tertiary, #9ca3af); cursor:not-allowed; }
-.customDangerAction:focus-visible { outline:2px solid var(--o-focus-ring); outline-offset:2px; border-radius:4px; }
+.customDangerAction:focus-visible { outline:2px solid var(--o-primary); outline-offset:2px; border-radius:4px; }
 .customRemoveConfirm { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 11px; border-radius:9px; background:var(--o-error-subtle); }
 .customRemoveConfirm button { position:relative; display:inline-flex; align-items:center; min-height:36px; border:0; border-radius:7px; padding:0 9px; background:var(--o-surface, #fff); color:inherit; font-size:12px; cursor:pointer; }
 .customRemoveConfirm button::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }

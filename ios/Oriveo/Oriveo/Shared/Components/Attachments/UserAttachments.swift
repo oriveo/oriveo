@@ -179,7 +179,7 @@ struct UserImageAttachment: View {
                     savedToPhotos: $savedToPhotos
                 )
             }
-            .fullScreenCover(isPresented: $showFullScreen) {
+            .oriveoFullScreenCover(isPresented: $showFullScreen) {
                 if let gallery = galleryImages, gallery.count > 1 {
                     ImageViewerSheet(
                         attachments: gallery,

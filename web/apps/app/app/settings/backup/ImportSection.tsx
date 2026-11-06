@@ -37,6 +37,7 @@ export function ImportSection() {
       setPreview(previewData); setImportStep('preview');
     } catch (err: any) {
       if (err?.message === 'PASSWORD_REQUIRED') { setImportStep('password'); }
+      else if (err?.message === 'VERSION_TOO_NEW') { setImportError(t('versionTooNew', { version: err.version })); setImportStep('idle'); }
       else { setImportError(t('invalidFile')); setImportStep('idle'); }
     }
   }, [t]);

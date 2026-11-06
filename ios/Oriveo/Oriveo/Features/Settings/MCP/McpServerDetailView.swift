@@ -12,7 +12,7 @@ struct McpServerDetailView: View {
         Group {
             if let model {
                 McpServerDetailContent(state: model.state, actions: McpServerDetailActions(model: model) { appState.pop() })
-                    .sheet(isPresented: sheetBinding(model)) { sheet(model) }
+                    .oriveoSheet(isPresented: sheetBinding(model)) { sheet(model) }
                     .onChange(of: model.isGone) { _, gone in
                         if gone { appState.pop() }
                     }

@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "清除",
     "generationParameterDormantRestored": "已恢復 {count} 項參數",
     "generationPresetName": "預設名稱",
+    "capabilityControlFixedByConnection": "由目前連線決定",
     "capabilityControlReasonPending": "自動設定尚未就緒",
     "capabilityControlReasonUnsupported": "此模型不支援此請求",
     "capabilityControlReasonExternalConnector": "由獨立的外部服務提供，不在此聊天請求中",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "歡迎使用 Oriveo",
       "tagline": "所有模型，一個應用。",
+      "slogan": "你的金鑰，你的成本，你的資料。",
       "description": "設定你的第一個 AI 供應商，開始多模型對話。",
       "addProvider": "新增供應商",
       "enterHome": "進入首頁"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "改用 API 金鑰",
         "disabledFallback": "ChatGPT 訂閱登入目前無法使用。你可以改用 API 金鑰，或刪除此連線。"
       },
-      "subscription": "訂閱"
+      "subscription": "訂閱",
+      "tokenPrices": {
+        "input": "輸入 {count}",
+        "cacheRead": "快取讀取 {count}",
+        "cacheWrite": "快取寫入 {count}",
+        "output": "輸出 {count}",
+        "unit": "tokens"
+      }
     },
     "providers": {
       "title": "供應商",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "隱私政策",
+      "sourceCode": "原始碼",
       "aiSection": "AI",
       "skills": "技能",
       "backupImportExport": "備份與匯入/匯出",
+      "reportIssue": "回報問題",
+      "documentation": "文件",
       "aboutTagline": "所有模型，一個應用。",
       "context": {
         "title": "上下文",
@@ -1630,6 +1642,7 @@
       "passwordMismatch": "密碼不相符",
       "wrongPassword": "密碼錯誤",
       "invalidFile": "無效或無法辨識的備份檔案",
+      "versionTooNew": "此備份需要較新版本的 Oriveo（格式版本 {version}）。",
       "success": "備份匯出成功",
       "exportComplete": "匯出完成",
       "legacyPasswordHint": "此備份已加密，請輸入密碼以繼續。",
@@ -2054,11 +2067,14 @@
     "title": "技能",
     "mySkills": "我的技能",
     "builtinSkills": "內建技能",
+    "pinned": "已置頂",
     "newSkill": "新增技能",
     "editSkill": "編輯技能",
     "deleteSkill": "刪除技能",
     "forkSkill": "複製為我的技能",
     "useSkill": "使用此技能",
+    "pinToHome": "置頂到首頁",
+    "unpinFromHome": "取消置頂",
     "instructions": "提示詞",
     "instructionsPlaceholder": "例如：你是一位資深程式碼審查員，擅長安全性和效能審查。用使用者的語言回覆。",
     "starterMessages": "對話開場白",
@@ -2811,7 +2827,8 @@
       "stepLimit": "本次選擇的文件過多或過長，請減少勾選後重試。",
       "notConnected": "開始研究前，請先連接資料庫來源。",
       "sourceForbidden": "來源因權限或策略限制拒絕了存取，重新連接無法解決，請檢查來源端的共享/合規設定。",
-      "unavailable": "資料庫暫時無法使用，請稍後重試。"
+      "unavailable": "資料庫暫時無法使用，請稍後重試。",
+      "retry": "重試"
     }
   },
   "notes": {

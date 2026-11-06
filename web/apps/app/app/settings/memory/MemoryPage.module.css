@@ -239,7 +239,7 @@
 .regenerateCard:focus-visible,
 .inboxSecondary:focus-visible,
 .inboxPrimary:focus-visible {
-  outline: 2px solid var(--o-focus-ring);
+  outline: 2px solid var(--o-primary);
   outline-offset: 2px;
 }
 

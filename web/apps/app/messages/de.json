@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "Löschen",
     "generationParameterDormantRestored": "{count} Parameter wiederhergestellt",
     "generationPresetName": "Preset-Name",
+    "capabilityControlFixedByConnection": "Von dieser Verbindung festgelegt",
     "capabilityControlReasonPending": "Die automatische Konfiguration ist noch nicht bereit",
     "capabilityControlReasonUnsupported": "Diese Anfrage wird von diesem Modell nicht unterstützt",
     "capabilityControlReasonExternalConnector": "Wird von einem separaten externen Dienst bereitgestellt, außerhalb dieser Chat-Anfrage",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Willkommen bei Oriveo",
       "tagline": "Alle Modelle, eine App.",
+      "slogan": "Deine Schlüssel, deine Kosten, deine Daten.",
       "description": "Richte deinen ersten KI-Anbieter ein, um Multi-Modell-Unterhaltungen zu starten.",
       "addProvider": "Anbieter hinzufügen",
       "enterHome": "Weiter zur App"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "Zu API-Schlüssel wechseln",
         "disabledFallback": "Die Anmeldung mit dem ChatGPT-Abo ist derzeit nicht verfügbar. Du kannst zu einem API-Schlüssel wechseln oder diese Verbindung entfernen."
       },
-      "subscription": "Abo"
+      "subscription": "Abo",
+      "tokenPrices": {
+        "input": "Eingabe {count}",
+        "cacheRead": "Cache-Lesen {count}",
+        "cacheWrite": "Cache-Schreiben {count}",
+        "output": "Ausgabe {count}",
+        "unit": "Tokens"
+      }
     },
     "providers": {
       "title": "Anbieter",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "Datenschutzrichtlinie",
+      "sourceCode": "Quellcode",
       "aiSection": "KI",
       "skills": "Fähigkeiten",
       "backupImportExport": "Backup & Import/Export",
+      "reportIssue": "Problem melden",
+      "documentation": "Dokumentation",
       "aboutTagline": "Alle deine Modelle. Eine App.",
       "context": {
         "title": "Kontext",
@@ -1630,6 +1642,7 @@
       "passwordMismatch": "Passwörter stimmen nicht überein",
       "wrongPassword": "Falsches Passwort",
       "invalidFile": "Ungültige oder nicht erkannte Sicherungsdatei",
+      "versionTooNew": "Für dieses Backup ist eine neuere Version von Oriveo erforderlich (Formatversion {version}).",
       "success": "Sicherung erfolgreich exportiert",
       "exportComplete": "Export abgeschlossen",
       "legacyPasswordHint": "Diese Sicherung ist verschlüsselt. Gib das Passwort ein, um fortzufahren.",
@@ -2054,11 +2067,14 @@
     "title": "Fähigkeiten",
     "mySkills": "Meine Fähigkeiten",
     "builtinSkills": "Eingebaute Fähigkeiten",
+    "pinned": "Angepinnt",
     "newSkill": "Neue Fähigkeit",
     "editSkill": "Fähigkeit bearbeiten",
     "deleteSkill": "Fähigkeit löschen",
     "forkSkill": "Als eigene Fähigkeit kopieren",
     "useSkill": "Diese Fähigkeit verwenden",
+    "pinToHome": "An Startseite anheften",
+    "unpinFromHome": "Loslösen",
     "instructions": "Prompt",
     "instructionsPlaceholder": "Z. B.: Du bist ein erfahrener Code-Reviewer. Überprüfe Code auf Sicherheit, Leistung und Lesbarkeit. Antworte in der Sprache des Nutzers.",
     "starterMessages": "Gesprächsstarter",
@@ -2811,7 +2827,8 @@
       "stepLimit": "Zu viele oder zu lange Dokumente für eine Recherche. Wähle einige ab und versuche es erneut.",
       "notConnected": "Verbinde eine Bibliotheksquelle, bevor du die Recherche startest.",
       "sourceForbidden": "Die Quelle hat den Zugriff aufgrund einer Berechtigungs- oder Richtlinieneinschränkung verweigert. Ein erneutes Verbinden behebt das nicht — überprüfe die Freigabe- oder Compliance-Einstellungen der Quelle selbst.",
-      "unavailable": "Die Bibliothek ist vorübergehend nicht verfügbar. Versuche es später erneut."
+      "unavailable": "Die Bibliothek ist vorübergehend nicht verfügbar. Versuche es später erneut.",
+      "retry": "Erneut versuchen"
     }
   },
   "notes": {

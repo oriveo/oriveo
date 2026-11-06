@@ -156,6 +156,7 @@
     "generationParameterDormantClear": "消去",
     "generationParameterDormantRestored": "{count} 件のパラメータを復元しました",
     "generationPresetName": "プリセット名",
+    "capabilityControlFixedByConnection": "この接続で設定",
     "capabilityControlReasonPending": "自動設定はまだ準備中です",
     "capabilityControlReasonUnsupported": "このモデルではこのリクエストは利用できません",
     "capabilityControlReasonExternalConnector": "独立した外部サービスで提供され、このチャットリクエストには含まれません",
@@ -430,6 +431,7 @@
     "welcome": {
       "title": "Oriveo へようこそ",
       "tagline": "すべてのモデルを、ひとつのアプリで。",
+      "slogan": "あなたのキー、あなたのコスト、あなたのデータ。",
       "description": "最初の AI プロバイダーを設定して、マルチモデル会話を始めましょう。",
       "addProvider": "プロバイダーを追加",
       "enterHome": "アプリへ進む"
@@ -1520,7 +1522,14 @@
         "switchToApiKey": "API キーに切り替える",
         "disabledFallback": "ChatGPT のサブスクリプションログインは現在利用できません。API キーに切り替えるか、この接続を削除できます。"
       },
-      "subscription": "サブスクリプション"
+      "subscription": "サブスクリプション",
+      "tokenPrices": {
+        "input": "入力 {count}",
+        "cacheRead": "キャッシュ読取 {count}",
+        "cacheWrite": "キャッシュ書込 {count}",
+        "output": "出力 {count}",
+        "unit": "トークン"
+      }
     },
     "providers": {
       "title": "プロバイダー",
@@ -1573,9 +1582,12 @@
       "shortcutCmdEnter": "Cmd + Enter",
       "shortcutEnter": "Enter",
       "privacyPolicy": "プライバシーポリシー",
+      "sourceCode": "ソースコード",
       "aiSection": "AI",
       "skills": "スキル",
       "backupImportExport": "バックアップとインポート/エクスポート",
+      "reportIssue": "問題を報告",
+      "documentation": "ドキュメント",
       "aboutTagline": "すべてのモデル、ひとつのアプリ。",
       "context": {
         "title": "コンテキスト",
@@ -1630,6 +1642,7 @@
       "passwordMismatch": "パスワードが一致しません",
       "wrongPassword": "パスワードが正しくありません",
       "invalidFile": "無効または認識できないバックアップファイルです",
+      "versionTooNew": "このバックアップを読み込むには、より新しいバージョンの Oriveo が必要です（フォーマットバージョン {version}）。",
       "success": "バックアップのエクスポートが完了しました",
       "exportComplete": "エクスポート完了",
       "legacyPasswordHint": "このバックアップは暗号化されています。パスワードを入力してください。",
@@ -2054,11 +2067,14 @@
     "title": "スキル",
     "mySkills": "マイスキル",
     "builtinSkills": "ビルトインスキル",
+    "pinned": "ピン留め",
     "newSkill": "新規スキル",
     "editSkill": "スキルを編集",
     "deleteSkill": "スキルを削除",
     "forkSkill": "マイスキルにコピー",
     "useSkill": "このスキルを使用",
+    "pinToHome": "ホームにピン留め",
+    "unpinFromHome": "ピン留めを解除",
     "instructions": "プロンプト",
     "instructionsPlaceholder": "例：あなたはシニアコードレビュアーです。セキュリティ、パフォーマンス、可読性の観点からコードをレビューしてください。ユーザーの言語で回答してください。",
     "starterMessages": "会話スターター",
@@ -2811,7 +2827,8 @@
       "stepLimit": "今回選択したドキュメントが多すぎるか長すぎます。選択を減らして再試行してください。",
       "notConnected": "調査を始める前にライブラリソースを接続してください。",
       "sourceForbidden": "権限またはポリシーの制限により、ソースがアクセスを拒否しました。再接続しても解決しません。ソース側の共有設定やコンプライアンス設定を確認してください。",
-      "unavailable": "ライブラリは一時的に利用できません。後でもう一度お試しください。"
+      "unavailable": "ライブラリは一時的に利用できません。後でもう一度お試しください。",
+      "retry": "再試行"
     }
   },
   "notes": {
