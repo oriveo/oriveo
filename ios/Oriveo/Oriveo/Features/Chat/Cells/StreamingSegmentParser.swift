@@ -1,5 +1,25 @@
 import Foundation
 
+extension String {
+    /// Byte-wise prefix check for per-tick streaming paths.
+    ///
+    /// Stricter than `hasPrefix` for canonically equivalent text with different bytes, which callers
+    /// treat as "not an append" and take their full path.
+    func hasUTF8Prefix(_ prefix: String) -> Bool {
+        var text = self
+        var prefix = prefix
+        return text.withUTF8 { textBytes in
+            prefix.withUTF8 { prefixBytes in
+                guard prefixBytes.count <= textBytes.count else { return false }
+                guard let textBase = textBytes.baseAddress, let prefixBase = prefixBytes.baseAddress else {
+                    return prefixBytes.isEmpty
+                }
+                return memcmp(textBase, prefixBase, prefixBytes.count) == 0
+            }
+        }
+    }
+}
+
 enum StreamingSegmentParser {
 
 
@@ -393,6 +413,9 @@ final class IncrementalStreamingSegmentParser {
     }
 
     func parse(_ text: String) -> StreamingSegmentParser.ParsedContent {
+        var text = text
+        text.makeContiguousUTF8()
+
         if text == lastInput { return lastResult }
 
         if !text.contains("```") && !text.contains("|") {
@@ -406,7 +429,7 @@ final class IncrementalStreamingSegmentParser {
             return result
         }
 
-        if text.hasPrefix(lastInput),
+        if text.hasUTF8Prefix(lastInput),
            !lastInput.isEmpty,
            let snapshot = lastSnapshotAtBoundary,
            let oldBoundary = lastNewlineIndex {

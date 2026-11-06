@@ -271,4 +271,40 @@ struct StreamingPacerTests {
         #expect(stepwise.isInsideUnclosedFence(in: text) == rebuilt.isInsideUnclosedFence(in: text))
         #expect(rebuilt.isInsideUnclosedFence(in: text) == StreamingPacer.isInsideUnclosedCodeFence(text))
     }
+
+    // MARK: - Native storage (per-tick compares must not run on bridged strings)
+
+    @Test("visible text stays native UTF-8 after a chunker step on CJK text")
+    func visibleTextStaysNativeAfterStep() {
+        let delegate = MockDelegate()
+        let pacer = makePacer(delegate: delegate)
+        let line = String(repeating: "\u{4E2D}\u{6587}\u{6D4B}\u{8BD5}", count: 40) + "\n"
+        pacer.enqueue(line + "\u{540E}\u{7EED}")
+        #expect(pacer.visibleText == line)
+        #expect(pacer.visibleText.isContiguousUTF8)
+        #expect(delegate.advancedTexts.last?.isContiguousUTF8 == true)
+    }
+
+    @Test("a target bridged from NSString keeps the append path")
+    func bridgedTargetKeepsAppendPath() {
+        let delegate = MockDelegate()
+        let pacer = makePacer(delegate: delegate)
+        let line = String(repeating: "\u{4E2D}\u{6587}", count: 40) + "\n"
+        pacer.enqueue(line + "\u{540E}")
+        let appended = line + "\u{540E}\u{7EED}\u{5185}\u{5BB9}\u{8FD8}\u{5728}\u{751F}\u{6210}"
+        let bridged = (appended as NSString).substring(to: (appended as NSString).length - 1)
+        pacer.enqueue(bridged)
+        #expect(pacer.visibleText == line)
+        #expect(delegate.reachedTargetCount == 0)
+    }
+
+    @Test("a target that rewrites visible text still snaps")
+    func rewrittenTargetSnapsWithByteCompare() {
+        let delegate = MockDelegate()
+        let pacer = makePacer(delegate: delegate)
+        pacer.snapToInitial("\u{4E2D}\u{6587}")
+        pacer.enqueue("\u{82F1}\u{6587}")
+        #expect(pacer.visibleText == "\u{82F1}\u{6587}")
+        #expect(delegate.reachedTargetCount == 1)
+    }
 }

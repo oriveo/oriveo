@@ -134,7 +134,10 @@ final class StreamingPacer {
         lastProfileSampleLength = 0
     }
 
-    func enqueue(_ newTarget: String) {
+    func enqueue(_ incomingTarget: String) {
+        // Compared against visible on every chunk; hasUTF8Prefix needs native storage to stay O(memcmp).
+        var newTarget = incomingTarget
+        newTarget.makeContiguousUTF8()
         guard delegate?.isPacerEnabled == true else { return }
         if newTarget == targetText {
             if visibleText != targetText, !isScheduled {
@@ -151,7 +154,7 @@ final class StreamingPacer {
             lastProfileSampleLength = newTargetUTF16
         }
 
-        if !newTarget.hasPrefix(visibleText) || newTargetUTF16 - visibleUTF16Count > Self.snapBacklog {
+        if !newTarget.hasUTF8Prefix(visibleText) || newTargetUTF16 - visibleUTF16Count > Self.snapBacklog {
             applySnapshot(newTarget)
             return
         }
@@ -290,10 +293,15 @@ final class StreamingPacer {
             break
         }
 
-        visibleText = boundary.newVisible
+        // The chunker returns nsT.substring(...): length is O(1) on that NSString, so read it first.
         visibleUTF16Count = (boundary.newVisible as NSString).length
-        fenceParity.advance(to: boundary.newVisible)
-        delegate?.pacer(self, didAdvanceTo: boundary.newVisible)
+        // Bridged substrings are lazy foreign strings; every later compare on them walks UTF-16
+        // through the whole text. Convert once here so the per-tick consumers stay native.
+        var advanced = boundary.newVisible
+        advanced.makeContiguousUTF8()
+        visibleText = advanced
+        fenceParity.advance(to: advanced)
+        delegate?.pacer(self, didAdvanceTo: advanced)
 
         if visibleUTF16Count == targetUTF16Count {
             delegate?.pacerDidReachTarget(self)

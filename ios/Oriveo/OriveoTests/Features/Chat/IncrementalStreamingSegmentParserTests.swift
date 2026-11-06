@@ -189,4 +189,35 @@ struct IncrementalStreamingSegmentParserTests {
             step += 1
         }
     }
+
+    // MARK: - Bridged input and byte-wise prefix
+
+    @Test("input bridged from NSString stays equivalent to the static parser")
+    func bridgedInputEquivalent() {
+        let parser = IncrementalStreamingSegmentParser()
+        let source = "\u{4E2D}\u{6587}\n```swift\nlet a = 1\n```\n| a | b |\n|---|---|\n| 1 | 2 |\n\u{7ED3}\u{675F}\n"
+        let ns = source as NSString
+        for length in 1...ns.length {
+            let frame = ns.substring(to: length)
+            #expect(describe(parser.parse(frame)) == describe(StreamingSegmentParser.parse(frame)), "length \(length)")
+        }
+    }
+
+    @Test("hasUTF8Prefix handles empty, equal, longer and bridged operands")
+    func utf8Prefix() {
+        let native = "\u{4E2D}\u{6587}abc"
+        let ns = native as NSString
+        #expect(native.hasUTF8Prefix(""))
+        #expect("".hasUTF8Prefix(""))
+        #expect(!"".hasUTF8Prefix("a"))
+        #expect(native.hasUTF8Prefix(native))
+        #expect(!native.hasUTF8Prefix(native + "d"))
+        #expect(native.hasUTF8Prefix(ns.substring(to: 2)))
+        #expect(ns.substring(to: 4).hasUTF8Prefix(ns.substring(to: 3)))
+        #expect(!native.hasUTF8Prefix("\u{4E2D}\u{5B57}"))
+    }
+
+    private func describe(_ parsed: StreamingSegmentParser.ParsedContent) -> String {
+        String(reflecting: parsed)
+    }
 }
