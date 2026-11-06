@@ -78,7 +78,7 @@ struct FolderRow: View {
                 }
             }
         }
-        .sheet(isPresented: $showColorPicker) {
+        .oriveoSheet(isPresented: $showColorPicker) {
             FolderColorPicker(
                 selectedColor: Binding(
                     get: { FolderColor.from(folder.colorTag) },

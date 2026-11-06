@@ -210,7 +210,7 @@ struct ModelOptionsSampleHost: View {
         Group {
             if let facts = ModelOptionsSample.facts(named: name) {
                 fakeChat
-                    .sheet(isPresented: .constant(true)) {
+                    .oriveoSheet(isPresented: .constant(true)) {
                         ModelOptionsSheetScaffold(path: $path) {
                             ModelOptionsPanel(model: ModelOptionsPanelModel.make(facts)) { _ in }
                         } destination: { _ in
@@ -230,7 +230,7 @@ struct ModelOptionsSampleHost: View {
             } else if let page = AdvancedSettingsSamples.Name(rawValue: name) {
                 // Advanced settings and the additional request body: the same look as through the real entry, the page that fills the screen after being pushed from the panel.
                 fakeChat
-                    .sheet(isPresented: .constant(true)) {
+                    .oriveoSheet(isPresented: .constant(true)) {
                         NavigationStack {
                             AdvancedSettingsSamples.view(page)
                         }

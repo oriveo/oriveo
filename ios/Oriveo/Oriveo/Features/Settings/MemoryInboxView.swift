@@ -244,7 +244,7 @@ struct MemoryInboxView: View {
             model.loadAutoSuggest(appState: appState)
             model.reloadTask(appState: appState)
         }
-        .sheet(item: $editTarget) { target in
+        .oriveoSheet(item: $editTarget) { target in
             MemoryItemEditorSheet(state: target.state) { saved in
                 model.saveEditedWithUndoToast(saved, for: target, appState: appState)
             }

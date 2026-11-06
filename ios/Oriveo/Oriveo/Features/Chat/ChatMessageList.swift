@@ -502,7 +502,7 @@ struct ChatMessageList: View, Equatable {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .fullScreenCover(item: $crosscheckTarget) { target in
+        .oriveoFullScreenCover(item: $crosscheckTarget) { target in
             CrosscheckSheet(origin: .chatMessage(
                 conversationID: target.conversationID,
                 message: target.message,
@@ -511,7 +511,7 @@ struct ChatMessageList: View, Equatable {
             .environment(appState)
             .interactiveDismissDisabled(true)
         }
-        .sheet(item: $switchKeyOffer) { offer in
+        .oriveoSheet(item: $switchKeyOffer) { offer in
             // Picking a key only rebinds and closes the sheet; it never resends on its own (the user taps the existing retry).
             RelaySwitchKeySheet(offer: offer) { keyID in
                 let manager = appState.providerManager
@@ -531,13 +531,13 @@ struct ChatMessageList: View, Equatable {
             }
             Button(L10n.tr("Cancel", table: .notes), role: .cancel) {}
         }
-        .sheet(item: $memorySuggestionEditTarget) { target in
+        .oriveoSheet(item: $memorySuggestionEditTarget) { target in
             // Cancel just closes the sheet and keeps the bar.
             MemoryItemEditorSheet(state: target.state) { saved in
                 appState.memorySuggestions.saveEditedWithUndoToast(saved, for: target, appState: appState)
             }
         }
-        .sheet(item: $memoryUsedTarget, onDismiss: {
+        .oriveoSheet(item: $memoryUsedTarget, onDismiss: {
             guard let itemID = pendingMemoryFixItemID else { return }
             pendingMemoryFixItemID = nil
             appState.openMemory(editItemId: itemID)

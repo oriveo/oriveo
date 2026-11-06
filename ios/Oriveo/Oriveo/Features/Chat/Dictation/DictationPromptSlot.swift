@@ -39,7 +39,7 @@ struct DictationPromptSlot: View {
         .onChange(of: card) { old, new in
             Self.cardChanged(from: old, to: new, state: controller.state, haptics: haptics)
         }
-        .sheet(isPresented: $languageSheetOpen) {
+        .oriveoSheet(isPresented: $languageSheetOpen) {
             RecognitionLanguageSheet(current: VoiceEngineSettings().recognitionLanguage) { changed in
                 languageSheetOpen = false
                 let controller = controller

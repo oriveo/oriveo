@@ -1459,7 +1459,7 @@ struct ChatView: View {
         // Page anchor for smoke / UI tests: the container only carries the identifier, and children stay readable.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat_screen")
-        .sheet(item: $modelPickerPresentation, onDismiss: commitPendingModelSelection) { presentation in
+        .oriveoSheet(item: $modelPickerPresentation, onDismiss: commitPendingModelSelection) { presentation in
             let pickerConversationID = projection.activeConversationID ?? conversationID
             ModelPickerSheet(
                 context: .chat(conversationID: pickerConversationID),
@@ -1470,7 +1470,7 @@ struct ChatView: View {
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
-        .sheet(item: $realtimeDisclosure, onDismiss: realtimeDisclosureDismissed) { request in
+        .oriveoSheet(item: $realtimeDisclosure, onDismiss: realtimeDisclosureDismissed) { request in
             VoiceDisclosureSheet(
                 provider: request.selection.providerKind,
                 direction: .realtime,
@@ -1479,12 +1479,12 @@ struct ChatView: View {
                 .environment(appState)
         }
         .realtimeMigrationAlert($realtimeMigrationPrompt, onAnswer: answerRealtimeMigration)
-        .sheet(item: $compactionDetailPresentation) { presentation in
+        .oriveoSheet(item: $compactionDetailPresentation) { presentation in
             ContextCompactionDetailSheet(detail: presentation.detail, conversationID: presentation.conversationID)
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
-        .sheet(item: $conversationSettingsPresentation, onDismiss: {
+        .oriveoSheet(item: $conversationSettingsPresentation, onDismiss: {
             guard let conversationID = pendingContextUsagePanelID else { return }
             pendingContextUsagePanelID = nil
             contextUsagePanelPresentation = ContextUsagePanelPresentation(
@@ -1508,7 +1508,7 @@ struct ChatView: View {
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
-        .sheet(item: $contextUsagePanelPresentation) { presentation in
+        .oriveoSheet(item: $contextUsagePanelPresentation) { presentation in
             let summary = contextUsage?.conversationID == presentation.conversationID
                 ? contextUsage?.summary ?? .empty
                 : .empty
@@ -1530,7 +1530,7 @@ struct ChatView: View {
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
-        .sheet(item: $disclosureProvider) { kind in
+        .oriveoSheet(item: $disclosureProvider) { kind in
             ProviderDisclosureSheet(
                 provider: kind,
                 onAccept: {
@@ -1555,7 +1555,7 @@ struct ChatView: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.hidden)
         }
-        .sheet(isPresented: $showsMcpToolPanel) {
+        .oriveoSheet(isPresented: $showsMcpToolPanel) {
             McpToolPanelSheet(
                 state: mcpPanelState,
                 onToggle: { serverId, enabled in setMcpServer(serverId, enabled: enabled) },
@@ -2121,7 +2121,7 @@ struct ChatView: View {
         .onChange(of: selectedPhotoItems) { _, items in
             handleSelectedPhotoItems(items)
         }
-        .fullScreenCover(isPresented: $showCamera) {
+        .oriveoFullScreenCover(isPresented: $showCamera) {
             CameraCapture { image in
                 showCamera = false
                 if let image {

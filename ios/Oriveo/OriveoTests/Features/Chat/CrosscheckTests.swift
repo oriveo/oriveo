@@ -389,7 +389,7 @@ struct CrosscheckEntryPointTests {
     func entryPointsUseAFullScreenCover() throws {
         let chat = try source("Features/Chat/ChatMessageList.swift")
         let chatCover = try chat.slice(
-            from: ".fullScreenCover(item: $crosscheckTarget)",
+            from: ".oriveoFullScreenCover(item: $crosscheckTarget)",
             to: ".confirmationDialog("
         )
         #expect(chatCover.contains("CrosscheckSheet(origin: .chatMessage("))
@@ -397,7 +397,7 @@ struct CrosscheckEntryPointTests {
 
         let note = try source("Features/Notes/NoteDetailView.swift")
         let noteCover = try note.slice(
-            from: ".fullScreenCover(isPresented: $showCrosscheck)",
+            from: ".oriveoFullScreenCover(isPresented: $showCrosscheck)",
             to: "@ViewBuilder"
         )
         #expect(noteCover.contains("CrosscheckSheet(origin: .note(note))"))
@@ -409,7 +409,7 @@ struct CrosscheckEntryPointTests {
         let sheet = try source("Features/Chat/CrosscheckSheet.swift")
         let page = try sheet.slice(
             from: "struct CrosscheckSheet: View",
-            to: ".sheet(item: $modelPickerPresentation)"
+            to: ".oriveoSheet(item: $modelPickerPresentation)"
         )
         #expect(page.contains("closeButton"))
         #expect(page.contains(".toolbar(.hidden, for: .navigationBar)"))
@@ -420,7 +420,7 @@ struct CrosscheckEntryPointTests {
     @Test("The second model comes from the shared picker, at full height")
     func secondModelUsesTheSharedPicker() throws {
         let sheet = try source("Features/Chat/CrosscheckSheet.swift")
-        let picker = try sheet.slice(from: ".sheet(item: $modelPickerPresentation)", to: "private var crosscheckBackground")
+        let picker = try sheet.slice(from: ".oriveoSheet(item: $modelPickerPresentation)", to: "private var crosscheckBackground")
         #expect(picker.contains("ModelPickerSheet("))
         #expect(picker.contains("context: .crosscheck"))
         #expect(picker.contains(".presentationDetents([.large])"))

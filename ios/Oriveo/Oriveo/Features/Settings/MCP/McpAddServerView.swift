@@ -12,7 +12,7 @@ struct McpAddServerView: View {
                     state: model.state,
                     actions: McpAddServerActions(model: model, onBack: { appState.pop() })
                 )
-                .sheet(isPresented: authPromptBinding(model)) {
+                .oriveoSheet(isPresented: authPromptBinding(model)) {
                     McpAuthPromptSheet(
                         serverName: model.state.displayName,
                         iconURL: nil,

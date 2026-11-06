@@ -253,17 +253,17 @@ struct MemoryView: View {
         .onChange(of: appState.memoryItemsCache.items) { _, _ in
             openPendingEditIfReady()
         }
-        .sheet(item: $editor, onDismiss: presentQueuedDraft) { state in
+        .oriveoSheet(item: $editor, onDismiss: presentQueuedDraft) { state in
             MemoryItemEditorSheet(state: state) { saved in
                 saveEditor(saved)
             }
         }
-        .sheet(item: $rawEditor) { state in
+        .oriveoSheet(item: $rawEditor) { state in
             MemoryRawView(state: state) { ops in
                 writeItems { try MemoryRawEditorState.apply(ops, writer: $0) }
             }
         }
-        .sheet(item: $organizeTarget) { target in
+        .oriveoSheet(item: $organizeTarget) { target in
             MemoryOrganizeSheet(
                 target: target,
                 organizer: MemoryOrganizer(

@@ -120,7 +120,7 @@ struct VoiceEngineSheet: View {
             flow.showDisclosureForShots(engine)
         }
         #endif
-        .sheet(item: $flow.disclosure, onDismiss: {
+        .oriveoSheet(item: $flow.disclosure, onDismiss: {
             if flow.disclosureDismissed() {
                 dismiss()
             }

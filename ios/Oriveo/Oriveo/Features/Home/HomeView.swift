@@ -587,7 +587,7 @@ struct HomeView: View {
             searchResults = results
             searchInFlight = false
         }
-        .sheet(item: $modelPickerPresentation, onDismiss: commitPendingModelSelection) { presentation in
+        .oriveoSheet(item: $modelPickerPresentation, onDismiss: commitPendingModelSelection) { presentation in
             ModelPickerSheet(
                 context: .home,
                 presentation: presentation,
@@ -596,7 +596,7 @@ struct HomeView: View {
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
-        .sheet(item: $realtimeDisclosure, onDismiss: realtimeDisclosureDismissed) { request in
+        .oriveoSheet(item: $realtimeDisclosure, onDismiss: realtimeDisclosureDismissed) { request in
             VoiceDisclosureSheet(
                 provider: request.selection.providerKind,
                 direction: .realtime,
@@ -690,7 +690,7 @@ struct HomeView: View {
                 }
             }
         }
-        .sheet(isPresented: $showMoveToFolderSheet) {
+        .oriveoSheet(isPresented: $showMoveToFolderSheet) {
             MoveToFolderSheet(
                 convIDs: Array(selectedIDs),
                 onComplete: {
@@ -701,7 +701,7 @@ struct HomeView: View {
             .presentationDetents([.medium])
             .environment(appState)
         }
-        .sheet(item: $heroDisclosureProvider) { kind in
+        .oriveoSheet(item: $heroDisclosureProvider) { kind in
             ProviderDisclosureSheet(
                 provider: kind,
                 onAccept: {

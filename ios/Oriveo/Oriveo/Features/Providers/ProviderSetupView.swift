@@ -215,7 +215,7 @@ struct ProviderSetupView: View {
                 }
             }
         }
-        .sheet(isPresented: $showConnectionSettings) {
+        .oriveoSheet(isPresented: $showConnectionSettings) {
             ConnectionSettingsSheet(
                 selectedKind: selectedKind,
                 setupCatalog: setupCatalog,
@@ -227,7 +227,7 @@ struct ProviderSetupView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
         }
-        .sheet(isPresented: $showsGrokSubscriptionSheet) {
+        .oriveoSheet(isPresented: $showsGrokSubscriptionSheet) {
             if let config = grokSubscriptionConfig {
                 GrokSubscriptionAuthorizationSheet(config: config) { tokens in
                     submitTask = Task { await completeGrokSubscriptionSetup(tokens: tokens) }
@@ -236,7 +236,7 @@ struct ProviderSetupView: View {
                 .presentationDragIndicator(.visible)
             }
         }
-        .sheet(isPresented: $showsOpenAISubscriptionSheet) {
+        .oriveoSheet(isPresented: $showsOpenAISubscriptionSheet) {
             if let config = openAISubscriptionConfig {
                 OpenAISubscriptionAuthorizationSheet(config: config) { tokens in
                     submitTask = Task { await completeOpenAISubscriptionSetup(tokens: tokens) }

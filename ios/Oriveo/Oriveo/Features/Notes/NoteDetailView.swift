@@ -125,20 +125,20 @@ struct NoteDetailView: View {
         .onChange(of: appState.notesVersion) { _, _ in
             if !isEditingBody && !titleFocused { reload() }
         }
-        .sheet(isPresented: $showMoveSheet) {
+        .oriveoSheet(isPresented: $showMoveSheet) {
             if let note {
                 MoveToNoteFolderSheet(noteID: note.id, current: note.noteFolderID)
                     // The sheet has its own back button, which must not hide with the right-column root page
                     .environment(\.isSplitColumnRoot, false)
             }
         }
-        .sheet(item: $textSelection) { request in
+        .oriveoSheet(item: $textSelection) { request in
             NoteTextSelectionView(request: request)
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .environment(\.isSplitColumnRoot, false)
         }
-        .fullScreenCover(isPresented: $showCrosscheck) {
+        .oriveoFullScreenCover(isPresented: $showCrosscheck) {
             Group {
                 if let note { CrosscheckSheet(origin: .note(note)) }
             }

@@ -50,13 +50,13 @@ struct BackupImportSection: View {
         ) { result in
             handleFileImport(result)
         }
-        .sheet(isPresented: $showImportPreview) {
+        .oriveoSheet(isPresented: $showImportPreview) {
             importPreviewSheet
         }
-        .sheet(isPresented: $showPasswordPrompt) {
+        .oriveoSheet(isPresented: $showPasswordPrompt) {
             passwordPromptSheet
         }
-        .sheet(isPresented: $showImportResult) {
+        .oriveoSheet(isPresented: $showImportResult) {
             importResultSheet
         }
         .alert(

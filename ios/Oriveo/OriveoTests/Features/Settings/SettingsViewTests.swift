@@ -123,7 +123,7 @@ struct SettingsViewTests {
 
         #expect(!source.contains(".confirmationDialog("))
         #expect(source.contains("showsDeveloperSession = true"))
-        #expect(source.contains(".fullScreenCover(isPresented: $showsDeveloperSession)"))
+        #expect(source.contains(".oriveoFullScreenCover(isPresented: $showsDeveloperSession)"))
         #expect(source.contains("developerSessionPage = .onboardingRehearsal"))
         #expect(source.contains("SettingsDeveloperMenuView("))
         #expect(source.contains("endpointHost: BackendURLResolver.displayHost()"))

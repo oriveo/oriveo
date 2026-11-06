@@ -285,7 +285,7 @@ struct QuoteContextChip: View {
                 .hoverEffect(.highlight)
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showsPreview, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
+            .oriveoPopover(isPresented: $showsPreview, attachmentAnchor: .rect(.bounds), arrowEdge: .bottom) {
                 quotePreview
                     .presentationCompactAdaptation(.popover)
             }
@@ -2686,7 +2686,7 @@ private struct ChatComposerCapabilityStrip: View {
             .buttonStyle(ComposerInteractiveButtonStyle())
             .accessibilityLabel(Text(L10n.tr("Model Options")))
             .accessibilityValue(Text(modelControlSummary))
-            .sheet(isPresented: $showsModelControls, onDismiss: onModelControlsDismiss) {
+            .oriveoSheet(isPresented: $showsModelControls, onDismiss: onModelControlsDismiss) {
                 ModelControlsEntrySheet(
                     provider: provider,
                     model: currentModel,

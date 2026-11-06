@@ -270,7 +270,7 @@ struct CodeBlockCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(codeBorder, lineWidth: 1)
         )
-        .sheet(isPresented: $showsExpanded) {
+        .oriveoSheet(isPresented: $showsExpanded) {
             CodeBlockViewerSheet(language: language, content: codeText)
         }
     }

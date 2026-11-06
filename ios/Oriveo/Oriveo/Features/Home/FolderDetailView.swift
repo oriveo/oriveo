@@ -114,7 +114,7 @@ struct FolderDetailView: View {
         } message: {
             Text(L10n.tr("Conversations inside will be kept.", table: .home))
         }
-        .sheet(isPresented: $showMoveSheet) {
+        .oriveoSheet(isPresented: $showMoveSheet) {
             MoveToFolderSheet(
                 convIDs: Array(selectedIDs),
                 onComplete: {

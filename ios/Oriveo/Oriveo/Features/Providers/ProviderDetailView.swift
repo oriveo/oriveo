@@ -309,7 +309,7 @@ struct ProviderDetailView: View {
                         addFeedbackOverlay
                     }
                     .oriveoScreenBackground()
-                    .sheet(isPresented: $showConnectionSettings) {
+                    .oriveoSheet(isPresented: $showConnectionSettings) {
                         ConnectionSettingsSheet(
                             selectedKind: provider.kind,
                             setupCatalog: setupCatalog,
@@ -325,12 +325,12 @@ struct ProviderDetailView: View {
                             .presentationDetents([.medium])
                             .presentationDragIndicator(.visible)
                     }
-                    .sheet(isPresented: $showEditAPIKey) {
+                    .oriveoSheet(isPresented: $showEditAPIKey) {
                         EditAPIKeySheet(providerID: providerID)
                             .presentationDetents([.medium])
                             .presentationDragIndicator(.visible)
                     }
-                    .sheet(isPresented: $showGrokReauthorization) {
+                    .oriveoSheet(isPresented: $showGrokReauthorization) {
                         if case let .available(config) = MetadataClient.shared.syncGrokSubscriptionAvailability() {
                             GrokSubscriptionAuthorizationSheet(config: config) { tokens in
                                 Task {
@@ -345,7 +345,7 @@ struct ProviderDetailView: View {
                             .presentationDragIndicator(.visible)
                         }
                     }
-                    .sheet(isPresented: $showOpenAIReauthorization) {
+                    .oriveoSheet(isPresented: $showOpenAIReauthorization) {
                         if case let .available(config) = MetadataClient.shared.syncOpenAISubscriptionAvailability() {
                             OpenAISubscriptionAuthorizationSheet(config: config) { tokens in
                                 Task {
@@ -360,21 +360,21 @@ struct ProviderDetailView: View {
                             .presentationDragIndicator(.visible)
                         }
                     }
-                    .sheet(isPresented: $showRenameProvider) {
+                    .oriveoSheet(isPresented: $showRenameProvider) {
                         RenameProviderSheet(providerID: providerID)
                             .presentationDetents([.height(220)])
                             .presentationDragIndicator(.visible)
                     }
-                    .sheet(isPresented: $showEditEndpoint) {
+                    .oriveoSheet(isPresented: $showEditEndpoint) {
                         EditProviderEndpointSheet(providerID: providerID)
                             .presentationDetents([.large])
                             .presentationDragIndicator(.visible)
                     }
-                    .sheet(isPresented: $showEditRelay) {
+                    .oriveoSheet(isPresented: $showEditRelay) {
                         RelayEditView(providerID: providerID)
                             .presentationDetents([.large])
                     }
-                    .sheet(isPresented: $showGenerationParameters) {
+                    .oriveoSheet(isPresented: $showGenerationParameters) {
                         GenerationParameterDefaultsSheet(provider: provider)
                             .presentationDetents([.large])
                             .presentationDragIndicator(.visible)
@@ -390,10 +390,10 @@ struct ProviderDetailView: View {
                     } message: {
                         Text(L10n.tr("This deletes the connection, API key, enabled models, model library, and model behavior settings. It does not delete conversations; message history stays, and models used there are marked unavailable. This cannot be undone.", table: .providers))
                     }
-                    .sheet(isPresented: capabilityTestPresented) {
+                    .oriveoSheet(isPresented: capabilityTestPresented) {
                         RelayCapabilityTestSheet(controller: capabilityTest)
                     }
-                    .sheet(item: $realtimeDisclosure, onDismiss: { answerRealtimeDisclosure(accepted: false) }) { request in
+                    .oriveoSheet(item: $realtimeDisclosure, onDismiss: { answerRealtimeDisclosure(accepted: false) }) { request in
                         VoiceDisclosureSheet(
                             provider: request.selection.providerKind,
                             direction: .realtime,
