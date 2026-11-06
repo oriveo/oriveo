@@ -44,11 +44,6 @@ describe('segmented track and hover roles', () => {
     for (const [track, thumb] of pairs) expect(track).not.toBe(thumb);
   });
 
-  it('usage hero exceeded alert uses the error text role', () => {
-    const path = 'components/usage/CostStoryHeroCard.module.css';
-    expect(ruleBody(path, '.alertLine[data-tone="exceeded"]')).toMatch(/color:\s*var\(--o-error-text\);/);
-  });
-
   it('provider custom entry hover uses surface-hover', () => {
     const path = 'app/providers/new/ProviderCard.module.css';
     // The base is --o-surface-raised; in dark --o-surface-hover equals raised, so hover nudges toward the text color instead.

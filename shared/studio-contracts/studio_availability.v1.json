@@ -1,0 +1,222 @@
+{
+  "$comment": "StudioAvailability truth table. One pure function per client; every entry point (tab / sidebar, deep links oriveo://studio/* and Web /studio/*, badge, chat \"open in studio\", relay probe image item) asks it and nothing else. compileFlag: iOS ORIVEO_STUDIO, Android BuildConfig.STUDIO_ENABLED, Web NEXT_PUBLIC_STUDIO_ENABLED (Release off until the shipping version). Remote flags live in /api/metadata runtimeConfig.featureFlags: studio_enabled (missing = true, only used to hide in an emergency, never to launch an unreviewed feature) and studio_managed_enabled (missing = false). imageDisabled is the managed protection switch image_disabled. managedInChatPicker: Managed image models also appear in the chat model picker under the same condition. Chat image works are registered locally and Pro works sync regardless of the flags, so turning the entry on does not trigger a mass upload. Web serves /api/studio/* only when compiled on (otherwise 404). Executable reference: scripts/lib/studio-image-reference.mjs studioAvailability.",
+  "contractId": "studio_availability.v1",
+  "version": 1,
+  "remoteFlags": {
+    "studio_enabled": {
+      "default": true
+    },
+    "studio_managed_enabled": {
+      "default": false
+    }
+  },
+  "cases": [
+    {
+      "caseId": "compile_on.remote_on",
+      "input": {
+        "compileFlag": true,
+        "remoteStudioEnabled": true,
+        "remoteManagedEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 2,
+        "isPro": false
+      },
+      "expect": {
+        "entryVisible": true,
+        "deepLinkOpens": true,
+        "badgeRendered": true,
+        "managedListed": true,
+        "managedInChatPicker": true,
+        "chatWorkRegistration": true,
+        "syncWorks": false,
+        "webApiStatus": "served"
+      }
+    },
+    {
+      "caseId": "compile_on.remote_off",
+      "input": {
+        "compileFlag": true,
+        "remoteStudioEnabled": false,
+        "remoteManagedEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 2,
+        "isPro": false
+      },
+      "expect": {
+        "entryVisible": false,
+        "deepLinkOpens": false,
+        "badgeRendered": false,
+        "managedListed": false,
+        "managedInChatPicker": false,
+        "chatWorkRegistration": true,
+        "syncWorks": false,
+        "webApiStatus": "served"
+      }
+    },
+    {
+      "caseId": "compile_on.remote_missing",
+      "input": {
+        "compileFlag": true,
+        "remoteManagedEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 2,
+        "isPro": false
+      },
+      "expect": {
+        "entryVisible": true,
+        "deepLinkOpens": true,
+        "badgeRendered": true,
+        "managedListed": true,
+        "managedInChatPicker": true,
+        "chatWorkRegistration": true,
+        "syncWorks": false,
+        "webApiStatus": "served"
+      }
+    },
+    {
+      "caseId": "compile_off.remote_on",
+      "input": {
+        "compileFlag": false,
+        "remoteStudioEnabled": true,
+        "remoteManagedEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 2,
+        "isPro": false
+      },
+      "expect": {
+        "entryVisible": false,
+        "deepLinkOpens": false,
+        "badgeRendered": false,
+        "managedListed": false,
+        "managedInChatPicker": false,
+        "chatWorkRegistration": true,
+        "syncWorks": false,
+        "webApiStatus": "not_found"
+      }
+    },
+    {
+      "caseId": "compile_off.remote_off",
+      "input": {
+        "compileFlag": false,
+        "remoteStudioEnabled": false,
+        "remoteManagedEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 2,
+        "isPro": false
+      },
+      "expect": {
+        "entryVisible": false,
+        "deepLinkOpens": false,
+        "badgeRendered": false,
+        "managedListed": false,
+        "managedInChatPicker": false,
+        "chatWorkRegistration": true,
+        "syncWorks": false,
+        "webApiStatus": "not_found"
+      }
+    },
+    {
+      "caseId": "compile_off.remote_missing",
+      "input": {
+        "compileFlag": false,
+        "remoteManagedEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 2,
+        "isPro": false
+      },
+      "expect": {
+        "entryVisible": false,
+        "deepLinkOpens": false,
+        "badgeRendered": false,
+        "managedListed": false,
+        "managedInChatPicker": false,
+        "chatWorkRegistration": true,
+        "syncWorks": false,
+        "webApiStatus": "not_found"
+      }
+    },
+    {
+      "caseId": "managed_remote_missing_defaults_off",
+      "input": {
+        "compileFlag": true,
+        "remoteStudioEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 2,
+        "isPro": true
+      },
+      "expect": {
+        "entryVisible": true,
+        "deepLinkOpens": true,
+        "badgeRendered": true,
+        "managedListed": false,
+        "managedInChatPicker": false,
+        "chatWorkRegistration": true,
+        "syncWorks": true,
+        "webApiStatus": "served"
+      }
+    },
+    {
+      "caseId": "managed_protection_image_disabled",
+      "input": {
+        "compileFlag": true,
+        "remoteStudioEnabled": true,
+        "remoteManagedEnabled": true,
+        "imageDisabled": true,
+        "enabledManagedModels": 2,
+        "isPro": false
+      },
+      "expect": {
+        "entryVisible": true,
+        "deepLinkOpens": true,
+        "badgeRendered": true,
+        "managedListed": false,
+        "managedInChatPicker": false,
+        "chatWorkRegistration": true,
+        "syncWorks": false,
+        "webApiStatus": "served"
+      }
+    },
+    {
+      "caseId": "managed_catalog_empty",
+      "input": {
+        "compileFlag": true,
+        "remoteStudioEnabled": true,
+        "remoteManagedEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 0,
+        "isPro": false
+      },
+      "expect": {
+        "entryVisible": true,
+        "deepLinkOpens": true,
+        "badgeRendered": true,
+        "managedListed": false,
+        "managedInChatPicker": false,
+        "chatWorkRegistration": true,
+        "syncWorks": false,
+        "webApiStatus": "served"
+      }
+    },
+    {
+      "caseId": "pro_syncs_even_when_compiled_off",
+      "input": {
+        "compileFlag": false,
+        "remoteStudioEnabled": true,
+        "remoteManagedEnabled": true,
+        "imageDisabled": false,
+        "enabledManagedModels": 2,
+        "isPro": true
+      },
+      "expect": {
+        "entryVisible": false,
+        "deepLinkOpens": false,
+        "badgeRendered": false,
+        "managedListed": false,
+        "managedInChatPicker": false,
+        "chatWorkRegistration": true,
+        "syncWorks": true,
+        "webApiStatus": "not_found"
+      }
+    }
+  ]
+}

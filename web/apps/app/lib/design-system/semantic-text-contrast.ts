@@ -488,7 +488,6 @@ export const KNOWN_GAPS: readonly KnownGap[] = [
 
 /** Frozen baseline: bare semantic colors used as text that have not been triaged one by one yet. */
 export const LEGACY_UNTRIAGED: readonly string[] = [
-  'apps/app/app/providers/[providerId]/ModelBrowser.module.css {.allShortcutBadge}',
   'apps/app/app/providers/[providerId]/ProviderBalanceCard.module.css {.breakdownValueWarning}',
   'apps/app/app/providers/[providerId]/ProviderBalanceCard.module.css {.errorTitle}',
   'apps/app/app/providers/[providerId]/ProviderBalanceCard.module.css {.owingTag}',
@@ -499,20 +498,9 @@ export const LEGACY_UNTRIAGED: readonly string[] = [
   'apps/app/app/providers/relay/new/RelaySetup.module.css {.fieldError}',
   'apps/app/app/providers/relay/new/RelaySetup.module.css {.statusCard > strong}',
   'apps/app/components/conversations/ConflictCopyGroup.module.css {.banner}',
-  'apps/app/app/skills/edit/SkillEditPage.module.css {.addStarterBtn}',
-  'apps/app/app/skills/edit/SkillEditPage.module.css {.inlineActionBtn}',
   'apps/app/app/welcome/Welcome.module.css {.errorMsg}',
-  'apps/app/components/chat/AttachmentPreview.module.css {.ctaKnowledge}',
-  'apps/app/components/chat/ChatView.module.css {.dragContent}',
-  'apps/app/components/chat/CrosscheckSheet.module.css {.modelChevron}',
-  'apps/app/components/chat/ImageGeneration.module.css {.toggle}',
-  'apps/app/components/chat/LibraryContextPicker.module.css {.search button, .status button, .loadMore}',
-  'apps/app/components/chat/MessageBubble.module.css {.metaActionBtn}',
-  'apps/app/components/chat/MessageTokenUsageDialog.module.css {.total strong}',
-  'apps/app/components/chat/NoteReferencePreview.module.css {.sourceChip}',
   'apps/app/components/conversations/ConflictCopyGroup.module.css {.banner}',
   'apps/app/components/notes/Notes.module.css {.countPill}',
-  'apps/app/components/providers/RelaySecurityModeControl.module.css {.change}',
   'apps/app/components/providers/RelaySecurityModeControl.module.css {.error}',
   'packages/ui/src/components/Input/Input.module.css {.error}',
 ];

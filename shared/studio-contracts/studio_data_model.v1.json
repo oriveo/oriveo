@@ -1,5 +1,5 @@
 {
-  "$comment": "Studio data model. Local tables are the same on the three clients (iOS GRDB v48_studio_works, Android Room 55→56, Web IDB 15→16). Firestore: users/{uid}/studioWorks/{workId} (one document per work, revision / baseRevision like memoryItems, never hard-deleted: delete = tombstone status deleted) and users/{uid}/studioWorks/{workId}/rounds/{roundId} (only finished rounds; immutable once written; no thumbnails inside). Originals live at users/{uid}/attachments/{assetId}. firestoreGolden is the target shape for; it moves into the shared sync golden fixture when the Web mapping that generates that file exists (that file is generated from Web code and compared value by value, so it is not hand-edited here).",
+  "$comment": "Studio data model. Local tables are the same on the three clients (iOS GRDB v48_studio_works, Android Room 55→56, Web IDB 15→16). Firestore: users/{uid}/studioWorks/{workId} (one document per work, revision / baseRevision like memoryItems, never hard-deleted: delete = tombstone status deleted) and users/{uid}/studioWorks/{workId}/rounds/{roundId} (only finished rounds; immutable once written; no thumbnails inside). Originals live at users/{uid}/attachments/{assetId}. firestoreGolden is the target shape for P6; it moves into 共享/test-fixtures/sync/field-golden.v1.json when the Web mapping that generates that file exists (that file is generated from Web code and compared value by value, so it is not hand-edited here).",
   "contractId": "studio_data_model.v1",
   "version": 1,
   "localTables": {
@@ -13,7 +13,6 @@
       "favorite",
       "selectedVersionIds",
       "deletedVersionIds",
-      "deletedRoundIds",
       "createdAt",
       "updatedAt",
       "deletedAt",
@@ -64,21 +63,6 @@
       "order",
       "assetId",
       "role"
-    ]
-  },
-  "localSyncColumns": {
-    "$comment": "Device-local sync bookkeeping columns: added by the sync migration on iOS / Android (Web keeps them as optional row fields); never written to Firestore or backups. Migration tests compare columns with localTables plus these.",
-    "studio_works": [
-      "mutationId",
-      "coverThumbnail",
-      "coverWidth",
-      "coverHeight",
-      "cloudCleanup",
-      "remoteRoundCount"
-    ],
-    "studio_rounds": [
-      "syncState",
-      "deviceId"
     ]
   },
   "enums": {
@@ -134,18 +118,16 @@
     ]
   },
   "rules": [
-    "selectedVersionIds is the keep order across the whole work (append-only); version number vN = position + 1. Deleted kept versions stay in selectedVersionIds, so numbers never shift; deletedVersionIds lists every deleted version id, kept or candidate, so it is not a subset of selectedVersionIds.",
+    "selectedVersionIds is the keep order across the whole work (append-only); version number vN = position + 1. Deleted versions stay in selectedVersionIds and are listed in deletedVersionIds, so numbers never shift (交互细则 §5.1).",
     "currentVersionId is the cover; it is null only on a tombstone.",
     "A round document is written once, when the round reaches a status in roundStatusSynced; running BYOK rounds stay on the device.",
-    "Asset ids are single path segments (no \"/\"); a chat work copies the chat image into a new asset.",
+    "Asset ids are single path segments (no \"/\"); a chat work copies the chat image into a new asset (E-19).",
     "Deleting a work from the wall writes a tombstone; for a chat work the chat image stays (Q-8).",
-    "expired = a managed job finished but no output link was ever issued within 24h; the refund is shown on the card.",
-    "An import round (the user-supplied picture that becomes v1) has modelRef null and fundingSource none; it is never billed.",
-    "Work and round ids are upper-case canonical UUIDs (same as id-utils); a tombstone keeps source and the chat ids so the history backfill never re-registers a deleted chat work.",
-    "deletedRoundIds lists the rounds removed with deleteFailedRound (append-only, at most 2000, empty on a tombstone). It follows deletedVersionIds everywhere: outbound union with the remote list, inbound remote-wins removes the listed local round rows and their refs the same way as deleteFailedRound (row stays synced, no tombstone), a rounds pull skips listed ids. Outbound roundCount = max(ended local rounds + deletedRoundIds length, remote roundCount), so it never shrinks. After the work write the newly listed remote round documents are deleted; a failed delete is a cloudCleanup roundIds debt retried like the others. Backups do not carry deletedRoundIds."
+    "expired = a managed job finished but no output link was ever issued within 24h; the refund is shown on the card (E-40).",
+    "An import round (the user-supplied picture that becomes v1) has modelRef null and fundingSource none; it is never billed (交互细则 §5.1).",
+    "Work and round ids are upper-case canonical UUIDs (same as id-utils); a tombstone keeps source and the chat ids so the history backfill never re-registers a deleted chat work (E-42)."
   ],
   "firestore": {
-    "$comment": "String limits count UTF-16 code units, same as Firestore rules string.size.",
     "workPath": "users/{uid}/studioWorks/{workId}",
     "roundPath": "users/{uid}/studioWorks/{workId}/rounds/{roundId}",
     "workFields": [
@@ -163,7 +145,6 @@
       "favorite",
       "selectedVersionIds",
       "deletedVersionIds",
-      "deletedRoundIds",
       "roundCount",
       "revision",
       "baseRevision",
@@ -208,9 +189,8 @@
       "composedPromptChars": 32000,
       "candidatesMax": 16,
       "referencesMax": 16,
-      "deletedVersionIdsMax": 2000,
-      "deletedRoundIdsMax": 2000,
-      "selectedVersionIdsMax": 2000,
+      "deletedVersionIdsMax": 500,
+      "selectedVersionIdsMax": 500,
       "adjustmentsMax": 20
     },
     "serverTimestamps": {
@@ -241,7 +221,6 @@
           "C0000003-0000-4000-8000-000000000003"
         ],
         "deletedVersionIds": [],
-        "deletedRoundIds": [],
         "roundCount": 2,
         "revision": 1,
         "baseRevision": 0,
@@ -269,7 +248,6 @@
           "C0000003-0000-4000-8000-000000000003"
         ],
         "deletedVersionIds": [],
-        "deletedRoundIds": [],
         "roundCount": 2,
         "revision": 3,
         "baseRevision": 2,
@@ -294,7 +272,6 @@
         "favorite": false,
         "selectedVersionIds": [],
         "deletedVersionIds": [],
-        "deletedRoundIds": [],
         "roundCount": 2,
         "revision": 4,
         "baseRevision": 3,
@@ -838,170 +815,10 @@
         "messageId": "99990000-1111-4222-8333-444455556666",
         "expectWorkId": "6FCD39D0-9B86-5DF3-97D4-02DB3FEC63BF"
       }
-    ],
-    "derivedIds": {
-      "$comment": ". Every id of a registered chat work is derived, so the same message registers the same rows on any device and a repeated registration writes nothing. Names (inputs upper-cased, locale independent; chatAssetIds in message attachment order, deduplicated by upper-cased id with the first occurrence kept — a repeated image registers once): round = \"{CONVERSATION_ID}|{MESSAGE_ID}|round|{ASSET_1}|…|{ASSET_n}\"; version = \"{ROUND_ID}|version|{ASSET}\"; copied asset = \"{ROUND_ID}|asset|{ASSET}\"; all UUIDv5 under the chat-work namespace, upper-case output. Reference: scripts/lib/studio-chat-work-reference.mjs chatWorkIds.",
-      "vectors": [
-        {
-          "caseId": "single_image",
-          "conversationId": "3f2a9c1e-7b4d-4e8a-9c3f-1a2b3c4d5e6f",
-          "messageId": "11112222-3333-4444-8555-666677778888",
-          "chatAssetIds": [
-            "a1b2c3d4-0000-4000-8000-000000000001"
-          ],
-          "expect": {
-            "workId": "636B2D5C-3C9C-5964-8214-15E7D9158596",
-            "roundId": "BBA27389-E4E3-568D-A79C-D5F6ACAB3612",
-            "versionIds": [
-              "D1F1D2B6-D8B5-51E2-875C-F3D4417DCAAB"
-            ],
-            "assetIds": [
-              "C1A8FB7F-3C16-59B2-9D86-CBB787174B46"
-            ]
-          }
-        },
-        {
-          "caseId": "two_images_upper_input",
-          "conversationId": "3F2A9C1E-7B4D-4E8A-9C3F-1A2B3C4D5E6F",
-          "messageId": "11112222-3333-4444-8555-666677778888",
-          "chatAssetIds": [
-            "A1B2C3D4-0000-4000-8000-000000000001",
-            "a1b2c3d4-0000-4000-8000-000000000002"
-          ],
-          "expect": {
-            "workId": "636B2D5C-3C9C-5964-8214-15E7D9158596",
-            "roundId": "506E1670-332A-56C0-A732-C858080D1A4F",
-            "versionIds": [
-              "2911EC42-05CD-55D4-B7C5-DA46EAD30A1A",
-              "7DE14EB5-1D7F-52BF-8B06-A146C416B78B"
-            ],
-            "assetIds": [
-              "FEE343FD-2EB3-5B5B-A17E-584FAE93807C",
-              "BE01DD01-1412-5861-820B-C21274B04217"
-            ]
-          }
-        },
-        {
-          "caseId": "non_uuid_asset_id",
-          "conversationId": "AAAABBBB-CCCC-4DDD-8EEE-FFFF00001111",
-          "messageId": "99990000-1111-4222-8333-444455556666",
-          "chatAssetIds": [
-            "img_17300000_abc"
-          ],
-          "expect": {
-            "workId": "6FCD39D0-9B86-5DF3-97D4-02DB3FEC63BF",
-            "roundId": "39991E56-E98E-55DD-A4CF-6DEB7B6CE220",
-            "versionIds": [
-              "4D85D5FB-53FA-51CD-82F7-3E82E89748F4"
-            ],
-            "assetIds": [
-              "AA627249-1493-5DE8-A461-0B52B5B6517B"
-            ]
-          }
-        },
-        {
-          "caseId": "duplicate_asset_id",
-          "conversationId": "3F2A9C1E-7B4D-4E8A-9C3F-1A2B3C4D5E6F",
-          "messageId": "11112222-3333-4444-8555-666677778888",
-          "chatAssetIds": [
-            "a1b2c3d4-0000-4000-8000-000000000001",
-            "A1B2C3D4-0000-4000-8000-000000000001",
-            "a1b2c3d4-0000-4000-8000-000000000002"
-          ],
-          "expect": {
-            "workId": "636B2D5C-3C9C-5964-8214-15E7D9158596",
-            "roundId": "506E1670-332A-56C0-A732-C858080D1A4F",
-            "versionIds": [
-              "2911EC42-05CD-55D4-B7C5-DA46EAD30A1A",
-              "7DE14EB5-1D7F-52BF-8B06-A146C416B78B"
-            ],
-            "assetIds": [
-              "FEE343FD-2EB3-5B5B-A17E-584FAE93807C",
-              "BE01DD01-1412-5861-820B-C21274B04217"
-            ]
-          }
-        }
-      ]
-    },
-    "title": {
-      "$comment": "Work title = first sentence of the paired user message, first 12 grapheme clusters. Trim the text (Unicode whitespace and line breaks); the sentence ends before the first line break (any Unicode line terminator: \\n \\r U+000B U+000C U+0085 U+2028 U+2029), one of 。！？!?…, or a \".\" followed by whitespace or the end of the text; take the first 12 grapheme clusters and trim trailing whitespace. No text (image-only message) = empty title. Reference: chatWorkTitle.",
-      "graphemes": 12,
-      "vectors": [
-        {
-          "caseId": "zh_period",
-          "text": "画一只在窗边喝咖啡的橘猫，阳光很好。再加点雨",
-          "expect": "画一只在窗边喝咖啡的橘猫"
-        },
-        {
-          "caseId": "en_period_space",
-          "text": "A cat. On a sofa",
-          "expect": "A cat"
-        },
-        {
-          "caseId": "decimal_not_end",
-          "text": "Version 3.5 of the logo please",
-          "expect": "Version 3.5"
-        },
-        {
-          "caseId": "whitespace_only",
-          "text": "  \n  ",
-          "expect": ""
-        },
-        {
-          "caseId": "empty",
-          "text": "",
-          "expect": ""
-        },
-        {
-          "caseId": "combining_mark",
-          "text": "Café au lait at dawn",
-          "expect": "Café au lait"
-        },
-        {
-          "caseId": "emoji_surrogates",
-          "text": "😀😀 smile wide please!",
-          "expect": "😀😀 smile wid"
-        },
-        {
-          "caseId": "leading_newline",
-          "text": "\n第一行\n第二行",
-          "expect": "第一行"
-        },
-        {
-          "caseId": "question_bang",
-          "text": "Make it pop?! now",
-          "expect": "Make it pop"
-        },
-        {
-          "caseId": "ellipsis",
-          "text": "Hmm… a fox",
-          "expect": "Hmm"
-        },
-        {
-          "caseId": "trailing_period_end",
-          "text": "Short.",
-          "expect": "Short"
-        },
-        {
-          "caseId": "unicode_line_separator",
-          "text": "Line one line two",
-          "expect": "Line one"
-        },
-        {
-          "caseId": "paragraph_separator",
-          "text": "段落一 段落二",
-          "expect": "段落一"
-        },
-        {
-          "caseId": "next_line_and_vertical_tab",
-          "text": "Topmid\u000bend",
-          "expect": "Top"
-        }
-      ]
-    }
+    ]
   },
   "orphanSweep": {
-    "$comment": "Every orphan sweeper counts these as references before any studio data is written.",
+    "$comment": "P6 card 1 (评审 A1): every orphan sweeper counts these as references before any studio data is written.",
     "referencedAssets": [
       "studio_versions.assetId (kept and candidate)",
       "studio_round_refs.assetId"
@@ -1034,22 +851,19 @@
   },
   "versionCasesHarness": "versionCases harness: a fresh active work; with round.previous an earlier single-output round already kept version P (current). The round under test has delivered candidates c1..cN (strictly increasing createdAt) and status completed (delivered = n), partial (0 < delivered < n) or failed (0); apply finish first, then the action steps left to right (\";\" separates steps, \"pick:x,also:y\" = pick x then also-keep y, start_next_round = resolve the pending pick before a new round). keep_order:[X,Y] = X and Y are independent root versions (one single-output round each) kept in that order, no finish step; delete:X deletes version X. expect.kept = candidates of the round under test that are kept, in selectedVersionIds order; numbers = version numbers (selectedVersionIds position + 1); pendingPick = candidate count of the latest finished round when it has more than one and none is kept, else 0.",
   "repository": {
-    "$comment": "work repository cases. Aliases resolve through ids; times are epoch milliseconds (Web stores them as toISOString). Seeds list only the fields the cases read; tests fill the other NOT NULL columns with any valid value. Apply ops in order, each at now = 9000. reclaimedAssets = asset ids whose last studio_versions / studio_round_refs row went away in the case, sorted; they are handed to the platform orphan sweeper purge (it re-checks every reference, chat included), so each expected id must be gone from the image store afterwards and every other seeded asset must still be there. versions / rounds = remaining rows of the case work. Reference: scripts/lib/studio-work-reference.mjs. deleteFailedRound cases list each deleteFailedRound result, in op order, under expect.roundDeleteResults.",
+    "$comment": "work repository cases. Aliases resolve through ids; times are epoch milliseconds (Web stores them as toISOString). Seeds list only the fields the cases read; tests fill the other NOT NULL columns with any valid value. Apply ops in order, each at now = 9000. reclaimedAssets = asset ids whose last studio_versions / studio_round_refs row went away in the case, sorted; they are handed to the platform orphan sweeper purge (it re-checks every reference, chat included), so each expected id must be gone from the image store afterwards and every other seeded asset must still be there. versions / rounds = remaining rows of the case work. Reference: scripts/lib/studio-work-reference.mjs.",
     "rules": [
-      "Every change to a synced work field (title, favorite, currentVersionId, selectedVersionIds, deletedVersionIds, deletedRoundIds, deletedAt) sets revision += 1, updatedAt = now and syncState = pending in the same transaction; baseRevision is only written by sync. A new work starts at revision 1, baseRevision 0, syncState pending. Ops that change none of these fields leave the row untouched.",
+      "Every change to a synced work field (title, favorite, currentVersionId, selectedVersionIds, deletedVersionIds, deletedAt) sets revision += 1, updatedAt = now and syncState = pending in the same transaction; baseRevision is only written by sync. A new work starts at revision 1, baseRevision 0, syncState pending. Ops that change none of these fields leave the row untouched.",
       "Candidates of a round are ordered by createdAt, then id; writers give the candidates of one round strictly increasing createdAt in delivery order.",
-      "Deleting a version removes it and every version row whose parentVersionId chain reaches it (kept or candidate). Every removed id (kept or candidate) is appended to deletedVersionIds, ids already there are not repeated: the deleted version first, then the other removed rows by createdAt, then id; selectedVersionIds never shrinks, so version numbers never shift.",
-      "A round row and its refs are removed when its baseVersionId was removed or when it lost its last version row in the same op; a round without versions otherwise stays until deleteFailedRound, its base or the work goes.",
+      "Deleting a version removes it and every version row whose parentVersionId chain reaches it (kept or candidate). The kept ones are appended to deletedVersionIds in selectedVersionIds order; selectedVersionIds never shrinks, so version numbers never shift.",
+      "A round row and its refs are removed when its baseVersionId was removed or when it lost its last version row in the same op; a failed round without versions stays until its base or the work goes.",
       "If the op removes a kept version and no kept version is left, or no version row is left at all, the whole work is deleted (deleting v1 = deleting the work).",
       "When the current version is removed, the cover moves to its parent if that row is left, else to the latest entry of selectedVersionIds that is not deleted, else to the first candidate of the highest-index round that still has candidates.",
-      "Deleting a work writes a local tombstone: deletedAt = now, title empty, favorite false, currentVersionId null, the id arrays (selectedVersionIds, deletedVersionIds, deletedRoundIds) empty, source and chat ids kept; all its round, version and ref rows are removed. Tombstones never show in lists or detail.",
+      "Deleting a work writes a local tombstone: deletedAt = now, title empty, favorite false, currentVersionId null, both id arrays empty, source and chat ids kept; all its round, version and ref rows are removed. Tombstones never show in lists or detail.",
       "Assets are reclaimed after the row deletion commits, only through the platform orphan sweeper purge, never by deleting files directly.",
       "Lists show works whose accountPartition equals the active partition (the ImageStore partition uid) and deletedAt is null, newest updatedAt first, then id ascending; detail of a work in another partition or of a tombstone is null.",
-      "Undo of a version delete (5 s toast) is done by the caller delaying the delete call; the repository has no undo.",
-      "local beginRound / insertRound refused when deleted ids + live version rows + 16 > versionIdsMax; inbound sync not refused.",
-      "deleteFailedRound(work, round) removes a round that has ended (status not queued / running) and has no version rows, together with its refs; it appends the round id to deletedRoundIds (revision += 1, pending) and reclaims assets like the other deletes. It returns false and writes nothing when the work is missing or a tombstone, the round is not in that work, the round is queued / running, it has a version row, or deletedRoundIds already holds 2000 ids. If the work is then left with no round and no version row, the whole work is deleted (tombstone)."
+      "Undo of a version delete (5 s toast) is done by the caller delaying the delete call; the repository has no undo."
     ],
-    "versionIdsMax": 2000,
     "ids": {
       "W": "B0000001-0000-4000-8000-000000000001",
       "WP": "B0000002-0000-4000-8000-000000000002",
@@ -1081,16 +895,7 @@
       "A9": "D0000009-0000-4000-8000-000000000009",
       "AP1": "D0000010-0000-4000-8000-000000000010",
       "AP2": "D0000011-0000-4000-8000-000000000011",
-      "AP3": "D0000012-0000-4000-8000-000000000012",
-      "W6": "B0000007-0000-4000-8000-000000000007",
-      "W7": "B0000008-0000-4000-8000-000000000008",
-      "R6": "A0000007-0000-4000-8000-000000000007",
-      "R7": "A0000008-0000-4000-8000-000000000008",
-      "R8": "A0000009-0000-4000-8000-000000000009",
-      "R9": "A0000010-0000-4000-8000-000000000010",
-      "V5": "C0000010-0000-4000-8000-000000000010",
-      "A7": "D0000007-0000-4000-8000-000000000007",
-      "A8": "D0000008-0000-4000-8000-000000000008"
+      "AP3": "D0000012-0000-4000-8000-000000000012"
     },
     "seeds": {
       "main": {
@@ -1111,7 +916,6 @@
               "V4"
             ],
             "deletedVersionIds": [],
-            "deletedRoundIds": [],
             "createdAt": 1000,
             "updatedAt": 5000,
             "deletedAt": null,
@@ -1265,7 +1069,6 @@
             "currentVersionId": "P1",
             "selectedVersionIds": [],
             "deletedVersionIds": [],
-            "deletedRoundIds": [],
             "createdAt": 1000,
             "updatedAt": 5000,
             "deletedAt": null,
@@ -1327,7 +1130,6 @@
             "currentVersionId": null,
             "selectedVersionIds": [],
             "deletedVersionIds": [],
-            "deletedRoundIds": [],
             "createdAt": 1000,
             "updatedAt": 5000,
             "deletedAt": null,
@@ -1346,7 +1148,6 @@
             "currentVersionId": null,
             "selectedVersionIds": [],
             "deletedVersionIds": [],
-            "deletedRoundIds": [],
             "createdAt": 1000,
             "updatedAt": 6000,
             "deletedAt": null,
@@ -1365,7 +1166,6 @@
             "currentVersionId": null,
             "selectedVersionIds": [],
             "deletedVersionIds": [],
-            "deletedRoundIds": [],
             "createdAt": 1000,
             "updatedAt": 6000,
             "deletedAt": null,
@@ -1384,7 +1184,6 @@
             "currentVersionId": null,
             "selectedVersionIds": [],
             "deletedVersionIds": [],
-            "deletedRoundIds": [],
             "createdAt": 1000,
             "updatedAt": 7000,
             "deletedAt": 7000,
@@ -1403,7 +1202,6 @@
             "currentVersionId": null,
             "selectedVersionIds": [],
             "deletedVersionIds": [],
-            "deletedRoundIds": [],
             "createdAt": 1000,
             "updatedAt": 8000,
             "deletedAt": null,
@@ -1429,7 +1227,6 @@
             "currentVersionId": null,
             "selectedVersionIds": [],
             "deletedVersionIds": [],
-            "deletedRoundIds": [],
             "createdAt": 1000,
             "updatedAt": 8000,
             "deletedAt": null,
@@ -1451,126 +1248,6 @@
         ],
         "versions": [],
         "refs": []
-      },
-      "failed": {
-        "works": [
-          {
-            "id": "W6",
-            "accountPartition": "uid-a",
-            "title": "Window coffee",
-            "source": "studio",
-            "chatConversationId": null,
-            "chatMessageId": null,
-            "favorite": false,
-            "currentVersionId": "V5",
-            "selectedVersionIds": [
-              "V5"
-            ],
-            "deletedVersionIds": [],
-            "deletedRoundIds": [],
-            "createdAt": 1000,
-            "updatedAt": 5000,
-            "deletedAt": null,
-            "revision": 1,
-            "baseRevision": 1,
-            "syncState": "synced"
-          }
-        ],
-        "rounds": [
-          {
-            "id": "R6",
-            "workId": "W6",
-            "index": 1,
-            "baseVersionId": null,
-            "status": "completed"
-          },
-          {
-            "id": "R7",
-            "workId": "W6",
-            "index": 2,
-            "baseVersionId": "V5",
-            "status": "failed"
-          },
-          {
-            "id": "R8",
-            "workId": "W6",
-            "index": 3,
-            "baseVersionId": "V5",
-            "status": "running"
-          }
-        ],
-        "versions": [
-          {
-            "id": "V5",
-            "roundId": "R6",
-            "workId": "W6",
-            "parentVersionId": null,
-            "assetId": "A7",
-            "kept": true,
-            "createdAt": 1001
-          }
-        ],
-        "refs": [
-          {
-            "roundId": "R7",
-            "order": 0,
-            "assetId": "A7",
-            "role": "base"
-          },
-          {
-            "roundId": "R7",
-            "order": 1,
-            "assetId": "A8",
-            "role": "style"
-          },
-          {
-            "roundId": "R8",
-            "order": 0,
-            "assetId": "A7",
-            "role": "base"
-          }
-        ]
-      },
-      "failedOnly": {
-        "works": [
-          {
-            "id": "W7",
-            "accountPartition": "uid-a",
-            "title": "Window coffee",
-            "source": "studio",
-            "chatConversationId": null,
-            "chatMessageId": null,
-            "favorite": false,
-            "currentVersionId": null,
-            "selectedVersionIds": [],
-            "deletedVersionIds": [],
-            "deletedRoundIds": [],
-            "createdAt": 1000,
-            "updatedAt": 5000,
-            "deletedAt": null,
-            "revision": 1,
-            "baseRevision": 1,
-            "syncState": "synced"
-          }
-        ],
-        "rounds": [
-          {
-            "id": "R9",
-            "workId": "W7",
-            "index": 1,
-            "baseVersionId": null,
-            "status": "failed"
-          }
-        ],
-        "versions": [],
-        "refs": [
-          {
-            "roundId": "R9",
-            "order": 0,
-            "assetId": "A8",
-            "role": "subject"
-          }
-        ]
       }
     },
     "deleteCases": [
@@ -1755,11 +1432,9 @@
             "V3",
             "V4"
           ],
-          "deletedVersionIds": [
-            "V2b"
-          ],
-          "revision": 2,
-          "syncState": "pending",
+          "deletedVersionIds": [],
+          "revision": 1,
+          "syncState": "synced",
           "versions": [
             "V1",
             "V1b",
@@ -1799,7 +1474,6 @@
           "deletedVersionIds": [
             "V1",
             "V2a",
-            "V2b",
             "V3",
             "V4"
           ],
@@ -1900,9 +1574,7 @@
           "tombstone": false,
           "currentVersionId": "P2",
           "selectedVersionIds": [],
-          "deletedVersionIds": [
-            "P1"
-          ],
+          "deletedVersionIds": [],
           "revision": 2,
           "syncState": "pending",
           "versions": [
@@ -1932,7 +1604,7 @@
           "selectedVersionIds": [],
           "deletedVersionIds": [],
           "deletedAt": 9000,
-          "revision": 4,
+          "revision": 2,
           "syncState": "pending",
           "versions": [],
           "rounds": [],
@@ -1940,149 +1612,6 @@
             "AP1",
             "AP2",
             "AP3"
-          ]
-        }
-      },
-      {
-        "caseId": "delete_failed_round",
-        "seed": "failed",
-        "ops": [
-          "deleteFailedRound:R7"
-        ],
-        "expect": {
-          "tombstone": false,
-          "roundDeleteResults": [
-            true
-          ],
-          "currentVersionId": "V5",
-          "selectedVersionIds": [
-            "V5"
-          ],
-          "deletedVersionIds": [],
-          "deletedRoundIds": [
-            "R7"
-          ],
-          "updatedAt": 9000,
-          "revision": 2,
-          "syncState": "pending",
-          "versions": [
-            "V5"
-          ],
-          "rounds": [
-            "R6",
-            "R8"
-          ],
-          "reclaimedAssets": [
-            "A8"
-          ]
-        }
-      },
-      {
-        "caseId": "delete_failed_round_refuses_candidates_live_and_foreign",
-        "seed": "failed",
-        "ops": [
-          "deleteFailedRound:R6",
-          "deleteFailedRound:R8",
-          "deleteFailedRound:R1"
-        ],
-        "expect": {
-          "tombstone": false,
-          "roundDeleteResults": [
-            false,
-            false,
-            false
-          ],
-          "deletedRoundIds": [],
-          "updatedAt": 5000,
-          "revision": 1,
-          "syncState": "synced",
-          "versions": [
-            "V5"
-          ],
-          "rounds": [
-            "R6",
-            "R7",
-            "R8"
-          ],
-          "reclaimedAssets": []
-        }
-      },
-      {
-        "caseId": "delete_failed_round_twice_writes_once",
-        "seed": "failed",
-        "ops": [
-          "deleteFailedRound:R7",
-          "deleteFailedRound:R7"
-        ],
-        "expect": {
-          "tombstone": false,
-          "roundDeleteResults": [
-            true,
-            false
-          ],
-          "deletedRoundIds": [
-            "R7"
-          ],
-          "revision": 2,
-          "syncState": "pending",
-          "versions": [
-            "V5"
-          ],
-          "rounds": [
-            "R6",
-            "R8"
-          ],
-          "reclaimedAssets": [
-            "A8"
-          ]
-        }
-      },
-      {
-        "caseId": "delete_only_failed_round_deletes_work",
-        "seed": "failedOnly",
-        "ops": [
-          "deleteFailedRound:R9"
-        ],
-        "expect": {
-          "tombstone": true,
-          "roundDeleteResults": [
-            true
-          ],
-          "title": "",
-          "currentVersionId": null,
-          "selectedVersionIds": [],
-          "deletedVersionIds": [],
-          "deletedRoundIds": [],
-          "deletedAt": 9000,
-          "revision": 2,
-          "syncState": "pending",
-          "versions": [],
-          "rounds": [],
-          "reclaimedAssets": [
-            "A8"
-          ]
-        }
-      },
-      {
-        "caseId": "delete_work_clears_deleted_round_ids",
-        "seed": "failed",
-        "ops": [
-          "deleteFailedRound:R7",
-          "deleteWork"
-        ],
-        "expect": {
-          "tombstone": true,
-          "roundDeleteResults": [
-            true
-          ],
-          "deletedRoundIds": [],
-          "revision": 3,
-          "syncState": "pending",
-          "versions": [],
-          "rounds": [],
-          "reclaimedAssets": [
-            "A7",
-            "A8"
           ]
         }
       }
@@ -2133,13 +1662,13 @@
     ]
   },
   "roundCommit": {
-    "$comment": "round commit. Same seeds, aliases and now = 9000 as repository; begin / complete / insertRound / deleteWork ops apply in order. byokTerminal / managedTerminal map the result types (StudioByokResult / StudioGenerateResult, ManagedImageJob) to the terminal record that complete takes. versionsOf lists the new version rows of a round in candidate order (their ids are random upper-case UUIDs, so only parent / asset / kept / createdAt are compared). Reference: scripts/lib/studio-round-reference.mjs.",
+    "$comment": "round commit. Same seeds, aliases and now = 9000 as repository; begin / complete / insertRound / deleteWork ops apply in order. byokTerminal / managedTerminal map the P5 result types (StudioByokResult / StudioGenerateResult, ManagedImageJob) to the terminal record that complete takes. versionsOf lists the new version rows of a round in candidate order (their ids are random upper-case UUIDs, so only parent / asset / kept / createdAt are compared). Reference: scripts/lib/studio-round-reference.mjs.",
     "rules": [
       "begin writes one round row with status queued or running (any other status is a caller error and throws), index = 1 + the highest index among the work's round rows (1 when it has none), startedAt = now, finishedAt null, nDelivered 0, errorKind null, adjustments [], plus its refs; the work row is not touched. A missing, tombstoned or other-partition work, or a baseVersionId that is not a version row of the work, writes nothing and returns false; an existing round id of a visible work writes nothing and returns true (visibility is checked first, so a round of another partition is never reported).",
       "complete takes a status in roundStatusSynced (any other status throws). A missing round or a work that is no longer visible writes nothing and returns false; a round that already has a synced status writes nothing and returns true (rounds are immutable once finished).",
       "complete writes, in one transaction: status, errorKind, nRequested / composedPrompt / fundingSource / managedJobId when the terminal value is not null (null keeps the stored value), adjustments (first adjustmentsMax, 20, also when the caller built the terminal itself), chargedUsd, nDelivered = number of images, finishedAt = now; one version row per image in order with a new upper-case id, parentVersionId = the round baseVersionId, kept false, createdAt = now + position (ms); then the finishRound rule (one candidate is kept and becomes the cover; several set the cover to the first candidate only when the work has no cover).",
       "assetId is the image store key: it is stored and compared exactly as given and never re-cased (Android / Web store keys are case-sensitive and their writers emit lower-case UUIDs). Work, round and version ids stay upper-case canonical.",
-      "Terminal mapping (both sources): expired, and a BYOK cancelled, keep their status and drop every image; a managed cancelled keeps status cancelled with errorKind null and keeps its images capped to nRequested in order (the server settles and charges a job cancelled while running for the images it already delivered; fetchErrorKind is ignored); otherwise images are capped to nRequested, and status = failed when that count is 0 (checked first, so nRequested 0 never yields an empty completed round), completed when it equals nRequested, partial otherwise. errorKind: completed / cancelled / expired -> null; partial -> fetchErrorKind ?? source errorKind ?? \"partial\"; failed -> fetchErrorKind ?? source errorKind ?? \"upstream_error\". adjustments keep the first adjustmentsMax (20) entries.",
+      "Terminal mapping (both sources): cancelled and expired keep their status and drop every image; otherwise images are capped to nRequested, and status = failed when that count is 0 (checked first, so nRequested 0 never yields an empty completed round), completed when it equals nRequested, partial otherwise. errorKind: completed / cancelled / expired -> null; partial -> fetchErrorKind ?? source errorKind ?? \"partial\"; failed -> fetchErrorKind ?? source errorKind ?? \"upstream_error\". adjustments keep the first adjustmentsMax (20) entries.",
       "BYOK: nRequested = result.nRequested, composedPrompt = result.composedPrompt, adjustments = result.adjustments.prompt then .params, images = result.images (id -> assetId), chargedUsd / fundingSource / managedJobId null (begin already stored fundingSource byok).",
       "Managed: nRequested = job.nRequested, composedPrompt null, adjustments = the created event adjustments, images = the outputs the caller fetched and saved, fetchErrorKind = the first fetch failure kind (null when none failed), chargedUsd = max(0, chargedMicroUsd - refund.microUsd) / 1000000, fundingSource = job.fundingSource, managedJobId = job.jobId. A job that is still queued or running is a caller error and throws (a round is immutable once finished, so a wrong failed would stick).",
       "After complete commits, the recorder calls ensureThumbnail for every new version asset; a thumbnail failure does not undo or fail the round (the wall falls back to the original)."
@@ -2458,86 +1987,6 @@
                   "to": "1x2"
                 }
               ],
-              "finishedAt": 9000
-            }
-          },
-          "versionsOf": {
-            "RN": [
-              {
-                "assetId": "an1",
-                "parentVersionId": "V4",
-                "kept": true,
-                "createdAt": 9000,
-                "width": 1024,
-                "height": 1024,
-                "mime": "image/png"
-              }
-            ]
-          },
-          "work": {
-            "workId": "W",
-            "coverAsset": "an1",
-            "selectedCount": 5,
-            "revision": 2,
-            "syncState": "pending",
-            "updatedAt": 9000
-          }
-        }
-      },
-      {
-        "caseId": "complete_cancelled_with_image_writes_version",
-        "seed": "main",
-        "ops": [
-          {
-            "op": "begin",
-            "round": {
-              "operation": "edit",
-              "status": "running",
-              "nRequested": 1,
-              "fundingSource": "balance",
-              "composedPrompt": "",
-              "id": "RN",
-              "workId": "W",
-              "baseVersionId": "V4"
-            },
-            "refs": []
-          },
-          {
-            "op": "complete",
-            "roundId": "RN",
-            "terminal": {
-              "errorKind": null,
-              "nRequested": 1,
-              "composedPrompt": null,
-              "adjustments": [],
-              "chargedUsd": 0.05,
-              "fundingSource": "balance",
-              "managedJobId": "mij_01JBTEST",
-              "images": [
-                {
-                  "assetId": "an1",
-                  "mime": "image/png",
-                  "width": 1024,
-                  "height": 1024
-                }
-              ],
-              "status": "cancelled"
-            }
-          }
-        ],
-        "expect": {
-          "results": [
-            true,
-            true
-          ],
-          "rounds": {
-            "RN": {
-              "status": "cancelled",
-              "errorKind": null,
-              "nRequested": 1,
-              "nDelivered": 1,
-              "composedPrompt": "",
-              "adjustments": [],
               "finishedAt": 9000
             }
           },
@@ -4279,10 +3728,17 @@
         }
       },
       {
-        "caseId": "managed_cancelled_nothing_delivered",
+        "caseId": "managed_cancelled_drops_images",
         "input": {
           "adjustments": [],
-          "saved": [],
+          "saved": [
+            {
+              "assetId": "an1",
+              "mime": "image/png",
+              "width": 1024,
+              "height": 1024
+            }
+          ],
           "fetchErrorKind": null,
           "job": {
             "jobId": "mij_01JBTEST",
@@ -4304,141 +3760,6 @@
           "fundingSource": "balance",
           "managedJobId": "mij_01JBTEST",
           "images": [],
-          "status": "cancelled"
-        }
-      },
-      {
-        "caseId": "managed_cancelled_keeps_delivered",
-        "input": {
-          "adjustments": [],
-          "saved": [
-            {
-              "assetId": "an1",
-              "mime": "image/png",
-              "width": 1024,
-              "height": 1024
-            }
-          ],
-          "fetchErrorKind": null,
-          "job": {
-            "jobId": "mij_01JBTEST",
-            "status": "cancelled",
-            "nRequested": 2,
-            "nDelivered": 1,
-            "fundingSource": "balance",
-            "chargedMicroUsd": 50000,
-            "refund": null,
-            "errorKind": null
-          }
-        },
-        "expect": {
-          "errorKind": null,
-          "nRequested": 2,
-          "composedPrompt": null,
-          "adjustments": [],
-          "chargedUsd": 0.05,
-          "fundingSource": "balance",
-          "managedJobId": "mij_01JBTEST",
-          "images": [
-            {
-              "assetId": "an1",
-              "mime": "image/png",
-              "width": 1024,
-              "height": 1024
-            }
-          ],
-          "status": "cancelled"
-        }
-      },
-      {
-        "caseId": "managed_cancelled_fetch_failure_stays_cancelled",
-        "input": {
-          "adjustments": [],
-          "saved": [
-            {
-              "assetId": "an1",
-              "mime": "image/png",
-              "width": 1024,
-              "height": 1024
-            }
-          ],
-          "fetchErrorKind": "storage_full",
-          "job": {
-            "jobId": "mij_01JBTEST",
-            "status": "cancelled",
-            "nRequested": 2,
-            "nDelivered": 2,
-            "fundingSource": "balance",
-            "chargedMicroUsd": 100000,
-            "refund": null,
-            "errorKind": null
-          }
-        },
-        "expect": {
-          "errorKind": null,
-          "nRequested": 2,
-          "composedPrompt": null,
-          "adjustments": [],
-          "chargedUsd": 0.1,
-          "fundingSource": "balance",
-          "managedJobId": "mij_01JBTEST",
-          "images": [
-            {
-              "assetId": "an1",
-              "mime": "image/png",
-              "width": 1024,
-              "height": 1024
-            }
-          ],
-          "status": "cancelled"
-        }
-      },
-      {
-        "caseId": "managed_cancelled_capped_to_requested",
-        "input": {
-          "adjustments": [],
-          "saved": [
-            {
-              "assetId": "an1",
-              "mime": "image/png",
-              "width": 1024,
-              "height": 1024
-            },
-            {
-              "assetId": "an2",
-              "mime": "image/png",
-              "width": 1024,
-              "height": 1024
-            }
-          ],
-          "fetchErrorKind": null,
-          "job": {
-            "jobId": "mij_01JBTEST",
-            "status": "cancelled",
-            "nRequested": 1,
-            "nDelivered": 1,
-            "fundingSource": "balance",
-            "chargedMicroUsd": 50000,
-            "refund": null,
-            "errorKind": null
-          }
-        },
-        "expect": {
-          "errorKind": null,
-          "nRequested": 1,
-          "composedPrompt": null,
-          "adjustments": [],
-          "chargedUsd": 0.05,
-          "fundingSource": "balance",
-          "managedJobId": "mij_01JBTEST",
-          "images": [
-            {
-              "assetId": "an1",
-              "mime": "image/png",
-              "width": 1024,
-              "height": 1024
-            }
-          ],
           "status": "cancelled"
         }
       },

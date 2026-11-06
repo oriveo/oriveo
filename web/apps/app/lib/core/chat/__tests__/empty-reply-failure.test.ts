@@ -158,12 +158,6 @@ function conversation(messages: ChatMessage[] = []): Conversation {
   };
 }
 
-const GAMMA: Skill = {
-  id: 'skill-c', name: 'Gamma', systemPrompt: 'Use gamma rules.', whenToUse: 'When the user asks about gamma',
-  autoInvoke: true, description: '', icon: '', color: '#4A90D9', modelCapabilityHint: 'any', starterMessages: [],
-  knowledgeFiles: [], knowledgeBase: null, useMemory: true, isPinned: false, pinOrder: 0, source: 'user',
-  sortOrder: 0, usageCount: 0, createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z',
-};
 
 const FINISH = `data: ${JSON.stringify({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } })}\n\ndata: [DONE]\n\n`;
 
@@ -244,16 +238,6 @@ afterEach(() => {
 });
 
 describe('empty assistant reply fails as empty_response', () => {
-  it('marker_only_reply_fails_empty_response', async () => {
-    const chat = scriptChatStream([textSse('⟦skill:skill-c|fits gamma⟧'), textSse('')]);
-    const { handle, assistant } = start({ skills: [GAMMA] });
-    await handle.done;
-
-    expect(chat.calls()).toBe(2);
-    expectEmptyResponseFailure(assistant());
-    expect(assistant()!.text ?? '').toBe('');
-  });
-
   it('plain_empty_stream_fails_empty_response', async () => {
     scriptChatStream([FINISH]);
     const { handle, assistant } = start();

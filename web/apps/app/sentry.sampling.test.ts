@@ -12,9 +12,7 @@ describe("Sentry sampling policy", () => {
   it("keeps browser performance and replay sampling conservative in production", () => {
     const config = readConfig("instrumentation-client.ts");
 
-    // Page loads and route changes are always sampled, everything else at 0.1. The tiering lives in browserTracesSampler; unit tests are in lib/sentry/traces-sampler.test.ts.
-    expect(config).toContain("tracesSampler: browserTracesSampler");
-    expect(config).not.toContain("tracesSampleRate:");
+    expect(config).toContain("tracesSampleRate: 0.1");
     expect(config).toContain("replaysOnErrorSampleRate: 1.0");
     expect(config).toContain("replaysSessionSampleRate: 0,");
     expect(config).toContain(
