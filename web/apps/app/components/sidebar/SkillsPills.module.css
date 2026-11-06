@@ -97,7 +97,7 @@
 .pillMore:hover {
   border-color: color-mix(in srgb, var(--o-primary) 40%, var(--o-border));
   background: var(--o-primary-subtle);
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
 }
 
 .pillMore:focus-visible {
@@ -113,9 +113,9 @@
   border-radius: var(--o-radius-full);
   background: linear-gradient(
     90deg,
-    var(--o-surface-raised) 0%,
-    color-mix(in srgb, var(--o-border) 60%, var(--o-surface-raised)) 50%,
-    var(--o-surface-raised) 100%
+    var(--o-fill-muted) 0%,
+    color-mix(in srgb, var(--o-border) 60%, var(--o-fill-muted)) 50%,
+    var(--o-fill-muted) 100%
   );
   background-size: 200% 100%;
   animation: shimmer 1.6s ease-in-out infinite;

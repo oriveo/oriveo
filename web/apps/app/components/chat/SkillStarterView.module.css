@@ -86,7 +86,7 @@
   padding: 16px 20px;
   border: 1px solid var(--o-border);
   border-radius: var(--o-radius-lg);
-  background: var(--o-surface-raised);
+  background: var(--o-fill-muted);
   color: var(--o-text);
   font-size: 0.9375rem;
   cursor: pointer;
@@ -99,7 +99,7 @@
 }
 
 .starter:hover {
-  background: var(--o-surface-raised);
+  background: var(--o-surface-hover);
   border-color: var(--o-border-strong);
   box-shadow: var(--o-elevation-card);
 }
