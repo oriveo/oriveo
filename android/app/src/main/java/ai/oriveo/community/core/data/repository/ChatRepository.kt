@@ -186,6 +186,8 @@ class ChatRepository(
         { ai.oriveo.community.core.context.ContextBudgetCap.Auto },
     /** Pre-send confirmation gate: null = never ask (a focused test without it). */
     private val contextCapConfirm: ai.oriveo.community.core.context.ContextCapConfirmCoordinator? = null,
+    /** Runs the context projection off the caller; tests inject their dispatcher so a send stays on it. */
+    private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
 ) {
     /** Stateful continuation fingerprints, recorded by assistant message id at the same moment as previousResponseId; in memory only, and after a process restart they count as changed. */
     private val continuationFingerprints = java.util.concurrent.ConcurrentHashMap<String, ContinuationFingerprint>()
@@ -313,7 +315,7 @@ class ChatRepository(
             ).let { base ->
             val chatContext = if (extraRecall.isEmpty()) base else base.copy(recall = base.recall + extraRecall)
             val rhoHi = currentRhoHi()
-            withContext(Dispatchers.IO) {
+            withContext(ioDispatcher) {
                 ChatContextProjector.project(
                     request = chatContext,
                     rawMessages = projectionMessages,

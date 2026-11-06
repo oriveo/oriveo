@@ -139,10 +139,16 @@ private func sendThroughChatManager(
     let sent = await state.chatManager.sendMessage("Weather in Melbourne?", in: conversationID)
     #expect(sent != nil)
     var assistant: ChatMessage?
-    for _ in 0..<100 {
-        assistant = state.conversation(for: conversationID)?.messages.last(where: { $0.role == .assistant })
-        if let assistant, assistant.state != .generating { break }
-        try await Task.sleep(nanoseconds: 50_000_000)
+    do {
+        for _ in 0..<100 {
+            assistant = state.conversation(for: conversationID)?.messages.last(where: { $0.role == .assistant })
+            if let assistant, assistant.state != .generating { break }
+            try await Task.sleep(nanoseconds: 50_000_000)
+        }
+    } catch {
+        // A cancelled sleep must not skip the wait below: the caller's `defer` still deletes the database.
+        await state.mcpServerDirectory.waitForPendingRelocations()
+        throw error
     }
     // The send opened the MCP store: let its endpoint relocation land before the caller deletes the database.
     await state.mcpServerDirectory.waitForPendingRelocations()

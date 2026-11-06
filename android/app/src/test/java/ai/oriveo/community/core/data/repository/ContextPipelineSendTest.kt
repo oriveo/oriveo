@@ -132,6 +132,22 @@ class ContextPipelineSendTest {
     }
 
     @Test
+    fun projection_runs_on_injected_dispatcher() = runTest {
+        var projectionDispatches = 0
+        val injected = object : kotlinx.coroutines.CoroutineDispatcher() {
+            override fun dispatch(context: kotlin.coroutines.CoroutineContext, block: kotlinx.coroutines.Runnable) {
+                projectionDispatches++
+                block.run()
+            }
+        }
+        val harness = Harness(this, ioDispatcher = injected)
+        harness.send(conversation(), "Hello")
+
+        assertEquals(1, harness.bodies.size)
+        assertTrue("projectChat stays on the injected dispatcher", projectionDispatches > 0)
+    }
+
+    @Test
     fun send_body_memory_switch_off() = runTest {
         val harness = Harness(this)
         harness.send(conversation().copy(useMemory = false), "Hello")
@@ -305,6 +321,7 @@ class ContextPipelineSendTest {
         private val serviceFactory: (HttpClient) -> ai.oriveo.community.core.provider.ProviderService = {
             OpenAIService(it, json, TransportRegistry(json))
         },
+        private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = kotlinx.coroutines.Dispatchers.IO,
     ) {
         val bodies = mutableListOf<JsonObject>()
         /** The requestOptions the production path hands to ProviderService (recorded by the fake service before it delegates to the real OpenAIService). */
@@ -354,6 +371,7 @@ class ContextPipelineSendTest {
             conversationRepository = conversationRepository,
             providerRepository = providerRepository,
             attachmentStore = mockk<AttachmentStore>(relaxed = true),
+            ioDispatcher = ioDispatcher,
         )
         private val streamingManager = mockk<ChatStreamingManager>(relaxed = true).also {
             every { it.startStream(any()) } answers { requests += firstArg<StreamRequest>() }
