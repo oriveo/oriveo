@@ -266,9 +266,12 @@ enum VoiceOrbMath {
         )
     }
 
-    /// Actual Gaussian sigma / radius of GraphicsContext blur(radius:): unit tests measure the 16%-84% transition width of a white half-plane;
-    /// radius 14-80 measures 0.950-0.967, so 0.96 is used.
-    static let blurSigmaPerRadius: Double = 0.96
+    /// Actual Gaussian σ / radius of GraphicsContext blur(radius:), measured by the unit test as the 16%–84%
+    /// transition width of a white half plane. It depends on the OS: 0.958–0.965 on iOS 18.6, 0.944–0.949 on
+    /// iOS 26.5, 0.946–0.948 on iOS 27.0.
+    static var blurSigmaPerRadius: Double {
+        if #available(iOS 26, *) { 0.946 } else { 0.962 }
+    }
 
     /// Canvas Gaussian sigma (pt) to GraphicsContext blur(radius:), so the actual sigma equals the canvas sigma.
     static func blurRadius(sigma: Double) -> CGFloat {
