@@ -972,7 +972,7 @@
     <string name="video">วิดีโอ</string>
     <string name="skills_knowledgeImportEmpty">ไฟล์ว่างเปล่า</string>
     <string name="skills_knowledgeImportFailed">นำเข้าไฟล์ไม่สำเร็จ</string>
-    <string name="skills_knowledgeErrorUnsupportedType">ไฟล์ประเภทนี้ไม่รองรับฐานความรู้</string>
+    <string name="skills_knowledgeErrorUnsupportedType">ไฟล์ประเภทนี้ยังใช้กับฐานความรู้ไม่ได้</string>
     <string name="provider_balance_title">ยอดเงินในบัญชี</string>
     <string name="provider_balance_refresh">รีเฟรช</string>
     <string name="provider_balance_granted_label">ที่ได้รับ</string>
@@ -2446,13 +2446,13 @@
     <string name="skills_knowledgeErrorEndpoint">ฐานความรู้ใช้งานได้กับตำแหน่งข้อมูล OpenAI อย่างเป็นทางการเท่านั้น</string>
     <string name="skills_knowledgeErrorModelDisabled">เพิ่มและเปิดใช้งาน %1$s ในผู้ให้บริการ OpenAI ของคุณก่อน</string>
     <string name="skills_knowledgeErrorServiceUnavailable">ฐานความรู้ไม่พร้อมใช้งานในขณะนี้</string>
-    <string name="skills_knowledgeErrorFileTooLarge">ไฟล์ฐานความรู้ต้องมีขนาด 20 MB หรือเล็กกว่า</string>
-    <string name="skills_knowledgeErrorQuotaExceeded">ทักษะสามารถมีไฟล์ฐานความรู้ได้สูงสุด 5 ไฟล์และมีขนาดรวม 100 MB</string>
+    <string name="skills_knowledgeErrorFileTooLarge">ไฟล์ฐานความรู้ต้องมีขนาดไม่เกิน 20 MB</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">ทักษะหนึ่งมีไฟล์ฐานความรู้ได้สูงสุด 5 ไฟล์ และขนาดรวมไม่เกิน 100 MB</string>
     <string name="skills_knowledgeErrorExtractFailed">ไม่สามารถแยกข้อความจากไฟล์นี้</string>
     <string name="skills_knowledgeErrorUploadFailed">ไม่สามารถอัปโหลดไฟล์นี้</string>
     <string name="skills_knowledgeErrorIndexFailed">ไม่สามารถจัดทำดัชนีไฟล์นี้</string>
     <string name="skills_knowledgeErrorRetrieveFailed">การเรียกข้อมูลความรู้ล้มเหลวสำหรับข้อความนี้</string>
-    <string name="skills_knowledgeErrorCleanupFailed">ไม่สามารถล้างไฟล์ระยะไกลได้ ลองอีกครั้งในภายหลัง</string>
+    <string name="skills_knowledgeErrorCleanupFailed">ล้างไฟล์ฐานความรู้บนเซิร์ฟเวอร์ไม่สำเร็จ โปรดลองอีกครั้งภายหลัง</string>
     <string name="custom_llm_connection_method">วิธีการเชื่อมต่อ</string>
     <string name="local_compute_pairing_code">รหัสจับคู่</string>
     <string name="local_compute_scan_qr">สแกนคิวอาร์โค้ด</string>

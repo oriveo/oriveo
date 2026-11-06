@@ -972,7 +972,7 @@
     <string name="video">Video</string>
     <string name="skills_knowledgeImportEmpty">Tệp trống</string>
     <string name="skills_knowledgeImportFailed">Không thể nhập tệp</string>
-    <string name="skills_knowledgeErrorUnsupportedType">Loại tệp này không được hỗ trợ cho cơ sở tri thức.</string>
+    <string name="skills_knowledgeErrorUnsupportedType">Loại tệp này chưa được hỗ trợ cho Cơ sở tri thức.</string>
     <string name="provider_balance_title">Số dư tài khoản</string>
     <string name="provider_balance_refresh">Làm mới</string>
     <string name="provider_balance_granted_label">Được cấp</string>
@@ -2446,13 +2446,13 @@
     <string name="skills_knowledgeErrorEndpoint">Cơ sở tri thức chỉ hoạt động với endpoint OpenAI chính thức.</string>
     <string name="skills_knowledgeErrorModelDisabled">Trước tiên hãy thêm và bật %1$s trong nhà cung cấp OpenAI của bạn.</string>
     <string name="skills_knowledgeErrorServiceUnavailable">Cơ sở tri thức hiện không khả dụng.</string>
-    <string name="skills_knowledgeErrorFileTooLarge">Tệp cơ sở tri thức phải có kích thước từ 20 MB trở xuống.</string>
-    <string name="skills_knowledgeErrorQuotaExceeded">Mỗi Skill có tối đa 5 tệp cơ sở tri thức và tổng dung lượng 100 MB.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">Tệp Cơ sở tri thức không được vượt quá 20 MB.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">Mỗi kỹ năng có tối đa 5 tệp Cơ sở tri thức, tổng dung lượng không quá 100 MB.</string>
     <string name="skills_knowledgeErrorExtractFailed">Không thể trích xuất văn bản từ tệp này.</string>
     <string name="skills_knowledgeErrorUploadFailed">Không thể tải lên tệp này.</string>
     <string name="skills_knowledgeErrorIndexFailed">Không thể lập chỉ mục cho tệp này.</string>
     <string name="skills_knowledgeErrorRetrieveFailed">Truy xuất cơ sở tri thức cho tin nhắn này đã thất bại.</string>
-    <string name="skills_knowledgeErrorCleanupFailed">Không thể dọn dẹp tệp từ xa. Hãy thử lại sau.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">Không thể dọn tệp Cơ sở tri thức trên máy chủ. Vui lòng thử lại sau.</string>
     <string name="custom_llm_connection_method">Phương thức kết nối</string>
     <string name="local_compute_pairing_code">Mã ghép nối</string>
     <string name="local_compute_scan_qr">Quét mã QR</string>

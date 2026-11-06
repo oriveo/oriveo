@@ -974,7 +974,7 @@
     <string name="video">वीडियो</string>
     <string name="skills_knowledgeImportEmpty">फ़ाइल खाली है</string>
     <string name="skills_knowledgeImportFailed">फ़ाइल आयात विफल रही</string>
-    <string name="skills_knowledgeErrorUnsupportedType">यह फ़ाइल प्रकार नॉलेज बेस के लिए समर्थित नहीं है।</string>
+    <string name="skills_knowledgeErrorUnsupportedType">इस तरह की फ़ाइल नॉलेज बेस में इस्तेमाल नहीं की जा सकती।</string>
     <string name="provider_balance_title">खाता शेष</string>
     <string name="provider_balance_refresh">रीफ़्रेश करें</string>
     <string name="provider_balance_granted_label">प्रदान किया गया</string>
@@ -2484,13 +2484,13 @@
     <string name="skills_knowledgeErrorEndpoint">नॉलेज बेस केवल आधिकारिक OpenAI एंडपॉइंट के साथ काम करता है।</string>
     <string name="skills_knowledgeErrorModelDisabled">पहले अपने OpenAI प्रोवाइडर में %1$s जोड़ें और सक्षम करें।</string>
     <string name="skills_knowledgeErrorServiceUnavailable">नॉलेज बेस अभी उपलब्ध नहीं है।</string>
-    <string name="skills_knowledgeErrorFileTooLarge">नॉलेज बेस फ़ाइलें 20 एमबी या उससे छोटी होनी चाहिए।</string>
-    <string name="skills_knowledgeErrorQuotaExceeded">एक कौशल में अधिकतम 5 नॉलेज बेस फ़ाइलें हो सकती हैं, और उनका कुल आकार 100 MB से ज़्यादा नहीं हो सकता।</string>
+    <string name="skills_knowledgeErrorFileTooLarge">नॉलेज बेस फ़ाइल 20 MB या उससे छोटी होनी चाहिए।</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">एक कौशल में ज़्यादा से ज़्यादा 5 नॉलेज बेस फ़ाइलें हो सकती हैं, और कुल आकार 100 MB से ज़्यादा नहीं हो सकता।</string>
     <string name="skills_knowledgeErrorExtractFailed">इस फ़ाइल से पाठ निकालने में विफल.</string>
     <string name="skills_knowledgeErrorUploadFailed">यह फ़ाइल अपलोड करने में विफल रहा.</string>
     <string name="skills_knowledgeErrorIndexFailed">इस फ़ाइल को अनुक्रमित करने में विफल.</string>
     <string name="skills_knowledgeErrorRetrieveFailed">इस संदेश के लिए ज्ञान पुनर्प्राप्ति विफल रही.</string>
-    <string name="skills_knowledgeErrorCleanupFailed">दूरस्थ फ़ाइल साफ़ करने में विफल. बाद में पुन: प्रयास।</string>
+    <string name="skills_knowledgeErrorCleanupFailed">रिमोट नॉलेज बेस फ़ाइल साफ़ नहीं हो सकी। बाद में फिर से कोशिश करें।</string>
     <string name="custom_llm_connection_method">कनेक्शन का तरीका</string>
     <string name="local_compute_pairing_code">पेयरिंग कोड</string>
     <string name="local_compute_scan_qr">QR कोड स्कैन करें</string>

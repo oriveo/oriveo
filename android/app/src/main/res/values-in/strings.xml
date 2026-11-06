@@ -972,7 +972,7 @@
     <string name="video">Video</string>
     <string name="skills_knowledgeImportEmpty">Berkas kosong</string>
     <string name="skills_knowledgeImportFailed">Gagal mengimpor file</string>
-    <string name="skills_knowledgeErrorUnsupportedType">Jenis file ini tidak didukung untuk Basis Pengetahuan.</string>
+    <string name="skills_knowledgeErrorUnsupportedType">Jenis file ini belum didukung untuk Basis Pengetahuan.</string>
     <string name="provider_balance_title">Saldo Akun</string>
     <string name="provider_balance_refresh">Segarkan</string>
     <string name="provider_balance_granted_label">Diberikan</string>
@@ -2446,13 +2446,13 @@
     <string name="skills_knowledgeErrorEndpoint">Basis Pengetahuan hanya berfungsi dengan titik akhir OpenAI resmi.</string>
     <string name="skills_knowledgeErrorModelDisabled">Tambahkan dan aktifkan %1$s di penyedia OpenAI Anda terlebih dahulu.</string>
     <string name="skills_knowledgeErrorServiceUnavailable">Basis Pengetahuan saat ini tidak tersedia.</string>
-    <string name="skills_knowledgeErrorFileTooLarge">File Basis Pengetahuan harus berukuran 20 MB atau lebih kecil.</string>
-    <string name="skills_knowledgeErrorQuotaExceeded">Sebuah Keterampilan dapat memiliki hingga 5 file Basis Pengetahuan dan total 100 MB.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">Ukuran file Basis Pengetahuan maksimal 20 MB.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">Satu keterampilan bisa memiliki maksimal 5 file Basis Pengetahuan dengan total 100 MB.</string>
     <string name="skills_knowledgeErrorExtractFailed">Gagal mengekstrak teks dari file ini.</string>
     <string name="skills_knowledgeErrorUploadFailed">Gagal mengunggah file ini.</string>
     <string name="skills_knowledgeErrorIndexFailed">Gagal mengindeks file ini.</string>
     <string name="skills_knowledgeErrorRetrieveFailed">Pengambilan pengetahuan gagal untuk pesan ini.</string>
-    <string name="skills_knowledgeErrorCleanupFailed">Gagal membersihkan file jarak jauh. Coba lagi nanti.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">Gagal membersihkan file Basis Pengetahuan di server. Coba lagi nanti.</string>
     <string name="custom_llm_connection_method">Metode koneksi</string>
     <string name="local_compute_pairing_code">Kode penyandingan</string>
     <string name="local_compute_scan_qr">Pindai kode QR</string>

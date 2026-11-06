@@ -978,7 +978,7 @@
     <string name="video">Видео</string>
     <string name="skills_knowledgeImportEmpty">Файл пуст</string>
     <string name="skills_knowledgeImportFailed">Не удалось импортировать файл</string>
-    <string name="skills_knowledgeErrorUnsupportedType">Этот тип файла не поддерживается базой знаний.</string>
+    <string name="skills_knowledgeErrorUnsupportedType">Этот тип файлов не поддерживается для базы знаний.</string>
     <string name="provider_balance_title">Баланс аккаунта</string>
     <string name="provider_balance_refresh">Обновить</string>
     <string name="provider_balance_granted_label">Начислено</string>
@@ -2560,13 +2560,13 @@
     <string name="skills_knowledgeErrorEndpoint">База знаний работает только с официальной конечной точкой OpenAI.</string>
     <string name="skills_knowledgeErrorModelDisabled">Сначала добавьте и включите %1$s в своем провайдере OpenAI.</string>
     <string name="skills_knowledgeErrorServiceUnavailable">База знаний сейчас недоступна.</string>
-    <string name="skills_knowledgeErrorFileTooLarge">Файлы базы знаний должны иметь размер 20 МБ или меньше.</string>
-    <string name="skills_knowledgeErrorQuotaExceeded">Навык может иметь до 5 файлов базы знаний общим размером 100 МБ.</string>
+    <string name="skills_knowledgeErrorFileTooLarge">Файл базы знаний должен быть не больше 20 МБ.</string>
+    <string name="skills_knowledgeErrorQuotaExceeded">В одном навыке может быть не больше 5 файлов базы знаний общим объёмом до 100 МБ.</string>
     <string name="skills_knowledgeErrorExtractFailed">Не удалось извлечь текст из этого файла.</string>
     <string name="skills_knowledgeErrorUploadFailed">Не удалось загрузить этот файл.</string>
     <string name="skills_knowledgeErrorIndexFailed">Не удалось проиндексировать этот файл.</string>
     <string name="skills_knowledgeErrorRetrieveFailed">Не удалось получить знания для этого сообщения.</string>
-    <string name="skills_knowledgeErrorCleanupFailed">Не удалось очистить удаленный файл. Повторите попытку позже.</string>
+    <string name="skills_knowledgeErrorCleanupFailed">Не удалось очистить файл базы знаний на сервере. Повторите попытку позже.</string>
     <string name="custom_llm_connection_method">Способ подключения</string>
     <string name="local_compute_pairing_code">Код сопряжения</string>
     <string name="local_compute_scan_qr">Сканировать QR-код</string>
