@@ -18,6 +18,7 @@ import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.FolderRepository
 import ai.oriveo.community.core.data.repository.NoteRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.data.repository.getByIdOrNull
 import ai.oriveo.community.core.data.repository.SkillRepository
 import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.model.AIModel
@@ -853,7 +854,7 @@ class HomeViewModel(
         // (fixes "selecting a model once has no effect; it takes two selections").
         if (!deferPrime) appPreferencesRepository.primeLastUsedModel(providerId, modelId)
         viewModelScope.launch {
-            val provider = providerRepository.getById(providerId)
+            val provider = providerRepository.getByIdOrNull(providerId)
             if (RealtimeSelection.isRealtime(provider, modelId, catalog)) {
                 realtimeSelectionStore.set(providerId, modelId)
                 return@launch

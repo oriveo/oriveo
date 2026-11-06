@@ -7,6 +7,7 @@ import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.data.repository.getByIdOrNull
 import ai.oriveo.community.core.memory.MemoryCandidateRepository
 import ai.oriveo.community.core.context.MemoryProposeAction
 import ai.oriveo.community.core.context.MemoryProposeMode
@@ -481,7 +482,7 @@ internal class ChatSendCommandCoordinator(
         val conversation = currentConversationId()?.let { currentConversation() } ?: return false
         val storedProviderId = conversation.providerID
         if (storedProviderId.isBlank() || storedProviderId == sendProviderId) return false
-        return runCatching { providerRepository.getById(storedProviderId) }.getOrNull() == null
+        return providerRepository.getByIdOrNull(storedProviderId) == null
     }
 
     /** Pre-send guards shared by every entry: a retired official model and a removed relay session model block the send. */
@@ -533,7 +534,7 @@ internal class ChatSendCommandCoordinator(
         modelId: String?,
     ): Pair<Provider, ai.oriveo.community.core.model.AIModel>? {
         if (providerId == null || modelId == null) return null
-        val provider = runCatching { providerRepository.getById(providerId) }.getOrNull() ?: return null
+        val provider = providerRepository.getByIdOrNull(providerId) ?: return null
         // Realtime models are not in the text list: resolve with the voice catalog, otherwise the first conversation would be created with the default text model.
         val selectedModel = ProviderSelectionSnapshot.currentModel(provider, modelId, voiceCatalog = voiceCatalog()) ?: return null
         return provider to selectedModel

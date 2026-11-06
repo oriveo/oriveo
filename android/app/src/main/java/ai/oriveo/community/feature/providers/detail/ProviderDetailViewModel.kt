@@ -16,6 +16,7 @@ import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.remote.MetadataRefreshEventBus
 import ai.oriveo.community.core.data.repository.ProviderRepository
+import ai.oriveo.community.core.data.repository.getByIdOrNull
 import ai.oriveo.community.core.data.repository.RelayEditMerge
 import ai.oriveo.community.core.error.ErrorMapper
 import ai.oriveo.community.core.model.OriveoError
@@ -976,8 +977,7 @@ class ProviderDetailViewModel(
         }
     }
 
-    private suspend fun latestPersistedProvider(): Provider? =
-        runCatching { providerRepository.getById(providerID) }.getOrNull()
+    private suspend fun latestPersistedProvider(): Provider? = providerRepository.getByIdOrNull(providerID)
 
     /** The OriveoError of the failure card: the same exception goes through ErrorMapper (title / severity come from the same source as iOS); null when no Context is available. */
     private fun relayFailureError(error: Throwable): OriveoError? = runCatching {

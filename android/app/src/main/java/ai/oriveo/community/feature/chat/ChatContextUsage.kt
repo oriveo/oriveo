@@ -1,5 +1,6 @@
 package ai.oriveo.community.feature.chat
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -30,7 +31,14 @@ internal fun chatContextUsage(
         // Compute B now from the conversation's current cap and window (same source as sending); when not wired or the conversation / connection cannot be resolved, keep the manifest's B.
         currentB = { id ->
             val current = conversation.value.conversation?.takeIf { it.id == id }
-            current?.let { deps.contextWindowB?.invoke(it) }
+            // A catalog-backed connection can fail to resolve here: same as unresolved, and the page stays open.
+            try {
+                current?.let { deps.contextWindowB?.invoke(it) }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                null
+            }
         },
     ).flow(
         conversationId = conversationId,

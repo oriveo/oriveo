@@ -8,7 +8,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 class StreamingLifecycleObserver(
-    private val chatStreamingManager: ChatStreamingManager,
+    // Resolved on the IO scope at ON_STOP: the manager pulls the whole chat graph, which must not be built in Application.onCreate.
+    private val chatStreamingManager: () -> ChatStreamingManager,
 ) : DefaultLifecycleObserver {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -16,7 +17,7 @@ class StreamingLifecycleObserver(
     override fun onStop(owner: LifecycleOwner) {
 
         scope.launch {
-            chatStreamingManager.flushAllPartialsToMessage()
+            chatStreamingManager().flushAllPartialsToMessage()
         }
     }
 }

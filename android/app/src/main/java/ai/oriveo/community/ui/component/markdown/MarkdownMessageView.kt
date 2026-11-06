@@ -490,6 +490,36 @@ private fun FadableAnnotatedText(
     distFromRenderedEnd: Int,
     modifier: Modifier = Modifier,
 ) {
+    val segments = remember(rendered) { inlineTextSegments(rendered) }
+    if (segments.size == 1) {
+        FadableTextSegment(rendered, style, baseColor, reveal, distFromRenderedEnd, modifier)
+        return
+    }
+    Column(modifier = modifier.fillMaxWidth()) {
+        for (segment in segments) {
+            val distance = distFromRenderedEnd + segment.charsAfter
+            FadableTextSegment(
+                rendered = segment.text,
+                style = style,
+                baseColor = baseColor,
+                // Same gate as RenderBlocks.revealFor: only the tail subscribes to the frame clock.
+                reveal = reveal?.takeIf { distance < it.unsettledTailApprox + 32 },
+                distFromRenderedEnd = distance,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
+}
+
+@Composable
+private fun FadableTextSegment(
+    rendered: AnnotatedString,
+    style: androidx.compose.ui.text.TextStyle,
+    baseColor: Color,
+    reveal: StreamingRevealState?,
+    distFromRenderedEnd: Int,
+    modifier: Modifier = Modifier,
+) {
     if (reveal == null) {
         ClickableAnnotatedText(rendered, style, modifier)
         return
@@ -972,12 +1002,17 @@ private fun ParagraphWithInlineMath(
         style = style,
         colors = mdColors,
     )
-    Text(
-        text = annotated,
-        style = style,
-        inlineContent = inlineContent,
-        modifier = Modifier.fillMaxWidth(),
-    )
+    val segments = remember(annotated) { inlineTextSegments(annotated) }
+    Column(modifier = Modifier.fillMaxWidth()) {
+        for (segment in segments) {
+            Text(
+                text = segment.text,
+                style = style,
+                inlineContent = inlineContent,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }
 
 @Composable
