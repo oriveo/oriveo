@@ -108,27 +108,21 @@ struct LocalComputeSetupView: View {
                     manualEnginePicker(showsChannel: board.showsChannelPicker)
                 }
 
-                if authenticationPolicy.requiresCredential {
-                    RelaySetupField(
-                        title: L10n.tr("API Key", table: .providers),
-                        text: apiKeyBinding,
-                        placeholder: "sk-...",
-                        footnote: L10n.tr("This engine requires an encrypted connection for its access token.", table: .providers),
-                        isSecure: true,
-                        isEnabled: !isVerificationInFlight,
-                        leadingSystemImage: "key.horizontal",
-                        usesQuickSetupStyle: true,
-                        leadingPhosphor: .key
-                    )
-                    .accessibilityFocused($accessibilityFocus, equals: .authentication)
-                } else {
-                    Label(
-                        L10n.tr("No authentication. No credentials are sent.", table: .providers),
-                        systemImage: "lock.open"
-                    )
-                    .font(OriveoTheme.Typography.footnote)
-                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                }
+                RelaySetupField(
+                    title: L10n.tr("API Key", table: .providers),
+                    text: apiKeyBinding,
+                    placeholder: "sk-...",
+                    footnote: Self.apiKeyFootnote(
+                        requiresCredential: authenticationPolicy.requiresCredential,
+                        securityMode: securityMode
+                    ),
+                    isSecure: true,
+                    isEnabled: !isVerificationInFlight,
+                    leadingSystemImage: "key.horizontal",
+                    usesQuickSetupStyle: true,
+                    leadingPhosphor: .key
+                )
+                .accessibilityFocused($accessibilityFocus, equals: .authentication)
 
                 localDetectionCard(board)
 
@@ -160,13 +154,6 @@ struct LocalComputeSetupView: View {
             RelaySecurityModePickerSheet(
                 endpoint: endpoint,
                 currentMode: securityMode,
-                hasCredentialMaterial: RelaySecurityModeSelection.hasCredentialMaterial(
-                    apiKey: apiKey,
-                    authMode: engine == .openwebui ? .bearer : .none,
-                    headers: [],
-                    queryParams: []
-                ),
-                allowedModes: authenticationPolicy.allowedSecurityModes,
                 onSelect: applySecurityMode
             )
         }
@@ -521,9 +508,10 @@ struct LocalComputeSetupView: View {
     private func detectEngine(address: String) {
         let revision = networkRevisionMonitor.revision
         let mode = securityMode
+        let key = apiKey
         let attempt = coordinator.beginVerification(for: .local)
         let fingerprintTask = Task {
-            let outcome = await LocalEngineConnector.fingerprint(endpoint: address, securityMode: mode)
+            let outcome = await LocalEngineConnector.fingerprint(endpoint: address, securityMode: mode, apiKey: key)
             guard !Task.isCancelled,
                   coordinator.isCurrent(attempt),
                   networkRevisionMonitor.revision == revision else { return }
@@ -725,9 +713,6 @@ struct LocalComputeSetupView: View {
             return
         }
         invalidateConnectionState(clearDiscovery: true)
-        if nextMode == .localHTTP || nextMode == .privateVPN {
-            apiKey = ""
-        }
         securityMode = nextMode
         if let writeback = RelaySecurityModeSelection.endpointWriteback(
             endpoint,
@@ -762,10 +747,25 @@ struct LocalComputeSetupView: View {
            apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return L10n.tr("Enter the access token required by this engine.", table: .providers)
         }
-        if !authenticationPolicy.allowedSecurityModes.contains(securityMode) {
-            return L10n.tr("This engine requires an encrypted connection for its access token.", table: .providers)
-        }
         return nil
+    }
+
+    /// API Key footnote: optional + cleartext / optional + HTTPS / required + cleartext; required + HTTPS has none.
+    static func apiKeyFootnote(
+        requiresCredential: Bool,
+        securityMode: RelayConnectionSecurityMode
+    ) -> String? {
+        let cleartext = securityMode == .localHTTP || securityMode == .privateVPN
+        switch (requiresCredential, cleartext) {
+        case (false, true):
+            return L10n.tr("Optional. This connection doesn't use HTTPS, so the key is sent unencrypted.", table: .providers)
+        case (false, false):
+            return L10n.tr("Optional. Leave empty if your engine doesn't use a key.", table: .providers)
+        case (true, true):
+            return L10n.tr("This connection doesn't use HTTPS, so the key is sent unencrypted.", table: .providers)
+        case (true, false):
+            return nil
+        }
     }
 
     private func recoveryTitle(for action: LocalRecoveryButton) -> String {
@@ -833,7 +833,6 @@ struct LocalComputeSetupView: View {
             engine = next
             channel = next.defaultTransport
             securityMode = Self.defaultSecurityMode(for: next)
-            if next != .openwebui { apiKey = "" }
             errorMessage = nil
             recoveryAction = nil
             showsLocalNetworkSettings = false

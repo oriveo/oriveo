@@ -8,7 +8,6 @@ import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.model.LocalModelLoadState
 import ai.oriveo.community.core.model.LocalModelRuntimeMetadata
 import ai.oriveo.community.core.model.ModelExecutionLocality
-import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.provider.relay.RELAY_SECURITY_MODE_HEADER
 import ai.oriveo.community.core.provider.relay.RELAY_CERTIFICATE_FINGERPRINT_HEADER
 import ai.oriveo.community.core.provider.relay.relayLocalSecurityPlugin
@@ -41,7 +40,7 @@ data class LocalEngineConnection(
     val contextLength: Int? = null,
 )
 
-enum class LocalEngineConnectionFailure { InvalidEndpoint, CleartextCredentials, AuthenticationRejected, WrongEngine, Loading, NoModels, EngineStopped, OutOfMemory, ContextExceeded, Timeout, Network }
+enum class LocalEngineConnectionFailure { InvalidEndpoint, AuthenticationRejected, WrongEngine, Loading, NoModels, EngineStopped, OutOfMemory, ContextExceeded, Timeout, Network }
 
 class LocalEngineConnectionException(val failure: LocalEngineConnectionFailure, cause: Throwable? = null) :
     IllegalStateException(failure.name, cause)
@@ -59,12 +58,13 @@ class LocalEngineConnector(
             RelayConnectionSecurityMode.TofuHttps,
         )
 
+        @Suppress("UNUSED_PARAMETER")
         internal fun configurationFailure(error: Throwable): LocalEngineConnectionFailure =
-            if ((error as? ProviderServiceError.InvalidConfiguration)?.detail == "cleartext_credentials") {
-                LocalEngineConnectionFailure.CleartextCredentials
-            } else {
-                LocalEngineConnectionFailure.InvalidEndpoint
-            }
+            LocalEngineConnectionFailure.InvalidEndpoint
+
+        /** Open WebUI always uses bearer; other engines send bearer only when a key was entered. */
+        internal fun authModeFor(engine: LocalEngineKind, apiKey: String): RelayAuthMode =
+            if (engine == LocalEngineKind.OpenWebUI || apiKey.isNotBlank()) RelayAuthMode.Bearer else RelayAuthMode.None
     }
 
     private val client = client.config {
@@ -81,25 +81,27 @@ class LocalEngineConnector(
         rawEndpoint: String,
         securityMode: RelayConnectionSecurityMode,
         certificateFingerprint: String? = null,
+        apiKey: String = "",
     ): LocalEngineFingerprint {
         if (!supportsSecurityMode(securityMode)) return LocalEngineFingerprint.manual
+        val authMode = if (apiKey.isNotBlank()) RelayAuthMode.Bearer else RelayAuthMode.None
         val endpoint = runCatching {
             RelayEndpointPolicy.requireConfigured(
                 rawEndpoint,
                 securityMode,
-                RelayEndpointPolicy.Credentials(authMode = RelayAuthMode.None, hasKey = false),
+                RelayEndpointPolicy.Credentials(authMode = authMode, hasKey = apiKey.isNotBlank()),
             )
         }.getOrElse { return LocalEngineFingerprint.manual }
         val requested = RelayRequestedConfig(
             transport = RelayTransport.OpenAIChatCompletions,
-            authMode = RelayAuthMode.None,
+            authMode = authMode,
             securityMode = securityMode,
             certificateFingerprint = certificateFingerprint,
         )
         val responses = LocalEngineFingerprintRules.requests.mapNotNull { path ->
             // Any path failing (including 401/403 and network errors) only means this criterion does not match.
             val snapshot = try {
-                get(endpoint, path, requested, apiKey = "")
+                get(endpoint, path, requested, apiKey)
             } catch (error: kotlinx.coroutines.CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -161,11 +163,12 @@ class LocalEngineConnector(
         }
         val requiresBearer = engine == LocalEngineKind.OpenWebUI
         if (requiresBearer && apiKey.isBlank()) throw LocalEngineConnectionException(LocalEngineConnectionFailure.InvalidEndpoint)
+        val authMode = authModeFor(engine, apiKey)
         val endpoint = runCatching {
             RelayEndpointPolicy.requireConfigured(
                 rawEndpoint,
                 securityMode,
-                RelayEndpointPolicy.Credentials(authMode = if (requiresBearer) RelayAuthMode.Bearer else RelayAuthMode.None, hasKey = requiresBearer),
+                RelayEndpointPolicy.Credentials(authMode = authMode, hasKey = apiKey.isNotBlank()),
             )
         }.getOrElse { throw LocalEngineConnectionException(configurationFailure(it), it) }
         val template = LocalEngineContract.templates.getValue(engine)
@@ -174,7 +177,7 @@ class LocalEngineConnector(
             ?: RelayTransport.OpenAIChatCompletions
         val requested = RelayRequestedConfig(
             transport = effectiveChannel,
-            authMode = if (requiresBearer) RelayAuthMode.Bearer else RelayAuthMode.None,
+            authMode = authMode,
             securityMode = securityMode,
             stream = true,
             // The llama.cpp native endpoint sits at the root with no version segment (same rule as RelayEndpointResolver).

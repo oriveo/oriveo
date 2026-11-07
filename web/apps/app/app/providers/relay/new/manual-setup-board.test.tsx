@@ -731,7 +731,7 @@ describe('BOARD-MANUAL-10 validation hints each in place', () => {
     const issues: RelayFormIssue[] = [
       { field: 'endpoint', code: 'endpoint_rejected' },
       { field: 'api_key', code: 'credential_invalid_characters' },
-      { field: 'headers', code: 'cleartext_credentials' },
+      { field: 'headers', code: 'credential_invalid_characters' },
     ];
     const board = manualSetupBoard(boardInput({ issues, advancedChoice: false }));
     expect(board.apiKeys.issues.map((issue) => issue.field)).toEqual(['endpoint', 'api_key']);

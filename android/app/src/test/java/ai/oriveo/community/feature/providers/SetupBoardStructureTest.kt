@@ -304,8 +304,8 @@ class SetupBoardStructureTest {
         assertEquals(R.string.local_setup_hero_title, board.heroTitle)
         assertEquals(R.string.local_setup_hero_subtitle, board.heroSubtitle)
         assertEquals(R.string.local_setup_manual_engine, board.secondaryRow)
-        // The key slot keeps its existing visibility: only Open WebUI needs a key; there is no default model slot any more.
-        assertEquals(listOf(SetupBoardSlot.Address), board.slots)
+        // Every engine shows the API key slot (optional except Open WebUI); there is no default model slot any more.
+        assertEquals(listOf(SetupBoardSlot.Address, SetupBoardSlot.ApiKey), board.slots)
         assertEquals(SetupDetectionCard.Hidden, board.card)
         assertFalse(board.showsManualPicker)
         assertTrue(board.networkChips.isEmpty())

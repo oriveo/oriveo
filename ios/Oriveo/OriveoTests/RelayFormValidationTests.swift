@@ -86,7 +86,7 @@ struct RelayFormValidationTests {
         ) == false)
     }
 
-    @Test("Persisted Security Baseline Preserves Advanced Original")
+    @Test("Persisted security baseline only syncs endpoint and mode, keeping auth and headers")
     func persistedSecurityBaselinePreservesAdvancedOriginal() {
         var baseline = RelayEditView.Editor.empty
         baseline.endpoint = "relay.example.com"
@@ -97,24 +97,23 @@ struct RelayFormValidationTests {
 
         let updated = baseline.applyingPersistedSecurityBaseline(
             endpoint: "http://192.168.1.20:1234",
-            securityMode: .localHTTP,
-            clearsCredentialTables: true
+            securityMode: .localHTTP
         )
 
         #expect(updated.endpoint == "http://192.168.1.20:1234")
         #expect(updated.securityMode == .localHTTP)
-        #expect(updated.authMode == .none)
-        #expect(updated.headers.isEmpty)
+        #expect(updated.authMode == baseline.authMode)
+        #expect(updated.headers == baseline.headers)
         #expect(updated.transport == .anthropicMessages)
         #expect(updated.modelID == "saved-model")
         #expect(updated.customUserAgent == "saved-agent")
     }
 
-    @Test("Security Mode Transition Keeps Unsaved Advanced Draft Out Of Persistence")
+    @Test("Switching to local HTTP keeps saved key auth, headers and query; only mode and API root change")
     func securityModeTransitionKeepsUnsavedAdvancedDraftOutOfPersistence() {
         let saved = RelayRequestedConfig(
             transport: .anthropicMessages,
-            authMode: .none,
+            authMode: .bearer,
             securityMode: .remoteHTTPS,
             modelID: "saved-model",
             reasoningEffort: .high,
@@ -126,31 +125,20 @@ struct RelayFormValidationTests {
             resolvedAPIBaseURL: "https://relay.example.com/v1"
         )
 
-        let result = RelaySecurityModeSelection.persistedTransition(
-            savedRequested: saved,
-            storedAPIKey: "",
-            draftAuthMode: .none,
-            draftHeaders: [RelayKeyValue(key: "X-Draft", value: "must-not-persist")],
-            draftQueryParams: [],
-            nextMode: .localHTTP
-        )
+        for nextMode in [RelayConnectionSecurityMode.localHTTP, .privateVPN] {
+            let result = RelaySecurityModeSelection.persistedTransition(savedRequested: saved, nextMode: nextMode)
 
-        #expect(result.clearsStoredAPIKey)
-        #expect(result.clearsCredentialTables)
-        #expect(result.requested.securityMode == .localHTTP)
-        #expect(result.requested.authMode == .none)
-        #expect(result.requested.headers == nil)
-        #expect(result.requested.queryParams == nil)
-        #expect(result.requested.resolvedAPIBaseURL == nil)
-        #expect(result.requested.transport == saved.transport)
-        #expect(result.requested.modelID == saved.modelID)
-        #expect(result.requested.reasoningEffort == saved.reasoningEffort)
-        #expect(result.requested.serviceTier == saved.serviceTier)
-        #expect(result.requested.stream == saved.stream)
-        #expect(result.requested.customUserAgent == saved.customUserAgent)
+            var expected = saved
+            expected.securityMode = nextMode
+            expected.resolvedAPIBaseURL = nil
+            #expect(result == expected)
+            #expect(result.authMode == .bearer)
+            #expect(result.headers == saved.headers)
+            #expect(result.queryParams == saved.queryParams)
+        }
     }
 
-    @Test("Remote Security Mode Transition Preserves Saved Credential Configuration")
+    @Test("Public mode keeps ordinary saved config and still invalidates the old resolved API root")
     func remoteSecurityModeTransitionPreservesSavedCredentialConfiguration() {
         let saved = RelayRequestedConfig(
             transport: .openaiResponses,
@@ -161,22 +149,13 @@ struct RelayFormValidationTests {
             resolvedAPIBaseURL: "http://192.168.1.20:1234/v1"
         )
 
-        let result = RelaySecurityModeSelection.persistedTransition(
-            savedRequested: saved,
-            storedAPIKey: "",
-            draftAuthMode: .bearer,
-            draftHeaders: [RelayKeyValue(key: "Authorization", value: "draft-secret")],
-            draftQueryParams: [],
-            nextMode: .remoteHTTPS
-        )
+        let result = RelaySecurityModeSelection.persistedTransition(savedRequested: saved, nextMode: .remoteHTTPS)
 
-        #expect(result.clearsStoredAPIKey == false)
-        #expect(result.clearsCredentialTables == false)
-        #expect(result.requested.securityMode == .remoteHTTPS)
-        #expect(result.requested.authMode == saved.authMode)
-        #expect(result.requested.headers == saved.headers)
-        #expect(result.requested.queryParams == saved.queryParams)
-        #expect(result.requested.resolvedAPIBaseURL == nil)
+        #expect(result.securityMode == .remoteHTTPS)
+        #expect(result.authMode == saved.authMode)
+        #expect(result.headers == saved.headers)
+        #expect(result.queryParams == saved.queryParams)
+        #expect(result.resolvedAPIBaseURL == nil)
     }
 
     @Test("Issue Messages Are Resolvable")
@@ -184,7 +163,6 @@ struct RelayFormValidationTests {
         for code in [
             RelayFormValidation.IssueCode.endpointRequired,
             .endpointRejected,
-            .cleartextCredentials,
             .securityModeSchemeMismatch,
             .credentialRequired,
             .credentialInvalidCharacters,
@@ -202,7 +180,7 @@ struct RelayFormValidationTests {
     @Test("Fixture Cases Drive Validation")
     func fixtureCasesDriveValidation() throws {
         let contract = try loadContract()
-        #expect(contract.cases.count == 15)
+        #expect(contract.cases.count == 16)
 
         for item in contract.cases {
             let draft = try productionDraft(item.draft)

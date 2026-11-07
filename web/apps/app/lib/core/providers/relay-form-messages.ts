@@ -17,7 +17,6 @@ import type {
 export const RELAY_FORM_ISSUE_MESSAGE_KEYS: Record<RelayFormIssueCode, string> = {
   endpoint_required: 'pages.relaySetup.endpointRequired',
   endpoint_rejected: 'common.relayHttpsRequired',
-  cleartext_credentials: 'pages.relayDetail.cleartextCredentialsBlocked',
   security_mode_scheme_mismatch: 'pages.relayDetail.securityModeSchemeMismatch',
   credential_required: 'pages.relaySetup.apiKeyRequired',
   credential_invalid_characters: 'common.apiKeyInvalidChars',

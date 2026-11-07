@@ -46,6 +46,10 @@ export type RelayConnectionSecurityMode =
   | 'private_vpn'
   | 'tofu_https';
 
+/**
+ * Credential material the caller intends to send. Classification no longer depends on it:
+ * cleartext connections to local / VPN addresses may carry credentials (oriveo/oriveo#20).
+ */
 export interface RelayEndpointCredentials {
   authMode?: string;
   hasKey?: boolean;
@@ -143,7 +147,6 @@ export function classifyRelayEndpoint(
   }
   if (url.protocol !== 'http:') return denied('unsupported_scheme');
   if (!localMode) return denied('cleartext_not_allowed');
-  if (hasCleartextCredentials(input.credentials)) return denied('cleartext_credentials');
 
   const initialIPs = unique(input.resolvedIPs?.length ? input.resolvedIPs : literalHostIPs(url.hostname));
   const specialUseLocalName = securityMode === 'local_http'
@@ -191,14 +194,6 @@ export function requireSecureRelayEndpoint(
   const normalized = normalizeSecureRelayEndpoint(raw, securityMode);
   if (!normalized) throw new Error(RELAY_HTTPS_REQUIRED_MESSAGE);
   return normalized;
-}
-
-function hasCleartextCredentials(credentials: RelayEndpointCredentials | undefined): boolean {
-  if (!credentials) return false;
-  return credentials.authMode !== undefined && credentials.authMode !== 'none'
-    || credentials.hasKey === true
-    || (credentials.sensitiveHeaders?.length ?? 0) > 0
-    || (credentials.sensitiveQueryKeys?.length ?? 0) > 0;
 }
 
 function classifyResolvedSet(

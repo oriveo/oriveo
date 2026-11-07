@@ -87,13 +87,6 @@ struct RelayEditView: View {
                 RelaySecurityModePickerSheet(
                     endpoint: editor.endpoint,
                     currentMode: editor.securityMode,
-                    hasCredentialMaterial: RelaySecurityModeSelection.hasCredentialMaterial(
-                        savedRequested: provider.relayRequested,
-                        storedAPIKey: provider.apiKey, // key-choke: stored-field loads the saved key into the edit form to judge credential material; it does not fetch a key for any model
-                        draftAuthMode: editor.authMode,
-                        draftHeaders: editor.headers,
-                        draftQueryParams: editor.queryParams
-                    ),
                     onSelect: { applySecurityMode($0, provider: provider) }
                 )
             }
@@ -399,22 +392,10 @@ struct RelayEditView: View {
               var nextEditor = editor,
               nextMode != nextEditor.securityMode else { return }
 
-        let transition = RelaySecurityModeSelection.persistedTransition(
+        let transitionRequested = RelaySecurityModeSelection.persistedTransition(
             savedRequested: provider.relayRequested,
-            storedAPIKey: provider.apiKey, // key-choke: stored-field loads the saved key into the edit form to judge credential material; it does not fetch a key for any model
-            draftAuthMode: nextEditor.authMode,
-            draftHeaders: nextEditor.headers,
-            draftQueryParams: nextEditor.queryParams,
             nextMode: nextMode
         )
-        if nextMode == .localHTTP || nextMode == .privateVPN {
-            nextEditor.authMode = .none
-            if transition.clearsCredentialTables {
-                // The confirmation clears the whole custom table, so no separate "headers to keep" list is maintained here.
-                nextEditor.headers = []
-                nextEditor.queryParams = []
-            }
-        }
 
         let endpointForNextMode: String
         if nextMode == .remoteHTTPS,
@@ -446,8 +427,7 @@ struct RelayEditView: View {
         var persistedBaseline = original ?? Editor(from: provider, lastUsedModelRef: appState.lastUsedModelRef)
         persistedBaseline = persistedBaseline.applyingPersistedSecurityBaseline(
             endpoint: normalizedEndpoint,
-            securityMode: nextMode,
-            clearsCredentialTables: transition.clearsCredentialTables
+            securityMode: nextMode
         )
         original = persistedBaseline
         endpointNormalizationHighlightToken &+= 1
@@ -459,11 +439,7 @@ struct RelayEditView: View {
 
         var transitioning = provider
         transitioning.baseURLText = normalizedEndpoint
-        if transition.clearsStoredAPIKey {
-            transitioning.apiKey = ""
-            transitioning.apiKeyPreview = APIKeyMask.masked("")
-        }
-        transitioning.relayRequested = transition.requested
+        transitioning.relayRequested = transitionRequested
         // Switching the security mode changes the connection identity, so the old endpoint's catalog must not keep being shown.
         // Keep the enabled models; after success the generation + catalog-only flow fills in the new catalog.
         transitioning.catalogModels = []
@@ -752,7 +728,7 @@ struct RelayEditView: View {
             saveError = OriveoError(
                 id: UUID(),
                 title: L10n.tr("Invalid request URL", table: .providers),
-                message: relaySaveBlockMessage(for: error),
+                message: L10n.tr(RelayEndpointPolicy.httpsRequiredMessageKey, table: .providers),
                 actionTitle: L10n.tr("OK"),
                 detail: trimmedEndpoint,
                 severity: .warning
@@ -922,16 +898,6 @@ struct RelayEditView: View {
         return normalizedNew == normalizedOld
     }
 
-    /// Gives a human-readable sentence when a save is rejected. `RelayEndpointPolicy` throws machine-readable reason slugs;
-    /// only the plaintext-with-credentials case needs to point at "this connection is not encrypted", and everything else falls back to the HTTPS explanation.
-    private func relaySaveBlockMessage(for error: Error) -> String {
-        guard case ProviderServiceError.invalidConfiguration(let reason) = error,
-              reason == "cleartext_credentials" else {
-            return L10n.tr(RelayEndpointPolicy.httpsRequiredMessageKey, table: .providers)
-        }
-        return L10n.tr("An unencrypted connection can't carry a key.", table: .providers)
-    }
-
     // MARK: - Editor state
 
     /// Fields editable on this page. Name, keys, Codex identity, web search, image parameters and the connection-level reasoning effort are not here:
@@ -1020,19 +986,11 @@ struct RelayEditView: View {
 
         func applyingPersistedSecurityBaseline(
             endpoint: String,
-            securityMode: RelayConnectionSecurityMode,
-            clearsCredentialTables: Bool
+            securityMode: RelayConnectionSecurityMode
         ) -> Editor {
             var baseline = self
             baseline.endpoint = endpoint
             baseline.securityMode = securityMode
-            if securityMode == .localHTTP || securityMode == .privateVPN {
-                baseline.authMode = .none
-                if clearsCredentialTables {
-                    baseline.headers = []
-                    baseline.queryParams = []
-                }
-            }
             return baseline
         }
     }

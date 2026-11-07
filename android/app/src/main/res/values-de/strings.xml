@@ -856,7 +856,6 @@
     <string name="relay_section_request_behavior">Kompatibilität</string>
     <string name="relay_type_row_change">Ändern</string>
     <string name="relay_connection_no_key_required">Diese Verbindung benötigt keinen Schlüssel</string>
-    <string name="relay_credentials_cleartext_blocked">Eine unverschlüsselte Verbindung darf keinen Schlüssel übertragen.</string>
     <string name="relay_security_mode_scheme_mismatch">Diese Adresse passt nicht zur Verbindungsmethode. Ändere die Verbindungsmethode, um fortzufahren.</string>
     <string name="relay_security_mode_label">Verbindungssicherheit</string>
     <string name="relay_security_mode_remote_https">Öffentliches HTTPS</string>
@@ -864,15 +863,14 @@
     <string name="relay_security_mode_paired_https">Gepaartes HTTPS</string>
     <string name="relay_security_mode_paired_https_description">Verschlüsselte Verbindung, gesichert während des Pairings.</string>
     <string name="relay_security_mode_local_http">Lokales HTTP</string>
-    <string name="relay_security_mode_local_http_description">Für Adressen auf diesem Gerät oder im LAN. Unverschlüsselt, daher werden keine Zugangsdaten gesendet.</string>
+    <string name="relay_security_mode_local_http_description">Für Adressen auf diesem Gerät oder in deinem LAN. Nicht verschlüsselt.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">Diese Verbindung wird nicht verschlüsselt. Andere Geräte im selben Netzwerk könnten sehen, was Oriveo sendet – auch deinen API-Schlüssel.</string>
     <string name="relay_security_mode_private_vpn">Privates VPN</string>
     <string name="relay_security_mode_private_vpn_description">Erreichbar über ein privates Netzwerk wie Tailscale.</string>
-    <string name="relay_security_mode_suggest_local">Dies scheint eine lokale oder LAN-Adresse zu sein. Über unverschlüsseltes LAN-HTTP sendet Oriveo keine Zugangsdaten.</string>
     <string name="relay_security_mode_suggest_vpn">Dies scheint eine Tailscale-Adresse zu sein. Verwende Privates VPN nur, wenn die Adresse zu deinem privaten Netzwerk gehört.</string>
     <string name="relay_security_mode_keep_https">HTTPS beibehalten</string>
     <string name="relay_security_mode_use_local_http">Über unverschlüsseltes LAN-HTTP verbinden</string>
     <string name="relay_security_mode_use_private_vpn">Privates VPN verwenden</string>
-    <string name="relay_security_mode_clear_credentials_warning">Beim Wechsel zu einer unverschlüsselten Verbindung werden auch der Schlüssel, benutzerdefinierte Header und benutzerdefinierte Query-Parameter gelöscht.</string>
     <string name="relay_security_mode_https_required">Öffentliche Verbindungen müssen HTTPS verwenden.</string>
     <string name="relay_security_mode_option_public_disabled">Nicht verfügbar, weil diese Adresse in ein öffentliches oder gemischtes Netzwerk aufgelöst wird.</string>
     <string name="relay_security_mode_option_unknown_disabled">Gib zuerst eine lokale, LAN- oder private VPN-Adresse ein.</string>
@@ -1211,7 +1209,9 @@
     <string name="local_compute_entry_subtitle">Ollama, LM Studio, llama.cpp oder vLLM verbinden</string>
     <string name="local_compute_description">Direkt mit einer Engine auf diesem Gerät oder im privaten Netzwerk verbinden.</string>
     <string name="local_compute_engine">Engine</string>
-    <string name="local_compute_no_credentials">Keine Authentifizierung. Es werden keine Zugangsdaten gesendet.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">Optional. Diese Verbindung nutzt kein HTTPS, daher wird der Schlüssel unverschlüsselt gesendet.</string>
+    <string name="local_compute_api_key_footnote_optional_https">Optional. Lass das Feld leer, wenn deine Engine keinen Schlüssel verwendet.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">Diese Verbindung nutzt kein HTTPS, daher wird der Schlüssel unverschlüsselt gesendet.</string>
     <string name="local_compute_model_optional">Modell (optional)</string>
     <string name="local_compute_error_address">Diese lokale Adresse ist nicht zulässig.</string>
     <string name="local_compute_error_engine">Der Dienst unter dieser Adresse ist nicht die ausgewählte Engine.</string>
@@ -1219,7 +1219,6 @@
     <string name="local_compute_error_models">Keine lokalen Modelle gefunden.</string>
     <string name="local_compute_error_network">Verbindung zur lokalen Engine fehlgeschlagen.</string>
     <string name="local_compute_connecting">Verbindung wird hergestellt…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI benötigt einen Schlüssel. Verwende daher eine HTTPS-Verbindung.</string>
     <string name="local_compute_localhost_phone">localhost bezeichnet dieses Smartphone, nicht deinen Computer.</string>
     <string name="local_model_via_ollama_cloud">Über Ollama Cloud</string>
     <string name="local_model_loading">Wird geladen</string>

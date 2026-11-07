@@ -818,7 +818,6 @@
     <string name="relay_section_request_behavior">Совместимость</string>
     <string name="relay_type_row_change">Изменить</string>
     <string name="relay_connection_no_key_required">Этому подключению не нужен ключ</string>
-    <string name="relay_credentials_cleartext_blocked">Незашифрованное подключение не может передавать ключ.</string>
     <string name="relay_security_mode_scheme_mismatch">Этот адрес не соответствует способу подключения. Измените способ подключения, чтобы продолжить.</string>
     <string name="relay_security_mode_label">Безопасность соединения</string>
     <string name="relay_security_mode_remote_https">Публичный HTTPS</string>
@@ -826,15 +825,14 @@
     <string name="relay_security_mode_paired_https">Парный HTTPS</string>
     <string name="relay_security_mode_paired_https_description">Зашифрованное соединение защищено во время сопряжения.</string>
     <string name="relay_security_mode_local_http">Локальный HTTP</string>
-    <string name="relay_security_mode_local_http_description">Для адресов на этом устройстве или в вашей LAN. Соединение не зашифровано, поэтому учётные данные не передаются.</string>
+    <string name="relay_security_mode_local_http_description">Для адресов на этом устройстве или в вашей локальной сети. Без шифрования.</string>
     <string name="relay_security_mode_private_vpn">Частный VPN</string>
     <string name="relay_security_mode_private_vpn_description">Доступ через частную сеть, например Tailscale.</string>
-    <string name="relay_security_mode_suggest_local">Похоже, это локальный адрес или адрес LAN. При обычном HTTP в LAN Oriveo не будет передавать учётные данные.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">Это соединение не будет зашифровано. Другие устройства в той же сети могут увидеть, что отправляет Oriveo, включая ваш API-ключ.</string>
     <string name="relay_security_mode_suggest_vpn">Похоже, это адрес Tailscale. Используйте частный VPN, только если адрес принадлежит вашей частной сети.</string>
     <string name="relay_security_mode_keep_https">Оставить HTTPS</string>
     <string name="relay_security_mode_use_local_http">Подключиться по обычному HTTP в LAN</string>
     <string name="relay_security_mode_use_private_vpn">Использовать частный VPN</string>
-    <string name="relay_security_mode_clear_credentials_warning">При переходе на незашифрованное подключение также будут удалены ключ, пользовательские заголовки и параметры запроса этого подключения.</string>
     <string name="relay_security_mode_https_required">Публичные подключения должны использовать HTTPS.</string>
     <string name="relay_security_mode_option_public_disabled">Недоступно: адрес разрешается в публичной или смешанной сети.</string>
     <string name="relay_security_mode_option_unknown_disabled">Прежде чем выбрать этот тип подключения, введите локальный адрес, адрес LAN или частного VPN.</string>
@@ -1162,7 +1160,9 @@
     <string name="local_compute_entry_subtitle">Подключить Ollama, LM Studio, llama.cpp или vLLM</string>
     <string name="local_compute_description">Подключайтесь напрямую к движку на этом устройстве или в частной сети.</string>
     <string name="local_compute_engine">Движок</string>
-    <string name="local_compute_no_credentials">Без аутентификации. Учётные данные не отправляются.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">Необязательно. Это соединение не использует HTTPS, поэтому ключ передаётся без шифрования.</string>
+    <string name="local_compute_api_key_footnote_optional_https">Необязательно. Оставьте пустым, если ваш движок не использует ключ.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">Это соединение не использует HTTPS, поэтому ключ передаётся без шифрования.</string>
     <string name="local_compute_model_optional">Модель (необязательно)</string>
     <string name="local_compute_error_address">Этот локальный адрес не разрешён.</string>
     <string name="local_compute_error_engine">Служба по этому адресу не является выбранным движком.</string>
@@ -1170,7 +1170,6 @@
     <string name="local_compute_error_models">Локальные модели не найдены.</string>
     <string name="local_compute_error_network">Не удалось подключиться к локальному движку.</string>
     <string name="local_compute_connecting">Подключение…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI требует ключ, поэтому используйте HTTPS-подключение.</string>
     <string name="local_compute_localhost_phone">localhost означает этот телефон, а не компьютер.</string>
     <string name="local_model_via_ollama_cloud">Через Ollama Cloud</string>
     <string name="local_model_loading">Загрузка</string>

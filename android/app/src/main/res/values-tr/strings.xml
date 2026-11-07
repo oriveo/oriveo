@@ -814,7 +814,6 @@
     <string name="relay_section_request_behavior">Uyumluluk</string>
     <string name="relay_type_row_change">Değiştir</string>
     <string name="relay_connection_no_key_required">Bu bağlantı anahtar gerektirmiyor</string>
-    <string name="relay_credentials_cleartext_blocked">Şifrelenmemiş bir bağlantı anahtar taşıyamaz.</string>
     <string name="relay_security_mode_scheme_mismatch">Bu adres bağlantı yöntemiyle uyuşmuyor. Devam etmek için bağlantı yöntemini değiştirin.</string>
     <string name="relay_security_mode_label">Bağlantı güvenliği</string>
     <string name="relay_security_mode_remote_https">Herkese açık HTTPS</string>
@@ -822,15 +821,14 @@
     <string name="relay_security_mode_paired_https">Eşleştirilmiş HTTPS</string>
     <string name="relay_security_mode_paired_https_description">Eşleştirme sırasında şifreli bağlantı güvenli hale getirildi.</string>
     <string name="relay_security_mode_local_http">Yerel HTTP</string>
-    <string name="relay_security_mode_local_http_description">Bu cihazdaki veya LAN’ınızdaki adresler içindir. Şifrelenmediğinden kimlik bilgileri gönderilmez.</string>
+    <string name="relay_security_mode_local_http_description">Bu cihazdaki veya LAN\'ınızdaki adresler için. Bağlantı şifrelenmez.</string>
     <string name="relay_security_mode_private_vpn">Özel VPN</string>
     <string name="relay_security_mode_private_vpn_description">Tailscale gibi özel bir ağ üzerinden erişilir.</string>
-    <string name="relay_security_mode_suggest_local">Bu bir yerel veya LAN adresine benziyor. Oriveo, düz LAN HTTP üzerinden hiçbir kimlik bilgisi göndermez.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">Bu bağlantı şifrelenmeyecek. Aynı ağdaki diğer cihazlar, API anahtarınız dahil Oriveo\'nun gönderdiklerini görebilir.</string>
     <string name="relay_security_mode_suggest_vpn">Bu bir Tailscale adresine benziyor. Özel VPN’i yalnızca bu adres özel ağınıza aitse kullanın.</string>
     <string name="relay_security_mode_keep_https">HTTPS’yi koru</string>
     <string name="relay_security_mode_use_local_http">Düz LAN HTTP üzerinden bağlan</string>
     <string name="relay_security_mode_use_private_vpn">Özel VPN kullan</string>
-    <string name="relay_security_mode_clear_credentials_warning">Şifrelenmemiş bir bağlantıya geçmek bu bağlantının anahtarını, özel üstbilgilerini ve özel sorgu parametrelerini de siler.</string>
     <string name="relay_security_mode_https_required">Herkese açık bağlantılar HTTPS kullanmalıdır.</string>
     <string name="relay_security_mode_option_public_disabled">Bu adres herkese açık veya karma bir ağa çözümlendiği için kullanılamıyor.</string>
     <string name="relay_security_mode_option_unknown_disabled">Bu bağlantı türünü seçmeden önce yerel, LAN veya özel VPN adresi girin.</string>
@@ -1156,7 +1154,9 @@
     <string name="local_compute_entry_subtitle">Ollama, LM Studio, llama.cpp veya vLLM bağlayın</string>
     <string name="local_compute_description">Bu cihazdaki veya özel ağınızdaki bir motora doğrudan bağlanın.</string>
     <string name="local_compute_engine">Motor</string>
-    <string name="local_compute_no_credentials">Kimlik doğrulama yok. Hiçbir kimlik bilgisi gönderilmez.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">İsteğe bağlı. Bu bağlantı HTTPS kullanmadığı için anahtar şifrelenmeden gönderilir.</string>
+    <string name="local_compute_api_key_footnote_optional_https">İsteğe bağlı. Motorunuz anahtar kullanmıyorsa boş bırakın.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">Bu bağlantı HTTPS kullanmadığı için anahtar şifrelenmeden gönderilir.</string>
     <string name="local_compute_model_optional">Model (isteğe bağlı)</string>
     <string name="local_compute_error_address">Bu yerel adrese izin verilmiyor.</string>
     <string name="local_compute_error_engine">Bu adresteki hizmet seçilen motor değil.</string>
@@ -1164,7 +1164,6 @@
     <string name="local_compute_error_models">Yerel model bulunamadı.</string>
     <string name="local_compute_error_network">Yerel motora bağlanılamadı.</string>
     <string name="local_compute_connecting">Bağlanıyor…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI bir anahtar gerektirir; bu nedenle HTTPS bağlantısı kullanın.</string>
     <string name="local_compute_localhost_phone">localhost bilgisayarınızı değil, bu telefonu ifade eder.</string>
     <string name="local_model_via_ollama_cloud">Ollama Cloud üzerinden</string>
     <string name="local_model_loading">Yükleniyor</string>

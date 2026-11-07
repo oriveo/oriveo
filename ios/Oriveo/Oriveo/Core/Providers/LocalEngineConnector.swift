@@ -23,7 +23,6 @@ enum LocalEngineConnectionError: LocalizedError, Equatable {
     case contextExceeded
     case timeout
     case localNetworkDenied
-    case cleartextCredentials
 
     var errorDescription: String? {
         switch self {
@@ -36,8 +35,6 @@ enum LocalEngineConnectionError: LocalizedError, Equatable {
         case .contextExceeded: return L10n.tr("The message exceeds this model's context window.", table: .providers)
         case .timeout: return L10n.tr("The local model took too long to load.", table: .providers)
         case .localNetworkDenied: return L10n.tr("Allow local network access in Settings.", table: .providers)
-        case .cleartextCredentials:
-            return L10n.tr("An unencrypted connection can't carry a key. Change the address and connection type to Public HTTPS.", table: .providers)
         }
     }
 }
@@ -152,10 +149,8 @@ enum LocalEngineConnector {
             endpoint = try RelayEndpointPolicy.requireConfigured(
                 rawEndpoint,
                 securityMode: securityMode,
-                credentials: .init(authMode: authPolicy.authMode, hasKey: hasCredential)
+                credentials: .init(authMode: authPolicy.resolvedAuthMode(hasCredential: hasCredential), hasKey: hasCredential)
             )
-        } catch ProviderServiceError.invalidConfiguration(let reason) where reason == "cleartext_credentials" {
-            throw LocalEngineConnectionError.cleartextCredentials
         } catch {
             throw LocalEngineConnectionError.invalidEndpoint
         }
@@ -170,7 +165,7 @@ enum LocalEngineConnector {
         let chatBase = apiBaseURL(for: endpoint, engine: engine)
         let requested = RelayRequestedConfig(
             transport: transport,
-            authMode: authPolicy.authMode,
+            authMode: authPolicy.resolvedAuthMode(hasCredential: hasCredential),
             securityMode: securityMode,
             stream: true,
             resolvedAPIBaseURL: transport == .llamacppNative
@@ -269,20 +264,23 @@ enum LocalEngineConnector {
     static func fingerprint(
         endpoint rawEndpoint: String,
         securityMode: RelayConnectionSecurityMode,
+        apiKey: String = "",
         certificateFingerprint: String? = nil,
         session: URLSession = .shared
     ) async -> LocalEngineFingerprintOutcome {
+        // A key typed on the setup page rides on all five read-only probes as Bearer; no key, no auth header.
+        let hasCredential = !apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         guard supports(securityMode: securityMode),
               let endpoint = try? RelayEndpointPolicy.requireConfigured(
                   rawEndpoint,
                   securityMode: securityMode,
-                  credentials: .init(authMode: .none, hasKey: false)
+                  credentials: .init(authMode: hasCredential ? .bearer : .none, hasKey: hasCredential)
               ) else {
             return .manual
         }
         let requested = RelayRequestedConfig(
             transport: .openaiChatCompletions,
-            authMode: .none,
+            authMode: hasCredential ? .bearer : .none,
             securityMode: securityMode,
             stream: true,
             certificateFingerprint: certificateFingerprint
@@ -291,7 +289,7 @@ enum LocalEngineConnector {
             for path in LocalEngineFingerprint.requestPaths {
                 group.addTask {
                     guard let snapshot = try? await get(
-                        endpoint: endpoint, path: path, requested: requested, apiKey: "", session: session
+                        endpoint: endpoint, path: path, requested: requested, apiKey: apiKey, session: session
                     ), (200..<300).contains(snapshot.status),
                     let object = snapshot.json as? [String: Any] else { return (path, nil) }
                     return (path, FingerprintObject(value: object))
@@ -336,10 +334,8 @@ enum LocalEngineConnector {
             endpoint = try RelayEndpointPolicy.requireConfigured(
                 rawEndpoint,
                 securityMode: securityMode,
-                credentials: .init(authMode: authPolicy.authMode, hasKey: hasCredential)
+                credentials: .init(authMode: authPolicy.resolvedAuthMode(hasCredential: hasCredential), hasKey: hasCredential)
             )
-        } catch ProviderServiceError.invalidConfiguration(let reason) where reason == "cleartext_credentials" {
-            throw LocalEngineConnectionError.cleartextCredentials
         } catch {
             throw LocalEngineConnectionError.invalidEndpoint
         }
@@ -348,7 +344,7 @@ enum LocalEngineConnector {
         }
         let requested = RelayRequestedConfig(
             transport: engine.defaultTransport,
-            authMode: authPolicy.authMode,
+            authMode: authPolicy.resolvedAuthMode(hasCredential: hasCredential),
             securityMode: securityMode,
             stream: true,
             resolvedAPIBaseURL: apiBaseURL(for: endpoint, engine: engine),
@@ -384,9 +380,6 @@ enum LocalEngineConnector {
         securityMode: RelayConnectionSecurityMode,
         hasCredential: Bool
     ) throws {
-        if policy.requiresCredential, hasCredential, securityMode == .localHTTP {
-            throw LocalEngineConnectionError.cleartextCredentials
-        }
         guard policy.permits(securityMode: securityMode, hasCredential: hasCredential) else {
             throw LocalEngineConnectionError.invalidEndpoint
         }

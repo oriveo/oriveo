@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { LocalEngineKind, Provider, RelayRequestedConfig } from '@oriveo/shared';
-import { validateRelayForm, relayFormNormalizedEndpoint, type RelayFormDraft } from '@oriveo/core/providers/relay-form-validation';
+import { validateRelayForm, relayFormNormalizedEndpoint, type RelayFormDraft, type RelayFormIssue } from '@oriveo/core/providers/relay-form-validation';
 import { createAppStore } from '../../../lib/core/store/app-store';
 import { buildRelaySettingsCandidate, updateProviderRelaySettings } from '../../../lib/core/provider-ops';
 import { planRelaySettingsSave } from '../../../lib/core/providers/provider-sync';
@@ -530,11 +530,19 @@ describe('BOARD-EDIT-11 whether the address changed is compared after normalizat
 });
 
 describe('BOARD-EDIT-12 validation hints placement', () => {
+  /** Synthetic header-field issue: routing is what is under test, not which rule raised it. */
+  const HEADER_ISSUE: RelayFormIssue = { field: 'headers', code: 'credential_invalid_characters' };
+
   it('BOARD-EDIT-12 a "filled in but wrong" header shows in the headers group and expands a collapsed group; the primary button is not tappable', () => {
     const provider = relayProvider({ securityMode: 'local_http', authMode: 'none' }, {
       apiKey: '', apiKeyPreview: '', baseURLText: 'http://192.168.1.20:8080/v1',
     });
-    const value = board(provider, { headers: [{ key: 'Authorization', value: 'Bearer x' }] }, { groupChoice: { headers: false } });
+    // Cleartext may carry an Authorization header now (oriveo/oriveo#20): real validation raises nothing.
+    expect(group(board(provider, { headers: [{ key: 'Authorization', value: 'Bearer x' }] }), 'headers')?.issues).toEqual([]);
+    const value = board(provider, { headers: [{ key: 'Authorization', value: 'Bearer x' }] }, {
+      groupChoice: { headers: false },
+      issues: [HEADER_ISSUE],
+    });
     expect(group(value, 'headers')).toMatchObject({ expanded: true, forcedOpen: true });
     expect(group(value, 'headers')?.issues.map((issue) => issue.field)).toEqual(['headers']);
     expect(group(value, 'connection')?.issues).toEqual([]);
@@ -546,7 +554,7 @@ describe('BOARD-EDIT-12 validation hints placement', () => {
     expect(missingKey.groups.flatMap((item) => item.issues)).toEqual([]);
     const badAddress = board(relayProvider(), { endpoint: 'http://relay.example.com/v1' });
     expect(group(badAddress, 'connection')?.issues.length).toBeGreaterThan(0);
-    const local = board(localProvider('ollama'), { headers: [{ key: 'Authorization', value: 'x' }] });
+    const local = board(localProvider('ollama'), { headers: [{ key: 'Authorization', value: 'x' }] }, { issues: [HEADER_ISSUE] });
     expect(group(local, 'headers')).toBeUndefined();
     expect(group(local, 'connection')?.issues.map((issue) => issue.field)).toEqual(['headers']);
   });
@@ -556,10 +564,10 @@ describe('BOARD-EDIT-12 validation hints placement', () => {
       apiKey: '', apiKeyPreview: '', baseURLText: 'http://192.168.1.20:8080/v1',
     });
     const draft = { ...relayEditDraftFromProvider(provider), headers: [{ key: 'X-A', value: '1' }, { key: 'Authorization', value: 'x' }] };
-    renderBoard(board(provider, draft), draft);
+    renderBoard(board(provider, draft, { issues: [HEADER_ISSUE] }), draft);
     const blocks = [...document.querySelectorAll('[data-edit-row="header"]')].map((node) => node.parentElement!);
     expect(blocks[0]!.querySelector('[data-issue-field]')).toBeNull();
-    expect(blocks[1]!.querySelector('[data-issue-field="headers"]')?.textContent).toBe('issue:headers:cleartext_credentials');
+    expect(blocks[1]!.querySelector('[data-issue-field="headers"]')?.textContent).toBe('issue:headers:credential_invalid_characters');
   });
 });
 

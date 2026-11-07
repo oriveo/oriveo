@@ -28,6 +28,7 @@ import {
   connectLocalEngineInBrowser,
   fingerprintLocalEngineInBrowser,
   localBrowserEndpointAccess,
+  localEngineAuthMode,
   type LocalBrowserConnectionResult,
 } from '../../../../lib/core/providers/local-browser-probe';
 import { buildRelayCapabilityBitmap } from '../../../../lib/core/providers/relay-resolution';
@@ -104,6 +105,7 @@ export function LocalComputeSetup({ connection }: {
     manualExpanded,
     manualEngine,
     hasApiKey: apiKey.trim().length > 0,
+    endpointSecurityMode: endpointAccess.kind === 'allowed' ? endpointAccess.securityMode : undefined,
   });
 
   useEffect(() => {
@@ -120,7 +122,6 @@ export function LocalComputeSetup({ connection }: {
     invalidateConnection();
     setManualEngine(next);
     if (next !== 'llamacpp') setManualChannel('chat');
-    if (next !== 'openwebui') setApiKey('');
   };
 
   const connect = async () => {
@@ -144,7 +145,7 @@ export function LocalComputeSetup({ connection }: {
         channel = manualEngine === 'llamacpp' ? manualChannel : 'chat';
       } else {
         // Fingerprint first, then connect by the result: the engine is fixed only when exactly one matches; generic / manual go to the manual picker.
-        const fingerprint = await fingerprintLocalEngineInBrowser({ endpoint: normalizedEndpoint, securityMode, signal });
+        const fingerprint = await fingerprintLocalEngineInBrowser({ endpoint: normalizedEndpoint, securityMode, apiKey, signal });
         if (fingerprint.outcome !== 'engine') {
           return {
             state: 'unreachable',
@@ -161,7 +162,7 @@ export function LocalComputeSetup({ connection }: {
         engine,
         endpoint: normalizedEndpoint,
         securityMode,
-        apiKey: engine === 'openwebui' ? apiKey : '',
+        apiKey,
         signal,
       });
       return { ...connected, engine, channel };
@@ -205,9 +206,11 @@ export function LocalComputeSetup({ connection }: {
         executionLocality: runtime.executionLocality,
         ...(runtime.engineDeclaration ? { engineDeclaration: runtime.engineDeclaration } : {}),
     }));
-    const openWebUI = engine === 'openwebui';
+    // A non-empty key means bearer for every engine; an empty key means no auth.
+    const storedKey = apiKey.trim();
+    const authMode = localEngineAuthMode(storedKey);
     const requested = makeRelayRequested('openai_compatible');
-    requested.authMode = openWebUI ? 'bearer' : 'none';
+    requested.authMode = authMode;
     requested.securityMode = securityMode;
     requested.transport = transport;
     requested.resolvedAPIBaseURL = apiBaseURL;
@@ -220,14 +223,14 @@ export function LocalComputeSetup({ connection }: {
         models,
         catalogModels: models,
         lastCheckedAt: new Date().toISOString(),
-        apiKey: openWebUI ? apiKey.trim() : '',
-        apiKeyPreview: openWebUI ? formatApiKeyPreview(apiKey.trim()) : '',
+        apiKey: storedKey,
+        apiKeyPreview: storedKey ? formatApiKeyPreview(storedKey) : '',
         baseURLText: result.endpoint,
         relayKind: 'openai_compatible',
         relayRequested: requested,
         relayResolvedBaseURLText: apiBaseURL,
         relayResolvedTransport: transport,
-        relayResolvedAuthMode: openWebUI ? 'bearer' : 'none',
+        relayResolvedAuthMode: authMode,
         relayCapabilityBitmap: buildRelayCapabilityBitmap(transport, {
           catalogEvidenceSucceeded: true,
         }),
@@ -257,7 +260,7 @@ export function LocalComputeSetup({ connection }: {
             </div>
             {board.lanHttpBlocked
               ? <span className={styles.fieldError}>{t('localLanHttpBlocked')}</span>
-              : board.slots.includes('apiKey') ? null : <small>{t('localNoCredentials')}</small>}
+              : null}
           </div>
           {endpointAccess.kind === 'invalid' ? <section className={styles.statusCard} data-state="error" role="status"><p>{t('invalidRequestURL')}</p></section> : null}
           {board.showsManualPicker ? (
@@ -278,7 +281,7 @@ export function LocalComputeSetup({ connection }: {
               ) : null}
             </div>
           ) : null}
-          {board.slots.includes('apiKey') ? <div className={styles.field}><label htmlFor="local-api-key">{t('apiKeyLabel')}</label><input id="local-api-key" className={styles.input} type="password" autoComplete="off" value={apiKey} placeholder={t('apiKeyPlaceholder')} onChange={(event) => { invalidateConnection(); setApiKey(event.target.value); }} disabled={connecting} /></div> : null}
+          {board.slots.includes('apiKey') ? <div className={styles.field}><label htmlFor="local-api-key">{t('apiKeyLabel')}</label><input id="local-api-key" className={styles.input} type="password" autoComplete="off" value={apiKey} placeholder={t('apiKeyPlaceholder')} onChange={(event) => { invalidateConnection(); setApiKey(event.target.value); }} disabled={connecting} />{board.apiKeyFootnote ? <small>{t(board.apiKeyFootnote)}</small> : null}</div> : null}
           <LocalDetectionCard board={board} result={result} />
           <div className={styles.actionBar}>
             <Button className={styles.primaryAction} onClick={board.primaryButton === 'connectAndSave' ? saveDetectedLocal : connect} disabled={!board.isPrimaryEnabled}>{connecting ? <CircleNotch className={styles.spinner} size={18} data-spinner aria-hidden="true" /> : board.primaryButton === 'connectAndSave' ? <Check size={18} weight="bold" /> : <Scan size={18} weight="bold" />}<span>{connecting ? t('detecting') : t(board.primaryButton)}</span></Button>
@@ -297,7 +300,6 @@ export function LocalComputeSetup({ connection }: {
 /** Detection card: recognized = summary line + three tiles; engine not recognized = warning card; connection failure keeps the existing failure line. */
 function LocalDetectionCard({ board, result }: { board: LocalSetupBoard; result: LocalSetupConnectionValue | null }) {
   const t = useTranslations('pages.relaySetup');
-  const td = useTranslations('pages.relayDetail');
   if (board.card === 'hidden' || !result && board.card !== 'detecting') return null;
   if (board.card === 'detecting') {
     return (
@@ -319,7 +321,7 @@ function LocalDetectionCard({ board, result }: { board: LocalSetupBoard; result:
   if (board.failure === 'connection' || !board.summary) {
     return (
       <section className={styles.statusCard} data-state="error" role="status">
-        <p>{result?.failure === 'cleartext_credentials' ? td('cleartextCredentialsBlocked') : t(localFailureKey(result?.failure))}</p>
+        <p>{t(localFailureKey(result?.failure))}</p>
       </section>
     );
   }

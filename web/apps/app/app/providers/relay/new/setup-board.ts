@@ -116,6 +116,23 @@ export interface LocalSetupBoard {
   isPrimaryEnabled: boolean;
   /** LAN http -> W1 note row, primary button disabled. */
   lanHttpBlocked: boolean;
+  /**
+   * Footnote under the API key field (`pages.relaySetup` key): optional + cleartext, optional + HTTPS,
+   * required + cleartext; required + HTTPS has none.
+   */
+  apiKeyFootnote: LocalApiKeyFootnoteKey | null;
+}
+
+export type LocalApiKeyFootnoteKey = 'localApiKeyOptionalCleartext' | 'localApiKeyOptional' | 'localApiKeyCleartext';
+
+/** Only Open WebUI requires a key; every other engine treats it as optional. */
+export function localEngineRequiresApiKey(engine: LocalEngineKind | undefined): boolean {
+  return engine === 'openwebui';
+}
+
+function localApiKeyFootnote(required: boolean, cleartext: boolean): LocalApiKeyFootnoteKey | null {
+  if (required) return cleartext ? 'localApiKeyCleartext' : null;
+  return cleartext ? 'localApiKeyOptionalCleartext' : 'localApiKeyOptional';
 }
 
 export function localSetupBoard(input: {
@@ -125,6 +142,8 @@ export function localSetupBoard(input: {
   manualExpanded: boolean;
   manualEngine: LocalEngineKind;
   hasApiKey: boolean;
+  /** Security mode the current address resolves to; `local_http` means the key would travel unencrypted. */
+  endpointSecurityMode?: 'remote_https' | 'local_http';
 }): LocalSetupBoard {
   const { result, isDetecting } = input;
   const card: SetupCardState = isDetecting
@@ -150,7 +169,9 @@ export function localSetupBoard(input: {
       thinking: localThinkingValueKey(result.engine, channel, declared),
     };
   }
-  const slots: LocalSetupSlot[] = engine === 'openwebui' ? ['endpoint', 'apiKey'] : ['endpoint'];
+  // Every engine shows the API key field (oriveo/oriveo#20); only Open WebUI requires it.
+  const slots: LocalSetupSlot[] = ['endpoint', 'apiKey'];
+  const keyRequired = localEngineRequiresApiKey(engine);
   return {
     slots,
     card,
@@ -161,7 +182,8 @@ export function localSetupBoard(input: {
     primaryButton: card === 'succeeded' ? 'connectAndSave' : 'detectConnectionSettings',
     isPrimaryEnabled: !isDetecting
       && input.endpointAccess === 'allowed'
-      && !(engine === 'openwebui' && !input.hasApiKey),
+      && !(keyRequired && !input.hasApiKey),
     lanHttpBlocked: input.endpointAccess === 'lan_http_blocked',
+    apiKeyFootnote: localApiKeyFootnote(keyRequired, input.endpointSecurityMode === 'local_http'),
   };
 }

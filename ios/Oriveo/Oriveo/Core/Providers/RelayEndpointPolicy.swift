@@ -48,11 +48,6 @@ nonisolated enum RelayEndpointPolicy {
         }
         guard components.scheme?.lowercased() == "http" else { return denied("unsupported_scheme") }
         guard localMode else { return denied("cleartext_not_allowed") }
-        if let credentials,
-           credentials.authMode.map({ $0 != .none }) == true || credentials.hasKey
-            || !credentials.sensitiveHeaders.isEmpty || !credentials.sensitiveQueryKeys.isEmpty {
-            return denied("cleartext_credentials")
-        }
 
         let initialIPs = unique(resolvedIPs.isEmpty ? literalHostIPs(host) : resolvedIPs)
         let initial = classifyResolvedSet(initialIPs, securityMode: securityMode)

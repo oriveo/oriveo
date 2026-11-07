@@ -412,7 +412,6 @@
     <string name="relay_section_request_behavior">Compatibility</string>
     <string name="relay_section_headers_query">Headers &amp; query params</string>
     <string name="relay_connection_no_key_required">This connection doesn\'t need a key</string>
-    <string name="relay_credentials_cleartext_blocked">An unencrypted connection can\'t carry a key.</string>
     <string name="relay_security_mode_scheme_mismatch">This address doesn\'t match the connection method. Change the connection method to continue.</string>
     <string name="relay_security_mode_label">Connection security</string>
     <string name="relay_security_mode_remote_https">Public HTTPS</string>
@@ -420,15 +419,14 @@
     <string name="relay_security_mode_paired_https">Paired HTTPS</string>
     <string name="relay_security_mode_paired_https_description">Encrypted connection secured during pairing.</string>
     <string name="relay_security_mode_local_http">Local HTTP</string>
-    <string name="relay_security_mode_local_http_description">For addresses on this device or your LAN. Not encrypted, so no credentials are sent.</string>
+    <string name="relay_security_mode_local_http_description">For addresses on this device or your LAN. Not encrypted.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">This connection won\'t be encrypted. Other devices on the same network could see what Oriveo sends, including any API key.</string>
     <string name="relay_security_mode_private_vpn">Private VPN</string>
     <string name="relay_security_mode_private_vpn_description">Reached over a private network such as Tailscale.</string>
-    <string name="relay_security_mode_suggest_local">This looks like a local or LAN address. Over plain LAN HTTP, Oriveo won\'t send any credentials.</string>
     <string name="relay_security_mode_suggest_vpn">This looks like a Tailscale address. Use Private VPN only if this address belongs to your private network.</string>
     <string name="relay_security_mode_keep_https">Keep HTTPS</string>
     <string name="relay_security_mode_use_local_http">Connect over plain LAN HTTP</string>
     <string name="relay_security_mode_use_private_vpn">Use Private VPN</string>
-    <string name="relay_security_mode_clear_credentials_warning">Switching to an unencrypted connection also deletes: this connection\'s key, custom headers, and custom query parameters.</string>
     <string name="relay_security_mode_https_required">Public connections must use HTTPS.</string>
     <string name="relay_security_mode_option_public_disabled">Unavailable because this address resolves to a public or mixed network.</string>
     <string name="relay_security_mode_option_unknown_disabled">Enter a local, LAN, or private VPN address before choosing this connection type.</string>
@@ -1290,7 +1288,9 @@
     <string name="local_compute_entry_subtitle">Connect Ollama, LM Studio, llama.cpp, or vLLM</string>
     <string name="local_compute_description">Connect directly to an engine on this device or your private network.</string>
     <string name="local_compute_engine">Engine</string>
-    <string name="local_compute_no_credentials">No authentication. No credentials are sent.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">Optional. This connection doesn\'t use HTTPS, so the key is sent unencrypted.</string>
+    <string name="local_compute_api_key_footnote_optional_https">Optional. Leave empty if your engine doesn\'t use a key.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">This connection doesn\'t use HTTPS, so the key is sent unencrypted.</string>
     <string name="local_compute_model_optional">Model (optional)</string>
     <string name="local_compute_error_address">This local address is not allowed.</string>
     <string name="local_compute_error_engine">The service at this address is not the selected engine.</string>
@@ -1298,7 +1298,6 @@
     <string name="local_compute_error_models">No local models were found.</string>
     <string name="local_compute_error_network">Could not connect to the local engine.</string>
     <string name="local_compute_connecting">Connecting…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI needs a key, so use an HTTPS connection.</string>
     <string name="local_compute_localhost_phone">localhost means this phone, not your computer.</string>
     <string name="local_model_via_ollama_cloud">Via Ollama Cloud</string>
     <string name="local_model_loading">Loading</string>

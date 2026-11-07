@@ -858,7 +858,6 @@
     <string name="relay_section_request_behavior">相容性</string>
     <string name="relay_section_headers_query">請求標頭與查詢參數</string>
     <string name="relay_connection_no_key_required">此連線不需要金鑰</string>
-    <string name="relay_credentials_cleartext_blocked">未加密的連線不能攜帶金鑰。</string>
     <string name="relay_security_mode_scheme_mismatch">這個位址與連線方式不符。請改用相符的連線方式後繼續。</string>
     <string name="relay_security_mode_label">連線安全</string>
     <string name="relay_security_mode_remote_https">公網 HTTPS</string>
@@ -866,15 +865,14 @@
     <string name="relay_security_mode_paired_https">配對 HTTPS</string>
     <string name="relay_security_mode_paired_https_description">透過配對建立的加密連線。</string>
     <string name="relay_security_mode_local_http">本機 HTTP</string>
-    <string name="relay_security_mode_local_http_description">僅用於本機或區域網路位址；連線未加密，因此不會傳送任何憑證。</string>
+    <string name="relay_security_mode_local_http_description">用於本機或區域網路位址，連線未加密。</string>
     <string name="relay_security_mode_private_vpn">私人 VPN</string>
     <string name="relay_security_mode_private_vpn_description">透過 Tailscale 等私人網路存取。</string>
-    <string name="relay_security_mode_suggest_local">這看起來是本機或區域網路位址。使用區域網路明文連線時，Oriveo 不會傳送任何憑證。</string>
+    <string name="relay_security_mode_cleartext_confirm_body">這條連線不會加密。同一網路中的其他裝置可能會看到 Oriveo 傳送的內容，包括 API 金鑰。</string>
     <string name="relay_security_mode_suggest_vpn">這看起來是 Tailscale 位址。僅當該位址屬於你的私人網路時使用私人 VPN。</string>
     <string name="relay_security_mode_keep_https">保持 HTTPS</string>
     <string name="relay_security_mode_use_local_http">使用區域網路明文連線</string>
     <string name="relay_security_mode_use_private_vpn">使用私人 VPN</string>
-    <string name="relay_security_mode_clear_credentials_warning">改為未加密連線會同時刪除：這條連線的金鑰、自訂 Header、自訂 Query 參數。</string>
     <string name="relay_security_mode_https_required">公網連線必須使用 HTTPS。</string>
     <string name="relay_security_mode_option_public_disabled">此位址解析至公網或混合網路，無法使用此連線方式。</string>
     <string name="relay_security_mode_option_unknown_disabled">請先輸入本機、區域網路或私人 VPN 位址。</string>
@@ -1238,7 +1236,9 @@
     <string name="local_compute_entry_subtitle">連接 Ollama、LM Studio、llama.cpp 或 vLLM</string>
     <string name="local_compute_description">直接連接本機或私人網路中的推論引擎。</string>
     <string name="local_compute_engine">引擎</string>
-    <string name="local_compute_no_credentials">無需驗證，不會傳送任何憑證。</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">選填。這條連線未使用 HTTPS，金鑰會以明文傳送。</string>
+    <string name="local_compute_api_key_footnote_optional_https">選填。引擎不需要金鑰時留空即可。</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">這條連線未使用 HTTPS，金鑰會以明文傳送。</string>
     <string name="local_compute_model_optional">模型（選填）</string>
     <string name="local_compute_error_address">不允許使用此本機位址。</string>
     <string name="local_compute_error_engine">此位址上的服務不是所選引擎。</string>
@@ -1246,7 +1246,6 @@
     <string name="local_compute_error_models">找不到本機模型。</string>
     <string name="local_compute_error_network">無法連接本機引擎。</string>
     <string name="local_compute_connecting">正在連接…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI 需要金鑰，請改用 HTTPS 連線。</string>
     <string name="local_compute_localhost_phone">localhost 指這台手機，不是你的電腦。</string>
     <string name="local_model_via_ollama_cloud">經 Ollama 雲端</string>
     <string name="local_model_loading">載入中</string>

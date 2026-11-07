@@ -814,7 +814,6 @@
     <string name="relay_section_request_behavior">संगतता</string>
     <string name="relay_type_row_change">बदलें</string>
     <string name="relay_connection_no_key_required">इस कनेक्शन को कुंजी की ज़रूरत नहीं है</string>
-    <string name="relay_credentials_cleartext_blocked">बिना एन्क्रिप्शन वाला कनेक्शन कुंजी नहीं ले जा सकता।</string>
     <string name="relay_security_mode_scheme_mismatch">यह पता कनेक्शन विधि से मेल नहीं खाता। जारी रखने के लिए कनेक्शन विधि बदलें।</string>
     <string name="relay_security_mode_label">कनेक्शन सुरक्षा</string>
     <string name="relay_security_mode_remote_https">सार्वजनिक HTTPS</string>
@@ -822,15 +821,14 @@
     <string name="relay_security_mode_paired_https">युग्मित HTTPS</string>
     <string name="relay_security_mode_paired_https_description">युग्मन के दौरान एन्क्रिप्टेड कनेक्शन सुरक्षित।</string>
     <string name="relay_security_mode_local_http">लोकल HTTP</string>
-    <string name="relay_security_mode_local_http_description">इस डिवाइस या आपके LAN के पतों के लिए। यह एन्क्रिप्टेड नहीं है, इसलिए कोई क्रेडेंशियल नहीं भेजा जाता।</string>
+    <string name="relay_security_mode_local_http_description">इस डिवाइस या आपके LAN के पतों के लिए। कनेक्शन एन्क्रिप्ट नहीं होता।</string>
+    <string name="relay_security_mode_cleartext_confirm_body">यह कनेक्शन एन्क्रिप्ट नहीं होगा। उसी नेटवर्क के दूसरे डिवाइस Oriveo से भेजी गई जानकारी देख सकते हैं, जिसमें आपकी API key भी शामिल है।</string>
     <string name="relay_security_mode_private_vpn">निजी VPN</string>
     <string name="relay_security_mode_private_vpn_description">Tailscale जैसे निजी नेटवर्क के ज़रिए पहुँचा जाता है।</string>
-    <string name="relay_security_mode_suggest_local">यह लोकल या LAN पता लगता है। सादे LAN HTTP पर Oriveo कोई क्रेडेंशियल नहीं भेजेगा।</string>
     <string name="relay_security_mode_suggest_vpn">यह Tailscale पता लगता है। निजी VPN का उपयोग तभी करें जब यह पता आपके निजी नेटवर्क का हो।</string>
     <string name="relay_security_mode_keep_https">HTTPS रखें</string>
     <string name="relay_security_mode_use_local_http">सादे LAN HTTP पर कनेक्ट करें</string>
     <string name="relay_security_mode_use_private_vpn">निजी VPN का उपयोग करें</string>
-    <string name="relay_security_mode_clear_credentials_warning">अनएन्क्रिप्टेड कनेक्शन पर स्विच करने से इस कनेक्शन की कुंजी, कस्टम हेडर और कस्टम क्वेरी पैरामीटर भी हट जाएँगे।</string>
     <string name="relay_security_mode_https_required">सार्वजनिक कनेक्शन के लिए HTTPS ज़रूरी है।</string>
     <string name="relay_security_mode_option_public_disabled">उपलब्ध नहीं, क्योंकि यह पता सार्वजनिक या मिश्रित नेटवर्क को रिज़ॉल्व होता है।</string>
     <string name="relay_security_mode_option_unknown_disabled">इस कनेक्शन प्रकार को चुनने से पहले लोकल, LAN या निजी VPN पता दर्ज करें।</string>
@@ -1156,7 +1154,9 @@
     <string name="local_compute_entry_subtitle">Ollama, LM Studio, llama.cpp या vLLM कनेक्ट करें</string>
     <string name="local_compute_description">इस डिवाइस या अपने निजी नेटवर्क के इंजन से सीधे कनेक्ट करें।</string>
     <string name="local_compute_engine">इंजन</string>
-    <string name="local_compute_no_credentials">कोई प्रमाणीकरण नहीं। कोई क्रेडेंशियल नहीं भेजा जाता।</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">वैकल्पिक। यह कनेक्शन HTTPS का इस्तेमाल नहीं करता, इसलिए कुंजी बिना एन्क्रिप्शन के भेजी जाती है।</string>
+    <string name="local_compute_api_key_footnote_optional_https">वैकल्पिक। अगर आपका इंजन कुंजी इस्तेमाल नहीं करता, तो इसे खाली छोड़ें।</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">यह कनेक्शन HTTPS का इस्तेमाल नहीं करता, इसलिए कुंजी बिना एन्क्रिप्शन के भेजी जाती है।</string>
     <string name="local_compute_model_optional">मॉडल (वैकल्पिक)</string>
     <string name="local_compute_error_address">इस लोकल पते की अनुमति नहीं है।</string>
     <string name="local_compute_error_engine">इस पते की सेवा चुना गया इंजन नहीं है।</string>
@@ -1164,7 +1164,6 @@
     <string name="local_compute_error_models">कोई लोकल मॉडल नहीं मिला।</string>
     <string name="local_compute_error_network">लोकल इंजन से कनेक्ट नहीं हो सका।</string>
     <string name="local_compute_connecting">कनेक्ट हो रहा है…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI को कुंजी की ज़रूरत है, इसलिए HTTPS कनेक्शन का उपयोग करें।</string>
     <string name="local_compute_localhost_phone">localhost का अर्थ यह फ़ोन है, आपका कंप्यूटर नहीं।</string>
     <string name="local_model_via_ollama_cloud">Ollama Cloud के जरिए</string>
     <string name="local_model_loading">लोड हो रहा है</string>

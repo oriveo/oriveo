@@ -50,16 +50,6 @@ object RelayEndpointPolicy {
     )
 
     /**
-     * The one test for "there really is credential material here": a real key, or a sensitive
-     * header or query parameter.
-     */
-    fun hasCredentialMaterial(requested: RelayRequestedConfig?, hasKey: Boolean): Boolean {
-        val credentials = credentialsOf(requested, hasKey)
-        return credentials.hasKey || credentials.sensitiveHeaders.isNotEmpty() ||
-            credentials.sensitiveQueryKeys.isNotEmpty()
-    }
-
-    /**
      * The single list of sensitive names for the whole app: redaction on send, the interlock on
      * save, and the masking applied when a failure card or a diagnostic view shows an upstream
      * payload all consult this one function. The display, send and save paths must never each
@@ -129,10 +119,7 @@ object RelayEndpointPolicy {
             }
             if (!uri.scheme.equals("http", ignoreCase = true)) return@runCatching denied("unsupported_scheme")
             if (!localMode) return@runCatching denied("cleartext_not_allowed")
-            if (credentials != null && (
-                    credentials.authMode?.let { it != RelayAuthMode.None } == true || credentials.hasKey ||
-                        credentials.sensitiveHeaders.isNotEmpty() || credentials.sensitiveQueryKeys.isNotEmpty()
-                )) return@runCatching denied("cleartext_credentials")
+            // Local / private-VPN cleartext may carry credentials (oriveo/oriveo#20); the address class still gates it.
 
             val initialIPs = (resolvedIPs.ifEmpty { literalHostIPs(uri.host) }).distinct()
             val initial = classifyResolvedSet(initialIPs, securityMode)

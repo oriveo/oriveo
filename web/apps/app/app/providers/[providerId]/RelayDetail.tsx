@@ -14,8 +14,6 @@ import {
   type RelayFormIssue,
   type RelayFormDraft,
 } from '@oriveo/core/providers/relay-form-validation';
-import { relayHasCredentialMaterialAcross } from '@oriveo/core/providers/relay-runtime-support';
-import { normalizeEndpointForSecurityMode } from '@oriveo/core/providers/relay-security-mode';
 import { BackButton, Button } from '@oriveo/ui';
 import { RelayPrivacyNotice } from '../../../components/providers/RelayPrivacyNotice';
 import { RelaySecurityModeControl } from '../../../components/providers/RelaySecurityModeControl';
@@ -161,7 +159,6 @@ export function RelayDetail({ provider }: RelayDetailProps) {
     relaySettingsSaveFailure,
     saveKey,
     removeKey,
-    clearRelayCredentials,
     saveName,
     saveRelaySettings,
     saveRelaySettingsUnverified,
@@ -240,20 +237,6 @@ export function RelayDetail({ provider }: RelayDetailProps) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [endpointRevealVersion, setEndpointRevealVersion] = useState(0);
   const savedRequested = relayEditSavedRequested(provider);
-  const draftHasCredentialMaterial = relayHasCredentialMaterialAcross([
-    {
-      authMode: savedRequested.authMode,
-      hasStoredKey: (resolveProviderAPIKey(provider) ?? '').trim().length > 0,
-      headers: savedRequested.headers,
-      queryParams: savedRequested.queryParams,
-    },
-    {
-      authMode: editDraft.authMode,
-      hasStoredKey: false,
-      headers: editDraft.headers,
-      queryParams: editDraft.queryParams,
-    },
-  ]);
 
   const parsedModelIds = useMemo(() => {
     const lines = modelInput.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
@@ -677,28 +660,18 @@ export function RelayDetail({ provider }: RelayDetailProps) {
     mode: Exclude<NonNullable<RelayRequestedConfig['securityMode']>, 'tofu_https'>;
     normalizedEndpoint: string;
   }) => {
-    const cleartext = input.mode === 'local_http' || input.mode === 'private_vpn';
     // Persist only the connection security itself and what comes with it: unsaved protocol / auth / header drafts stay in the editor and are not persisted with the reconnect.
+    // Cleartext modes keep the saved key, headers and authMode.
     const nextRequested: RelayRequestedConfig = {
       ...savedRequested,
       modelID: undefined,
       securityMode: input.mode,
       resolvedAPIBaseURL: undefined,
-      ...(cleartext
-        ? {
-            authMode: 'none',
-            ...(draftHasCredentialMaterial ? { headers: undefined, queryParams: undefined } : {}),
-          }
-        : {}),
     };
     const endpointUntouched = editDraft.endpoint === (provider.baseURLText ?? '');
-    setEditDraft((current) => ({
-      ...current,
-      ...(cleartext
-        ? { authMode: 'none' as const, ...(draftHasCredentialMaterial ? { headers: [], queryParams: [] } : {}) }
-        : {}),
-      ...(endpointUntouched ? { endpoint: input.normalizedEndpoint } : {}),
-    }));
+    if (endpointUntouched) {
+      setEditDraft((current) => ({ ...current, endpoint: input.normalizedEndpoint }));
+    }
     if (endpointUntouched && input.normalizedEndpoint !== (provider.baseURLText ?? '').trim()) {
       setEndpointRevealVersion((version) => version + 1);
     }
@@ -720,16 +693,6 @@ export function RelayDetail({ provider }: RelayDetailProps) {
       return;
     }
     setEditStatus({ kind: 'failed', message: result.diagnostic ?? tSetup('noProtocolVerified') });
-  };
-
-  const switchConflictToHttps = () => {
-    const explicitHttps = (provider.baseURLText ?? '').replace(/^http:\/\//i, 'https://');
-    const normalizedEndpoint = normalizeEndpointForSecurityMode(explicitHttps, 'remote_https');
-    if (!normalizedEndpoint) {
-      showToast(tr('connectionTypeInvalidAddress'), 4000, undefined, 'error');
-      return;
-    }
-    void changeSecurityMode({ mode: 'remote_https', normalizedEndpoint });
   };
 
   /** Recovery card "Re-verify": tests only the saved connection and writes the result back to the connection status. */
@@ -914,18 +877,8 @@ export function RelayDetail({ provider }: RelayDetailProps) {
     />
   );
 
-  // Exits under the key row: S3 gives only two ways out; with no auth required but a stored key, "Remove stored key" is kept (deleting it would delete the feature).
-  const apiKeyRowExtras = credentialState === 'conflict' ? (
-    <div className={boardStyles.rowExtras} data-tone="error" role="alert">
-      <span>{tr('cleartextCredentialsBlocked')}</span>
-      <Button tone="primary" size="sm" onClick={() => { void clearRelayCredentials(); }} disabled={isSyncing}>
-        {tr('clearAndStay')}
-      </Button>
-      <Button tone="secondary" size="sm" onClick={switchConflictToHttps} disabled={isSyncing}>
-        {tr('switchToHttpsConnection')}
-      </Button>
-    </div>
-  ) : credentialState === 'not_required' && hasStoredKey ? (
+  // Key row exit: a connection that needs no auth but still stores a key keeps "Remove key".
+  const apiKeyRowExtras = credentialState === 'not_required' && hasStoredKey ? (
     <div className={boardStyles.rowExtras}>
       <Button tone="secondary" size="sm" onClick={() => { void removeKey(); }} disabled={isSyncing}>
         {tr('removeKey')}
@@ -998,7 +951,6 @@ export function RelayDetail({ provider }: RelayDetailProps) {
             <RelaySecurityModeControl
               value={savedRequested.securityMode ?? 'remote_https'}
               endpoint={provider.baseURLText ?? ''}
-              hasCredentialMaterial={draftHasCredentialMaterial}
               onChange={changeSecurityMode}
               busy={isSyncing}
               icon={icon}

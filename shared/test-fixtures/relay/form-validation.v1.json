@@ -322,7 +322,8 @@
       }
     },
     {
-      "caseId": "cleartext_credentials_edit",
+      "caseId": "local_http_saved_key_edit_allowed",
+      "$comment": "Local/VPN cleartext may carry credentials once the user has confirmed the unencrypted mode; the form no longer rejects them.",
       "mode": "edit",
       "draft": {
         "endpoint": "http://192.168.1.20:1234/v1",
@@ -336,19 +337,31 @@
         "hasSavedCredential": true
       },
       "expect": {
-        "valid": false,
-        "issues": [
-          {
-            "field": "api_key",
-            "code": "cleartext_credentials",
-            "detail": "cleartext_credentials"
-          }
-        ]
+        "valid": true,
+        "issues": []
       }
     },
     {
-      "caseId": "cleartext_sensitive_header_edit",
-      "$comment": "Authentication is none and no key is set, but a custom header carries credential material. The issue is reported on the headers row, where the user can act on it.",
+      "caseId": "local_http_new_key_create_allowed",
+      "mode": "create",
+      "draft": {
+        "endpoint": "http://192.168.1.20:8000/v1",
+        "apiKey": "sk-local-0123456789abcdef",
+        "authMode": "bearer",
+        "securityMode": "local_http",
+        "transport": "openai_chat_completions",
+        "modelId": "rapid-local",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": true,
+        "issues": []
+      }
+    },
+    {
+      "caseId": "local_http_sensitive_header_edit_allowed",
       "mode": "edit",
       "draft": {
         "endpoint": "http://192.168.1.20:1234/v1",
@@ -367,14 +380,8 @@
         "hasSavedCredential": false
       },
       "expect": {
-        "valid": false,
-        "issues": [
-          {
-            "field": "headers",
-            "code": "cleartext_credentials",
-            "detail": "cleartext_credentials"
-          }
-        ]
+        "valid": true,
+        "issues": []
       }
     },
     {

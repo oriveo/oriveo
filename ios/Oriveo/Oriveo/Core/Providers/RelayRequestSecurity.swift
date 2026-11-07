@@ -94,7 +94,6 @@ nonisolated enum RelayRequestSecurity {
             )
         }
 
-        try requireNoSensitiveMaterial(request)
         let pinned = try await resolveAndClassify(url, mode: mode, resolver: resolver)
         let rechecked = try await resolveAndClassify(url, mode: mode, resolver: resolver)
         guard pinned == rechecked else { throw securityError("dns_rebinding") }
@@ -185,16 +184,6 @@ nonisolated enum RelayRequestSecurity {
                 normalized: nil,
                 pinnedIPs: []
             )
-        }
-    }
-
-    static func requireNoSensitiveMaterial(_ request: URLRequest) throws {
-        let headerNames = request.allHTTPHeaderFields?.keys ?? Dictionary<String, String>().keys
-        let queryNames = URLComponents(url: request.url!, resolvingAgainstBaseURL: false)?
-            .queryItems?.map(\.name) ?? []
-        guard !headerNames.contains(where: isSensitiveName),
-              !queryNames.contains(where: isSensitiveName) else {
-            throw securityError("cleartext_credentials")
         }
     }
 
@@ -364,8 +353,7 @@ private final class RelayLocalRedirectGuard: NSObject, URLSessionTaskDelegate, @
     ) {
         Task {
             guard let redirected = request.url,
-                  redirected.scheme?.lowercased() == "http",
-                  (try? RelayRequestSecurity.requireNoSensitiveMaterial(request)) != nil else {
+                  redirected.scheme?.lowercased() == "http" else {
                 completionHandler(nil)
                 return
             }

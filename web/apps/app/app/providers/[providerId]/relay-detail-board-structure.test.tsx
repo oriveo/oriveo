@@ -64,7 +64,6 @@ vi.mock('../../../lib/hooks/useProviderActions', () => ({
     relaySettingsSaveFailure: null,
     saveKey: mocks.saveKey,
     removeKey: mocks.removeKey,
-    clearRelayCredentials: vi.fn(),
     reconnectRelaySecurityMode: vi.fn(),
     verifyRelayConnection: mocks.verifyRelayConnection,
     saveBaseURL: vi.fn(),

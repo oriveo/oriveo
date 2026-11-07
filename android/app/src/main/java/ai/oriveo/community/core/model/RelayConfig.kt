@@ -225,12 +225,10 @@ val RelayAuthMode.requiresCredential: Boolean
 val RelayRequestedConfig?.requiresCredential: Boolean
     get() = RelayCredentialPolicy.requiresCredential(this)
 
+/** Cleartext connection (local HTTP or private VPN): traffic is not encrypted by TLS. */
 val RelayConnectionSecurityMode.isCleartext: Boolean
     get() = this == RelayConnectionSecurityMode.LocalHttp ||
         this == RelayConnectionSecurityMode.PrivateVpn
-
-val RelayRequestedConfig?.isCleartextConnection: Boolean
-    get() = (this?.securityMode ?: RelayConnectionSecurityMode.RemoteHttps).isCleartext
 
 fun hasStoredCredential(rawKey: String?): Boolean = RelayCredentialPolicy.hasStoredCredential(rawKey)
 

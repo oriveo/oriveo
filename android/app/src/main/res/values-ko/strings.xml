@@ -857,7 +857,6 @@
     <string name="relay_section_request_behavior">호환성</string>
     <string name="relay_type_row_change">변경</string>
     <string name="relay_connection_no_key_required">이 연결에는 키가 필요하지 않습니다</string>
-    <string name="relay_credentials_cleartext_blocked">암호화되지 않은 연결에는 키를 사용할 수 없습니다.</string>
     <string name="relay_security_mode_scheme_mismatch">이 주소는 연결 방식과 일치하지 않습니다. 계속하려면 연결 방식을 변경하세요.</string>
     <string name="relay_security_mode_label">연결 보안</string>
     <string name="relay_security_mode_remote_https">공개 HTTPS</string>
@@ -865,15 +864,14 @@
     <string name="relay_security_mode_paired_https">페어링된 HTTPS</string>
     <string name="relay_security_mode_paired_https_description">페어링하는 동안 암호화된 연결이 보호됩니다.</string>
     <string name="relay_security_mode_local_http">로컬 HTTP</string>
-    <string name="relay_security_mode_local_http_description">이 기기 또는 LAN의 주소에 사용합니다. 암호화되지 않아 인증 정보를 보내지 않습니다.</string>
+    <string name="relay_security_mode_local_http_description">이 기기나 LAN에 있는 주소에 사용합니다. 연결은 암호화되지 않습니다.</string>
     <string name="relay_security_mode_private_vpn">비공개 VPN</string>
     <string name="relay_security_mode_private_vpn_description">Tailscale과 같은 비공개 네트워크를 통해 연결합니다.</string>
-    <string name="relay_security_mode_suggest_local">로컬 또는 LAN 주소로 보입니다. 암호화되지 않은 LAN HTTP에서 Oriveo는 인증 정보를 보내지 않습니다.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">이 연결은 암호화되지 않습니다. 같은 네트워크의 다른 기기에서 API 키를 포함해 Oriveo가 보내는 내용을 볼 수도 있습니다.</string>
     <string name="relay_security_mode_suggest_vpn">Tailscale 주소로 보입니다. 이 주소가 본인의 비공개 네트워크에 속할 때만 비공개 VPN을 사용하세요.</string>
     <string name="relay_security_mode_keep_https">HTTPS 유지</string>
     <string name="relay_security_mode_use_local_http">암호화되지 않은 LAN HTTP로 연결</string>
     <string name="relay_security_mode_use_private_vpn">비공개 VPN 사용</string>
-    <string name="relay_security_mode_clear_credentials_warning">암호화되지 않은 연결로 전환하면 이 연결의 키, 사용자 지정 헤더, 사용자 지정 쿼리 매개변수도 삭제됩니다.</string>
     <string name="relay_security_mode_https_required">공개 연결은 HTTPS를 사용해야 합니다.</string>
     <string name="relay_security_mode_option_public_disabled">이 주소가 공개 또는 혼합 네트워크로 해석되어 사용할 수 없습니다.</string>
     <string name="relay_security_mode_option_unknown_disabled">이 연결 방식을 선택하기 전에 로컬, LAN 또는 비공개 VPN 주소를 입력하세요.</string>
@@ -1208,7 +1206,9 @@
     <string name="local_compute_entry_subtitle">Ollama, LM Studio, llama.cpp 또는 vLLM 연결</string>
     <string name="local_compute_description">이 기기 또는 사설 네트워크의 엔진에 직접 연결합니다.</string>
     <string name="local_compute_engine">엔진</string>
-    <string name="local_compute_no_credentials">인증 없음. 자격 증명을 보내지 않습니다.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">선택 사항입니다. 이 연결은 HTTPS를 사용하지 않으므로 키가 암호화되지 않은 상태로 전송됩니다.</string>
+    <string name="local_compute_api_key_footnote_optional_https">선택 사항입니다. 엔진에서 키를 사용하지 않으면 비워 두세요.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">이 연결은 HTTPS를 사용하지 않으므로 키가 암호화되지 않은 상태로 전송됩니다.</string>
     <string name="local_compute_model_optional">모델(선택 사항)</string>
     <string name="local_compute_error_address">이 로컬 주소는 허용되지 않습니다.</string>
     <string name="local_compute_error_engine">이 주소의 서비스가 선택한 엔진이 아닙니다.</string>
@@ -1216,7 +1216,6 @@
     <string name="local_compute_error_models">로컬 모델을 찾지 못했습니다.</string>
     <string name="local_compute_error_network">로컬 엔진에 연결할 수 없습니다.</string>
     <string name="local_compute_connecting">연결 중…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI에는 키가 필요하므로 HTTPS 연결을 사용하세요.</string>
     <string name="local_compute_localhost_phone">localhost는 컴퓨터가 아니라 이 휴대전화를 의미합니다.</string>
     <string name="local_model_via_ollama_cloud">Ollama Cloud 경유</string>
     <string name="local_model_loading">로딩 중</string>

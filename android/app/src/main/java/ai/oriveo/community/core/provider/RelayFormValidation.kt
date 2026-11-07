@@ -192,10 +192,6 @@ object RelayFormValidation {
         /** [RelayEndpointPolicy] rejected the address; `detail` carries its reason slug. */
         EndpointRejected("endpoint_rejected", R.string.relay_setup_invalid_endpoint_message, false),
 
-        /** Credential material is being carried over a cleartext transport (a key, a sensitive
-         *  header, or a sensitive query parameter). */
-        CleartextCredentials("cleartext_credentials", R.string.relay_credentials_cleartext_blocked, false),
-
         /**
          * The connection mode is incompatible with the address scheme. The mode is deliberately
          * never auto-adjusted to fit the address; the user has to change it explicitly.
@@ -298,16 +294,7 @@ object RelayFormValidation {
                     ),
                 )
             }.onFailure { error ->
-                val reason = reasonOf(error)
-                if (reason == "cleartext_credentials") {
-                    issues += FieldIssue(
-                        field = cleartextOffendingField(draft, hasCredential),
-                        code = IssueCode.CleartextCredentials,
-                        detail = reason,
-                    )
-                } else {
-                    issues += FieldIssue(Field.Endpoint, IssueCode.EndpointRejected, reason)
-                }
+                issues += FieldIssue(Field.Endpoint, IssueCode.EndpointRejected, reasonOf(error))
             }
         }
 
@@ -374,14 +361,6 @@ object RelayFormValidation {
             return false
         }
         return endpoint.lowercase().startsWith("https://")
-    }
-
-    /** Which piece of credential material actually crossed the line on a cleartext transport.
-     *  Attributed in layout order so the user gets something they can tap. */
-    private fun cleartextOffendingField(draft: RelayFormDraft, hasCredential: Boolean): Field {
-        if (draft.authMode.requiresCredential || hasCredential) return Field.ApiKey
-        if (draft.headers.any { RelayEndpointPolicy.isSensitiveName(it.key) }) return Field.Headers
-        return Field.QueryParams
     }
 
     private fun reasonOf(error: Throwable): String =

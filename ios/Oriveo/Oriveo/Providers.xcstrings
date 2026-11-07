@@ -5964,208 +5964,6 @@
         }
       }
     },
-    "An unencrypted connection can't carry a key." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "لا يمكن لاتصال غير مشفّر أن يحمل مفتاحًا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Eine unverschlüsselte Verbindung darf keinen Schlüssel enthalten."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "An unencrypted connection can't carry a key."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Una conexión sin cifrar no puede llevar una clave."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Une connexion non chiffrée ne peut pas transporter de clé."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "अनएन्क्रिप्टेड कनेक्शन में कुंजी नहीं रखी जा सकती।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Koneksi tanpa enkripsi tidak boleh membawa kunci."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暗号化されていない接続にキーを設定することはできません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "암호화되지 않은 연결에는 키를 사용할 수 없습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uma conexão não criptografada não pode conter uma chave."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Незашифрованное подключение не может содержать ключ."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "การเชื่อมต่อที่ไม่เข้ารหัสไม่สามารถใช้คีย์ได้"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Şifrelenmemiş bir bağlantı anahtar taşıyamaz."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kết nối không mã hóa không thể mang khóa."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不加密的连接不能携带密钥。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未加密的連線不能攜帶金鑰。"
-          }
-        }
-      }
-    },
-    "An unencrypted connection can't carry a key. Change the address and connection type to Public HTTPS." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "لا يمكن أن يحمل الاتصال غير المشفر مفتاحًا. قم بتغيير العنوان ونوع الاتصال إلى HTTPS العام."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Eine unverschlüsselte Verbindung kann keinen Schlüssel enthalten. Ändere die Adresse und den Verbindungstyp in „Öffentliches HTTPS“."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "An unencrypted connection can't carry a key. Change the address and connection type to Public HTTPS."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Una conexión no cifrada no puede transportar una clave. Cambia la dirección y el tipo de conexión a HTTPS público."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Une connexion non chiffrée ne peut pas contenir de clé. Modifiez l'adresse et le type de connexion en HTTPS public."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "एक अनएन्क्रिप्टेड कनेक्शन कुंजी नहीं ले जा सकता। पता और कनेक्शन प्रकार को सार्वजनिक HTTPS में बदलें।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Koneksi yang tidak terenkripsi tidak dapat membawa kunci. Ubah alamat dan jenis koneksi menjadi HTTPS Publik."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暗号化されていない接続ではキーを運ぶことができません。アドレスと接続タイプをパブリック HTTPS に変更します。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "암호화되지 않은 연결은 키를 전달할 수 없습니다. 주소와 연결 유형을 공용 HTTPS로 변경합니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Uma conexão não criptografada não pode conter uma chave. Altere o endereço e o tipo de conexão para HTTPS público."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Незашифрованное соединение не может передавать ключ. Измените адрес и тип подключения на Public HTTPS."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "การเชื่อมต่อที่ไม่เข้ารหัสส่งคีย์ไม่ได้ เปลี่ยนที่อยู่และประเภทการเชื่อมต่อเป็น Public HTTPS"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Şifrelenmemiş bir bağlantı anahtar taşıyamaz. Adresi ve bağlantı türünü Genel HTTPS olarak değiştirin."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Kết nối không được mã hóa không thể mang theo khóa. Thay đổi địa chỉ và loại kết nối thành HTTPS công khai."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "不加密的连接不能携带密钥。请将地址和连接安全改为公网 HTTPS。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未加密的連線不能攜帶金鑰。請將位址和連線方式改為公開網路 HTTPS。"
-          }
-        }
-      }
-    },
     "Announced by the provider, but not available yet." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -25329,103 +25127,103 @@
         }
       }
     },
-    "For addresses on this device or your LAN. Not encrypted, so no credentials are sent." : {
+    "For addresses on this device or your LAN. Not encrypted." : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "للحصول على العناوين الموجودة على هذا الجهاز أو شبكة LAN الخاصة بك. غير مشفرة، لذلك لا يتم إرسال أي بيانات اعتماد."
+            "value" : "لعناوين هذا الجهاز أو شبكتك المحلية (LAN). الاتصال غير مشفّر."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Für Adressen auf diesem Gerät oder in deinem LAN. Nicht verschlüsselt, daher werden keine Anmeldeinformationen gesendet."
+            "value" : "Für Adressen auf diesem Gerät oder in deinem LAN. Nicht verschlüsselt."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "For addresses on this device or your LAN. Not encrypted, so no credentials are sent."
+            "value" : "For addresses on this device or your LAN. Not encrypted."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para direcciones en este dispositivo o en tu LAN. No está cifrado, por lo que no se envían credenciales."
+            "value" : "Para direcciones en este dispositivo o en tu LAN. Sin cifrar."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pour les adresses sur cet appareil ou sur votre réseau local. Non crypté, donc aucune information d'identification n'est envoyée."
+            "value" : "Pour les adresses sur cet appareil ou sur votre réseau local. Connexion non chiffrée."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस डिवाइस या आपके LAN के पतों के लिए। एन्क्रिप्टेड नहीं है, इसलिए कोई क्रेडेंशियल नहीं भेजा जाता है।"
+            "value" : "इस डिवाइस या आपके LAN के पतों के लिए। कनेक्शन एन्क्रिप्ट नहीं होता।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Untuk alamat pada perangkat ini atau LAN Anda. Tidak dienkripsi, jadi tidak ada kredensial yang dikirim."
+            "value" : "Untuk alamat di perangkat ini atau LAN Anda. Tidak dienkripsi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このデバイスまたは LAN 上のアドレス。暗号化されていないため、資格情報は送信されません。"
+            "value" : "この端末または LAN 上のアドレス向けです。通信は暗号化されません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 장치 또는 LAN의 주소입니다. 암호화되지 않았으므로 자격 증명이 전송되지 않습니다."
+            "value" : "이 기기나 LAN에 있는 주소에 사용합니다. 연결은 암호화되지 않습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para endereços neste dispositivo ou na sua LAN. Não criptografado, portanto nenhuma credencial é enviada."
+            "value" : "Para endereços neste dispositivo ou na sua LAN. Sem criptografia."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Для адресов на этом устройстве или в вашей локальной сети. Соединение не зашифровано, поэтому учётные данные не отправляются."
+            "value" : "Для адресов на этом устройстве или в вашей локальной сети. Без шифрования."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "สำหรับที่อยู่ในอุปกรณ์นี้หรือ LAN ของคุณ ไม่ได้เข้ารหัส ดังนั้นจึงไม่มีการส่งข้อมูลรับรอง"
+            "value" : "สำหรับที่อยู่ในอุปกรณ์นี้หรือใน LAN ของคุณ การเชื่อมต่อไม่ได้เข้ารหัส"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu cihazdaki veya LAN'ınızdaki adresler için. Şifrelenmediğinden kimlik bilgileri gönderilmez."
+            "value" : "Bu cihazdaki veya LAN'ınızdaki adresler için. Bağlantı şifrelenmez."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Để biết địa chỉ trên thiết bị này hoặc mạng LAN của bạn. Không được mã hóa nên không có thông tin xác thực nào được gửi."
+            "value" : "Dành cho địa chỉ trên thiết bị này hoặc mạng LAN của bạn. Không được mã hóa."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "仅用于本机或局域网地址；连接不加密，因此不会发送任何凭据。"
+            "value" : "用于本机或局域网地址，连接不加密。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "僅用於本機或區域網路位址；連線未加密，因此不會傳送任何憑證。"
+            "value" : "用於本機或區域網路位址，連線未加密。"
           }
         }
       }
@@ -38437,6 +38235,208 @@
         }
       }
     },
+    "Optional. Leave empty if your engine doesn't use a key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اختياري. يمكن تركه فارغًا إذا كان المحرك لا يستخدم مفتاحًا."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional. Lass das Feld leer, wenn deine Engine keinen Schlüssel verwendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional. Leave empty if your engine doesn't use a key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcional. Déjalo vacío si tu motor no usa clave."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Facultatif. Laissez vide si votre moteur n'utilise pas de clé."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "वैकल्पिक। अगर आपका इंजन कुंजी इस्तेमाल नहीं करता, तो इसे खाली छोड़ें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opsional. Kosongkan jika mesin Anda tidak memakai kunci."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任意です。エンジンでキーを使わない場合は空欄のままにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택 사항입니다. 엔진에서 키를 사용하지 않으면 비워 두세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcional. Deixe em branco se o seu mecanismo não usar chave."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Необязательно. Оставьте пустым, если ваш движок не использует ключ."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่บังคับ เว้นว่างไว้หากเอนจินของคุณไม่ใช้คีย์"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İsteğe bağlı. Motorunuz anahtar kullanmıyorsa boş bırakın."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không bắt buộc. Để trống nếu engine của bạn không dùng khóa."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选填。引擎不需要密钥时留空即可。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選填。引擎不需要金鑰時留空即可。"
+          }
+        }
+      }
+    },
+    "Optional. This connection doesn't use HTTPS, so the key is sent unencrypted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "اختياري. لا يستخدم هذا الاتصال HTTPS، لذا يُرسَل المفتاح دون تشفير."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional. Diese Verbindung nutzt kein HTTPS, daher wird der Schlüssel unverschlüsselt gesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Optional. This connection doesn't use HTTPS, so the key is sent unencrypted."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcional. Esta conexión no usa HTTPS, por lo que la clave se envía sin cifrar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Facultatif. Cette connexion n'utilise pas HTTPS : la clé est envoyée sans chiffrement."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "वैकल्पिक। यह कनेक्शन HTTPS का इस्तेमाल नहीं करता, इसलिए कुंजी बिना एन्क्रिप्शन के भेजी जाती है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opsional. Koneksi ini tidak memakai HTTPS, jadi kunci dikirim tanpa enkripsi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任意です。この接続は HTTPS を使わないため、キーは暗号化されずに送信されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택 사항입니다. 이 연결은 HTTPS를 사용하지 않으므로 키가 암호화되지 않은 상태로 전송됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opcional. Esta conexão não usa HTTPS, por isso a chave é enviada sem criptografia."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Необязательно. Это соединение не использует HTTPS, поэтому ключ передаётся без шифрования."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ไม่บังคับ การเชื่อมต่อนี้ไม่ได้ใช้ HTTPS คีย์จึงถูกส่งโดยไม่เข้ารหัส"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "İsteğe bağlı. Bu bağlantı HTTPS kullanmadığı için anahtar şifrelenmeden gönderilir."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Không bắt buộc. Kết nối này không dùng HTTPS nên khóa được gửi đi mà không mã hóa."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选填。这条连接不使用 HTTPS，密钥会以明文发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選填。這條連線未使用 HTTPS，金鑰會以明文傳送。"
+          }
+        }
+      }
+    },
     "Other" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -50502,107 +50502,6 @@
         }
       }
     },
-    "Switching to an unencrypted connection also deletes: this connection's key, custom headers, and custom query parameters." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يؤدي التبديل إلى اتصال غير مشفّر أيضًا إلى حذف: مفتاح هذا الاتصال، والرؤوس المخصصة، ومعاملات الاستعلام المخصصة."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beim Wechsel zu einer unverschlüsselten Verbindung werden außerdem Folgendes gelöscht: der Schlüssel dieser Verbindung, benutzerdefinierte Header und benutzerdefinierte Abfrageparameter."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Switching to an unencrypted connection also deletes: this connection's key, custom headers, and custom query parameters."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cambiar a una conexión no cifrada también elimina: la clave de esta conexión, los encabezados personalizados y los parámetros de consulta personalizados."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le passage à une connexion non chiffrée supprime également : la clé de cette connexion, les en-têtes personnalisés et les paramètres de requête personnalisés."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "अनएन्क्रिप्टेड कनेक्शन पर स्विच करने से यह भी हट जाता है: इस कनेक्शन की कुंजी, कस्टम हेडर और कस्टम क्वेरी पैरामीटर।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Beralih ke koneksi tidak terenkripsi juga menghapus: kunci koneksi ini, header khusus, dan parameter kueri khusus."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "暗号化されていない接続に切り替えると、この接続のキー、カスタム ヘッダー、カスタム クエリ パラメータも削除されます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "암호화되지 않은 연결로 전환하면 이 연결의 키, 사용자 정의 헤더 및 사용자 정의 쿼리 매개변수도 삭제됩니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mudar para uma conexão não criptografada também exclui: a chave desta conexão, cabeçalhos personalizados e parâmetros de consulta personalizados."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "При переключении на незашифрованное соединение также удаляются: ключ этого соединения, пользовательские заголовки и пользовательские параметры запроса."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "การสลับไปใช้การเชื่อมต่อที่ไม่ได้เข้ารหัสจะลบ: คีย์ของการเชื่อมต่อนี้ ส่วนหัวที่กำหนดเอง และพารามิเตอร์การค้นหาที่กำหนดเอง"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Şifrelenmemiş bir bağlantıya geçiş aynı zamanda şunları da siler: bu bağlantının anahtarı, özel başlıklar ve özel sorgu parametreleri."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Việc chuyển sang kết nối không được mã hóa cũng sẽ xóa: khóa, tiêu đề tùy chỉnh và tham số truy vấn tùy chỉnh của kết nối này."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "改为不加密的连接会同时删除：这条连接的密钥、自定义 Header、自定义 Query 参数。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "改為未加密的連線會同時刪除：這條連線的金鑰、自訂 Header、自訂 Query 參數。"
-          }
-        }
-      }
-    },
     "Syncing" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -56205,6 +56104,107 @@
         }
       }
     },
+    "This connection doesn't use HTTPS, so the key is sent unencrypted." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لا يستخدم هذا الاتصال HTTPS، لذا يُرسَل المفتاح دون تشفير."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Verbindung nutzt kein HTTPS, daher wird der Schlüssel unverschlüsselt gesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This connection doesn't use HTTPS, so the key is sent unencrypted."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conexión no usa HTTPS, por lo que la clave se envía sin cifrar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette connexion n'utilise pas HTTPS : la clé est envoyée sans chiffrement."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "यह कनेक्शन HTTPS का इस्तेमाल नहीं करता, इसलिए कुंजी बिना एन्क्रिप्शन के भेजी जाती है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koneksi ini tidak memakai HTTPS, jadi kunci dikirim tanpa enkripsi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この接続は HTTPS を使わないため、キーは暗号化されずに送信されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 연결은 HTTPS를 사용하지 않으므로 키가 암호화되지 않은 상태로 전송됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conexão não usa HTTPS, por isso a chave é enviada sem criptografia."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это соединение не использует HTTPS, поэтому ключ передаётся без шифрования."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การเชื่อมต่อนี้ไม่ได้ใช้ HTTPS คีย์จึงถูกส่งโดยไม่เข้ารหัส"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu bağlantı HTTPS kullanmadığı için anahtar şifrelenmeden gönderilir."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối này không dùng HTTPS nên khóa được gửi đi mà không mã hóa."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这条连接不使用 HTTPS，密钥会以明文发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條連線未使用 HTTPS，金鑰會以明文傳送。"
+          }
+        }
+      }
+    },
     "This connection expects an Anthropic-style x-api-key header. Open Providers → this connection → Edit connection → Auth Mode and choose “x-api-key”, then retry." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -57215,6 +57215,107 @@
         }
       }
     },
+    "This connection won't be encrypted. Other devices on the same network could see what Oriveo sends, including any API key." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "لن يكون هذا الاتصال مشفّرًا. قد تتمكن الأجهزة الأخرى على الشبكة نفسها من رؤية ما يرسله Oriveo، بما في ذلك مفتاح API."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Verbindung wird nicht verschlüsselt. Andere Geräte im selben Netzwerk könnten sehen, was Oriveo sendet – auch deinen API-Schlüssel."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This connection won't be encrypted. Other devices on the same network could see what Oriveo sends, including any API key."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conexión no estará cifrada. Otros dispositivos de la misma red podrían ver lo que envía Oriveo, incluida tu clave API."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette connexion ne sera pas chiffrée. D'autres appareils du même réseau pourraient voir ce qu'Oriveo envoie, y compris votre clé API."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "यह कनेक्शन एन्क्रिप्ट नहीं होगा। उसी नेटवर्क के दूसरे डिवाइस Oriveo से भेजी गई जानकारी देख सकते हैं, जिसमें आपकी API key भी शामिल है।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Koneksi ini tidak akan dienkripsi. Perangkat lain di jaringan yang sama bisa melihat apa yang dikirim Oriveo, termasuk API key Anda."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この接続は暗号化されません。同じネットワーク上の他の端末から、APIキーを含め Oriveo が送信する内容を見られる可能性があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 연결은 암호화되지 않습니다. 같은 네트워크의 다른 기기에서 API 키를 포함해 Oriveo가 보내는 내용을 볼 수도 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conexão não será criptografada. Outros dispositivos na mesma rede podem ver o que o Oriveo envia, inclusive a sua chave da API."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Это соединение не будет зашифровано. Другие устройства в той же сети могут увидеть, что отправляет Oriveo, включая ваш API-ключ."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การเชื่อมต่อนี้จะไม่ได้เข้ารหัส อุปกรณ์อื่นในเครือข่ายเดียวกันอาจเห็นข้อมูลที่ Oriveo ส่ง รวมถึงคีย์ API ของคุณ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu bağlantı şifrelenmeyecek. Aynı ağdaki diğer cihazlar, API anahtarınız dahil Oriveo'nun gönderdiklerini görebilir."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kết nối này sẽ không được mã hóa. Các thiết bị khác trong cùng mạng có thể thấy nội dung Oriveo gửi đi, kể cả khóa API của bạn."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这条连接不加密。同一网络中的其他设备可能会看到 Oriveo 发送的内容，包括 API 密钥。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這條連線不會加密。同一網路中的其他裝置可能會看到 Oriveo 傳送的內容，包括 API 金鑰。"
+          }
+        }
+      }
+    },
     "This connection's upstream does not offer this model. Open Providers → this connection → Model Library and enable a model it actually offers. You can ask its administrator for the exact list of available model IDs." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -57508,107 +57609,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這會刪除已不適用於該模型的存量值，且無法復原。"
-          }
-        }
-      }
-    },
-    "This engine requires an encrypted connection for its access token." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يتطلب هذا المحرك اتصالاً مشفّرًا لرمز الوصول الخاص به."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Diese Engine benötigt für ihr Zugriffstoken eine verschlüsselte Verbindung."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This engine requires an encrypted connection for its access token."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Este motor requiere una conexión cifrada para su token de acceso."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ce moteur nécessite une connexion chiffrée pour son jeton d’accès."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "इस इंजन के ऐक्सेस टोकन के लिए एन्क्रिप्टेड कनेक्शन आवश्यक है।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Mesin ini memerlukan koneksi terenkripsi untuk token aksesnya."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "このエンジンのアクセストークンには暗号化された接続が必要です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이 엔진의 액세스 토큰을 사용하려면 암호화된 연결이 필요합니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Este mecanismo exige uma conexão criptografada para o token de acesso."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Для токена доступа этого движка требуется зашифрованное соединение."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "เอนจินนี้ต้องใช้การเชื่อมต่อที่เข้ารหัสสำหรับโทเค็นการเข้าถึง"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu motorun erişim belirteci için şifreli bağlantı gerekir."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Công cụ này yêu cầu kết nối được mã hóa để dùng mã truy cập."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此引擎的访问令牌需要加密连接。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "此引擎的存取權杖需要加密連線。"
           }
         }
       }
@@ -58215,107 +58215,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這把金鑰所在的群組只允許官方 Claude CLI 使用。請到核發這把金鑰的網站，在帳戶主控台把金鑰移到允許 API 呼叫的群組，或建立新的金鑰並加到 供應商 → 這條連線 → API 金鑰，然後重試。"
-          }
-        }
-      }
-    },
-    "This looks like a local or LAN address. Over plain LAN HTTP, Oriveo won't send any credentials." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "يبدو هذا كعنوان محلي أو عنوان LAN. عبر LAN HTTP العادي، لن يرسل Oriveo أي بيانات اعتماد."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dies sieht aus wie eine lokale oder LAN-Adresse. Über einfaches LAN-HTTP sendet Oriveo keine Anmeldeinformationen."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "This looks like a local or LAN address. Over plain LAN HTTP, Oriveo won't send any credentials."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Esto parece una dirección local o LAN. A través de LAN HTTP simple, Oriveo no enviará ninguna credencial."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Cela ressemble à une adresse locale ou LAN. Sur un simple réseau HTTP LAN, Oriveo n'enverra aucune information d'identification."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "यह एक स्थानीय या LAN पते जैसा दिखता है। सादे LAN HTTP पर, Oriveo कोई क्रेडेंशियल नहीं भेजेगा।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ini terlihat seperti alamat lokal atau LAN. Melalui HTTP LAN biasa, Oriveo tidak akan mengirimkan kredensial apa pun."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "これはローカルまたは LAN アドレスのように見えます。プレーン LAN HTTP 経由では、Oriveo は認証情報を送信しません。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "로컬 또는 LAN 주소처럼 보입니다. 일반 LAN HTTP를 통해 Oriveo는 자격 증명을 보내지 않습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Parece um endereço local ou LAN. Através de LAN HTTP simples, o Oriveo não enviará nenhuma credencial."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Это похоже на локальный адрес или адрес локальной сети. По обычному протоколу HTTP в локальной сети Oriveo не отправляет никаких учетных данных."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ดูเหมือนว่าอยู่ในเครื่องหรือที่อยู่ LAN Oriveo จะไม่ส่งข้อมูลประจำตัวใดๆ บน LAN HTTP ธรรมดา"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bu bir yerel veya LAN adresine benziyor. Düz LAN HTTP üzerinden Oriveo herhangi bir kimlik bilgisi göndermez."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Địa chỉ này trông giống như địa chỉ cục bộ hoặc mạng LAN. Qua HTTP LAN đơn giản, Oriveo sẽ không gửi bất kỳ thông tin xác thực nào."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "这看起来是本机或局域网地址。按局域网明文 HTTP 连接时，Oriveo 不会发送任何凭据。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "這看起來是本機或區域網路位址。使用區域網路明文 HTTP 連線時，Oriveo 不會傳送任何憑證。"
           }
         }
       }

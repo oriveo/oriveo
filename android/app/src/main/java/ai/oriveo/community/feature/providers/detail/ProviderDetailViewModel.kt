@@ -51,7 +51,6 @@ import ai.oriveo.community.core.provider.transport.OfficialEndpointSource
 import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayConnectionSecurityMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
-import ai.oriveo.community.core.model.isCleartextConnection
 import ai.oriveo.community.core.model.requiresCredential
 import ai.oriveo.community.core.model.hasStoredCredential
 import ai.oriveo.community.core.provider.ManualRetainedPruner
@@ -850,24 +849,14 @@ class ProviderDetailViewModel(
             relayConnectionTestResult = null
             return
         }
-        val cleartext = mode == RelayConnectionSecurityMode.LocalHttp ||
-            mode == RelayConnectionSecurityMode.PrivateVpn
-        val hadStoredKey = hasStoredKey(provider)
-        val hasPersistedCredentialMaterial = RelayEndpointPolicy.hasCredentialMaterial(
-            requested = existingRequested,
-            hasKey = hadStoredKey,
-        )
         val nextRequested = existingRequested.copy(
-            authMode = if (cleartext) RelayAuthMode.None else existingRequested.authMode,
             securityMode = mode,
-            headers = if (cleartext && hasPersistedCredentialMaterial) null else existingRequested.headers,
-            queryParams = if (cleartext && hasPersistedCredentialMaterial) null else existingRequested.queryParams,
-
+            // Switching modes must drop the old API root, or later catalog and chat calls keep the previous scheme.
             resolvedAPIBaseURL = null,
         )
-        val effectiveKey = if (cleartext) "" else ProviderCredentialResolver.apiKey(provider, null)
+        val effectiveKey = ProviderCredentialResolver.apiKey(provider, null)
         // The reconnect ping names the default model, so the request key is taken for that model; what is written back to issueProvider still uses the connection-level key.
-        val pingKey = if (cleartext) "" else ProviderCredentialResolver.apiKey(provider, relaySampleModelID(provider)?.ifEmpty { null })
+        val pingKey = ProviderCredentialResolver.apiKey(provider, relaySampleModelID(provider)?.ifEmpty { null })
         val validatedEndpoint = try {
             RelayEndpointPolicy.requireConfigured(
                 baseUrl = normalizedEndpoint,
@@ -908,10 +897,6 @@ class ProviderDetailViewModel(
             if (generation != relaySecurityModeGeneration) return@launch
             isReconnectingRelaySecurity = true
             try {
-                if (cleartext && hadStoredKey) {
-                    if (generation != relaySecurityModeGeneration) return@launch
-                    providerRepository.updateApiKey(providerID, "")
-                }
                 if (generation != relaySecurityModeGeneration) return@launch
                 providerRepository.updateProvider(issueProvider)
                 if (generation != relaySecurityModeGeneration) return@launch
@@ -1519,12 +1504,6 @@ class ProviderDetailViewModel(
             return
         }
 
-        if (isCleartextConnection(current)) {
-            apiKeyEditErrorRes = R.string.relay_credentials_cleartext_blocked
-            apiKeyEditError = null
-            return
-        }
-
         if (!ProviderKeyInput.isPrintableAsciiKey(key)) {
             apiKeyEditErrorRes = R.string.provider_api_key_illegal_chars
             apiKeyEditError = null
@@ -1657,9 +1636,6 @@ class ProviderDetailViewModel(
 
     /** Existence counts only the real key loaded from the key store (Provider.apiKey), not the preview. */
     fun hasStoredKey(provider: Provider): Boolean = hasStoredCredential(ProviderCredentialResolver.apiKey(provider, null))
-
-    fun isCleartextConnection(provider: Provider): Boolean =
-        provider.kind == ProviderKind.Relay && provider.relayRequested.isCleartextConnection
 
     fun canEditApiKey(provider: Provider): Boolean =
         provider.kind.allowsCredentialEditing &&
@@ -1927,10 +1903,8 @@ class ProviderDetailViewModel(
     }
 
     @androidx.annotation.VisibleForTesting
-    internal fun relaySaveBlockedMessageRes(reason: String): Int = when (reason) {
-        "cleartext_credentials" -> R.string.relay_credentials_cleartext_blocked
-        else -> R.string.relay_setup_invalid_endpoint_message
-    }
+    @Suppress("UNUSED_PARAMETER")
+    internal fun relaySaveBlockedMessageRes(reason: String): Int = R.string.relay_setup_invalid_endpoint_message
 
     fun renameProvider(provider: Provider, name: String) {
         val trimmed = name.trim()

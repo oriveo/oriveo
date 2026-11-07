@@ -104,7 +104,7 @@ describe('follow-up copy', () => {
     const locales = ['ar', 'de', 'es', 'fr', 'hi', 'id', 'ja', 'ko', 'pt-BR', 'ru', 'th', 'tr', 'vi', 'zh-Hans', 'zh-Hant'];
     const keys = [
       'pages.relayDetail.privacyNote',
-      'pages.relayDetail.securityModeClearCredentialsWarning',
+      'pages.relayDetail.securityModePlainHttpWarning',
       'pages.relayDetail.noModelsHint',
       'pages.relayDetail.addModelsConfirm',
     ];

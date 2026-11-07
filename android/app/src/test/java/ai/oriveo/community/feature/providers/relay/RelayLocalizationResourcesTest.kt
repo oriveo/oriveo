@@ -99,7 +99,7 @@ class RelayLocalizationResourcesTest {
         // even though its value belongs to this module.
         val managedKey = Regex("(?:relay|custom_llm)|^use_exact_model_id$")
         val requiredLocalizedKeys = english.keys
-            .filter { managedKey.containsMatchIn(it) || it == "local_compute_error_cleartext_credentials" }
+            .filter { managedKey.containsMatchIn(it) || it.startsWith("local_compute_api_key_footnote_") }
             .sorted()
         val failures = mutableListOf<String>()
 

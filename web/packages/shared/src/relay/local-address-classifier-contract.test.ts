@@ -30,7 +30,7 @@ describe('local-address-classifier.v1 red proof', () => {
 
   it('loads the shared bidirectional classifier matrix', () => {
     expect(contract.version).toBe(1);
-    expect(contract.cases).toHaveLength(20);
+    expect(contract.cases).toHaveLength(23);
     expect(new Set(contract.cases.map((item) => item.securityMode))).toEqual(
       new Set(['remote_https', 'local_http', 'private_vpn']),
     );

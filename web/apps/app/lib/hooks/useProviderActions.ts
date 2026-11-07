@@ -261,11 +261,6 @@ export function useProviderActions(provider: Provider) {
     await providerOps.updateProviderKey(getVanillaStore(), provider, '');
   }, [provider]);
 
-  /** Way out of S3: keep the cleartext connection but clear authMode, the key and any sensitive header or query in one action. */
-  const clearRelayCredentials = useCallback(async () => {
-    await providerOps.clearRelayCredentials(getVanillaStore(), provider);
-  }, [provider]);
-
   /** Only writes the normalized address back before sending; no resync is triggered, so this does not duplicate the caller's own probe. */
   const writeBackBaseURL = useCallback(async (newURL: string) => {
     providerOps.updateProviderBaseURL(getVanillaStore(), provider, newURL);
@@ -634,7 +629,6 @@ export function useProviderActions(provider: Provider) {
     relaySettingsSaveFailure,
     saveKey,
     removeKey,
-    clearRelayCredentials,
     saveBaseURL,
     writeBackBaseURL,
     saveName,

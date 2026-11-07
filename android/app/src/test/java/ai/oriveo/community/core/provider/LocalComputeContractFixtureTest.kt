@@ -11,8 +11,17 @@ import ai.oriveo.community.feature.providers.local.LocalComputeSecurityModeChang
 import ai.oriveo.community.feature.providers.local.LocalComputeScenario
 import ai.oriveo.community.feature.providers.local.LocalComputeSetupViewModel
 import ai.oriveo.community.feature.providers.local.automaticPairingCandidates
+import ai.oriveo.community.R
 import ai.oriveo.community.feature.providers.CustomLLMConnectionMethod
+import ai.oriveo.community.feature.providers.SetupBoardSlot
 import ai.oriveo.community.feature.providers.CustomLLMSetupCoordinator
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respond
+import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
+import io.ktor.http.headersOf
+import java.util.Collections
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -39,10 +48,10 @@ class LocalComputeContractFixtureTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun `local address fixture proves current HTTPS-only policy red`() {
+    fun `local address fixture drives the production endpoint policy`() {
         val contract = decode<AddressContract>("shared/test-fixtures/relay/local-address-classifier.v1.json")
         assertEquals(1, contract.version)
-        assertEquals(20, contract.cases.size)
+        assertEquals(23, contract.cases.size)
 
         val failures = contract.cases.mapNotNull { item ->
             val result = RelayEndpointPolicy.classify(
@@ -108,7 +117,7 @@ class LocalComputeContractFixtureTest {
     }
 
     @Test
-    fun `open webui http requires affirmative downgrade and clears its bearer key`() {
+    fun `open webui http requires affirmative downgrade and keeps its bearer key`() {
         val viewModel = newViewModel()
         viewModel.selectEngine(LocalEngineKind.OpenWebUI)
         viewModel.updateEndpoint("192.168.1.20:3000")
@@ -134,10 +143,12 @@ class LocalComputeContractFixtureTest {
         )
         assertEquals(RelayConnectionSecurityMode.LocalHttp, viewModel.securityMode)
         assertEquals(0..6, viewModel.endpointHighlightRange)
-        assertEquals("", viewModel.apiKey)
-        assertEquals(LocalEngineConnectionFailure.CleartextCredentials, viewModel.failure)
+        assertEquals("open-webui-key", viewModel.apiKey)
+        assertNull(viewModel.failure)
+        assertTrue(viewModel.board.isPrimaryEnabled)
 
-        val error = runCatching {
+        assertEquals(
+            "http://192.168.1.20:3000",
             RelayEndpointPolicy.requireConfigured(
                 baseUrl = "http://192.168.1.20:3000",
                 securityMode = viewModel.securityMode,
@@ -145,29 +156,110 @@ class LocalComputeContractFixtureTest {
                     authMode = RelayAuthMode.Bearer,
                     hasKey = true,
                 ),
-            )
-        }.exceptionOrNull()
-        assertEquals(
-            "cleartext_credentials",
-            (error as? ai.oriveo.community.core.model.ProviderServiceError.InvalidConfiguration)?.detail,
-        )
-        assertEquals(
-            LocalEngineConnectionFailure.CleartextCredentials,
-            LocalEngineConnector.configurationFailure(requireNotNull(error)),
+            ),
         )
     }
 
     @Test
-    fun `engine presets keep Open WebUI on HTTPS and clear credentials for local engines`() {
+    fun `open webui on private vpn still requires a key`() {
+        val viewModel = newViewModel()
+        viewModel.selectEngine(LocalEngineKind.OpenWebUI)
+        viewModel.updateEndpoint("100.100.1.20:3000")
+        val assessment = RelaySecurityModePolicy.assess(viewModel.endpoint, listOf("100.100.1.20"))
+        assertEquals(
+            LocalComputeSecurityModeChangeResult.Applied,
+            viewModel.setSecurityMode(RelayConnectionSecurityMode.PrivateVpn, assessment, confirmDowngrade = true),
+        )
+        assertEquals(RelayConnectionSecurityMode.PrivateVpn, viewModel.securityMode)
+        assertFalse(viewModel.board.isPrimaryEnabled)
+        assertEquals(R.string.local_compute_api_key_footnote_required_cleartext, viewModel.apiKeyFootnoteRes)
+        viewModel.updateApiKey("open-webui-key")
+        assertTrue(viewModel.board.isPrimaryEnabled)
+    }
+
+    @Test
+    fun `engine presets keep Open WebUI on HTTPS and keep the entered key for every engine`() {
         val viewModel = newViewModel()
 
         viewModel.selectEngine(LocalEngineKind.OpenWebUI)
         assertEquals(RelayConnectionSecurityMode.RemoteHttps, viewModel.securityMode)
+        assertNull(viewModel.apiKeyFootnoteRes)
         viewModel.updateApiKey("open-webui-key")
 
         viewModel.selectEngine(LocalEngineKind.Ollama)
         assertEquals(RelayConnectionSecurityMode.RemoteHttps, viewModel.securityMode)
-        assertEquals("", viewModel.apiKey)
+        assertEquals("open-webui-key", viewModel.apiKey)
+        assertTrue(SetupBoardSlot.ApiKey in viewModel.board.slots)
+        assertEquals(R.string.local_compute_api_key_footnote_optional_https, viewModel.apiKeyFootnoteRes)
+    }
+
+    @Test
+    fun `optional key footnote switches to the cleartext note on local http`() {
+        val viewModel = newViewModel()
+        viewModel.selectEngine(LocalEngineKind.LlamaCpp)
+        viewModel.updateEndpoint("127.0.0.1:8080")
+        viewModel.setSecurityMode(
+            RelayConnectionSecurityMode.LocalHttp,
+            RelaySecurityModePolicy.assess("127.0.0.1:8080", listOf("127.0.0.1")),
+            confirmDowngrade = true,
+        )
+        assertEquals(listOf(SetupBoardSlot.Address, SetupBoardSlot.ApiKey), viewModel.board.slots)
+        assertEquals(R.string.local_compute_api_key_footnote_optional_cleartext, viewModel.apiKeyFootnoteRes)
+        assertTrue(viewModel.board.isPrimaryEnabled)
+    }
+
+    @Test
+    fun `non open webui engines use bearer only when a key is entered`() {
+        assertEquals(RelayAuthMode.Bearer, LocalEngineConnector.authModeFor(LocalEngineKind.Vllm, "local-key"))
+        assertEquals(RelayAuthMode.None, LocalEngineConnector.authModeFor(LocalEngineKind.Vllm, " "))
+        assertEquals(RelayAuthMode.Bearer, LocalEngineConnector.authModeFor(LocalEngineKind.OpenWebUI, ""))
+    }
+
+    @Test
+    fun `a local http key rides as bearer on probes and generation while no key sends no credential`() = runTest {
+        val authorizations = Collections.synchronizedList(mutableListOf<String?>())
+        val client = HttpClient(
+            MockEngine { request ->
+                authorizations += request.headers[HttpHeaders.Authorization]
+                respond(
+                    content = """{"data":[{"id":"local-model"}]}""",
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        )
+        val relayService = mockk<RelayService>()
+        coEvery { relayService.pingRelay(any(), any(), any(), any(), any()) } returns Unit
+        val connector = LocalEngineConnector(client, json, relayService)
+
+        connector.fingerprint("http://127.0.0.1:8000", RelayConnectionSecurityMode.LocalHttp, apiKey = "local-key")
+        assertTrue(authorizations.isNotEmpty())
+        assertEquals(List(authorizations.size) { "Bearer local-key" }, authorizations.toList())
+
+        authorizations.clear()
+        val connection = connector.connect(
+            engine = LocalEngineKind.Vllm,
+            rawEndpoint = "http://127.0.0.1:8000",
+            securityMode = RelayConnectionSecurityMode.LocalHttp,
+            apiKey = "local-key",
+        )
+        assertEquals(RelayAuthMode.Bearer, connection.requested.authMode)
+        assertTrue(authorizations.isNotEmpty())
+        assertEquals(List(authorizations.size) { "Bearer local-key" }, authorizations.toList())
+        coVerify(exactly = 1) {
+            relayService.pingRelay("local-key", any(), any(), match { it.authMode == RelayAuthMode.Bearer }, any())
+        }
+
+        authorizations.clear()
+        connector.fingerprint("http://127.0.0.1:8000", RelayConnectionSecurityMode.LocalHttp)
+        val anonymous = connector.connect(
+            engine = LocalEngineKind.Vllm,
+            rawEndpoint = "http://127.0.0.1:8000",
+            securityMode = RelayConnectionSecurityMode.LocalHttp,
+        )
+        assertEquals(RelayAuthMode.None, anonymous.requested.authMode)
+        assertTrue(authorizations.isNotEmpty())
+        assertEquals(List<String?>(authorizations.size) { null }, authorizations.toList())
     }
 
     @Test

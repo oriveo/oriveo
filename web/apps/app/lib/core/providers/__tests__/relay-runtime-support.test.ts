@@ -185,21 +185,19 @@ describe('credential resolution and the connection state machine', () => {
     expect(resolveRelayCredentialState({ authMode: 'bearer', hasStoredKey: true })).toBe('present');
   });
 
-  it('S3 only appears when a plaintext connection carries credential material', () => {
-    expect(resolveRelayCredentialState({
-      authMode: 'bearer', hasStoredKey: false, securityMode: 'local_http',
-    })).toBe('conflict');
-    expect(resolveRelayCredentialState({
-      authMode: 'none', hasStoredKey: true, securityMode: 'private_vpn',
-    })).toBe('conflict');
-    expect(resolveRelayCredentialState({
-      authMode: 'none', hasStoredKey: false, securityMode: 'local_http',
-      hasSensitiveTransportCredentials: true,
-    })).toBe('conflict');
-    // The same credential combination is perfectly legal over an encrypted connection.
-    expect(resolveRelayCredentialState({
-      authMode: 'bearer', hasStoredKey: true, securityMode: 'remote_https',
-    })).toBe('present');
+  it('cleartext connections may carry credentials, so the state depends only on auth mode and stored key', () => {
+    expect(resolveRelayCredentialState({ authMode: 'bearer', hasStoredKey: false })).toBe('missing');
+    expect(resolveRelayCredentialState({ authMode: 'none', hasStoredKey: true })).toBe('not_required');
+    expect(resolveRelayCredentialState({ authMode: 'bearer', hasStoredKey: true })).toBe('present');
+    const cleartextWithKey = makeRelayProvider({
+      apiKey: 'sk-local-0123456789',
+      baseURLText: 'http://192.168.1.20:8080/v1',
+      relayRequested: {
+        transport: 'openai_chat_completions', authMode: 'bearer', stream: true, securityMode: 'local_http',
+        headers: [{ key: 'X-Api-Token', value: 'secret' }],
+      },
+    });
+    expect(relayProviderCredentialState(cleartextWithKey)).toBe('present');
   });
 
   it('provider derivation: a resolved authMode wins over the requested one', () => {

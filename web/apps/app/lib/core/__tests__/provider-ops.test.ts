@@ -5,7 +5,6 @@ import { createAppStore } from '../store/app-store';
 import {
   addProvider,
   beginRelaySecurityModeReconnect,
-  clearRelayCredentials,
   finishRelaySecurityModeReconnect,
   updateProviderKey,
   updateProviderBaseURL,
@@ -355,25 +354,7 @@ describe('provider-ops', () => {
     expect(identityAfter.connectionGeneration).not.toBe(identityBefore.connectionGeneration);
   });
 
-  it('T2 clearing credentials removes authMode, key and headers in a single write', async () => {
-    store.getState().addProvider(relayProvider);
-    const identityBefore = beginCapabilityEvidenceIdentityIfAbsent('user-1', relayProvider.id)!;
-    // The starting point really is the blocked state (a cleartext connection carrying credentials);
-    // otherwise this case proves nothing.
-    expect(relayProviderCredentialState(store.getState().providers[0])).toBe('conflict');
-    await clearRelayCredentials(store, relayProvider);
-    const saved = store.getState().providers[0];
-    expect(saved.apiKey).toBe('');
-    expect(saved.apiKeyPreview).toBe('');
-    expect(saved.relayRequested?.authMode).toBe('none');
-    expect(saved.relayRequested?.headers).toBeUndefined();
-    expect(relayProviderCredentialState(saved)).toBe('not_required');
-    const identityAfter = readCapabilityEvidenceIdentity('user-1', relayProvider.id)!;
-    expect(identityAfter.connectionGeneration).not.toBe(identityBefore.connectionGeneration);
-    expect(identityAfter.credentialEpoch).not.toBe(identityBefore.credentialEpoch);
-  });
-
-  it('switching to cleartext atomically clears credentials, drops the stale resolved root and flags an issue', async () => {
+  it('switching to a cleartext mode keeps key, headers, query and authMode while clearing the resolved root and marking an issue', async () => {
     const remote = {
       ...relayProvider,
       baseURLText: 'https://relay.example.com/v1',
@@ -421,8 +402,8 @@ describe('provider-ops', () => {
     const saved = store.getState().providers[0];
     expect(saved).toMatchObject({
       baseURLText: 'http://192.168.1.20:8080/v1',
-      apiKey: '',
-      apiKeyPreview: '',
+      apiKey: 'sk-relay-secret-0123456789',
+      apiKeyPreview: 'sk-r...6789',
       status: { kind: 'issue', message: 'Connection has not been verified.' },
       relayResolvedBaseURLText: undefined,
       relayResolvedTransport: undefined,
@@ -440,17 +421,17 @@ describe('provider-ops', () => {
       relayRequested: {
         transport: 'anthropic_messages',
         securityMode: 'local_http',
-        authMode: 'none',
+        authMode: 'bearer',
         resolvedAPIBaseURL: undefined,
-        headers: undefined,
-        queryParams: undefined,
+        headers: [{ key: 'X-Api-Token', value: 'secret' }],
+        queryParams: [{ key: 'token', value: 'secret' }],
       },
     });
     expect(pending).toEqual(saved);
-    expect(relayProviderCredentialState(saved)).toBe('not_required');
+    expect(relayProviderCredentialState(saved)).toBe('present');
     const identityAfter = readCapabilityEvidenceIdentity('user-1', remote.id)!;
     expect(identityAfter.connectionGeneration).not.toBe(identityBefore.connectionGeneration);
-    expect(identityAfter.credentialEpoch).not.toBe(identityBefore.credentialEpoch);
+    expect(identityAfter.credentialEpoch).toBe(identityBefore.credentialEpoch);
   });
 
   it('ordinary KV pairs under auth=none are not credential material and survive a switch to cleartext', async () => {
@@ -482,7 +463,7 @@ describe('provider-ops', () => {
     });
   });
 
-  it('a single sensitive KV hit clears the entire header and query table when switching to cleartext', async () => {
+  it('switching to a cleartext mode keeps sensitive headers and query params as they are', async () => {
     const sensitive = {
       ...relayProvider,
       apiKey: '',
@@ -507,9 +488,15 @@ describe('provider-ops', () => {
       unverifiedMessage: 'Connection has not been verified.',
     });
 
-    expect(store.getState().providers[0].relayRequested).toMatchObject({ authMode: 'none' });
-    expect(store.getState().providers[0].relayRequested?.headers).toBeUndefined();
-    expect(store.getState().providers[0].relayRequested?.queryParams).toBeUndefined();
+    expect(store.getState().providers[0].relayRequested).toMatchObject({
+      authMode: 'none',
+      securityMode: 'private_vpn',
+      headers: [
+        { key: 'X-Tenant', value: 'alpha' },
+        { key: 'X-Internal-Token', value: 'secret' },
+      ],
+      queryParams: [{ key: 'region', value: 'local' }],
+    });
   });
 
   it('only a production probe with a verified shape can complete a mode reconnect and refresh the resolved root and catalog', async () => {
@@ -936,28 +923,6 @@ describe('provider-ops', () => {
         queryParams: [],
       },
     });
-
-    expect(readCapabilityEvidenceIdentity('user-1', relay.id)).toEqual(identityBefore);
-  });
-
-  it('repeated cleanup on a relay with no credentials left does not advance any identity generation', async () => {
-    const relay: Provider = {
-      ...relayProvider,
-      id: 'relay-clear-noop',
-      apiKey: '',
-      apiKeyPreview: '',
-      relayRequested: {
-        ...relayProvider.relayRequested!,
-        authMode: 'none',
-        headers: undefined,
-        queryParams: undefined,
-      },
-      relayResolvedAuthMode: 'none',
-    };
-    store.getState().addProvider(relay);
-    const identityBefore = beginCapabilityEvidenceIdentityIfAbsent('user-1', relay.id)!;
-
-    await clearRelayCredentials(store, relay);
 
     expect(readCapabilityEvidenceIdentity('user-1', relay.id)).toEqual(identityBefore);
   });

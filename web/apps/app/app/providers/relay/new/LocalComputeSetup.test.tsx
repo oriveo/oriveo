@@ -146,7 +146,7 @@ describe('LocalComputeSetup', () => {
     expect(mocks.fingerprint).not.toHaveBeenCalled();
   });
 
-  it('connects and persists Open WebUI only through HTTPS with bearer authentication', async () => {
+  it('connects and persists Open WebUI through HTTPS with bearer authentication and no key footnote', async () => {
     mocks.connect.mockResolvedValueOnce({
       state: 'ready',
       endpoint: 'https://openwebui.example',
@@ -163,6 +163,7 @@ describe('LocalComputeSetup', () => {
     expect(detect.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('apiKeyLabel'), { target: { value: 'openwebui-secret' } });
     expect(detect.disabled).toBe(false);
+    expect(screen.queryByText(/^localApiKey/)).toBeNull();
     fireEvent.click(detect);
 
     await waitFor(() => expect(mocks.connect).toHaveBeenCalledWith(expect.objectContaining({
@@ -187,22 +188,69 @@ describe('LocalComputeSetup', () => {
     });
   });
 
-  it('never sends the Open WebUI bearer key over loopback http: the production connector rejects cleartext credentials and makes no request', async () => {
-    const actual = await vi.importActual<typeof import('../../../../lib/core/providers/local-browser-probe')>(
-      '../../../../lib/core/providers/local-browser-probe',
-    );
-    mocks.connect.mockImplementationOnce(actual.connectLocalEngineInBrowser);
-    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+  it('lets Open WebUI carry its required key over loopback HTTP with the required-cleartext footnote', async () => {
+    mocks.connect.mockResolvedValueOnce({
+      state: 'ready',
+      endpoint: 'http://127.0.0.1:3000',
+      modelIDs: ['fixture-model'],
+      models: [{ id: 'fixture-model', localLoadState: 'loaded', executionLocality: 'local' }],
+      apiBaseURL: 'http://127.0.0.1:3000/api',
+      generationVerified: true,
+    });
     render(<LocalComputeSetupHarness />);
     chooseEngineManually('openwebui');
     fireEvent.change(screen.getByLabelText('engineAddress'), { target: { value: 'http://127.0.0.1:3000' } });
+    expect(screen.getByText('localApiKeyCleartext')).toBeTruthy();
+    const detect = screen.getByRole('button', { name: 'detectConnectionSettings' }) as HTMLButtonElement;
+    expect(detect.disabled).toBe(true);
     fireEvent.change(screen.getByLabelText('apiKeyLabel'), { target: { value: 'openwebui-secret' } });
-    fireEvent.click(screen.getByRole('button', { name: 'detectConnectionSettings' }));
+    fireEvent.click(detect);
 
-    expect(await screen.findByText('cleartextCredentialsBlocked')).toBeTruthy();
-    expect(fetchSpy).not.toHaveBeenCalled();
-    expect(mocks.addProvider).not.toHaveBeenCalled();
-    fetchSpy.mockRestore();
+    await waitFor(() => expect(mocks.connect).toHaveBeenCalledWith(expect.objectContaining({
+      engine: 'openwebui',
+      securityMode: 'local_http',
+      apiKey: 'openwebui-secret',
+    })));
+    fireEvent.click(await screen.findByRole('button', { name: 'connectAndSave' }));
+    await waitFor(() => expect(mocks.addProvider).toHaveBeenCalledTimes(1));
+    expect(mocks.addProvider.mock.calls[0]?.[1]).toMatchObject({
+      apiKey: 'openwebui-secret',
+      relayResolvedAuthMode: 'bearer',
+      relayRequested: { authMode: 'bearer', securityMode: 'local_http', engineProfile: 'openwebui' },
+    });
+  });
+
+  it('shows the optional key field for every engine and persists bearer only when a key is filled', async () => {
+    mocks.connect.mockResolvedValueOnce({
+      state: 'ready',
+      endpoint: 'http://127.0.0.1:11434',
+      modelIDs: ['qwen2.5:0.5b'],
+      models: [{ id: 'qwen2.5:0.5b', localLoadState: 'unknown', executionLocality: 'local' }],
+      apiBaseURL: 'http://127.0.0.1:11434/v1',
+      generationVerified: true,
+    });
+    render(<LocalComputeSetupHarness />);
+    expect(screen.getByText('localApiKeyOptional')).toBeTruthy();
+    await enterLoopbackEndpoint();
+    expect(screen.getByText('localApiKeyOptionalCleartext')).toBeTruthy();
+    const detect = screen.getByRole('button', { name: 'detectConnectionSettings' }) as HTMLButtonElement;
+    expect(detect.disabled).toBe(false);
+    fireEvent.change(screen.getByLabelText('apiKeyLabel'), { target: { value: ' ollama-secret ' } });
+    fireEvent.click(detect);
+
+    await waitFor(() => expect(mocks.connect).toHaveBeenCalledWith(expect.objectContaining({
+      engine: 'ollama',
+      securityMode: 'local_http',
+      apiKey: ' ollama-secret ',
+    })));
+    expect(mocks.fingerprint).toHaveBeenCalledWith(expect.objectContaining({ apiKey: ' ollama-secret ' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'connectAndSave' }));
+    await waitFor(() => expect(mocks.addProvider).toHaveBeenCalledTimes(1));
+    expect(mocks.addProvider.mock.calls[0]?.[1]).toMatchObject({
+      apiKey: 'ollama-secret',
+      relayResolvedAuthMode: 'bearer',
+      relayRequested: { authMode: 'bearer', securityMode: 'local_http', engineProfile: 'ollama' },
+    });
   });
 
   it('aborts the active production connector generation on unmount and keeps every editor disabled while pending', async () => {
@@ -291,6 +339,9 @@ describe('LocalComputeSetup', () => {
     await waitFor(() => expect(mocks.addProvider).toHaveBeenCalledTimes(1));
     const saved = mocks.addProvider.mock.calls[0]?.[1] as Provider;
     expect(saved.relayRequested?.engineProfile).toBe('ollama');
+    expect(saved.relayRequested?.authMode).toBe('none');
+    expect(saved.relayResolvedAuthMode).toBe('none');
+    expect(saved.apiKey).toBe('');
     expect(saved.models[0]?.engineDeclaration).toEqual({ image: true, toolCall: false });
     expect(saved.models[1]).not.toHaveProperty('engineDeclaration');
     expect(saved.catalogModels[0]?.engineDeclaration).toEqual({ image: true, toolCall: false });

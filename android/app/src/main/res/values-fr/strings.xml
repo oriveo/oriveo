@@ -856,7 +856,6 @@
     <string name="relay_section_request_behavior">Compatibilité</string>
     <string name="relay_type_row_change">Modifier</string>
     <string name="relay_connection_no_key_required">Cette connexion n\'a pas besoin de clé</string>
-    <string name="relay_credentials_cleartext_blocked">Une connexion non chiffrée ne peut pas transporter de clé.</string>
     <string name="relay_security_mode_scheme_mismatch">Cette adresse ne correspond pas au mode de connexion. Changez le mode de connexion pour continuer.</string>
     <string name="relay_security_mode_label">Sécurité de la connexion</string>
     <string name="relay_security_mode_remote_https">HTTPS public</string>
@@ -864,15 +863,14 @@
     <string name="relay_security_mode_paired_https">HTTPS couplé</string>
     <string name="relay_security_mode_paired_https_description">Connexion chiffrée sécurisée lors de l’appairage.</string>
     <string name="relay_security_mode_local_http">HTTP local</string>
-    <string name="relay_security_mode_local_http_description">Pour les adresses de cet appareil ou du réseau local. Non chiffrée, donc aucun identifiant n’est envoyé.</string>
+    <string name="relay_security_mode_local_http_description">Pour les adresses sur cet appareil ou sur votre réseau local. Connexion non chiffrée.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">Cette connexion ne sera pas chiffrée. D\'autres appareils du même réseau pourraient voir ce qu\'Oriveo envoie, y compris votre clé API.</string>
     <string name="relay_security_mode_private_vpn">VPN privé</string>
     <string name="relay_security_mode_private_vpn_description">Accessible via un réseau privé tel que Tailscale.</string>
-    <string name="relay_security_mode_suggest_local">Cela ressemble à une adresse locale ou LAN. Sur HTTP local non chiffré, Oriveo n’envoie aucun identifiant.</string>
     <string name="relay_security_mode_suggest_vpn">Cela ressemble à une adresse Tailscale. Utilisez le VPN privé uniquement si elle appartient à votre réseau privé.</string>
     <string name="relay_security_mode_keep_https">Conserver HTTPS</string>
     <string name="relay_security_mode_use_local_http">Se connecter via HTTP local non chiffré</string>
     <string name="relay_security_mode_use_private_vpn">Utiliser le VPN privé</string>
-    <string name="relay_security_mode_clear_credentials_warning">Passer à une connexion non chiffrée supprime aussi la clé, les en-têtes personnalisés et les paramètres de requête personnalisés.</string>
     <string name="relay_security_mode_https_required">Les connexions publiques doivent utiliser HTTPS.</string>
     <string name="relay_security_mode_option_public_disabled">Indisponible car cette adresse se résout vers un réseau public ou mixte.</string>
     <string name="relay_security_mode_option_unknown_disabled">Saisissez d’abord une adresse locale, LAN ou VPN privée.</string>
@@ -1212,7 +1210,9 @@
     <string name="local_compute_entry_subtitle">Connecter Ollama, LM Studio, llama.cpp ou vLLM</string>
     <string name="local_compute_description">Connectez-vous directement à un moteur sur cet appareil ou votre réseau privé.</string>
     <string name="local_compute_engine">Moteur</string>
-    <string name="local_compute_no_credentials">Aucune authentification. Aucun identifiant envoyé.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">Facultatif. Cette connexion n\'utilise pas HTTPS : la clé est envoyée sans chiffrement.</string>
+    <string name="local_compute_api_key_footnote_optional_https">Facultatif. Laissez vide si votre moteur n\'utilise pas de clé.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">Cette connexion n\'utilise pas HTTPS : la clé est envoyée sans chiffrement.</string>
     <string name="local_compute_model_optional">Modèle (facultatif)</string>
     <string name="local_compute_error_address">Cette adresse locale n’est pas autorisée.</string>
     <string name="local_compute_error_engine">Le service à cette adresse n’est pas le moteur sélectionné.</string>
@@ -1220,7 +1220,6 @@
     <string name="local_compute_error_models">Aucun modèle local trouvé.</string>
     <string name="local_compute_error_network">Impossible de se connecter au moteur local.</string>
     <string name="local_compute_connecting">Connexion…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI requiert une clé ; utilisez donc une connexion HTTPS.</string>
     <string name="local_compute_localhost_phone">localhost désigne ce téléphone, pas votre ordinateur.</string>
     <string name="local_model_via_ollama_cloud">Via Ollama Cloud</string>
     <string name="local_model_loading">Chargement</string>

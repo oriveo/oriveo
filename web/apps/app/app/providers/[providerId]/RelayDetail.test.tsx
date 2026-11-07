@@ -14,7 +14,6 @@ const mockSaveBaseURL = vi.fn();
 const mockWriteBackBaseURL = vi.fn();
 const mockSaveKey = vi.fn();
 const mockRemoveKey = vi.fn();
-const mockClearRelayCredentials = vi.fn();
 const mockReconnectSecurityMode = vi.fn();
 const mockAddModels = vi.fn();
 const mockToggleModel = vi.fn();
@@ -71,7 +70,6 @@ vi.mock('../../../lib/hooks/useProviderActions', () => ({
     relaySettingsSaveFailure: mockActionState.relaySettingsSaveFailure,
     saveKey: mockSaveKey,
     removeKey: mockRemoveKey,
-    clearRelayCredentials: mockClearRelayCredentials,
     reconnectRelaySecurityMode: mockReconnectSecurityMode,
     verifyRelayConnection: mockVerifyRelayConnection,
     testRelayDraft: mockTestRelayDraft,
@@ -238,7 +236,6 @@ describe('RelayDetail', () => {
     mockSaveKey.mockReset();
     mockSaveBaseURL.mockResolvedValue(true);
     mockRemoveKey.mockReset();
-    mockClearRelayCredentials.mockReset();
     mockReconnectSecurityMode.mockReset();
     mockReconnectSecurityMode.mockResolvedValue({
       state: 'verified',
@@ -404,31 +401,20 @@ describe('RelayDetail', () => {
     expect(mockSaveRelaySettings).not.toHaveBeenCalled();
   });
 
-  it('S3 a plaintext connection carrying a key is blocked, and both ways out reuse the production actions', async () => {
+  it('does not block a cleartext connection that stores a key and keeps the key dialog actions', () => {
     render(<RelayDetail provider={{
       ...provider,
       relayRequested: { ...provider.relayRequested!, securityMode: 'local_http' },
     }} />);
 
-    expect(screen.getByText('cleartextCredentialsBlocked')).toBeTruthy();
-    // A blocked state that still stores a key can be tapped into the edit-key dialog, using its remove / replace
+    expect(screen.queryByText('cleartextCredentialsBlocked')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'clearAndStay' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'switchToHttpsConnection' })).toBeNull();
     openImplicitKeyDialog();
     expect(within(screen.getByRole('dialog')).getByRole('button', { name: 'removeKey' })).toBeTruthy();
-    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'common.close' }));
-    backToBoard();
-
-    fireEvent.click(screen.getByRole('button', { name: 'clearAndStay' }));
-    expect(mockClearRelayCredentials).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(screen.getByRole('button', { name: 'switchToHttpsConnection' }));
-    await waitFor(() => expect(mockReconnectSecurityMode).toHaveBeenCalledWith(expect.objectContaining({
-      securityMode: 'remote_https',
-      normalizedEndpoint: 'https://relay.example.com',
-    })));
-    expect(mockReconnectSecurityMode.mock.calls[0]?.[0]).not.toHaveProperty('relayRequested');
   });
 
-  it('downgrading the connection method does not write on the first click; only after confirmation does it run the production reconnect with the sanitized current draft', async () => {
+  it('writes nothing on the first downgrade click and reconnects only after the single unencrypted confirmation', async () => {
     render(<RelayDetail provider={{
       ...provider,
       baseURLText: '192.168.1.20:8080/v1',
@@ -442,9 +428,9 @@ describe('RelayDetail', () => {
     fireEvent.click(screen.getByRole('button', { name: 'changeConnectionType' }));
     fireEvent.click(screen.getByRole('button', { name: /connectionTypeLocalHttp/ }));
     expect(mockReconnectSecurityMode).not.toHaveBeenCalled();
-    expect(screen.getByText('securityModeClearCredentialsWarning')).toBeTruthy();
+    expect(screen.getByText('securityModePlainHttpWarning')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'clearCredentialsAndSwitch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'confirmPlainHttp' }));
     await waitFor(() => expect(mockReconnectSecurityMode).toHaveBeenCalledWith(expect.objectContaining({
       securityMode: 'local_http',
       normalizedEndpoint: 'http://192.168.1.20:8080/v1',
@@ -452,7 +438,7 @@ describe('RelayDetail', () => {
     expect(mockReconnectSecurityMode.mock.calls[0]?.[0]).not.toHaveProperty('relayRequested');
   });
 
-  it('switching connection security persists only the security itself and what comes with it: a default protocol changed in the draft is not persisted with the reconnect and stays in the editor', async () => {
+  it('persists only the security mode on reconnect: auth mode is kept and the unsaved draft protocol stays in the editor', async () => {
     render(<RelayDetail provider={{
       ...provider,
       baseURLText: '192.168.1.20:8080/v1',
@@ -463,15 +449,19 @@ describe('RelayDetail', () => {
     fireEvent.change(screen.getByLabelText(EDIT.defaultProtocol), { target: { value: 'anthropic_messages' } });
     fireEvent.click(screen.getByRole('button', { name: 'changeConnectionType' }));
     fireEvent.click(screen.getByRole('button', { name: /connectionTypeLocalHttp/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'clearCredentialsAndSwitch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'confirmPlainHttp' }));
 
     await waitFor(() => expect(mockReconnectSecurityMode).toHaveBeenCalledTimes(1));
     const [input] = mockReconnectSecurityMode.mock.calls[0] as [{ requested: RelayRequestedConfig }];
-    expect(input.requested).toMatchObject({ transport: 'openai_chat_completions', securityMode: 'local_http', authMode: 'none' });
+    expect(input.requested).toMatchObject({
+      transport: 'openai_chat_completions',
+      securityMode: 'local_http',
+      authMode: provider.relayRequested!.authMode,
+    });
     expect((screen.getByLabelText(EDIT.defaultProtocol) as HTMLSelectElement).value).toBe('anthropic_messages');
   });
 
-  it('T2 confirmation uses saved∪draft credential material and atomically clears an unsaved sensitive row', async () => {
+  it('switching to cleartext keeps an unsaved sensitive header in the draft and shows one warning', async () => {
     render(<RelayDetail provider={{
       ...provider,
       apiKey: '',
@@ -495,20 +485,17 @@ describe('RelayDetail', () => {
     fireEvent.change(screen.getByLabelText(`${EDIT.header} 1 pages.relayDetail.valuePlaceholder`), { target: { value: 'tiny' } });
     fireEvent.click(screen.getByRole('button', { name: 'changeConnectionType' }));
     fireEvent.click(screen.getByRole('button', { name: /connectionTypeLocalHttp/ }));
-    expect(screen.getByText('securityModeClearCredentialsWarning')).toBeTruthy();
+    expect(screen.getByText('securityModePlainHttpWarning')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: 'clearCredentialsAndSwitch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'confirmPlainHttp' }));
     await waitFor(() => expect(mockReconnectSecurityMode).toHaveBeenCalledWith(expect.objectContaining({
       securityMode: 'local_http',
-      requested: expect.objectContaining({
-        authMode: 'none',
-        headers: undefined,
-        queryParams: undefined,
-      }),
+      requested: expect.objectContaining({ authMode: 'none' }),
     })));
+    expect((screen.getByLabelText(`${EDIT.header} 1`) as HTMLInputElement).value).toBe('X-Session-Token');
   });
 
-  it('saving has to pass the shared form validation first: with a hint the primary button is not clickable, and S3 must not bypass the save', () => {
+  it('saves an edited local_http connection that keeps bearer auth and a stored key (no cleartext block)', async () => {
     render(<RelayDetail provider={{
       ...provider,
       baseURLText: 'http://192.168.1.20:8080/v1',
@@ -521,10 +508,10 @@ describe('RelayDetail', () => {
     openEditConnection();
 
     const primary = screen.getByRole('button', { name: EDIT.save });
-    expect(primary.matches(':disabled')).toBe(true);
+    expect(primary.matches(':disabled')).toBe(false);
     fireEvent.click(primary);
-    expect(mockSaveRelaySettings).not.toHaveBeenCalled();
-    expect(screen.getAllByRole('alert').map((node) => node.textContent).join(' ')).toContain('cleartextCredentialsBlocked');
+    await waitFor(() => expect(mockSaveRelaySettings).toHaveBeenCalledTimes(1));
+    expect(screen.queryAllByRole('alert').map((node) => node.textContent).join(' ')).not.toContain('cleartextCredentialsBlocked');
   });
 
   it('opens confirm dialog and calls delete provider', () => {
@@ -940,7 +927,7 @@ describe('RelayDetail', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'changeConnectionType' }));
     fireEvent.click(screen.getByRole('button', { name: /connectionTypeLocalHttp/ }));
-    fireEvent.click(screen.getByRole('button', { name: 'clearCredentialsAndSwitch' }));
+    fireEvent.click(screen.getByRole('button', { name: 'confirmPlainHttp' }));
     await waitFor(() => expect(mockReconnectSecurityMode).toHaveBeenCalledTimes(1));
     // Reconnect in flight: in-progress style, not borrowing the failure slot.
     expect(document.querySelector('[data-status]')?.getAttribute('data-status')).toBe('reconnecting');

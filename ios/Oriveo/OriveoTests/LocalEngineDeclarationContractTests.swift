@@ -16,12 +16,15 @@ private final class LocalEngineRecordingProtocol: URLProtocol, @unchecked Sendab
     nonisolated(unsafe) static var showReplies: [String: Reply] = [:]
     nonisolated(unsafe) static var unreachable = false
     nonisolated(unsafe) static var requested: [String] = []
+    /// Authorization header of each request, keyed like `requested` ("" when absent).
+    nonisolated(unsafe) static var authorizations: [String: String] = [:]
 
     static func reset() {
         routes = [:]
         showReplies = [:]
         unreachable = false
         requested = []
+        authorizations = [:]
     }
 
     override static func canInit(with request: URLRequest) -> Bool { true }
@@ -31,6 +34,7 @@ private final class LocalEngineRecordingProtocol: URLProtocol, @unchecked Sendab
         let method = request.httpMethod ?? "GET"
         let path = request.url?.path ?? ""
         Self.requested.append("\(method) \(path)")
+        Self.authorizations["\(method) \(path)"] = request.value(forHTTPHeaderField: "Authorization") ?? ""
         if Self.unreachable {
             client?.urlProtocol(self, didFailWithError: URLError(.cannotConnectToHost))
             return
@@ -407,6 +411,39 @@ struct LocalEngineDeclarationContractTests {
         try install(engine: "ollama", instance: nil, path: nil)
         #expect(await LocalEngineConnector.fingerprint(endpoint: "http://127.0.0.1:11434", securityMode: .remoteHTTPS, session: session) == .manual)
         #expect(LocalEngineRecordingProtocol.requested.isEmpty)
+    }
+
+    @Test("Optional-key engine over local HTTP: a typed key rides as Bearer on probes, catalog and generation; no key sends none")
+    func optionalKeyEngineSendsBearerOverLocalHTTPOnlyWhenKeyTyped() async throws {
+        let session = makeSession()
+        let endpoint = try #require(try recordedEngine("ollama")["endpoint"] as? String)
+
+        LocalEngineRecordingProtocol.reset()
+        try install(engine: "ollama", instance: nil, path: nil)
+        _ = await LocalEngineConnector.fingerprint(
+            endpoint: endpoint, securityMode: .localHTTP, apiKey: "lan-key", session: session
+        )
+        #expect(LocalEngineRecordingProtocol.requested.count == LocalEngineFingerprint.requestPaths.count)
+        #expect(Set(LocalEngineRecordingProtocol.authorizations.values) == ["Bearer lan-key"])
+
+        LocalEngineRecordingProtocol.reset()
+        try install(engine: "ollama", instance: nil, path: nil)
+        let keyed = try await LocalEngineConnector.connect(
+            engine: .ollama, endpoint: endpoint, securityMode: .localHTTP, apiKey: "lan-key", session: session
+        )
+        #expect(keyed.requested.authMode == .bearer)
+        #expect(LocalEngineRecordingProtocol.requested.contains { $0.hasSuffix("/chat/completions") })
+        #expect(Set(LocalEngineRecordingProtocol.authorizations.values) == ["Bearer lan-key"])
+
+        LocalEngineRecordingProtocol.reset()
+        try install(engine: "ollama", instance: nil, path: nil)
+        _ = await LocalEngineConnector.fingerprint(endpoint: endpoint, securityMode: .localHTTP, session: session)
+        let keyless = try await LocalEngineConnector.connect(
+            engine: .ollama, endpoint: endpoint, securityMode: .localHTTP, session: session
+        )
+        #expect(keyless.requested.authMode == RelayAuthMode.none)
+        #expect(!LocalEngineRecordingProtocol.requested.isEmpty)
+        #expect(Set(LocalEngineRecordingProtocol.authorizations.values) == [""])
     }
 
     @Test("RL2-ENGINE-02 catalog refresh: a new declaration given this time is used, and if none is given the old one is kept")

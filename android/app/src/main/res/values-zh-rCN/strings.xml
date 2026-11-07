@@ -872,7 +872,6 @@
     <string name="relay_section_request_behavior">兼容性</string>
     <string name="relay_section_headers_query">请求头与查询参数</string>
     <string name="relay_connection_no_key_required">此连接无需密钥</string>
-    <string name="relay_credentials_cleartext_blocked">不加密的连接不能携带密钥。</string>
     <string name="relay_security_mode_scheme_mismatch">这个地址与连接安全不符。请调整后继续。</string>
     <string name="relay_security_mode_label">连接安全</string>
     <string name="relay_security_mode_remote_https">公网 HTTPS</string>
@@ -880,15 +879,14 @@
     <string name="relay_security_mode_paired_https">配对 HTTPS</string>
     <string name="relay_security_mode_paired_https_description">通过配对建立的加密连接。</string>
     <string name="relay_security_mode_local_http">本机 HTTP</string>
-    <string name="relay_security_mode_local_http_description">仅用于本机或局域网地址；连接不加密，因此不会发送任何凭据。</string>
+    <string name="relay_security_mode_local_http_description">用于本机或局域网地址，连接不加密。</string>
     <string name="relay_security_mode_private_vpn">私有 VPN</string>
     <string name="relay_security_mode_private_vpn_description">通过 Tailscale 等私有网络访问。</string>
-    <string name="relay_security_mode_suggest_local">这看起来是本机或局域网地址。按局域网明文连接时，Oriveo 不会发送任何凭据。</string>
+    <string name="relay_security_mode_cleartext_confirm_body">这条连接不加密。同一网络中的其他设备可能会看到 Oriveo 发送的内容，包括 API 密钥。</string>
     <string name="relay_security_mode_suggest_vpn">这看起来是 Tailscale 地址。仅当该地址属于你的私有网络时使用私有 VPN。</string>
     <string name="relay_security_mode_keep_https">保持 HTTPS</string>
     <string name="relay_security_mode_use_local_http">按局域网明文连接</string>
     <string name="relay_security_mode_use_private_vpn">使用私有 VPN</string>
-    <string name="relay_security_mode_clear_credentials_warning">改为不加密的连接会同时删除：这条连接的密钥、自定义 Header、自定义 Query 参数。</string>
     <string name="relay_security_mode_https_required">公网连接必须使用 HTTPS。</string>
     <string name="relay_security_mode_option_public_disabled">此地址解析到公网或混合网络，无法使用该安全模式。</string>
     <string name="relay_security_mode_option_unknown_disabled">请先输入本机、局域网或私有 VPN 地址。</string>
@@ -1240,7 +1238,9 @@
     <string name="local_compute_entry_subtitle">连接 Ollama、LM Studio、llama.cpp 或 vLLM</string>
     <string name="local_compute_description">直接连接本机或私有网络中的推理引擎。</string>
     <string name="local_compute_engine">引擎</string>
-    <string name="local_compute_no_credentials">无需认证，不发送任何凭据。</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">选填。这条连接不使用 HTTPS，密钥会以明文发送。</string>
+    <string name="local_compute_api_key_footnote_optional_https">选填。引擎不需要密钥时留空即可。</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">这条连接不使用 HTTPS，密钥会以明文发送。</string>
     <string name="local_compute_model_optional">模型（可选）</string>
     <string name="local_compute_error_address">不允许使用此本地地址。</string>
     <string name="local_compute_error_engine">此地址上的服务不是所选引擎。</string>
@@ -1248,7 +1248,6 @@
     <string name="local_compute_error_models">未找到本地模型。</string>
     <string name="local_compute_error_network">无法连接本地引擎。</string>
     <string name="local_compute_connecting">正在连接…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI 需要密钥，请改用 HTTPS 连接。</string>
     <string name="local_compute_localhost_phone">localhost 指这台手机，不是你的电脑。</string>
     <string name="local_model_via_ollama_cloud">经 Ollama 云端</string>
     <string name="local_model_loading">加载中</string>

@@ -30,7 +30,7 @@ struct LocalComputeContractFixtureTests {
             ["shared", "test-fixtures", "relay", "local-address-classifier.v1.json"]
         )
         #expect(contract.version == 1)
-        #expect(contract.cases.count == 20)
+        #expect(contract.cases.count == 23)
 
         for item in contract.cases {
             let result = RelayEndpointPolicy.classify(
@@ -149,31 +149,35 @@ struct LocalComputeContractFixtureTests {
         #expect(decision.allowsImmediateConnect == false)
     }
 
-    @Test("Open Web UICleartext Credential Is Rejected")
-    func openWebUICleartextCredentialIsRejected() async {
-        let connectionError = await #expect(throws: LocalEngineConnectionError.self) {
-            _ = try await LocalEngineConnector.connect(
-                engine: .openwebui,
-                endpoint: "http://192.168.1.20:3000",
-                securityMode: .localHTTP,
-                apiKey: "owui-key"
-            )
+    @Test("Open WebUI over local HTTP / private VPN still requires a key; without one it is blocked before any request")
+    func openWebUICleartextWithoutKeyIsMissingCredential() async {
+        for mode in [RelayConnectionSecurityMode.localHTTP, .privateVPN] {
+            let connectionError = await #expect(throws: LocalEngineConnectionError.self) {
+                _ = try await LocalEngineConnector.connect(
+                    engine: .openwebui,
+                    endpoint: "http://192.168.1.20:3000",
+                    securityMode: mode,
+                    apiKey: ""
+                )
+            }
+            #expect(connectionError == .invalidEndpoint)
         }
-        #expect(connectionError == .cleartextCredentials)
-        #expect(connectionError?.errorDescription == L10n.tr(
-            "An unencrypted connection can't carry a key. Change the address and connection type to Public HTTPS.",
-            table: .providers
-        ))
+    }
 
-        let discoveryError = await #expect(throws: LocalEngineConnectionError.self) {
-            _ = try await LocalEngineConnector.verifyCandidate(
-                engine: .openwebui,
-                endpoint: "http://192.168.1.20:3000",
-                securityMode: .localHTTP,
-                apiKey: "owui-key"
-            )
+    @Test("Local compute API key footnote follows required-ness and cleartext mode")
+    @MainActor
+    func localComputeAPIKeyFootnoteMatrix() {
+        let optionalCleartext = L10n.tr("Optional. This connection doesn't use HTTPS, so the key is sent unencrypted.", table: .providers)
+        let optionalHTTPS = L10n.tr("Optional. Leave empty if your engine doesn't use a key.", table: .providers)
+        let requiredCleartext = L10n.tr("This connection doesn't use HTTPS, so the key is sent unencrypted.", table: .providers)
+        for mode in [RelayConnectionSecurityMode.localHTTP, .privateVPN] {
+            #expect(LocalComputeSetupView.apiKeyFootnote(requiresCredential: false, securityMode: mode) == optionalCleartext)
+            #expect(LocalComputeSetupView.apiKeyFootnote(requiresCredential: true, securityMode: mode) == requiredCleartext)
         }
-        #expect(discoveryError == .cleartextCredentials)
+        for mode in [RelayConnectionSecurityMode.remoteHTTPS, .tofuHTTPS] {
+            #expect(LocalComputeSetupView.apiKeyFootnote(requiresCredential: false, securityMode: mode) == optionalHTTPS)
+            #expect(LocalComputeSetupView.apiKeyFootnote(requiresCredential: true, securityMode: mode) == nil)
+        }
     }
 
     private func decodeFixture<T: Decodable>(_ components: [String]) throws -> T {

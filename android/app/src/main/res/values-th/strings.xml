@@ -812,7 +812,6 @@
     <string name="relay_section_request_behavior">ความเข้ากันได้</string>
     <string name="relay_type_row_change">เปลี่ยน</string>
     <string name="relay_connection_no_key_required">การเชื่อมต่อนี้ไม่ต้องใช้คีย์</string>
-    <string name="relay_credentials_cleartext_blocked">การเชื่อมต่อที่ไม่เข้ารหัสส่งคีย์ไม่ได้</string>
     <string name="relay_security_mode_scheme_mismatch">ที่อยู่นี้ไม่ตรงกับวิธีการเชื่อมต่อ เปลี่ยนวิธีการเชื่อมต่อเพื่อดำเนินการต่อ</string>
     <string name="relay_security_mode_label">ความปลอดภัยในการเชื่อมต่อ</string>
     <string name="relay_security_mode_remote_https">HTTPS สาธารณะ</string>
@@ -820,15 +819,14 @@
     <string name="relay_security_mode_paired_https">จับคู่ HTTPS</string>
     <string name="relay_security_mode_paired_https_description">การเชื่อมต่อที่เข้ารหัสมีความปลอดภัยระหว่างการจับคู่</string>
     <string name="relay_security_mode_local_http">HTTP ภายใน</string>
-    <string name="relay_security_mode_local_http_description">สำหรับที่อยู่บนอุปกรณ์นี้หรือ LAN ของคุณ ไม่มีการเข้ารหัส จึงไม่ส่งข้อมูลรับรอง</string>
+    <string name="relay_security_mode_local_http_description">สำหรับที่อยู่ในอุปกรณ์นี้หรือใน LAN ของคุณ การเชื่อมต่อไม่ได้เข้ารหัส</string>
     <string name="relay_security_mode_private_vpn">VPN ส่วนตัว</string>
     <string name="relay_security_mode_private_vpn_description">เข้าถึงผ่านเครือข่ายส่วนตัว เช่น Tailscale</string>
-    <string name="relay_security_mode_suggest_local">ที่อยู่นี้ดูเหมือนที่อยู่ภายในหรือ LAN เมื่อใช้ HTTP แบบไม่เข้ารหัสบน LAN Oriveo จะไม่ส่งข้อมูลรับรองใดๆ</string>
+    <string name="relay_security_mode_cleartext_confirm_body">การเชื่อมต่อนี้จะไม่ได้เข้ารหัส อุปกรณ์อื่นในเครือข่ายเดียวกันอาจเห็นข้อมูลที่ Oriveo ส่ง รวมถึงคีย์ API ของคุณ</string>
     <string name="relay_security_mode_suggest_vpn">ที่อยู่นี้ดูเหมือนที่อยู่ Tailscale ใช้ VPN ส่วนตัวเมื่อที่อยู่นี้เป็นของเครือข่ายส่วนตัวของคุณเท่านั้น</string>
     <string name="relay_security_mode_keep_https">คง HTTPS ไว้</string>
     <string name="relay_security_mode_use_local_http">เชื่อมต่อผ่าน HTTP แบบไม่เข้ารหัสบน LAN</string>
     <string name="relay_security_mode_use_private_vpn">ใช้ VPN ส่วนตัว</string>
-    <string name="relay_security_mode_clear_credentials_warning">การเปลี่ยนเป็นการเชื่อมต่อที่ไม่เข้ารหัสจะลบคีย์ ส่วนหัวแบบกำหนดเอง และพารามิเตอร์คิวรีแบบกำหนดเองของการเชื่อมต่อนี้ด้วย</string>
     <string name="relay_security_mode_https_required">การเชื่อมต่อสาธารณะต้องใช้ HTTPS</string>
     <string name="relay_security_mode_option_public_disabled">ไม่พร้อมใช้งานเนื่องจากที่อยู่นี้ชี้ไปยังเครือข่ายสาธารณะหรือเครือข่ายแบบผสม</string>
     <string name="relay_security_mode_option_unknown_disabled">ป้อนที่อยู่ภายใน, LAN หรือ VPN ส่วนตัวก่อนเลือกประเภทการเชื่อมต่อนี้</string>
@@ -1153,7 +1151,9 @@
     <string name="local_compute_entry_subtitle">เชื่อมต่อ Ollama, LM Studio, llama.cpp หรือ vLLM</string>
     <string name="local_compute_description">เชื่อมต่อโดยตรงกับเอนจินบนอุปกรณ์นี้หรือเครือข่ายส่วนตัวของคุณ</string>
     <string name="local_compute_engine">เอนจิน</string>
-    <string name="local_compute_no_credentials">ไม่ต้องยืนยันตัวตน และไม่ส่งข้อมูลรับรอง</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">ไม่บังคับ การเชื่อมต่อนี้ไม่ได้ใช้ HTTPS คีย์จึงถูกส่งโดยไม่เข้ารหัส</string>
+    <string name="local_compute_api_key_footnote_optional_https">ไม่บังคับ เว้นว่างไว้หากเอนจินของคุณไม่ใช้คีย์</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">การเชื่อมต่อนี้ไม่ได้ใช้ HTTPS คีย์จึงถูกส่งโดยไม่เข้ารหัส</string>
     <string name="local_compute_model_optional">โมเดล (ไม่บังคับ)</string>
     <string name="local_compute_error_address">ไม่อนุญาตที่อยู่ภายในนี้</string>
     <string name="local_compute_error_engine">บริการที่อยู่นี้ไม่ใช่เอนจินที่เลือก</string>
@@ -1161,7 +1161,6 @@
     <string name="local_compute_error_models">ไม่พบโมเดลในเครื่อง</string>
     <string name="local_compute_error_network">เชื่อมต่อเอนจินในเครื่องไม่ได้</string>
     <string name="local_compute_connecting">กำลังเชื่อมต่อ…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI ต้องใช้คีย์ จึงต้องใช้การเชื่อมต่อ HTTPS</string>
     <string name="local_compute_localhost_phone">localhost หมายถึงโทรศัพท์เครื่องนี้ ไม่ใช่คอมพิวเตอร์ของคุณ</string>
     <string name="local_model_via_ollama_cloud">ผ่าน Ollama Cloud</string>
     <string name="local_model_loading">กำลังโหลด</string>

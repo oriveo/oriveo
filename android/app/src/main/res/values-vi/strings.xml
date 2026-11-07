@@ -812,7 +812,6 @@
     <string name="relay_section_request_behavior">Khả năng tương thích</string>
     <string name="relay_type_row_change">Đổi</string>
     <string name="relay_connection_no_key_required">Kết nối này không cần khóa</string>
-    <string name="relay_credentials_cleartext_blocked">Kết nối không mã hóa không thể mang theo khóa.</string>
     <string name="relay_security_mode_scheme_mismatch">Địa chỉ này không khớp với phương thức kết nối. Hãy đổi phương thức kết nối để tiếp tục.</string>
     <string name="relay_security_mode_label">Bảo mật kết nối</string>
     <string name="relay_security_mode_remote_https">HTTPS công khai</string>
@@ -820,15 +819,14 @@
     <string name="relay_security_mode_paired_https">HTTPS được ghép nối</string>
     <string name="relay_security_mode_paired_https_description">Kết nối được mã hóa được bảo mật trong quá trình ghép nối.</string>
     <string name="relay_security_mode_local_http">HTTP cục bộ</string>
-    <string name="relay_security_mode_local_http_description">Dành cho địa chỉ trên thiết bị này hoặc mạng LAN của bạn. Kết nối không được mã hóa nên không gửi thông tin xác thực.</string>
+    <string name="relay_security_mode_local_http_description">Dành cho địa chỉ trên thiết bị này hoặc mạng LAN của bạn. Không được mã hóa.</string>
     <string name="relay_security_mode_private_vpn">VPN riêng</string>
     <string name="relay_security_mode_private_vpn_description">Truy cập qua mạng riêng như Tailscale.</string>
-    <string name="relay_security_mode_suggest_local">Đây có vẻ là địa chỉ cục bộ hoặc LAN. Qua HTTP LAN không mã hóa, Oriveo sẽ không gửi bất kỳ thông tin xác thực nào.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">Kết nối này sẽ không được mã hóa. Các thiết bị khác trong cùng mạng có thể thấy nội dung Oriveo gửi đi, kể cả khóa API của bạn.</string>
     <string name="relay_security_mode_suggest_vpn">Đây có vẻ là địa chỉ Tailscale. Chỉ dùng VPN riêng khi địa chỉ này thuộc mạng riêng của bạn.</string>
     <string name="relay_security_mode_keep_https">Giữ HTTPS</string>
     <string name="relay_security_mode_use_local_http">Kết nối qua HTTP LAN không mã hóa</string>
     <string name="relay_security_mode_use_private_vpn">Dùng VPN riêng</string>
-    <string name="relay_security_mode_clear_credentials_warning">Chuyển sang kết nối không mã hóa cũng sẽ xóa khóa, các tiêu đề tùy chỉnh và các tham số truy vấn tùy chỉnh của kết nối này.</string>
     <string name="relay_security_mode_https_required">Kết nối công khai phải dùng HTTPS.</string>
     <string name="relay_security_mode_option_public_disabled">Không khả dụng vì địa chỉ này phân giải tới mạng công khai hoặc hỗn hợp.</string>
     <string name="relay_security_mode_option_unknown_disabled">Nhập địa chỉ cục bộ, LAN hoặc VPN riêng trước khi chọn loại kết nối này.</string>
@@ -1153,7 +1151,9 @@
     <string name="local_compute_entry_subtitle">Kết nối Ollama, LM Studio, llama.cpp hoặc vLLM</string>
     <string name="local_compute_description">Kết nối trực tiếp với engine trên thiết bị này hoặc mạng riêng của bạn.</string>
     <string name="local_compute_engine">Engine</string>
-    <string name="local_compute_no_credentials">Không xác thực. Không gửi thông tin đăng nhập.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">Không bắt buộc. Kết nối này không dùng HTTPS nên khóa được gửi đi mà không mã hóa.</string>
+    <string name="local_compute_api_key_footnote_optional_https">Không bắt buộc. Để trống nếu engine của bạn không dùng khóa.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">Kết nối này không dùng HTTPS nên khóa được gửi đi mà không mã hóa.</string>
     <string name="local_compute_model_optional">Mô hình (không bắt buộc)</string>
     <string name="local_compute_error_address">Địa chỉ cục bộ này không được phép.</string>
     <string name="local_compute_error_engine">Dịch vụ tại địa chỉ này không phải engine đã chọn.</string>
@@ -1161,7 +1161,6 @@
     <string name="local_compute_error_models">Không tìm thấy mô hình cục bộ.</string>
     <string name="local_compute_error_network">Không thể kết nối với engine cục bộ.</string>
     <string name="local_compute_connecting">Đang kết nối…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI cần khóa, vì vậy hãy dùng kết nối HTTPS.</string>
     <string name="local_compute_localhost_phone">localhost là điện thoại này, không phải máy tính của bạn.</string>
     <string name="local_model_via_ollama_cloud">Qua Ollama Cloud</string>
     <string name="local_model_loading">Đang tải</string>

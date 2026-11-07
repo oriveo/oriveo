@@ -53,23 +53,11 @@ export function relayProviderHasCredentialMaterial(provider: Provider): boolean 
   });
 }
 
-/**
- * Credential state S0-S3 of a relay connection.
- * The S3 verdict for sensitive headers and query parameters is not wired in yet: the unified list of
- * sensitive names belongs with the outbound sanitizer, and starting a second list here would only
- * create two implementations that drift, so this deliberately under-reports instead.
- */
+/** Credential state (S0-S2) of a relay connection. */
 export function relayProviderCredentialState(provider: Provider): RelayCredentialState {
   return resolveRelayCredentialState({
     authMode: relayProviderAuthMode(provider),
     hasStoredKey: (resolveProviderAPIKey(provider) ?? '').trim().length > 0,
-    securityMode: provider.relayRequested?.securityMode,
-    hasSensitiveTransportCredentials: relayHasCredentialMaterial({
-      authMode: 'none',
-      hasStoredKey: false,
-      headers: provider.relayRequested?.headers,
-      queryParams: provider.relayRequested?.queryParams,
-    }),
   });
 }
 

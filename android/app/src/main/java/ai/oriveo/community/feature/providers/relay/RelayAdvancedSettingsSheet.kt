@@ -160,13 +160,6 @@ internal fun RelayAdvancedSettingsSheet(
         baseline = baseline,
     )
 
-    val hasCredentialMaterial = RelayEndpointPolicy.hasCredentialMaterial(
-        requested = initialDraft.requested.copy(
-            headers = (initialDraft.headers + draft.headers).ifEmpty { null },
-            queryParams = (initialDraft.queryParams + draft.queryParams).ifEmpty { null },
-        ),
-        hasKey = hasStoredKey,
-    )
     // "Has unsaved changes" = saving now would change the stored connection (connection security is persisted immediately and does not count).
     val isDirty = run {
         val persisted = provider.relayRequested ?: return@run true
@@ -214,7 +207,7 @@ internal fun RelayAdvancedSettingsSheet(
     }
 
     val onSecurityModeSelected: (ai.oriveo.community.core.model.RelayConnectionSecurityMode, RelaySecurityModePolicy.Assessment, Boolean) -> Unit =
-        { mode, assessment, confirmed ->
+        { mode, assessment, _ ->
             val normalized = RelaySecurityModePolicy.normalizedEndpoint(
                 rawEndpoint = draft.endpoint,
                 mode = mode,
@@ -224,17 +217,13 @@ internal fun RelayAdvancedSettingsSheet(
             if (normalized != null) {
                 endpointSelectionRange = RelaySecurityModePolicy.addedSchemeHighlightRange(draft.endpoint, normalized)
             }
-            val cleartext = mode.isCleartext
-            val clearsKv = cleartext && confirmed && hasCredentialMaterial
+            // Cleartext keeps key / headers / query / authMode (oriveo/oriveo#20): only the mode changes.
             draft = draft.copy(
                 endpoint = normalized ?: draft.endpoint,
                 requested = draft.requested.copy(
-                    authMode = if (cleartext) RelayAuthMode.None else draft.requested.authMode,
                     securityMode = mode,
                     resolvedAPIBaseURL = null,
                 ),
-                headers = if (clearsKv) emptyList() else draft.headers,
-                queryParams = if (clearsKv) emptyList() else draft.queryParams,
             )
             // Persist only securityMode/T2; the remaining draft fields are never handed to the VM here.
             viewModel.changeRelaySecurityMode(provider, mode, effectiveEndpoint)
@@ -282,7 +271,6 @@ internal fun RelayAdvancedSettingsSheet(
                         RelayEditRowId.ConnectionSecurity -> RelaySecurityModeControl(
                             endpoint = draft.endpoint,
                             selectedMode = draft.requested.securityMode,
-                            hasCredentialMaterial = hasCredentialMaterial,
                             enabled = !viewModel.isSavingRelaySettings && status !is RelayEditStatus.Reconnecting &&
                                 status !is RelayEditStatus.Testing,
                             onModeSelected = onSecurityModeSelected,

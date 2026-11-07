@@ -14,7 +14,6 @@ describe('RelaySecurityModeControl', () => {
       <RelaySecurityModeControl
         value="remote_https"
         endpoint="192.168.1.20:8080/v1"
-        hasCredentialMaterial={false}
         onChange={onChange}
       />,
     );
@@ -31,19 +30,20 @@ describe('RelaySecurityModeControl', () => {
     }));
   });
 
-  it('uses the credential-material branch from the caller and requires the atomic-delete action', () => {
+  it('shows the same single cleartext warning and confirm action whatever credentials the connection has', () => {
     render(
       <RelaySecurityModeControl
         value="remote_https"
         endpoint="http://192.168.1.20:8080/v1"
-        hasCredentialMaterial
         onChange={vi.fn()}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: 'changeConnectionType' }));
     fireEvent.click(screen.getByRole('button', { name: /connectionTypeLocalHttp/ }));
-    expect(screen.getByText('securityModeClearCredentialsWarning')).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'clearCredentialsAndSwitch' })).toBeTruthy();
+    expect(screen.getByText('securityModePlainHttpWarning')).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'confirmPlainHttp' })).toBeTruthy();
+    expect(screen.queryByText('securityModeClearCredentialsWarning')).toBeNull();
+    expect(screen.queryByRole('button', { name: 'clearCredentialsAndSwitch' })).toBeNull();
   });
 
   it('disables weaker modes for explicit HTTPS instead of entering a guaranteed mismatch', () => {
@@ -51,7 +51,6 @@ describe('RelaySecurityModeControl', () => {
       <RelaySecurityModeControl
         value="remote_https"
         endpoint="https://192.168.1.20:8080/v1"
-        hasCredentialMaterial={false}
         onChange={vi.fn()}
       />,
     );
@@ -66,7 +65,6 @@ describe('RelaySecurityModeControl', () => {
       <RelaySecurityModeControl
         value="tofu_https"
         endpoint="https://paired.local"
-        hasCredentialMaterial={false}
         onChange={vi.fn()}
       />,
     );
@@ -83,7 +81,6 @@ describe('RelaySecurityModeControl', () => {
       <RelaySecurityModeControl
         value="remote_https"
         endpoint="relay.example.com/v1"
-        hasCredentialMaterial={false}
         onChange={onChange}
       />,
     );

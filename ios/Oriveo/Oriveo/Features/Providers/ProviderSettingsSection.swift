@@ -293,30 +293,6 @@ struct EditAPIKeySheet: View {
             saveError = ProviderKeyInput.illegalCharsError()
             return
         }
-        if let provider, let requested = provider.relayRequested {
-            var credentials = RelayCredentialPolicy.endpointCredentials(
-                for: requested,
-                hasStoredKey: hasStoredKey
-            )
-            credentials.hasKey = true
-            let verdict = RelayEndpointPolicy.classify(
-                provider.baseURLText ?? "",
-                securityMode: requested.securityMode,
-                credentials: credentials
-            )
-            if !verdict.allowed, verdict.reason == "cleartext_credentials" {
-                saveError = OriveoError(
-                    id: UUID(),
-                    title: L10n.tr("API Key", table: .providers),
-                    message: L10n.tr("An unencrypted connection can't carry a key.", table: .providers),
-                    actionTitle: L10n.tr("OK"),
-                    detail: provider.baseURLText ?? "",
-                    severity: .warning
-                )
-                return
-            }
-        }
-
         isSaving = true
         saveError = nil
 

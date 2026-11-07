@@ -53,7 +53,6 @@ import {
   type RelayDetectedConfiguration,
 } from './providers/probe/probe-runner';
 import {
-  relayHasCredentialMaterialAcross,
   relayRequiresCredential,
 } from '@oriveo/core/providers/relay-runtime-support';
 import {
@@ -368,7 +367,7 @@ function relayPrimaryKeyReplacedFields(provider: Provider, newKey: string): Part
   };
 }
 
-/** Clearing patch for all three kinds of credential material (key, custom headers, custom query), shared by both clear paths. */
+/** Patch that clears all three kinds of credential material (key / custom headers / custom query), used by T4. */
 function credentialsClearedPatch(relayRequested: Provider['relayRequested']): Partial<Provider> {
   return {
     apiKey: '',
@@ -388,41 +387,9 @@ function credentialsClearedPatch(relayRequested: Provider['relayRequested']): Pa
 }
 
 /**
- * Way out of the credential interlock on a plaintext connection: one action drops all three
- * kinds of credential material - authMode goes to none, and the key, custom headers and custom
- * query parameters are removed.
- *
- * This has to be a single patch. Split into updateProviderKey plus updateProviderRelaySettings,
- * the second write's `didUpdateProvider` would take the stale provider from its closure and sync
- * the just-deleted key back to the cloud.
- */
-export async function clearRelayCredentials(store: StoreApi<AppStore>, provider: Provider): Promise<void> {
-  const mutationUID = getActiveUIDSync();
-  const patch = {
-    ...credentialsClearedPatch(provider.relayRequested),
-    updatedAt: new Date().toISOString(),
-  };
-  const nextProvider = { ...provider, ...patch };
-  store.getState().updateProvider(provider.id, patch);
-  const connectionChanged = relayConnectionSemanticsChanged(provider, nextProvider);
-  const credentialChanged = resolveProviderAPIKey(provider).trim().length > 0
-    || relayKVcredentialMaterialChanged(provider, nextProvider);
-  if (connectionChanged || credentialChanged) {
-    advanceCapabilityEvidenceIdentity(mutationUID, provider.id, {
-      connectionGeneration: connectionChanged,
-      credentialEpoch: credentialChanged,
-    });
-    clearToolCallMemoryForConnection(mutationUID, provider.id);
-  }
-  getSyncAdapter()?.didUpdateProvider(nextProvider);
-}
-
-/**
- * First stage of a connection-mode switch: invalidate the old connection immediately, then write
- * the security boundary the user explicitly chose. Plaintext mode applies the credential clear
- * atomically in the same patch (auth=none plus removing key, header and query). The old resolved
- * API root must be cleared so nothing keeps sending to the previous security mode's path while
- * the reconnect is in flight.
+ * First phase of a security-mode switch: invalidate the old connection, then write the boundary
+ * the user chose. Only securityMode changes and the resolved API root is cleared; key, headers,
+ * query params and authMode are kept, also for cleartext modes.
  */
 export async function beginRelaySecurityModeReconnect(
   store: StoreApi<AppStore>,
@@ -436,34 +403,13 @@ export async function beginRelaySecurityModeReconnect(
   },
 ): Promise<Provider | null> {
   const mutationUID = getActiveUIDSync();
-  const cleartext = input.securityMode === 'local_http' || input.securityMode === 'private_vpn';
   const currentRequested = provider.relayRequested
     ?? makeRelayRequested(provider.relayKind ?? 'openai_compatible');
   const draftRequested = input.requested ?? currentRequested;
-  const hasCredentialMaterial = cleartext && relayHasCredentialMaterialAcross([
-    {
-      authMode: currentRequested.authMode,
-      hasStoredKey: resolveProviderAPIKey(provider).trim().length > 0,
-      headers: currentRequested.headers,
-      queryParams: currentRequested.queryParams,
-    },
-    {
-      authMode: draftRequested.authMode,
-      hasStoredKey: false,
-      headers: draftRequested.headers,
-      queryParams: draftRequested.queryParams,
-    },
-  ]);
   const relayRequested = {
     ...draftRequested,
     securityMode: input.securityMode,
     resolvedAPIBaseURL: undefined,
-    ...(cleartext
-      ? {
-          authMode: 'none' as const,
-          ...(hasCredentialMaterial ? { headers: undefined, queryParams: undefined } : {}),
-        }
-      : {}),
   };
   if (input.shouldCommit && !input.shouldCommit()) return null;
 
@@ -487,7 +433,6 @@ export async function beginRelaySecurityModeReconnect(
     status: { kind: 'issue', message: input.unverifiedMessage },
     lastError: input.unverifiedMessage,
     updatedAt: new Date().toISOString(),
-    ...(hasCredentialMaterial ? { apiKey: '', apiKeyPreview: '' } : {}),
   };
   store.getState().updateProvider(provider.id, patch);
   const nextProvider = store.getState().providers.find((item) => item.id === provider.id);

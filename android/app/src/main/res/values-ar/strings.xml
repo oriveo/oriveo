@@ -860,7 +860,6 @@
     <string name="relay_section_request_behavior">التوافق</string>
     <string name="relay_type_row_change">تغيير</string>
     <string name="relay_connection_no_key_required">لا يحتاج هذا الاتصال إلى مفتاح</string>
-    <string name="relay_credentials_cleartext_blocked">لا يمكن للاتصال غير المشفّر أن يحمل مفتاحًا.</string>
     <string name="relay_security_mode_scheme_mismatch">هذا العنوان لا يطابق طريقة الاتصال. غيّر طريقة الاتصال للمتابعة.</string>
     <string name="relay_security_mode_label">أمان الاتصال</string>
     <string name="relay_security_mode_remote_https">HTTPS عام</string>
@@ -868,15 +867,14 @@
     <string name="relay_security_mode_paired_https">HTTPS المقترنة</string>
     <string name="relay_security_mode_paired_https_description">تم تأمين الاتصال المشفر أثناء الاقتران.</string>
     <string name="relay_security_mode_local_http">HTTP محلي</string>
-    <string name="relay_security_mode_local_http_description">لعناوين هذا الجهاز أو الشبكة المحلية. غير مشفّر، لذلك لا تُرسل أي بيانات اعتماد.</string>
+    <string name="relay_security_mode_local_http_description">لعناوين هذا الجهاز أو شبكتك المحلية (LAN). الاتصال غير مشفّر.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">لن يكون هذا الاتصال مشفّرًا. قد تتمكن الأجهزة الأخرى على الشبكة نفسها من رؤية ما يرسله Oriveo، بما في ذلك مفتاح API.</string>
     <string name="relay_security_mode_private_vpn">VPN خاص</string>
     <string name="relay_security_mode_private_vpn_description">الوصول عبر شبكة خاصة مثل Tailscale.</string>
-    <string name="relay_security_mode_suggest_local">يبدو هذا عنوانًا محليًا. عبر HTTP المحلي لن يرسل Oriveo أي بيانات اعتماد.</string>
     <string name="relay_security_mode_suggest_vpn">يبدو هذا عنوان Tailscale. استخدم VPN الخاص فقط إذا كان العنوان ضمن شبكتك الخاصة.</string>
     <string name="relay_security_mode_keep_https">الإبقاء على HTTPS</string>
     <string name="relay_security_mode_use_local_http">الاتصال عبر HTTP محلي</string>
     <string name="relay_security_mode_use_private_vpn">استخدام VPN خاص</string>
-    <string name="relay_security_mode_clear_credentials_warning">يؤدي التبديل إلى اتصال غير مشفّر أيضًا إلى حذف: مفتاح هذا الاتصال، والرؤوس المخصصة، ومعاملات الاستعلام المخصصة.</string>
     <string name="relay_security_mode_https_required">يجب أن تستخدم الاتصالات العامة HTTPS.</string>
     <string name="relay_security_mode_option_public_disabled">غير متاح لأن العنوان يشير إلى شبكة عامة أو مختلطة.</string>
     <string name="relay_security_mode_option_unknown_disabled">أدخل عنوانًا محليًا أو عنوان VPN خاصًا أولًا.</string>
@@ -1222,7 +1220,9 @@
     <string name="local_compute_entry_subtitle">اتصل بـ Ollama أو LM Studio أو llama.cpp أو vLLM</string>
     <string name="local_compute_description">اتصل مباشرة بمحرك على هذا الجهاز أو شبكتك الخاصة.</string>
     <string name="local_compute_engine">المحرك</string>
-    <string name="local_compute_no_credentials">بلا مصادقة. لا تُرسل أي بيانات اعتماد.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">اختياري. لا يستخدم هذا الاتصال HTTPS، لذا يُرسَل المفتاح دون تشفير.</string>
+    <string name="local_compute_api_key_footnote_optional_https">اختياري. يمكن تركه فارغًا إذا كان المحرك لا يستخدم مفتاحًا.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">لا يستخدم هذا الاتصال HTTPS، لذا يُرسَل المفتاح دون تشفير.</string>
     <string name="local_compute_model_optional">النموذج (اختياري)</string>
     <string name="local_compute_error_address">هذا العنوان المحلي غير مسموح.</string>
     <string name="local_compute_error_engine">الخدمة على هذا العنوان ليست المحرك المحدد.</string>
@@ -1230,7 +1230,6 @@
     <string name="local_compute_error_models">لم يتم العثور على نماذج محلية.</string>
     <string name="local_compute_error_network">تعذر الاتصال بالمحرك المحلي.</string>
     <string name="local_compute_connecting">جارٍ الاتصال…</string>
-    <string name="local_compute_error_cleartext_credentials">يحتاج Open WebUI إلى مفتاح، لذلك استخدم اتصال HTTPS.</string>
     <string name="local_compute_localhost_phone">يشير localhost إلى هذا الهاتف، وليس الكمبيوتر.</string>
     <string name="local_model_via_ollama_cloud">عبر Ollama Cloud</string>
     <string name="local_model_loading">جارٍ التحميل</string>

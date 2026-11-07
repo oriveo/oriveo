@@ -7,11 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.Provider
-import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayConnectionSecurityMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayKind
-import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.model.EngineDeclaration
 import ai.oriveo.community.core.provider.LocalEngineChannels
@@ -186,20 +184,28 @@ class LocalComputeSetupViewModel(
         val DEFAULT_SECURITY_MODE: RelayConnectionSecurityMode = RelayConnectionSecurityMode.RemoteHttps
     }
 
-    val hasCredentialMaterial: Boolean
-        get() = RelayEndpointPolicy.hasCredentialMaterial(
-            requested = RelayRequestedConfig(
-                authMode = if (engine == LocalEngineKind.OpenWebUI) RelayAuthMode.Bearer else RelayAuthMode.None,
-                securityMode = securityMode,
-            ),
-            hasKey = apiKey.isNotBlank(),
-        )
+    /**
+     * API key footnote: optional + cleartext / optional + HTTPS / required + cleartext; required + HTTPS has none.
+     * Open WebUI is the only engine whose key is required.
+     */
+    @get:StringRes
+    val apiKeyFootnoteRes: Int?
+        get() {
+            val cleartext = securityMode == RelayConnectionSecurityMode.LocalHttp ||
+                securityMode == RelayConnectionSecurityMode.PrivateVpn
+            val required = engine == LocalEngineKind.OpenWebUI
+            return when {
+                required && cleartext -> R.string.local_compute_api_key_footnote_required_cleartext
+                required -> null
+                cleartext -> R.string.local_compute_api_key_footnote_optional_cleartext
+                else -> R.string.local_compute_api_key_footnote_optional_https
+            }
+        }
 
     fun selectEngine(value: LocalEngineKind) {
         invalidateConnectionAttempt()
         engine = value
         securityMode = DEFAULT_SECURITY_MODE
-        if (value != LocalEngineKind.OpenWebUI) apiKey = ""
         endpointHighlightRange = null
         pairingCandidates = emptyList()
         pairingFingerprint = null
@@ -240,7 +246,7 @@ class LocalComputeSetupViewModel(
             return LocalSetupBoard(
                 slots = listOfNotNull(
                     SetupBoardSlot.Address,
-                    SetupBoardSlot.ApiKey.takeIf { engine == LocalEngineKind.OpenWebUI },
+                    SetupBoardSlot.ApiKey,
                 ),
                 card = card,
                 summary = connection?.let {
@@ -327,14 +333,8 @@ class LocalComputeSetupViewModel(
         securityMode = mode
         pairingCandidates = emptyList()
         pairingFingerprint = null
-        if (mode != RelayConnectionSecurityMode.RemoteHttps) {
-            if (hasCredentialMaterial) apiKey = ""
-            if (engine == LocalEngineKind.OpenWebUI) {
-                failure = LocalEngineConnectionFailure.CleartextCredentials
-            }
-        } else if (failure == LocalEngineConnectionFailure.CleartextCredentials) {
-            failure = null
-        }
+        // The entered key survives the downgrade (oriveo/oriveo#20); the confirmation dialog states it is sent unencrypted.
+        failure = null
         return LocalComputeSecurityModeChangeResult.Applied
     }
 
@@ -383,7 +383,7 @@ class LocalComputeSetupViewModel(
         }
         val rawEndpoint = endpoint
         val credentials = RelayEndpointPolicy.Credentials(
-            authMode = if (engine == LocalEngineKind.OpenWebUI) RelayAuthMode.Bearer else RelayAuthMode.None,
+            authMode = LocalEngineConnector.authModeFor(engine, apiKey),
             hasKey = apiKey.isNotBlank(),
         )
         val normalizedCandidates = runCatching {
@@ -435,7 +435,12 @@ class LocalComputeSetupViewModel(
                 var attemptSnapshot = snapshot
                 if (fingerprintFirst) {
                     val first = candidates.first()
-                    val fingerprint = connector.fingerprint(first.endpoint, first.securityMode, snapshot.pairingFingerprint)
+                    val fingerprint = connector.fingerprint(
+                        first.endpoint,
+                        first.securityMode,
+                        snapshot.pairingFingerprint,
+                        apiKey = snapshot.apiKey,
+                    )
                     if (!activeCoordinator.isCurrent(attempt)) return@launch
                     val detected = fingerprint.engineProfile
                         ?.takeIf { fingerprint.outcome == LocalEngineFingerprintOutcome.Engine }

@@ -650,8 +650,8 @@ struct RelayManualSetupBoardTests {
 
         // Header / query-parameter issues: this page fixes connection security to HTTPS, so shared validation does not currently report this kind here
         // (where production validation actually reports them is BOARD-EDIT-12); the row-model placement rule is the same one as the edit connection page, and this pins down this page's shape.
-        let headerIssue = RelayFormValidation.FieldIssue(field: .headers, code: .cleartextCredentials)
-        let queryIssue = RelayFormValidation.FieldIssue(field: .queryParams, code: .cleartextCredentials)
+        let headerIssue = RelayFormValidation.FieldIssue(field: .headers, code: .credentialInvalidCharacters)
+        let queryIssue = RelayFormValidation.FieldIssue(field: .queryParams, code: .credentialInvalidCharacters)
         let board = Board.make(.init(
             endpoint: flow.inputs.endpoint,
             modelID: flow.modelID,

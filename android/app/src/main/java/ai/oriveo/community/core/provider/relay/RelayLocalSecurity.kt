@@ -38,7 +38,7 @@ internal fun relayLocalSecurityPlugin() = createClientPlugin("RelayLocalSecurity
             request.attributes.put(pinnedAddressesKey, resolveAndClassify(url, mode))
             verifyTlsPin(url, requireNotNull(certificateFingerprint))
         } else if (mode != RelayConnectionSecurityMode.RemoteHttps) {
-            requireNoSensitiveMaterial(request.headers.entries().map { it.key }, url.parameters.names())
+            // Local / private-VPN cleartext may carry credentials (oriveo/oriveo#20); only the address is re-checked.
             val pinned = resolveAndClassify(url, mode)
             request.attributes.put(pinnedAddressesKey, pinned)
             request.url.host = pinned.sorted().first()
@@ -62,7 +62,6 @@ internal fun relayLocalSecurityPlugin() = createClientPlugin("RelayLocalSecurity
             require(resolveAndClassify(logicalUrl, mode) == pinned) { "tofu_dns_rebinding_blocked" }
             verifyTlsPin(logicalUrl, requireNotNull(certificateFingerprint))
         } else if (mode != RelayConnectionSecurityMode.RemoteHttps) {
-            requireNoSensitiveMaterial(request.headers.entries().map { it.key }, logicalUrl.parameters.names())
             val pinned = request.attributes.getOrNull(pinnedAddressesKey)
                 ?: throw IllegalArgumentException("local_dns_pin_missing")
             require(resolveAndClassify(logicalUrl, mode) == pinned) { "local_dns_rebinding_blocked" }
@@ -88,15 +87,6 @@ private fun requireAllowedURL(url: Url, mode: RelayConnectionSecurityMode) {
             null,
         ).toASCIIString()
         require(RelayEndpointPolicy.classify(transportLocation, mode).allowed) { "cleartext_not_allowed" }
-    }
-}
-
-private fun requireNoSensitiveMaterial(headers: Iterable<String>, queryNames: Iterable<String>) {
-    require(
-        headers.none(RelayEndpointPolicy::isSensitiveName) &&
-            queryNames.none(RelayEndpointPolicy::isSensitiveName),
-    ) {
-        "local_http_sensitive_credential_blocked"
     }
 }
 

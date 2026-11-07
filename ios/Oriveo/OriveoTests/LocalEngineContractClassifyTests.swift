@@ -99,6 +99,8 @@ struct LocalEngineContractClassifyTests {
             #expect(!policy.requiresCredential)
             #expect(policy.permits(securityMode: .localHTTP, hasCredential: false))
             #expect(policy.permits(securityMode: .privateVPN, hasCredential: false))
+            #expect(policy.resolvedAuthMode(hasCredential: true) == .bearer)
+            #expect(policy.resolvedAuthMode(hasCredential: false) == RelayAuthMode.none)
         }
 
         let openWebUI = LocalEngineAuthenticationPolicy.policy(for: .openwebui)
@@ -106,14 +108,16 @@ struct LocalEngineContractClassifyTests {
         #expect(openWebUI.requiresCredential)
         #expect(!openWebUI.permits(securityMode: .remoteHTTPS, hasCredential: false))
         #expect(openWebUI.permits(securityMode: .remoteHTTPS, hasCredential: true))
-        #expect(!openWebUI.permits(securityMode: .localHTTP, hasCredential: true))
-        #expect(!openWebUI.permits(securityMode: .privateVPN, hasCredential: true))
+        #expect(openWebUI.permits(securityMode: .localHTTP, hasCredential: true))
+        #expect(openWebUI.permits(securityMode: .privateVPN, hasCredential: true))
+        #expect(!openWebUI.permits(securityMode: .localHTTP, hasCredential: false))
+        #expect(!openWebUI.permits(securityMode: .privateVPN, hasCredential: false))
+        #expect(openWebUI.resolvedAuthMode(hasCredential: false) == .bearer)
     }
 
     @Test("every local connection failure has one primary recovery action")
     func localFailureRecoveryMatrixIsComplete() {
         #expect(LocalConnectionRecoveryAction.action(for: .invalidEndpoint) == .editAddress)
-        #expect(LocalConnectionRecoveryAction.action(for: .cleartextCredentials) == .editAddress)
         #expect(LocalConnectionRecoveryAction.action(for: .wrongEngine) == .chooseEngine)
         #expect(LocalConnectionRecoveryAction.action(for: .engineLoading) == .waitAndRetry)
         #expect(LocalConnectionRecoveryAction.action(for: .noModels) == .chooseModel)

@@ -856,7 +856,6 @@
     <string name="relay_section_request_behavior">Compatibilidade</string>
     <string name="relay_type_row_change">Alterar</string>
     <string name="relay_connection_no_key_required">Esta conexão não precisa de chave</string>
-    <string name="relay_credentials_cleartext_blocked">Uma conexão sem criptografia não pode levar uma chave.</string>
     <string name="relay_security_mode_scheme_mismatch">Este endereço não corresponde ao método de conexão. Altere o método de conexão para continuar.</string>
     <string name="relay_security_mode_label">Segurança da conexão</string>
     <string name="relay_security_mode_remote_https">HTTPS público</string>
@@ -864,15 +863,14 @@
     <string name="relay_security_mode_paired_https">HTTPS emparelhado</string>
     <string name="relay_security_mode_paired_https_description">Conexão criptografada protegida durante o emparelhamento.</string>
     <string name="relay_security_mode_local_http">HTTP local</string>
-    <string name="relay_security_mode_local_http_description">Para endereços neste dispositivo ou na sua LAN. Não é criptografada, portanto nenhuma credencial é enviada.</string>
+    <string name="relay_security_mode_local_http_description">Para endereços neste dispositivo ou na sua LAN. Sem criptografia.</string>
     <string name="relay_security_mode_private_vpn">VPN privada</string>
     <string name="relay_security_mode_private_vpn_description">Acessada por uma rede privada, como o Tailscale.</string>
-    <string name="relay_security_mode_suggest_local">Parece ser um endereço local ou da LAN. Em HTTP simples pela LAN, o Oriveo não enviará nenhuma credencial.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">Esta conexão não será criptografada. Outros dispositivos na mesma rede podem ver o que o Oriveo envia, inclusive a sua chave da API.</string>
     <string name="relay_security_mode_suggest_vpn">Parece ser um endereço do Tailscale. Use VPN privada somente se este endereço pertencer à sua rede privada.</string>
     <string name="relay_security_mode_keep_https">Manter HTTPS</string>
     <string name="relay_security_mode_use_local_http">Conectar por HTTP simples da LAN</string>
     <string name="relay_security_mode_use_private_vpn">Usar VPN privada</string>
-    <string name="relay_security_mode_clear_credentials_warning">Ao mudar para uma conexão não criptografada, também serão excluídos a chave desta conexão, os cabeçalhos personalizados e os parâmetros de consulta personalizados.</string>
     <string name="relay_security_mode_https_required">Conexões públicas devem usar HTTPS.</string>
     <string name="relay_security_mode_option_public_disabled">Indisponível porque este endereço resolve para uma rede pública ou mista.</string>
     <string name="relay_security_mode_option_unknown_disabled">Informe um endereço local, da LAN ou da VPN privada antes de escolher este tipo de conexão.</string>
@@ -1211,7 +1209,9 @@
     <string name="local_compute_entry_subtitle">Conecte Ollama, LM Studio, llama.cpp ou vLLM</string>
     <string name="local_compute_description">Conecte-se diretamente a um mecanismo neste dispositivo ou na sua rede privada.</string>
     <string name="local_compute_engine">Mecanismo</string>
-    <string name="local_compute_no_credentials">Sem autenticação. Nenhuma credencial é enviada.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">Opcional. Esta conexão não usa HTTPS, por isso a chave é enviada sem criptografia.</string>
+    <string name="local_compute_api_key_footnote_optional_https">Opcional. Deixe em branco se o seu mecanismo não usar chave.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">Esta conexão não usa HTTPS, por isso a chave é enviada sem criptografia.</string>
     <string name="local_compute_model_optional">Modelo (opcional)</string>
     <string name="local_compute_error_address">Este endereço local não é permitido.</string>
     <string name="local_compute_error_engine">O serviço neste endereço não é o mecanismo selecionado.</string>
@@ -1219,7 +1219,6 @@
     <string name="local_compute_error_models">Nenhum modelo local foi encontrado.</string>
     <string name="local_compute_error_network">Não foi possível conectar ao mecanismo local.</string>
     <string name="local_compute_connecting">Conectando…</string>
-    <string name="local_compute_error_cleartext_credentials">O Open WebUI precisa de uma chave; portanto, use uma conexão HTTPS.</string>
     <string name="local_compute_localhost_phone">localhost significa este celular, não seu computador.</string>
     <string name="local_model_via_ollama_cloud">Via Ollama Cloud</string>
     <string name="local_model_loading">Carregando</string>

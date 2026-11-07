@@ -812,7 +812,6 @@
     <string name="relay_section_request_behavior">Kompatibilitas</string>
     <string name="relay_type_row_change">Ubah</string>
     <string name="relay_connection_no_key_required">Koneksi ini tidak memerlukan kunci</string>
-    <string name="relay_credentials_cleartext_blocked">Koneksi tanpa enkripsi tidak boleh membawa kunci.</string>
     <string name="relay_security_mode_scheme_mismatch">Alamat ini tidak cocok dengan metode koneksi. Ubah metode koneksi untuk melanjutkan.</string>
     <string name="relay_security_mode_label">Keamanan koneksi</string>
     <string name="relay_security_mode_remote_https">HTTPS publik</string>
@@ -820,15 +819,14 @@
     <string name="relay_security_mode_paired_https">HTTPS berpasangan</string>
     <string name="relay_security_mode_paired_https_description">Koneksi terenkripsi diamankan selama pemasangan.</string>
     <string name="relay_security_mode_local_http">HTTP lokal</string>
-    <string name="relay_security_mode_local_http_description">Untuk alamat di perangkat ini atau LAN Anda. Tidak dienkripsi, sehingga kredensial tidak dikirim.</string>
+    <string name="relay_security_mode_local_http_description">Untuk alamat di perangkat ini atau LAN Anda. Tidak dienkripsi.</string>
+    <string name="relay_security_mode_cleartext_confirm_body">Koneksi ini tidak akan dienkripsi. Perangkat lain di jaringan yang sama bisa melihat apa yang dikirim Oriveo, termasuk API key Anda.</string>
     <string name="relay_security_mode_private_vpn">VPN pribadi</string>
     <string name="relay_security_mode_private_vpn_description">Diakses melalui jaringan pribadi seperti Tailscale.</string>
-    <string name="relay_security_mode_suggest_local">Ini tampak seperti alamat lokal atau LAN. Melalui HTTP LAN biasa, Oriveo tidak akan mengirim kredensial apa pun.</string>
     <string name="relay_security_mode_suggest_vpn">Ini tampak seperti alamat Tailscale. Gunakan VPN Pribadi hanya jika alamat ini berada di jaringan pribadi Anda.</string>
     <string name="relay_security_mode_keep_https">Tetap gunakan HTTPS</string>
     <string name="relay_security_mode_use_local_http">Hubungkan melalui HTTP LAN biasa</string>
     <string name="relay_security_mode_use_private_vpn">Gunakan VPN Pribadi</string>
-    <string name="relay_security_mode_clear_credentials_warning">Beralih ke koneksi yang tidak terenkripsi juga akan menghapus kunci koneksi ini, header khusus, dan parameter kueri khusus.</string>
     <string name="relay_security_mode_https_required">Koneksi publik harus menggunakan HTTPS.</string>
     <string name="relay_security_mode_option_public_disabled">Tidak tersedia karena alamat ini mengarah ke jaringan publik atau campuran.</string>
     <string name="relay_security_mode_option_unknown_disabled">Masukkan alamat lokal, LAN, atau VPN pribadi sebelum memilih jenis koneksi ini.</string>
@@ -1153,7 +1151,9 @@
     <string name="local_compute_entry_subtitle">Hubungkan Ollama, LM Studio, llama.cpp, atau vLLM</string>
     <string name="local_compute_description">Hubungkan langsung ke mesin di perangkat ini atau jaringan privat Anda.</string>
     <string name="local_compute_engine">Mesin</string>
-    <string name="local_compute_no_credentials">Tanpa autentikasi. Tidak ada kredensial yang dikirim.</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">Opsional. Koneksi ini tidak memakai HTTPS, jadi kunci dikirim tanpa enkripsi.</string>
+    <string name="local_compute_api_key_footnote_optional_https">Opsional. Kosongkan jika mesin Anda tidak memakai kunci.</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">Koneksi ini tidak memakai HTTPS, jadi kunci dikirim tanpa enkripsi.</string>
     <string name="local_compute_model_optional">Model (opsional)</string>
     <string name="local_compute_error_address">Alamat lokal ini tidak diizinkan.</string>
     <string name="local_compute_error_engine">Layanan di alamat ini bukan mesin yang dipilih.</string>
@@ -1161,7 +1161,6 @@
     <string name="local_compute_error_models">Tidak ada model lokal yang ditemukan.</string>
     <string name="local_compute_error_network">Tidak dapat terhubung ke mesin lokal.</string>
     <string name="local_compute_connecting">Menghubungkan…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI memerlukan kunci, jadi gunakan koneksi HTTPS.</string>
     <string name="local_compute_localhost_phone">localhost berarti ponsel ini, bukan komputer Anda.</string>
     <string name="local_model_via_ollama_cloud">Melalui Ollama Cloud</string>
     <string name="local_model_loading">Memuat</string>

@@ -45,7 +45,6 @@ import ai.oriveo.community.ui.theme.OriveoTheme
 internal fun RelaySecurityModeControl(
     endpoint: String,
     selectedMode: RelayConnectionSecurityMode,
-    hasCredentialMaterial: Boolean,
     enabled: Boolean,
     onModeSelected: (RelayConnectionSecurityMode, RelaySecurityModePolicy.Assessment, Boolean) -> Unit,
     /** Replaces the default summary row (the edit-connection board uses its own row style); the parameter is the callback invoked when Change is tapped. */
@@ -105,17 +104,8 @@ internal fun RelaySecurityModeControl(
         AlertDialog(
             onDismissRequest = { pendingDowngrade = null },
             title = { Text(stringResource(relaySecurityModeTitleRes(pending))) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-                    Text(stringResource(modeDescriptionRes(pending)))
-                    if (hasCredentialMaterial) {
-                        Text(
-                            text = stringResource(R.string.relay_security_mode_clear_credentials_warning),
-                            color = OriveoTheme.colors.warning,
-                        )
-                    }
-                }
-            },
+            // One body for every cleartext downgrade (oriveo/oriveo#20); credentials are kept, not cleared.
+            text = { Text(stringResource(R.string.relay_security_mode_cleartext_confirm_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -219,7 +209,7 @@ private fun RelaySecurityModeSuggestionCard(
                     if (mode == RelayConnectionSecurityMode.PrivateVpn) {
                         R.string.relay_security_mode_suggest_vpn
                     } else {
-                        R.string.relay_security_mode_suggest_local
+                        R.string.relay_security_mode_cleartext_confirm_body
                     },
                 ),
                 style = OriveoTheme.typography.caption,

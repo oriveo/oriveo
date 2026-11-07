@@ -101,7 +101,6 @@ nonisolated enum RelayFormValidation {
     enum IssueCode: String, Sendable {
         case endpointRequired = "endpoint_required"
         case endpointRejected = "endpoint_rejected"
-        case cleartextCredentials = "cleartext_credentials"
         case securityModeSchemeMismatch = "security_mode_scheme_mismatch"
         case credentialRequired = "credential_required"
         case credentialInvalidCharacters = "credential_invalid_characters"
@@ -116,8 +115,6 @@ nonisolated enum RelayFormValidation {
                 return "Enter a request URL."
             case .endpointRejected:
                 return RelayEndpointPolicy.httpsRequiredMessageKey
-            case .cleartextCredentials:
-                return "An unencrypted connection can't carry a key."
             case .securityModeSchemeMismatch:
                 return "This address doesn't match the connection method. Change the connection method to continue."
             case .credentialRequired:
@@ -179,17 +176,7 @@ nonisolated enum RelayFormValidation {
                 )
             } catch {
                 let reason = Self.reason(from: error)
-                if reason == "cleartext_credentials" {
-                    issues.append(
-                        FieldIssue(
-                            field: cleartextOffendingField(draft, hasCredential: hasCredential),
-                            code: .cleartextCredentials,
-                            detail: reason
-                        )
-                    )
-                } else {
-                    issues.append(FieldIssue(field: .endpoint, code: .endpointRejected, detail: reason))
-                }
+                issues.append(FieldIssue(field: .endpoint, code: .endpointRejected, detail: reason))
             }
         }
 
@@ -244,19 +231,6 @@ nonisolated enum RelayFormValidation {
         return endpoint.lowercased().hasPrefix("https://")
     }
 
-    private static func cleartextOffendingField(
-        _ draft: RelayFormDraft,
-        hasCredential: Bool
-    ) -> Field {
-        if RelayCredentialPolicy.requiresCredential(authMode: draft.authMode) || hasCredential {
-            return .apiKey
-        }
-        if draft.headers.contains(where: { RelayRequestSecurity.isSensitiveName($0.key) }) {
-            return .headers
-        }
-        return .queryParams
-    }
-
     private static func reason(from error: Error) -> String {
         guard case ProviderServiceError.invalidConfiguration(let detail) = error else {
             return "invalid_url"
@@ -277,12 +251,6 @@ nonisolated enum RelaySecurityModeSelection {
         let privateVPNAllowed: Bool
         let suggestedMode: RelayConnectionSecurityMode?
         let denialReason: String?
-    }
-
-    struct PersistedTransition: Equatable, Sendable {
-        let requested: RelayRequestedConfig
-        let clearsStoredAPIKey: Bool
-        let clearsCredentialTables: Bool
     }
 
     struct EndpointWriteback: Equatable, Sendable {
@@ -374,73 +342,19 @@ nonisolated enum RelaySecurityModeSelection {
             && currentRequested?.securityMode == expectedMode
     }
 
-    static func hasCredentialMaterial(
-        apiKey: String,
-        authMode: RelayAuthMode,
-        headers: [RelayKeyValue],
-        queryParams: [RelayKeyValue]
-    ) -> Bool {
-        RelayCredentialPolicy.requiresCredential(authMode: authMode)
-            || RelayCredentialPolicy.hasStoredKey(apiKey)
-            || headers.contains(where: { RelayRequestSecurity.isSensitiveName($0.key) })
-            || queryParams.contains(where: { RelayRequestSecurity.isSensitiveName($0.key) })
-    }
-
-    static func hasCredentialMaterial(
-        savedRequested: RelayRequestedConfig?,
-        storedAPIKey: String,
-        draftAuthMode: RelayAuthMode,
-        draftHeaders: [RelayKeyValue],
-        draftQueryParams: [RelayKeyValue]
-    ) -> Bool {
-        let saved = savedRequested ?? RelayRequestedConfig()
-        return hasCredentialMaterial(
-            apiKey: storedAPIKey,
-            authMode: saved.authMode,
-            headers: saved.headers ?? [],
-            queryParams: saved.queryParams ?? []
-        ) || hasCredentialMaterial(
-            apiKey: "",
-            authMode: draftAuthMode,
-            headers: draftHeaders,
-            queryParams: draftQueryParams
-        )
-    }
-
+    /// The only requested-config write allowed immediately when the edit page switches mode.
+    /// It starts from the **saved** requested config, never from unsaved editor drafts.
+    /// Switching security mode only rewrites `securityMode` and drops the measured API root.
+    /// Local HTTP / Private VPN keep the stored key, headers, query parameters, and authMode:
+    /// the confirmation card is the single affirmative step into cleartext.
     static func persistedTransition(
         savedRequested: RelayRequestedConfig?,
-        storedAPIKey: String,
-        draftAuthMode: RelayAuthMode,
-        draftHeaders: [RelayKeyValue],
-        draftQueryParams: [RelayKeyValue],
         nextMode: RelayConnectionSecurityMode
-    ) -> PersistedTransition {
+    ) -> RelayRequestedConfig {
         var requested = savedRequested ?? RelayRequestedConfig()
-        let hasMaterial = hasCredentialMaterial(
-            savedRequested: savedRequested,
-            storedAPIKey: storedAPIKey,
-            draftAuthMode: draftAuthMode,
-            draftHeaders: draftHeaders,
-            draftQueryParams: draftQueryParams
-        )
-        let weakMode = nextMode == .localHTTP || nextMode == .privateVPN
-        let clearsCredentialMaterial = weakMode && hasMaterial
-
         requested.securityMode = nextMode
         requested.resolvedAPIBaseURL = nil
-        if weakMode {
-            requested.authMode = .none
-            if clearsCredentialMaterial {
-                requested.headers = nil
-                requested.queryParams = nil
-            }
-        }
-
-        return PersistedTransition(
-            requested: requested,
-            clearsStoredAPIKey: clearsCredentialMaterial,
-            clearsCredentialTables: clearsCredentialMaterial
-        )
+        return requested
     }
 }
 

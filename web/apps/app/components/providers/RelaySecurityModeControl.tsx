@@ -16,7 +16,6 @@ import styles from './RelaySecurityModeControl.module.css';
 export interface RelaySecurityModeControlProps {
   value: RelayConnectionSecurityMode;
   endpoint: string;
-  hasCredentialMaterial: boolean;
   onChange: (input: {
     mode: RelaySelectableSecurityMode;
     normalizedEndpoint: string;
@@ -32,7 +31,6 @@ export interface RelaySecurityModeControlProps {
 export function RelaySecurityModeControl({
   value,
   endpoint,
-  hasCredentialMaterial,
   onChange,
   busy = false,
   error,
@@ -154,15 +152,13 @@ export function RelaySecurityModeControl({
               <TriangleAlert size={18} aria-hidden="true" />
               <div className={styles.confirmText}>
                 <strong>{t('confirmPlainHttpTitle')}</strong>
-                <p>{hasCredentialMaterial
-                  ? t('securityModeClearCredentialsWarning')
-                  : t('securityModePlainHttpWarning')}</p>
+                <p>{t('securityModePlainHttpWarning')}</p>
                 <div className={styles.confirmActions}>
                   <Button tone="secondary" size="sm" onClick={() => setPending(null)} disabled={applying}>
                     {tc('cancel')}
                   </Button>
                   <Button tone="primary" size="sm" onClick={() => void apply(pending)} disabled={applying}>
-                    {hasCredentialMaterial ? t('clearCredentialsAndSwitch') : t('confirmPlainHttp')}
+                    {t('confirmPlainHttp')}
                   </Button>
                 </div>
               </div>

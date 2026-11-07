@@ -642,7 +642,7 @@ class RelayManualSetupBoardTest {
     @Test
     fun `BOARD-MANUAL-10 issues sit where they belong and header issues open the group`() {
         val base = RelayManualSetupBoardTestInputs.input()
-        val headerIssue = RelayFormValidation.FieldIssue(RelayFormValidation.Field.Headers, RelayFormValidation.IssueCode.CleartextCredentials)
+        val headerIssue = RelayFormValidation.FieldIssue(RelayFormValidation.Field.Headers, RelayFormValidation.IssueCode.SecurityModeSchemeMismatch)
         val keyIssue = RelayFormValidation.FieldIssue(RelayFormValidation.Field.ApiKey, RelayFormValidation.IssueCode.CredentialInvalidCharacters)
         val endpointIssue = RelayFormValidation.FieldIssue(RelayFormValidation.Field.Endpoint, RelayFormValidation.IssueCode.EndpointRejected, "cleartext_not_allowed")
         val board = RelayManualSetupBoardModel.make(

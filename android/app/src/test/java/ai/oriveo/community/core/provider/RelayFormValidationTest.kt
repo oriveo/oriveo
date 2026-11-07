@@ -113,7 +113,6 @@ class RelayFormValidationTest {
         assertTrue(RelayFormValidation.IssueCode.CredentialRequired.isSilentRequirement)
         assertFalse(RelayFormValidation.IssueCode.EndpointRejected.isSilentRequirement)
         assertFalse(RelayFormValidation.IssueCode.SecurityModeSchemeMismatch.isSilentRequirement)
-        assertFalse(RelayFormValidation.IssueCode.CleartextCredentials.isSilentRequirement)
         assertFalse(RelayFormValidation.IssueCode.CredentialInvalidCharacters.isSilentRequirement)
     }
 
@@ -122,7 +121,7 @@ class RelayFormValidationTest {
     @Test
     fun `every fixture case runs through the production decode path and the shared validator`() {
         val contract = contract()
-        assertEquals(15, contract.cases.size)
+        assertEquals(16, contract.cases.size)
 
         contract.cases.forEach { item ->
             val draft = productionDraft(item.draft)

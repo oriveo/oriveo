@@ -688,13 +688,21 @@ struct RelayEditBoardStructureTests {
             authMode: RelayAuthMode.none,
             securityMode: .localHTTP
         )
-        func make(_ mutate: (inout Editor) -> Void) -> (Board, [RelayFormValidation.FieldIssue]) {
+        // Production issues come from the page's own validator; `injecting` pins the row placement of
+        // header / query issues, which the shared validation no longer emits for local HTTP credentials.
+        func make(
+            injecting extra: [RelayFormValidation.FieldIssue] = [],
+            _ mutate: (inout Editor) -> Void
+        ) -> (Board, [RelayFormValidation.FieldIssue]) {
             var editor = Editor(from: provider)
             mutate(&editor)
             // The same function the page uses to get the validation result.
             let issues = RelayEditView.formIssues(for: provider, editor: editor)
-            return (Board.make(provider: provider, editor: editor, hasFormIssues: !issues.isEmpty, issues: issues), issues)
+            let shown = issues + extra
+            return (Board.make(provider: provider, editor: editor, hasFormIssues: !shown.isEmpty, issues: shown), issues)
         }
+        let headerIssue = RelayFormValidation.FieldIssue(field: .headers, code: .credentialInvalidCharacters)
+        let queryIssue = RelayFormValidation.FieldIssue(field: .queryParams, code: .credentialInvalidCharacters)
 
         // No problem: the headers group stays collapsed by default and expands only when the user opens it.
         let (clean, cleanIssues) = make { $0.headers = [RelayKeyValue(key: "X-Trace", value: "1")] }
@@ -706,16 +714,15 @@ struct RelayEditBoardStructureTests {
         #expect(clean.connectionIssues.isEmpty)
 
         // A header carries credentials: the note goes into the headers group, under the last header row; the group is forced open and the user can't collapse it.
-        let (header, headerIssues) = make {
+        let (header, headerIssues) = make(injecting: [headerIssue]) {
             $0.headers = [RelayKeyValue(key: "X-Trace", value: "1"), RelayKeyValue(key: "Authorization", value: "Bearer x")]
             $0.queryParams = [RelayKeyValue(key: "v", value: "1")]
         }
-        #expect(headerIssues == [RelayFormValidation.FieldIssue(
-            field: .headers, code: .cleartextCredentials, detail: "cleartext_credentials"
-        )])
+        // A credential header over local HTTP is allowed: production validation reports nothing.
+        #expect(headerIssues.isEmpty)
         let headerGroup = try Self.group(header, .headers)
         #expect(headerGroup.startsExpanded == false)
-        #expect(headerGroup.issues == headerIssues)
+        #expect(headerGroup.issues == [headerIssue])
         #expect(headerGroup.isExpanded(userChoice: nil))
         #expect(headerGroup.isExpanded(userChoice: false))
         #expect(headerGroup.rows.map(\.id) == [.userAgent, .header, .header, .queryParam, .addEntry])
@@ -724,11 +731,11 @@ struct RelayEditBoardStructureTests {
         #expect(!header.actionBar.isPrimaryEnabled)
 
         // A query param carries credentials: it appears under the last query param row.
-        let (query, queryIssues) = make {
+        let (query, queryIssues) = make(injecting: [queryIssue]) {
             $0.headers = [RelayKeyValue(key: "X-Trace", value: "1")]
             $0.queryParams = [RelayKeyValue(key: "v", value: "1"), RelayKeyValue(key: "api_key", value: "k")]
         }
-        #expect(queryIssues.map(\.field) == [.queryParams])
+        #expect(queryIssues.isEmpty)
         let queryGroup = try Self.group(query, .headers)
         #expect(queryGroup.rows.map(\.id) == [.userAgent, .header, .queryParam, .queryParam, .addEntry])
         #expect(queryGroup.rows.indices.map { queryGroup.notes(belowRowAt: $0).count } == [0, 0, 0, 1, 0])
@@ -745,8 +752,8 @@ struct RelayEditBoardStructureTests {
         let local = Self.localProvider()
         var localEditor = Editor(from: local)
         localEditor.headers = [RelayKeyValue(key: "Authorization", value: "Bearer x")]
-        let localIssues = RelayEditView.formIssues(for: local, editor: localEditor)
-        #expect(localIssues.map(\.field) == [.headers])
+        #expect(RelayEditView.formIssues(for: local, editor: localEditor).isEmpty)
+        let localIssues = [headerIssue]
         let localBoard = Board.make(provider: local, editor: localEditor, hasFormIssues: true, issues: localIssues)
         #expect(!localBoard.groups.contains { $0.id == .headers })
         #expect(localBoard.connectionIssues == localIssues)
@@ -906,7 +913,7 @@ struct RelayEditBoardStructureTests {
 
     @Test("BOARD-EDIT-17 A collapsible group forced open by a validation note: tapping the group header during that time isn't recorded as collapsing, it stays open after the fix; with no note, tapping the header toggles as usual")
     func boardEdit17TapWhileIssuesDoesNotCollapseAfterFix() throws {
-        let issue = RelayFormValidation.FieldIssue(field: .headers, code: .cleartextCredentials, detail: "cleartext_credentials")
+        let issue = RelayFormValidation.FieldIssue(field: .headers, code: .credentialInvalidCharacters)
         let held = Board.Group(
             id: .headers, titleKey: Board.headersGroupKey, isCollapsible: true, startsExpanded: false,
             rows: [], issues: [issue]

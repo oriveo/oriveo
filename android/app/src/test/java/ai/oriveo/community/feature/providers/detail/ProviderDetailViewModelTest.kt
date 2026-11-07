@@ -695,7 +695,7 @@ class ProviderDetailViewModelTest {
     }
 
     @Test
-    fun `security mode transaction persists only mode T2 endpoint and reconnect evidence`() = runTest {
+    fun `security mode transaction keeps credentials and persists only mode endpoint and reconnect evidence`() = runTest {
         val persistedRequested = RelayRequestedConfig(
             transport = RelayTransport.OpenAIResponses,
             authMode = RelayAuthMode.Bearer,
@@ -746,9 +746,9 @@ class ProviderDetailViewModelTest {
         assertTrue(pending.status is ProviderConnectionState.Issue)
         assertEquals("http://127.0.0.1:8080/v1", pending.baseUrlText)
         assertEquals(RelayConnectionSecurityMode.LocalHttp, pending.relayRequested?.securityMode)
-        assertEquals(RelayAuthMode.None, pending.relayRequested?.authMode)
-        assertNull(pending.relayRequested?.headers)
-        assertNull(pending.relayRequested?.queryParams)
+        assertEquals(RelayAuthMode.Bearer, pending.relayRequested?.authMode)
+        assertEquals(persistedRequested.headers, pending.relayRequested?.headers)
+        assertEquals(persistedRequested.queryParams, pending.relayRequested?.queryParams)
         assertNull(pending.relayRequested?.resolvedAPIBaseURL)
         // The unsaved advanced draft is not among this method's inputs at all; the saved transport / model / tier are kept as they are.
         assertEquals(RelayTransport.OpenAIResponses, pending.relayRequested?.transport)
@@ -763,7 +763,10 @@ class ProviderDetailViewModelTest {
 
         assertEquals(ProviderConnectionState.Connected, providerState.value.status)
         assertTrue(viewModel.relayConnectionTestResult?.isSuccess == true)
-        coVerify(exactly = 1) { providerRepository.updateApiKey("provider-1", "") }
+        coVerify(exactly = 0) { providerRepository.updateApiKey(any(), any()) }
+        coVerify(exactly = 1) {
+            providerRepository.pingRelayConnection("sk-persisted", any(), any(), any(), any())
+        }
         coVerify(exactly = 1) { providerRepository.resyncProviderForModeTransition("provider-1", any()) }
         providerJob.cancel()
     }
@@ -1910,23 +1913,24 @@ class ProviderDetailViewModelTest {
     }
 
     @Test
-    fun `T1 saving a key onto a cleartext connection is refused with a routed reason`() = runTest {
+    fun `T1 saving a key onto a cleartext local connection stores it`() = runTest {
         val provider = relayProvider(
             authMode = RelayAuthMode.Bearer,
             securityMode = RelayConnectionSecurityMode.LocalHttp,
         )
         val providerState = MutableStateFlow(provider)
+        coEvery { providerRepository.updateApiKey(any(), any()) } returns Unit
         val viewModel = createViewModel(providerState)
         val providerJob = backgroundScope.launch(dispatcher) { viewModel.provider.collect {} }
         advanceUntilIdle()
 
         viewModel.startEditApiKey()
-        viewModel.editingApiKey = "sk-should-not-be-stored"
+        viewModel.editingApiKey = "sk-local-key"
         viewModel.saveApiKey()
         advanceUntilIdle()
 
-        assertEquals(R.string.relay_credentials_cleartext_blocked, viewModel.apiKeyEditErrorRes)
-        coVerify(exactly = 0) { providerRepository.updateApiKey(any(), any()) }
+        assertNull(viewModel.apiKeyEditErrorRes)
+        coVerify(exactly = 1) { providerRepository.updateApiKey("provider-1", "sk-local-key") }
         providerJob.cancel()
     }
 
@@ -1991,10 +1995,19 @@ class ProviderDetailViewModelTest {
     }
 
     @Test
-    fun `save time interlock blocks a cleartext connection that still carries a credential`() = runTest {
+    fun `save time interlock lets a cleartext local connection keep its credential`() = runTest {
         val provider = relayProvider(authMode = RelayAuthMode.Bearer, apiKey = "sk-live-key-value")
         val providerState = MutableStateFlow(provider)
-        coEvery { providerRepository.updateProvider(any()) } returns Unit
+        coEvery {
+            providerRepository.verifyAndPersistRelayEdit(any(), null, any(), any(), any())
+        } coAnswers {
+            ProviderRepository.RelayEditOutcome(
+                provider = firstArg(),
+                persisted = true,
+                verificationSucceeded = true,
+                catalogState = ProviderRepository.RelayCatalogRefreshState.Available,
+            )
+        }
         val viewModel = createViewModel(providerState)
         val providerJob = backgroundScope.launch(dispatcher) { viewModel.provider.collect {} }
         advanceUntilIdle()
@@ -2008,12 +2021,19 @@ class ProviderDetailViewModelTest {
         )
         advanceUntilIdle()
 
-        // Block at save time; otherwise what gets stored is a zombie connection that saves successfully and is hard-rejected at send time on every request
-        coVerify(exactly = 0) { providerRepository.updateProvider(any()) }
-        // A rejected save must give a visible reason; a silent return is forbidden
-        verify(exactly = 1) {
+        // Local / private-VPN cleartext may carry the key: no refusal, the edit goes to verification.
+        verify(exactly = 0) {
             globalSnackbarManager.show(
-                match { it.message == UiText.Resource(R.string.relay_credentials_cleartext_blocked) },
+                match { it.message == UiText.Resource(R.string.relay_setup_invalid_endpoint_message) },
+            )
+        }
+        coVerify(exactly = 1) {
+            providerRepository.verifyAndPersistRelayEdit(
+                match { it.relayRequested?.authMode == RelayAuthMode.Bearer },
+                null,
+                any(),
+                any(),
+                any(),
             )
         }
         providerJob.cancel()

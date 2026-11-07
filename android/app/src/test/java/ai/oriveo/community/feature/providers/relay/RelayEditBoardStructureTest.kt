@@ -621,8 +621,11 @@ class RelayEditBoardStructureTest {
         val draft = RelayEditDraft.from(provider, null).copy(
             headers = listOf(RelayKeyValue("X-Trace", "1"), RelayKeyValue("Authorization", "Bearer x")),
         )
-        val issues = issuesOf(provider, draft)
-        assertTrue(issues.any { it.field == RelayFormValidation.Field.Headers })
+        // A local cleartext Authorization header is allowed now (oriveo/oriveo#20); placement is driven by a seeded issue.
+        assertTrue(issuesOf(provider, draft).none { it.field == RelayFormValidation.Field.Headers })
+        val issues = listOf(
+            RelayFormValidation.FieldIssue(RelayFormValidation.Field.Headers, RelayFormValidation.IssueCode.SecurityModeSchemeMismatch),
+        )
         val b = board(provider, draft, issues = issues, headersExpanded = false)
         val headers = b.group(RelayEditGroupId.Headers)
         assertTrue("a collapsed group is also expanded when it has a hint", headers.expanded)
@@ -640,7 +643,7 @@ class RelayEditBoardStructureTest {
 
         // The page has no request-header group (local plaintext): the hint stays under the connection card.
         val localProvider = local("ollama")
-        val localIssue = RelayFormValidation.FieldIssue(RelayFormValidation.Field.Headers, RelayFormValidation.IssueCode.CleartextCredentials)
+        val localIssue = RelayFormValidation.FieldIssue(RelayFormValidation.Field.Headers, RelayFormValidation.IssueCode.SecurityModeSchemeMismatch)
         val localBoard = board(localProvider, issues = listOf(localIssue))
         assertEquals(listOf(localIssue), localBoard.connectionIssues)
     }

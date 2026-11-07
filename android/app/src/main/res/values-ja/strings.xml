@@ -857,7 +857,6 @@
     <string name="relay_section_request_behavior">互換性</string>
     <string name="relay_type_row_change">変更</string>
     <string name="relay_connection_no_key_required">この接続にキーは不要です</string>
-    <string name="relay_credentials_cleartext_blocked">暗号化されていない接続ではキーを送信できません。</string>
     <string name="relay_security_mode_scheme_mismatch">このアドレスは接続方法と一致しません。続けるには接続方法を変更してください。</string>
     <string name="relay_security_mode_label">接続セキュリティ</string>
     <string name="relay_security_mode_remote_https">公開 HTTPS</string>
@@ -865,15 +864,14 @@
     <string name="relay_security_mode_paired_https">ペアリングされた HTTPS</string>
     <string name="relay_security_mode_paired_https_description">ペアリング中に安全な暗号化接続。</string>
     <string name="relay_security_mode_local_http">ローカル HTTP</string>
-    <string name="relay_security_mode_local_http_description">このデバイスまたは LAN 上のアドレス用です。暗号化されないため、認証情報は送信されません。</string>
+    <string name="relay_security_mode_local_http_description">この端末または LAN 上のアドレス向けです。通信は暗号化されません。</string>
+    <string name="relay_security_mode_cleartext_confirm_body">この接続は暗号化されません。同じネットワーク上の他の端末から、APIキーを含め Oriveo が送信する内容を見られる可能性があります。</string>
     <string name="relay_security_mode_private_vpn">プライベート VPN</string>
     <string name="relay_security_mode_private_vpn_description">Tailscale などのプライベートネットワーク経由で接続します。</string>
-    <string name="relay_security_mode_suggest_local">ローカルまたは LAN アドレスのようです。暗号化されない LAN HTTP では、Oriveo は認証情報を送信しません。</string>
     <string name="relay_security_mode_suggest_vpn">Tailscale アドレスのようです。このアドレスが自分のプライベートネットワークに属する場合のみ、プライベート VPN を使用してください。</string>
     <string name="relay_security_mode_keep_https">HTTPS のままにする</string>
     <string name="relay_security_mode_use_local_http">暗号化されない LAN HTTP で接続</string>
     <string name="relay_security_mode_use_private_vpn">プライベート VPN を使用</string>
-    <string name="relay_security_mode_clear_credentials_warning">暗号化されない接続に切り替えると、この接続のキー、カスタムヘッダー、カスタムクエリパラメーターも削除されます。</string>
     <string name="relay_security_mode_https_required">公開接続では HTTPS が必要です。</string>
     <string name="relay_security_mode_option_public_disabled">このアドレスは公開ネットワークまたは混合ネットワークに解決されるため利用できません。</string>
     <string name="relay_security_mode_option_unknown_disabled">この接続方式を選ぶ前に、ローカル、LAN、またはプライベート VPN のアドレスを入力してください。</string>
@@ -1208,7 +1206,9 @@
     <string name="local_compute_entry_subtitle">Ollama、LM Studio、llama.cpp、vLLM に接続</string>
     <string name="local_compute_description">この端末またはプライベートネットワーク上のエンジンに直接接続します。</string>
     <string name="local_compute_engine">エンジン</string>
-    <string name="local_compute_no_credentials">認証なし。認証情報は送信されません。</string>
+    <string name="local_compute_api_key_footnote_optional_cleartext">任意です。この接続は HTTPS を使わないため、キーは暗号化されずに送信されます。</string>
+    <string name="local_compute_api_key_footnote_optional_https">任意です。エンジンでキーを使わない場合は空欄のままにしてください。</string>
+    <string name="local_compute_api_key_footnote_required_cleartext">この接続は HTTPS を使わないため、キーは暗号化されずに送信されます。</string>
     <string name="local_compute_model_optional">モデル（任意）</string>
     <string name="local_compute_error_address">このローカルアドレスは許可されていません。</string>
     <string name="local_compute_error_engine">このアドレスのサービスは選択したエンジンではありません。</string>
@@ -1216,7 +1216,6 @@
     <string name="local_compute_error_models">ローカルモデルが見つかりません。</string>
     <string name="local_compute_error_network">ローカルエンジンに接続できません。</string>
     <string name="local_compute_connecting">接続中…</string>
-    <string name="local_compute_error_cleartext_credentials">Open WebUI にはキーが必要なため、HTTPS 接続を使用してください。</string>
     <string name="local_compute_localhost_phone">localhost はパソコンではなく、このスマートフォンを指します。</string>
     <string name="local_model_via_ollama_cloud">Ollama Cloud 経由</string>
     <string name="local_model_loading">読み込み中</string>

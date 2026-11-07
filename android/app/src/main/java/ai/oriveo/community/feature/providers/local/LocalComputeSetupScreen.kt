@@ -201,7 +201,6 @@ fun LocalComputeSetupFields(
                     RelaySecurityModeControl(
                         endpoint = viewModel.endpoint,
                         selectedMode = viewModel.securityMode,
-                        hasCredentialMaterial = viewModel.hasCredentialMaterial,
                         enabled = !viewModel.isConnecting,
                         onModeSelected = { mode, assessment, confirmed ->
                             viewModel.setSecurityMode(mode, assessment, confirmed)
@@ -214,13 +213,6 @@ fun LocalComputeSetupFields(
                             color = colors.warning,
                         )
                     }
-                    if (SetupBoardSlot.ApiKey !in board.slots) {
-                        Text(
-                            text = stringResource(R.string.local_compute_no_credentials),
-                            style = OriveoTheme.typography.footnote,
-                            color = colors.textSecondary,
-                        )
-                    }
                 }
                 SetupBoardSlot.ApiKey -> RelayQuickField(
                     label = stringResource(R.string.api_key),
@@ -228,6 +220,7 @@ fun LocalComputeSetupFields(
                     onValueChange = viewModel::updateApiKey,
                     placeholder = stringResource(R.string.relay_api_key_placeholder),
                     icon = painterResource(R.drawable.ph_key),
+                    footnote = viewModel.apiKeyFootnoteRes?.let { stringResource(it) },
                     secure = true,
                     enabled = !viewModel.isConnecting,
                 )
@@ -381,7 +374,6 @@ internal val LocalEngineKind.label: String
 private val LocalEngineConnectionFailure.messageResource: Int
     get() = when (this) {
         LocalEngineConnectionFailure.InvalidEndpoint -> R.string.local_compute_error_address
-        LocalEngineConnectionFailure.CleartextCredentials -> R.string.local_compute_error_cleartext_credentials
         LocalEngineConnectionFailure.AuthenticationRejected -> R.string.relay_quick_auth_rejected
         LocalEngineConnectionFailure.WrongEngine -> R.string.local_compute_error_engine
         LocalEngineConnectionFailure.Loading -> R.string.local_compute_error_loading

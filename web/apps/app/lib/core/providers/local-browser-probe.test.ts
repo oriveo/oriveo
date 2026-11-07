@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { connectLocalEngineInBrowser, probeLocalEngineInBrowser } from './local-browser-probe';
+import { connectLocalEngineInBrowser, fingerprintLocalEngineInBrowser, probeLocalEngineInBrowser } from './local-browser-probe';
 
 const mocks = vi.hoisted(() => ({ sendMessageStream: vi.fn() }));
 
@@ -71,7 +71,7 @@ describe('probeLocalEngineInBrowser', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('fails closed before fetch when Open WebUI has no bearer key or would send it over HTTP', async () => {
+  it('fails closed before fetch when Open WebUI has no bearer key, over HTTPS and local HTTP alike', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch');
 
     await expect(probeLocalEngineInBrowser({
@@ -84,10 +84,79 @@ describe('probeLocalEngineInBrowser', () => {
       engine: 'openwebui',
       endpoint: 'http://127.0.0.1:3000',
       securityMode: 'local_http',
-      apiKey: 'openwebui-secret',
-    })).resolves.toMatchObject({ state: 'unreachable', failure: 'cleartext_credentials' });
+    })).resolves.toMatchObject({ state: 'unreachable', failure: 'credential_required' });
 
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('lets Open WebUI send its bearer key over loopback local HTTP', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      expect(String(input)).toBe('http://127.0.0.1:3000/api/models');
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer openwebui-secret');
+      return new Response(JSON.stringify({ data: [{ id: 'fixture-model' }] }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    });
+
+    await expect(probeLocalEngineInBrowser({
+      engine: 'openwebui',
+      endpoint: 'http://127.0.0.1:3000',
+      securityMode: 'local_http',
+      apiKey: 'openwebui-secret',
+    })).resolves.toMatchObject({ state: 'ready', endpoint: 'http://127.0.0.1:3000' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('sends Bearer on every request of a keyed non-Open WebUI engine over local HTTP, including generation', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+      expect(new Headers(init?.headers).get('authorization')).toBe('Bearer ollama-secret');
+      const body = String(input).endsWith('/api/tags')
+        ? { models: [{ name: 'qwen2.5:0.5b' }] }
+        : { capabilities: ['completion'] };
+      return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
+    });
+    mocks.sendMessageStream.mockReturnValue({
+      abort: vi.fn(),
+      stream: new ReadableStream<string>({
+        start(controller) {
+          controller.enqueue('ok');
+          controller.close();
+        },
+      }),
+    });
+
+    const result = await connectLocalEngineInBrowser({
+      engine: 'ollama',
+      endpoint: 'http://127.0.0.1:11434',
+      securityMode: 'local_http',
+      apiKey: ' ollama-secret ',
+    });
+
+    expect(result).toMatchObject({ state: 'ready', generationVerified: true });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(mocks.sendMessageStream).toHaveBeenCalledWith(
+      'ollama-secret',
+      'qwen2.5:0.5b',
+      expect.any(Array),
+      'http://127.0.0.1:11434/v1',
+      expect.objectContaining({ relayAuthMode: 'bearer', relaySecurityMode: 'local_http' }),
+    );
+  });
+
+  it('carries Bearer on all five fingerprint GETs only when a key is given', async () => {
+    const seen: Array<string | null> = [];
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (_input, init) => {
+      seen.push(new Headers(init?.headers).get('authorization'));
+      return new Response('{}', { status: 404, headers: { 'content-type': 'application/json' } });
+    });
+
+    await fingerprintLocalEngineInBrowser({ endpoint: 'http://127.0.0.1:8080', securityMode: 'local_http', apiKey: 'fp-secret' });
+    expect(seen).toEqual(Array(5).fill('Bearer fp-secret'));
+
+    seen.length = 0;
+    await fingerprintLocalEngineInBrowser({ endpoint: 'http://127.0.0.1:8080', securityMode: 'local_http' });
+    expect(seen).toEqual(Array(5).fill(null));
   });
 
   it('uses the Open WebUI bearer key on every direct request and the production chat stream', async () => {
@@ -176,6 +245,14 @@ describe('probeLocalEngineInBrowser', () => {
 
     expect(result).toMatchObject({ state: 'ready', generationVerified: true });
     expect(fetchMock).toHaveBeenCalledTimes(3);
+    for (const call of fetchMock.mock.calls) expect(new Headers(call[1]?.headers).has('authorization')).toBe(false);
+    expect(mocks.sendMessageStream).toHaveBeenCalledWith(
+      '',
+      'qwen2.5:0.5b',
+      expect.any(Array),
+      'http://127.0.0.1:11434/v1',
+      expect.objectContaining({ relayAuthMode: 'none' }),
+    );
   });
 
   it('excludes LM Studio embedding rows from the selectable chat catalog', async () => {

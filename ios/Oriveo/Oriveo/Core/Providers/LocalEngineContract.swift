@@ -19,7 +19,7 @@ nonisolated struct LocalEngineAuthenticationPolicy: Equatable, Sendable {
             return Self(
                 authMode: .bearer,
                 requiresCredential: true,
-                allowedSecurityModes: [.remoteHTTPS, .tofuHTTPS]
+                allowedSecurityModes: [.remoteHTTPS, .localHTTP, .privateVPN, .tofuHTTPS]
             )
         }
         return Self(
@@ -27,6 +27,12 @@ nonisolated struct LocalEngineAuthenticationPolicy: Equatable, Sendable {
             requiresCredential: false,
             allowedSecurityModes: [.remoteHTTPS, .localHTTP, .privateVPN, .tofuHTTPS]
         )
+    }
+
+    /// Persisted auth mode: required engines are always Bearer; optional ones become Bearer
+    /// only when the user typed a key, otherwise no credential header is sent.
+    func resolvedAuthMode(hasCredential: Bool) -> RelayAuthMode {
+        requiresCredential || hasCredential ? .bearer : authMode
     }
 
     func permits(securityMode: RelayConnectionSecurityMode, hasCredential: Bool) -> Bool {
@@ -46,7 +52,7 @@ nonisolated enum LocalConnectionRecoveryAction: String, Equatable, Sendable {
 
     static func action(for error: LocalEngineConnectionError) -> Self {
         switch error {
-        case .invalidEndpoint, .cleartextCredentials: .editAddress
+        case .invalidEndpoint: .editAddress
         case .wrongEngine: .chooseEngine
         case .engineLoading, .timeout: .waitAndRetry
         case .noModels: .chooseModel

@@ -19,11 +19,10 @@
 import type { RelayAuthMode, RelayKeyValue, RelayTransport } from '@oriveo/shared/pure-types';
 import {
   classifyRelayEndpoint,
-  isSensitiveRelayName,
   type RelayConnectionSecurityMode,
 } from '@oriveo/shared/relay/endpoint-policy';
 import { isPrintableAsciiKey } from './key-validation';
-import { relayCredentialInputRequired, relayRequiresCredential } from './relay-runtime-support';
+import { relayCredentialInputRequired } from './relay-runtime-support';
 
 /* ── Field layout (declarative definitions) ───────────── */
 
@@ -148,8 +147,6 @@ export type RelayFormIssueCode =
   | 'endpoint_required'
   /** The address was rejected by the address policy; `detail` holds its reason slug. */
   | 'endpoint_rejected'
-  /** Credential material (key, sensitive header or sensitive query) sent over a cleartext transport. */
-  | 'cleartext_credentials'
   /** Connection mode and address scheme are incompatible. The mode is never auto-adjusted to fit the address. */
   | 'security_mode_scheme_mismatch'
   /** This connection needs a key and the form has none yet. */
@@ -228,27 +225,13 @@ export function validateRelayForm(
     const classification = classifyRelayEndpoint({
       raw: trimmedEndpoint,
       securityMode: draft.securityMode,
-      credentials: {
-        authMode: draft.authMode,
-        hasKey: hasCredential,
-        sensitiveHeaders: sensitiveNames(draft.headers),
-        sensitiveQueryKeys: sensitiveNames(draft.queryParams),
-      },
     });
     if (!classification.allowed) {
-      if (classification.reason === 'cleartext_credentials') {
-        issues.push({
-          field: cleartextOffendingField(draft, hasCredential),
-          code: 'cleartext_credentials',
-          detail: classification.reason,
-        });
-      } else {
-        issues.push({
-          field: 'endpoint',
-          code: 'endpoint_rejected',
-          detail: classification.reason,
-        });
-      }
+      issues.push({
+        field: 'endpoint',
+        code: 'endpoint_rejected',
+        detail: classification.reason,
+      });
     }
   }
 
@@ -278,17 +261,9 @@ export function relayFormNormalizedEndpoint(
   mode: RelayFormMode,
 ): string | null {
   if (validateRelayForm(draft, mode).length > 0) return null;
-  const hasCredential = draft.apiKey.trim().length > 0
-    || (mode === 'edit' && draft.hasSavedCredential);
   const classification = classifyRelayEndpoint({
     raw: draft.endpoint.trim(),
     securityMode: draft.securityMode,
-    credentials: {
-      authMode: draft.authMode,
-      hasKey: hasCredential,
-      sensitiveHeaders: sensitiveNames(draft.headers),
-      sensitiveQueryKeys: sensitiveNames(draft.queryParams),
-    },
   });
   return classification.allowed ? classification.normalized ?? null : null;
 }
@@ -298,10 +273,6 @@ export function relayFormNormalizedEndpoint(
 function fieldIndex(field: RelayFormField): number {
   const index = FIELD_ORDER.indexOf(field);
   return index < 0 ? FIELD_ORDER.length : index;
-}
-
-function sensitiveNames(pairs: readonly RelayKeyValue[]): string[] {
-  return pairs.filter((pair) => isSensitiveRelayName(pair.key)).map((pair) => pair.key);
 }
 
 /**
@@ -320,14 +291,4 @@ function hasSchemeModeMismatch(
 ): boolean {
   if (securityMode !== 'local_http' && securityMode !== 'private_vpn') return false;
   return endpoint.toLowerCase().startsWith('https://');
-}
-
-/** Which piece of credential material crossed the cleartext boundary. Attributed in layout order, so the user gets something to click. */
-function cleartextOffendingField(
-  draft: RelayFormDraft,
-  hasCredential: boolean,
-): RelayFormField {
-  if (relayRequiresCredential(draft.authMode) || hasCredential) return 'api_key';
-  if (draft.headers.some((pair) => isSensitiveRelayName(pair.key))) return 'headers';
-  return 'query_params';
 }

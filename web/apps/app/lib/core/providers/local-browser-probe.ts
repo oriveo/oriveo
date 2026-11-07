@@ -18,7 +18,7 @@ import {
 } from '@oriveo/shared';
 import { sendMessageStream } from './adapters/relay';
 
-export type LocalBrowserProbeFailure = 'unsupported_browser' | 'permission_denied' | 'cors_blocked' | 'unsafe_address' | 'redirect_blocked' | 'invalid_response' | 'credential_required' | 'authentication_rejected' | 'cleartext_credentials';
+export type LocalBrowserProbeFailure = 'unsupported_browser' | 'permission_denied' | 'cors_blocked' | 'unsafe_address' | 'redirect_blocked' | 'invalid_response' | 'credential_required' | 'authentication_rejected';
 
 export interface LocalBrowserProbeResult {
   state: LocalEngineState;
@@ -78,19 +78,9 @@ export async function probeLocalEngineInBrowser(input: {
   if (input.engine === 'openwebui' && !apiKey) {
     return { state: 'unreachable', failure: 'credential_required', endpoint: input.endpoint };
   }
-  const classification = classifyRelayEndpoint({
-    raw: input.endpoint,
-    securityMode: input.securityMode,
-    credentials: input.engine === 'openwebui'
-      ? { authMode: 'bearer', hasKey: Boolean(apiKey) }
-      : { authMode: 'none', hasKey: false },
-  });
+  const classification = classifyRelayEndpoint({ raw: input.endpoint, securityMode: input.securityMode });
   if (!classification.allowed || !classification.normalized) {
-    return {
-      state: 'unreachable',
-      failure: classification.reason === 'cleartext_credentials' ? 'cleartext_credentials' : 'unsafe_address',
-      endpoint: input.endpoint,
-    };
+    return { state: 'unreachable', failure: 'unsafe_address', endpoint: input.endpoint };
   }
   if (typeof window === 'undefined' || typeof fetch !== 'function') return { state: 'unreachable', failure: 'unsupported_browser', endpoint: classification.normalized };
 
@@ -104,7 +94,7 @@ export async function probeLocalEngineInBrowser(input: {
       mode: 'cors',
       redirect: 'manual',
       credentials: 'omit',
-      headers: localEngineHeaders(input.engine, apiKey),
+      headers: localEngineHeaders(apiKey),
       referrerPolicy: 'no-referrer',
       signal: input.signal,
     });
@@ -145,7 +135,7 @@ export async function connectLocalEngineInBrowser(input: {
     const template = LOCAL_ENGINE_TEMPLATES[input.engine];
     const catalogResponse = await localFetch(new URL(template.catalogPath, `${probe.endpoint.replace(/\/$/, '')}/`).toString(), {
       method: 'GET',
-      headers: localEngineHeaders(input.engine, input.apiKey),
+      headers: localEngineHeaders(input.apiKey),
       signal: input.signal,
     });
     const catalogFailure = responseFailure(catalogResponse);
@@ -194,7 +184,7 @@ export async function connectLocalEngineInBrowser(input: {
       new URL(template.introspection.path, `${probe.endpoint.replace(/\/$/, '')}/`).toString(),
       {
         method: template.introspection.method,
-        headers: localEngineHeaders(input.engine, input.apiKey),
+        headers: localEngineHeaders(input.apiKey),
         signal: input.signal,
         ...(input.engine === 'ollama' ? {
           // Ollama accepts a JSON string without an explicit Content-Type. Keeping this request
@@ -224,11 +214,11 @@ export async function connectLocalEngineInBrowser(input: {
       return Object.keys(declaration).length > 0 ? { ...model, engineDeclaration: declaration } : model;
     });
     const apiBaseURL = new URL(input.engine === 'openwebui' ? '/api' : '/v1', `${probe.endpoint.replace(/\/$/, '')}/`).toString().replace(/\/$/, '');
-    const handle = sendMessageStream(input.engine === 'openwebui' ? input.apiKey?.trim() ?? '' : '', modelID, [{ role: 'user', content: 'Reply with one token.' }], apiBaseURL, {
+    const handle = sendMessageStream(input.apiKey?.trim() ?? '', modelID, [{ role: 'user', content: 'Reply with one token.' }], apiBaseURL, {
       relayResolvedBaseURLText: apiBaseURL,
       relayResolvedAPIBaseURLIsExact: true,
       relayTransport: 'openai_chat_completions',
-      relayAuthMode: input.engine === 'openwebui' ? 'bearer' : 'none',
+      relayAuthMode: localEngineAuthMode(input.apiKey),
       relaySecurityMode: input.securityMode,
       relayStream: false,
       relayMaxOutputTokens: 1,
@@ -276,13 +266,12 @@ export async function connectLocalEngineInBrowser(input: {
 export async function fingerprintLocalEngineInBrowser(input: {
   endpoint: string;
   securityMode: Exclude<RelayConnectionSecurityMode, 'tofu_https'>;
+  /** When present, every fingerprint GET carries `Authorization: Bearer`; absent = no credential header. */
+  apiKey?: string;
   signal?: AbortSignal;
 }): Promise<LocalEngineFingerprint> {
-  const classification = classifyRelayEndpoint({
-    raw: input.endpoint,
-    securityMode: input.securityMode,
-    credentials: { authMode: 'none', hasKey: false },
-  });
+  const classification = classifyRelayEndpoint({ raw: input.endpoint, securityMode: input.securityMode });
+  const headers = localEngineHeaders(input.apiKey);
   if (!classification.allowed || !classification.normalized) return { outcome: 'manual' };
   if (typeof window === 'undefined' || typeof fetch !== 'function') return { outcome: 'manual' };
   if (await localNetworkPermission() === 'denied') return { outcome: 'manual' };
@@ -292,6 +281,7 @@ export async function fingerprintLocalEngineInBrowser(input: {
       const response = await localFetch(new URL(path, base).toString(), {
         method: 'GET',
         mode: 'cors',
+        headers,
         signal: input.signal,
       });
       if (response.type === 'opaqueredirect') return undefined;
@@ -331,7 +321,7 @@ export async function inspectLocalEngineDeclarationsInBrowser(input: {
   try {
     const template = LOCAL_ENGINE_TEMPLATES[input.engine];
     const root = `${probe.endpoint.replace(/\/$/, '')}/`;
-    const headers = localEngineHeaders(input.engine, input.apiKey);
+    const headers = localEngineHeaders(input.apiKey);
     const catalogResponse = await localFetch(new URL(template.catalogPath, root).toString(), { method: 'GET', headers, signal: input.signal });
     if (responseFailure(catalogResponse) || !catalogResponse.ok) return [];
     const catalog = await catalogResponse.json() as Record<string, unknown>;
@@ -414,9 +404,13 @@ function introspectionMatches(
   return Array.isArray(body.data) || Array.isArray(body.models);
 }
 
-function localEngineHeaders(engine: LocalEngineKind, apiKey: string | undefined): Record<string, string> {
+/** Any engine with a non-empty key sends `Authorization: Bearer`; without a key no credential header is sent. */
+function localEngineHeaders(apiKey: string | undefined): Record<string, string> {
   const credential = apiKey?.trim() ?? '';
-  return engine === 'openwebui' && credential
-    ? { Authorization: `Bearer ${credential}` }
-    : {};
+  return credential ? { Authorization: `Bearer ${credential}` } : {};
+}
+
+/** Stored / sent auth mode of a local engine connection: a non-empty key means bearer, otherwise none. */
+export function localEngineAuthMode(apiKey: string | undefined): 'bearer' | 'none' {
+  return (apiKey?.trim() ?? '').length > 0 ? 'bearer' : 'none';
 }

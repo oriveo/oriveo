@@ -82,7 +82,7 @@ struct RelaySecurityModeSummaryRow: View {
         case .tofuHTTPS:
             return L10n.tr("Encrypted connection secured during pairing.", table: .providers)
         case .localHTTP:
-            return L10n.tr("For addresses on this device or your LAN. Not encrypted, so no credentials are sent.", table: .providers)
+            return L10n.tr("For addresses on this device or your LAN. Not encrypted.", table: .providers)
         case .privateVPN:
             return L10n.tr("Reached over a private network such as Tailscale.", table: .providers)
         }
@@ -92,8 +92,6 @@ struct RelaySecurityModeSummaryRow: View {
 struct RelaySecurityModePickerSheet: View {
     let endpoint: String
     let currentMode: RelayConnectionSecurityMode
-    let hasCredentialMaterial: Bool
-    var allowedModes: Set<RelayConnectionSecurityMode> = Set(RelaySecurityModeSelection.selectableModes)
     let onSelect: (RelayConnectionSecurityMode) -> Void
 
     @Environment(\.dismiss) private var dismiss
@@ -131,7 +129,6 @@ struct RelaySecurityModePickerSheet: View {
     }
 
     private func isAvailable(_ mode: RelayConnectionSecurityMode) -> Bool {
-        guard allowedModes.contains(mode) else { return false }
         switch mode {
         case .remoteHTTPS: return true
         case .localHTTP: return assessment?.localHTTPAllowed == true
@@ -201,9 +198,6 @@ struct RelaySecurityModePickerSheet: View {
     }
 
     private func unavailableMessage(for mode: RelayConnectionSecurityMode) -> String {
-        if !allowedModes.contains(mode) {
-            return L10n.tr("This engine requires an encrypted connection for its access token.", table: .providers)
-        }
         guard assessment != nil else {
             return L10n.tr("Checking this address...", table: .providers)
         }
@@ -219,9 +213,7 @@ struct RelaySecurityModePickerSheet: View {
             .font(OriveoTheme.Typography.body.weight(.semibold))
             .foregroundStyle(OriveoTheme.Palette.warning)
 
-            Text(hasCredentialMaterial
-                 ? L10n.tr("Switching to an unencrypted connection also deletes: this connection's key, custom headers, and custom query parameters.", table: .providers)
-                 : L10n.tr("This looks like a local or LAN address. Over plain LAN HTTP, Oriveo won't send any credentials.", table: .providers))
+            Text(L10n.tr("This connection won't be encrypted. Other devices on the same network could see what Oriveo sends, including any API key.", table: .providers))
                 .font(OriveoTheme.Typography.footnote)
                 .foregroundStyle(OriveoTheme.Palette.textSecondary)
                 .fixedSize(horizontal: false, vertical: true)

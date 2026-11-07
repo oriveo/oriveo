@@ -132,16 +132,22 @@ struct RelayCredentialPolicyTests {
     }
 
 
-    @Test("Save Time Interlock Uses Endpoint Policy")
+    @Test("Local HTTP with bearer auth and a stored key is allowed by the endpoint policy; public HTTP stays rejected")
     func saveTimeInterlockUsesEndpointPolicy() throws {
         let cleartextWithAuth = try decodedRequested(#"{"transport":"openai_chat_completions","authMode":"bearer","securityMode":"local_http"}"#)
-        let denied = RelayEndpointPolicy.classify(
+        let keyed = RelayEndpointPolicy.classify(
             "http://192.168.31.250:1234/v1",
             securityMode: .localHTTP,
             credentials: RelayCredentialPolicy.endpointCredentials(for: cleartextWithAuth, hasStoredKey: true)
         )
-        #expect(denied.allowed == false)
-        #expect(denied.reason == "cleartext_credentials")
+        #expect(keyed.allowed)
+        let publicHTTP = RelayEndpointPolicy.classify(
+            "http://relay.example.com/v1",
+            securityMode: .remoteHTTPS,
+            credentials: RelayCredentialPolicy.endpointCredentials(for: cleartextWithAuth, hasStoredKey: true)
+        )
+        #expect(publicHTTP.allowed == false)
+        #expect(publicHTTP.reason == "cleartext_not_allowed")
 
         let keyless = try decodedRequested(#"{"transport":"openai_chat_completions","authMode":"none","securityMode":"local_http"}"#)
         let allowed = RelayEndpointPolicy.classify(

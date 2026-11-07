@@ -44,19 +44,14 @@ export function relayRequiresCredential(authMode: RelayAuthMode | null | undefin
   return (authMode ?? 'auto') !== 'none';
 }
 
-/** Whether the connection uses a plaintext (unencrypted) channel; plaintext and any credential material are mutually exclusive. */
+/** Whether the connection uses an unencrypted channel (local HTTP / private VPN). */
 export function isCleartextRelayConnection(
   securityMode: RelayConnectionSecurityMode | null | undefined,
 ): boolean {
   return securityMode === 'local_http' || securityMode === 'private_vpn';
 }
 
-/**
- * Shared predicate for whether any credential material is present. Ordinary custom
- * key/value pairs are not credentials and survive a switch to plaintext, but once any
- * sensitive pair matches, the whole header and query configuration is cleared atomically
- * as the confirmation card promises, so no related field is left behind.
- */
+/** Whether the connection carries credential material (key, auth mode, or sensitive header / query). */
 export function relayHasCredentialMaterial(input: {
   authMode: RelayAuthMode | null | undefined;
   hasStoredKey: boolean;
@@ -67,17 +62,6 @@ export function relayHasCredentialMaterial(input: {
     || input.hasStoredKey
     || (input.headers ?? []).some((pair) => isSensitiveRelayName(pair.key))
     || (input.queryParams ?? []).some((pair) => isSensitiveRelayName(pair.key));
-}
-
-/**
- * The confirmation step has to see both the saved configuration and the unsaved draft.
- * Checking only one side lets the card promise that no credential will be deleted while
- * the transaction then finds and deletes one on the other side.
- */
-export function relayHasCredentialMaterialAcross(
-  inputs: readonly Parameters<typeof relayHasCredentialMaterial>[0][],
-): boolean {
-  return inputs.some(relayHasCredentialMaterial);
 }
 
 /** Credential values that were really sent must be masked before a failure card or diagnostics view shows them; ordinary key/value pairs are not credentials and are not caught here. */
@@ -113,9 +97,8 @@ export function relayCredentialInputRequired(
 }
 
 /**
- * Credential state. The separate "not yet verified" state is orthogonal to these four and
- * is carried by `provider.status` rather than modelled here, so that "has a key" and
- * "has been tested" do not collapse into one dimension.
+ * Credential state (S0-S2). S4 "unverified" is orthogonal and lives on `provider.status`;
+ * modelling it here would collapse "has a key" and "was tested" into one dimension.
  */
 export type RelayCredentialState =
   /** S0: needs no credential; neutral, and the save path performs no key check */
@@ -123,28 +106,20 @@ export type RelayCredentialState =
   /** S1: needs one but has none; warning state */
   | 'missing'
   /** S2: needs one and has it; neutral masked display */
-  | 'present'
-  /** S3: a plaintext connection that still carries credential material; blocking state, only reachable through existing data, a backup restore or sync */
-  | 'conflict';
+  | 'present';
 
 export interface RelayCredentialStateInput {
   /** Effective authMode of the connection: resolved first, else the value the user requested */
   authMode: RelayAuthMode | null | undefined;
   /** The key store really holds a non-empty key; not the same as a non-empty apiKeyPreview */
   hasStoredKey: boolean;
-  securityMode?: RelayConnectionSecurityMode | null;
-  /** Sensitive header and query parameters are credential material too, and conflict with plaintext just the same */
-  hasSensitiveTransportCredentials?: boolean;
 }
 
 export function resolveRelayCredentialState(
   input: RelayCredentialStateInput,
 ): RelayCredentialState {
+  // Cleartext local / VPN connections may carry credentials, so there is no conflict state.
   const requiresCredential = relayRequiresCredential(input.authMode);
-  if (isCleartextRelayConnection(input.securityMode)
-    && (requiresCredential || input.hasStoredKey || input.hasSensitiveTransportCredentials === true)) {
-    return 'conflict';
-  }
   if (!requiresCredential) return 'not_required';
   return input.hasStoredKey ? 'present' : 'missing';
 }

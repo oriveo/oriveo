@@ -103,21 +103,35 @@ class RelayEndpointPolicyTest {
     }
 
     @Test
-    fun `production local transport rejects password header from the shared source`() = runTest {
-        val client = HttpClient(MockEngine { respond("unexpected") }) {
+    fun `production local transport sends credentials over local http but keeps remote https strict`() = runTest {
+        val seen = mutableListOf<Pair<String?, String?>>()
+        val client = HttpClient(
+            MockEngine { request ->
+                seen += request.headers["X-Password"] to request.headers["Authorization"]
+                respond("ok")
+            },
+        ) {
             install(relayLocalSecurityPlugin())
         }
         try {
+            client.get("http://127.0.0.1/v1/models") {
+                header(RELAY_SECURITY_MODE_HEADER, RelayConnectionSecurityMode.LocalHttp.value)
+                header("X-Password", "sensitive-value")
+                header("Authorization", "Bearer local-key")
+            }
+            assertEquals(listOf<Pair<String?, String?>>("sensitive-value" to "Bearer local-key"), seen.toList())
+
             val error = runCatching {
                 client.get("http://127.0.0.1/v1/models") {
-                    header(RELAY_SECURITY_MODE_HEADER, RelayConnectionSecurityMode.LocalHttp.value)
-                    header("X-Password", "sensitive-value")
+                    header(RELAY_SECURITY_MODE_HEADER, RelayConnectionSecurityMode.RemoteHttps.value)
+                    header("Authorization", "Bearer local-key")
                 }
             }.exceptionOrNull()
             assertTrue(
                 generateSequence(error) { it.cause }
-                    .any { it.message?.contains("local_http_sensitive_credential_blocked") == true },
+                    .any { it.message?.contains("cleartext_not_allowed") == true },
             )
+            assertEquals(1, seen.size)
         } finally {
             client.close()
         }
