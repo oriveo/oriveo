@@ -351,7 +351,7 @@ describe('BOARD-SETUP-03 relay Next state', () => {
 // MARK: - Local
 
 describe('BOARD-SETUP-04 local structure', () => {
-  it('BOARD-SETUP-04 three Hero buttons, only an address slot (no default model slot), secondary row button; no safety mode switch, no engine menu exposed', () => {
+  it('BOARD-SETUP-04 three Hero keys, address and API key slots (no default model slot), secondary row key; no security mode switch, no engine menu', () => {
     expect(LOCAL_SETUP_HERO_KEYS).toEqual(['localHeroLabel', 'localHeroTitle', 'localHeroSubtitle']);
     expect(LOCAL_SETUP_SECONDARY_KEY).toBe('localManualEngine');
     renderScenario('local');
@@ -361,7 +361,7 @@ describe('BOARD-SETUP-04 local structure', () => {
     expect(screen.getByText('localHeroSubtitle')).toBeTruthy();
     expect(screen.getByLabelText('engineAddress')).toBeTruthy();
     expect(screen.queryByLabelText('defaultModelLabel')).toBeNull();
-    expect(screen.queryByLabelText('apiKeyLabel')).toBeNull();
+    expect(screen.getByLabelText('apiKeyLabel')).toBeTruthy();
     expect(screen.queryByRole('button', { name: 'changeConnectionType' })).toBeNull();
     expect(screen.queryByLabelText('engine')).toBeNull();
     expect(screen.getByRole('button', { name: 'localManualEngine' })).toBeTruthy();
@@ -370,7 +370,7 @@ describe('BOARD-SETUP-04 local structure', () => {
     }).slots).toEqual(['endpoint', 'apiKey']);
     expect(localSetupBoard({
       result: null, isDetecting: false, endpointAccess: 'empty', manualExpanded: false, manualEngine: 'ollama', hasApiKey: false,
-    }).slots).toEqual(['endpoint']);
+    }).slots).toEqual(['endpoint', 'apiKey']);
   });
 });
 
