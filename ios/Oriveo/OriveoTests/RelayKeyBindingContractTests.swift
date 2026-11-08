@@ -440,6 +440,30 @@ struct RelayKeyBindingContractTests {
         #expect(root["implicitKeyID"] as? String == RelayKeyBinding.implicitKeyID)
         #expect(root["keyStatusStates"] as? [String] == RelayKey.Status.State.allCases.map(\.rawValue))
     }
+
+    @Test("Keychain upsert retries the update when a concurrent write created the item, and surfaces failures")
+    func keychainUpsertHandlesRaceAndFailures() {
+        var calls: [String] = []
+        var updates = [errSecItemNotFound, errSecSuccess]
+        let raced = ProviderAPIKeyStore.upsert(
+            update: { calls.append("update"); return updates.removeFirst() },
+            add: { calls.append("add"); return errSecDuplicateItem }
+        )
+        #expect(raced == errSecSuccess)
+        #expect(calls == ["update", "add", "update"])
+
+        // A refused add is returned, not swallowed.
+        let refused = ProviderAPIKeyStore.upsert(
+            update: { errSecItemNotFound },
+            add: { errSecMissingEntitlement }
+        )
+        #expect(refused == errSecMissingEntitlement)
+        #expect(ProviderAPIKeyStore.shouldReportWriteFailure(refused))
+
+        #expect(!ProviderAPIKeyStore.shouldReportWriteFailure(errSecSuccess))
+        // The device-locked refusal is expected and transient.
+        #expect(!ProviderAPIKeyStore.shouldReportWriteFailure(errSecInteractionNotAllowed))
+    }
 }
 
 /// Fake upstream: answers per request (status code, body) and records all requests.

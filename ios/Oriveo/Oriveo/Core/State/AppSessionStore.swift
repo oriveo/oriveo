@@ -186,12 +186,29 @@ enum ProviderAPIKeyStore {
         let attributes: [String: Any] = [
             kSecValueData as String: data
         ]
-        let updateStatus = SecItemUpdate(query as CFDictionary, attributes as CFDictionary)
-        if updateStatus == errSecItemNotFound {
-            var addQuery = query
-            addQuery[kSecValueData as String] = data
-            _ = SecItemAdd(addQuery as CFDictionary, nil)
+        var addQuery = query
+        addQuery[kSecValueData as String] = data
+        _ = upsert(
+            update: { SecItemUpdate(query as CFDictionary, attributes as CFDictionary) },
+            add: { SecItemAdd(addQuery as CFDictionary, nil) }
+        )
+    }
+
+    /// Update first and add when missing; if a concurrent write created the item in between
+    /// (add returns errSecDuplicateItem), update it to this value.
+    static func upsert(update: () -> OSStatus, add: () -> OSStatus) -> OSStatus {
+        var status = update()
+        if status == errSecItemNotFound {
+            status = add()
+            if status == errSecDuplicateItem { status = update() }
         }
+        return status
+    }
+
+    /// errSecInteractionNotAllowed is the expected, transient refusal while the device is locked,
+    /// so it is not a write failure.
+    static func shouldReportWriteFailure(_ status: OSStatus) -> Bool {
+        status != errSecSuccess && status != errSecInteractionNotAllowed
     }
 
     static func load(providerID: UUID, uid: String) -> String? {
