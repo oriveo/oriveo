@@ -2111,6 +2111,48 @@ final class AppState {
         )
     }
 
+    /// Moves the new-chat draft's synchronous preference stores onto the first-send conversation id.
+    /// MCP switches and search sources stay on their own async path in `sendMessageOutcome`.
+    private func migrateFirstSendDraftPreferences(of conversation: Conversation, from draftID: UUID) {
+        guard let provider = provider(for: conversation.providerID),
+              let model = ProviderSelectionSnapshot.currentModel(
+                  storedModelID: conversation.modelID,
+                  in: provider
+              ) else { return }
+        let conversationID = conversation.id
+        let capabilityIdentity = CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)
+        GenerationParameterSettingsStore.shared.migrateSession(
+            providerID: provider.id,
+            modelID: model.id,
+            from: draftID,
+            to: conversationID,
+            profileFingerprint: GenerationParameterProfileFingerprint.make(provider: provider, model: model)
+        )
+        GenerationParameterSettingsStore.shared.migrateCapabilitySession(
+            providerID: provider.id,
+            modelID: capabilityIdentity?.canonicalModelID ?? "",
+            from: draftID,
+            to: conversationID,
+            transportIdentity: capabilityIdentity?.wireValue ?? ""
+        )
+        // The relay web switch is addressed by its own fixed identity, which the move above cannot reach.
+        RelayWebSwitch.migrateSession(provider: provider, model: model, from: draftID, to: conversationID)
+        // The on-device custom configuration is also keyed by conversationID; without moving it, it would vanish (neither sent nor readable back).
+        GenerationParameterSettingsStore.shared.migrateLocalCustomConfiguration(
+            providerID: provider.id,
+            modelID: capabilityIdentity?.canonicalModelID ?? "",
+            from: draftID,
+            to: conversationID,
+            transportIdentity: capabilityIdentity?.wireValue ?? ""
+        )
+        GenerationParameterSettingsStore.shared.migrateAdditionalRequestBody(
+            providerID: provider.id,
+            modelID: CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model),
+            from: draftID,
+            to: conversationID
+        )
+    }
+
     /// For callers that only need the conversation id; the composer, which must tell "blocked while sending" from "refused", uses `sendMessageOutcome`.
     func sendMessage(
         _ text: String,
@@ -2164,6 +2206,11 @@ final class AppState {
             // conversation" once the chat page is already open.
             if delivery == .voice { VoiceSendContext.onConversationCreated?(targetConversationID) }
 
+            // Synchronous draft stores move to the real id before the chat page switches to it: the
+            // composer re-reads capability preferences by the real id on that switch.
+            if let generationParameterDraftSessionID {
+                migrateFirstSendDraftPreferences(of: newConversation, from: generationParameterDraftSessionID)
+            }
             presentChat(conversationID: targetConversationID)
         }
 
@@ -2181,48 +2228,6 @@ final class AppState {
             SearchSourceDrafts.shared.adopt(
                 from: generationParameterDraftSessionID, to: targetConversationID,
                 store: SearchServiceStore(scope: sessionPartitionUID)
-            )
-        }
-
-        if isNewConversation,
-           let generationParameterDraftSessionID,
-           let provider = provider(for: targetConversation.providerID),
-           let model = ProviderSelectionSnapshot.currentModel(
-               storedModelID: targetConversation.modelID,
-               in: provider
-           ) {
-            let capabilityIdentity = CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)
-            GenerationParameterSettingsStore.shared.migrateSession(
-                providerID: provider.id,
-                modelID: model.id,
-                from: generationParameterDraftSessionID,
-                to: targetConversationID,
-                profileFingerprint: GenerationParameterProfileFingerprint.make(provider: provider, model: model)
-            )
-            GenerationParameterSettingsStore.shared.migrateCapabilitySession(
-                providerID: provider.id,
-                modelID: capabilityIdentity?.canonicalModelID ?? "",
-                from: generationParameterDraftSessionID,
-                to: targetConversationID,
-                transportIdentity: capabilityIdentity?.wireValue ?? ""
-            )
-            // The relay web switch is addressed by its own fixed identity, which the move above cannot reach.
-            RelayWebSwitch.migrateSession(
-                provider: provider, model: model, from: generationParameterDraftSessionID, to: targetConversationID
-            )
-            // The on-device custom configuration is also keyed by conversationID; without moving it, it would vanish (neither sent nor readable back).
-            GenerationParameterSettingsStore.shared.migrateLocalCustomConfiguration(
-                providerID: provider.id,
-                modelID: capabilityIdentity?.canonicalModelID ?? "",
-                from: generationParameterDraftSessionID,
-                to: targetConversationID,
-                transportIdentity: capabilityIdentity?.wireValue ?? ""
-            )
-            GenerationParameterSettingsStore.shared.migrateAdditionalRequestBody(
-                providerID: provider.id,
-                modelID: CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model),
-                from: generationParameterDraftSessionID,
-                to: targetConversationID
             )
         }
 

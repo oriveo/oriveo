@@ -847,7 +847,7 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         )
     }
 
-    private func capabilityScopeValues(
+    func capabilityScopeValues(
         providerID: UUID,
         modelID: String,
         conversationID: UUID?,
@@ -1289,20 +1289,33 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         var records = capabilityRecordsLocked()
-        let source = records.first(where: {
-            $0.providerID == providerID && $0.modelID == modelID
-                && $0.conversationID == sourceConversationID && $0.transportIdentity == transportIdentity
-        })
+        let draftRecords = records.filter {
+            $0.providerID == providerID && $0.modelID == modelID && $0.conversationID == sourceConversationID
+        }
+        // Exact identity first. Otherwise the draft may have been written under an older runtime
+        // revision of the same final transport (the recipe moved while the user was composing):
+        // take the last expression and land it on the current identity. A different final
+        // transport never migrates (see `isSameTransportLineage`).
+        let exactSource = draftRecords.first { $0.transportIdentity == transportIdentity }
+        let migratedDrafts = exactSource.map { [$0] } ?? draftRecords.filter {
+            Self.isSameTransportLineage(transportIdentity, $0.transportIdentity)
+        }
+        let source = exactSource ?? migratedDrafts.max {
+            ($0.updatedAt, $0.revision) < ($1.updatedAt, $1.revision)
+        }
         if let source {
-            records.removeAll {
-                $0.providerID == providerID && $0.modelID == modelID
-                    && ($0.conversationID == sourceConversationID || $0.conversationID == destinationConversationID)
-                    && $0.transportIdentity == transportIdentity
+            records.removeAll { record in
+                migratedDrafts.contains(record)
+                    || (record.providerID == providerID && record.modelID == modelID
+                        && record.conversationID == destinationConversationID
+                        && record.transportIdentity == transportIdentity)
             }
-            CapabilityPreferenceSyncLedger.put(.init(
-                recordId: CapabilityPreferenceSyncContract.recordID(for: source),
-                revision: source.revision + 1, mutationId: UUID().uuidString.lowercased()
-            ), defaults: defaults)
+            for draft in migratedDrafts {
+                CapabilityPreferenceSyncLedger.put(.init(
+                    recordId: CapabilityPreferenceSyncContract.recordID(for: draft),
+                    revision: draft.revision + 1, mutationId: UUID().uuidString.lowercased()
+                ), defaults: defaults)
+            }
             records.append(.init(
                 scope: .conversationConnectionModel, providerID: providerID, modelID: modelID, conversationID: destinationConversationID, skillID: nil,
                 transportIdentity: transportIdentity, values: source.values, updatedAt: Date(),
@@ -1739,16 +1752,33 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         return capabilityRecordsLocked()
     }
 
-    fileprivate func replaceCapabilitySyncRecords(_ records: [CapabilityRecord]) {
+    fileprivate func replaceCapabilitySyncRecords(
+        _ records: [CapabilityRecord], tombstones: [CapabilityPreferenceSyncTombstone]
+    ) {
         lock.lock()
         defer { lock.unlock() }
+        let existing = capabilityRecordsLocked()
         // Schema-v1/raw transport identities stay on-device as dormant history. A v2 merge must
         // neither activate nor delete them; only a later explicit confirmation writes a complete
         // r1 identity. They are deliberately excluded from export and resolver reads above.
-        let dormantLegacy = capabilityRecordsLocked().filter {
+        let dormantLegacy = existing.filter {
             $0.modelID.isEmpty || CapabilityPreferenceRuntimeIdentity.decode($0.transportIdentity) == nil
         }
-        writeCapabilityRecordsLocked(dormantLegacy + records)
+        // Local-only records (e.g. web = custom) never enter the envelope, so merge never saw
+        // them. They are only replaced by an incoming record with the same record id or deleted
+        // by a newer tombstone (localLifecycleInvariants `mergeNeverDropsLocalOutsideWire`).
+        let incomingIDs = Set(records.map(CapabilityPreferenceSyncContract.recordID(for:)))
+        let tombstoneRevisions = Dictionary(
+            tombstones.map { ($0.recordId, $0.revision) }, uniquingKeysWith: { max($0, $1) }
+        )
+        let localOnly = existing.filter { record in
+            guard !record.modelID.isEmpty,
+                  CapabilityPreferenceRuntimeIdentity.decode(record.transportIdentity) != nil,
+                  !CapabilityPreferenceSyncContract.isSynchronizable(values: record.values) else { return false }
+            let id = CapabilityPreferenceSyncContract.recordID(for: record)
+            return !incomingIDs.contains(id) && (tombstoneRevisions[id] ?? 0) < record.revision
+        }
+        writeCapabilityRecordsLocked(dormantLegacy + localOnly + records)
     }
 
     fileprivate func syncRecords() -> [Record] { records() }
@@ -2251,7 +2281,25 @@ private enum CapabilityPreferenceSyncLedger {
 
 enum CapabilityPreferenceSyncContract {
     static func exportPayload(settings: GenerationParameterSettingsStore = .shared) -> CapabilityPreferenceSyncPayload {
-        let records = settings.capabilitySyncRecords().compactMap { record -> CapabilityPreferenceSyncRecord? in
+        let records = localWireRecords(settings: settings)
+        // Wire order is part of the cross-platform contract: Web `compareWireId`, Android
+        // `sortedBy`, and this `<` must produce the same array, or the peer that reads an
+        // unsorted envelope rewrites it and the two ends ping-pong forever.
+        return .init(
+            schemaVersion: 2, records: Array(records.sorted { $0.recordId < $1.recordId }.prefix(200)),
+            tombstones: Array(
+                CapabilityPreferenceSyncLedger.all(defaults: settings.defaults)
+                    .filter(isValid).sorted { $0.recordId < $1.recordId }.suffix(300)
+            )
+        )
+    }
+
+    /// Every synchronizable local record in wire shape, without the 200-record envelope cap.
+    /// The cap bounds the envelope only; merge must see the whole local set so a record sorted
+    /// past the cap is never dropped from this device (localLifecycleInvariants
+    /// `mergeNeverDropsLocalOutsideWire`).
+    private static func localWireRecords(settings: GenerationParameterSettingsStore) -> [CapabilityPreferenceSyncRecord] {
+        settings.capabilitySyncRecords().compactMap { record -> CapabilityPreferenceSyncRecord? in
             // `custom` selects a local-only fragment. It must never cross this typed envelope,
             // even if a future developer surface stores that local selection in the same record.
             guard isSynchronizable(values: record.values),
@@ -2267,16 +2315,6 @@ enum CapabilityPreferenceSyncContract {
                 reasoningIntent: record.values.reasoningIntent, revision: record.revision, mutationId: record.mutationID
             )
         }
-        // Wire order is part of the cross-platform contract: Web `compareWireId`, Android
-        // `sortedBy`, and this `<` must produce the same array, or the peer that reads an
-        // unsorted envelope rewrites it and the two ends ping-pong forever (ORIVEO-APP-2M).
-        return .init(
-            schemaVersion: 2, records: Array(records.sorted { $0.recordId < $1.recordId }.prefix(200)),
-            tombstones: Array(
-                CapabilityPreferenceSyncLedger.all(defaults: settings.defaults)
-                    .filter(isValid).sorted { $0.recordId < $1.recordId }.suffix(300)
-            )
-        )
     }
 
     /// Bridges to and from a plain JSON object so the wire shape can be compared against the
@@ -2311,7 +2349,7 @@ enum CapabilityPreferenceSyncContract {
             }
             selected[id] = (revision, mutationId, record)
         }
-        for record in exportPayload(settings: settings).records + remote.records where isValid(record) {
+        for record in localWireRecords(settings: settings) + remote.records where isValid(record) {
             put(record.recordId, revision: record.revision, mutationId: record.mutationId, record: record)
         }
         for tombstone in (exportPayload(settings: settings).tombstones ?? []) + (remote.tombstones ?? [])
@@ -2322,6 +2360,9 @@ enum CapabilityPreferenceSyncContract {
         let mergedTombstones = selected.compactMap { id, value in
             value.record == nil ? CapabilityPreferenceSyncTombstone(recordId: id, revision: value.revision, mutationId: value.mutationId) : nil
         }.sorted { $0.recordId < $1.recordId }
+        // Only the returned envelope is capped. The local write-back keeps every non-tombstone
+        // winner, so the write-back decision (merged vs canonicalInbound) still compares envelopes
+        // only and local records outside the envelope cause no ping-pong.
         let merged = CapabilityPreferenceSyncPayload(schemaVersion: 2, records: Array(mergedRecords.prefix(200)), tombstones: Array(mergedTombstones.suffix(300)))
         // Keep the local updatedAt for the same version (recordId + revision + mutationId). Stamping
         // `Date()` on every merge would make the stored bytes differ each time and defeat the unchanged-bytes check.
@@ -2330,7 +2371,7 @@ enum CapabilityPreferenceSyncContract {
             previousUpdatedAt["\(recordID(for: record))|\(record.revision)|\(record.mutationID)"] = record.updatedAt
         }
         let mergedAt = Date()
-        settings.replaceCapabilitySyncRecords(merged.records.compactMap { record in
+        settings.replaceCapabilitySyncRecords(mergedRecords.compactMap { record in
             guard let providerID = UUID(uuidString: record.providerId) else { return nil }
             let conversationID = record.conversationId.flatMap(UUID.init(uuidString:))
             let skillID = record.skillId.flatMap(UUID.init(uuidString:))
@@ -2354,7 +2395,7 @@ enum CapabilityPreferenceSyncContract {
                 updatedAt: previousUpdatedAt["\(record.recordId)|\(record.revision)|\(record.mutationId)"] ?? mergedAt,
                 revision: record.revision, mutationID: record.mutationId
             )
-        })
+        }, tombstones: mergedTombstones)
         CapabilityPreferenceSyncLedger.replace(merged.tombstones ?? [], defaults: settings.defaults)
         return merged
     }
@@ -2451,7 +2492,7 @@ enum CapabilityPreferenceSyncContract {
         return false
     }
 
-    nonisolated private static func isSynchronizable(values: CapabilityPreferenceValues) -> Bool {
+    nonisolated fileprivate static func isSynchronizable(values: CapabilityPreferenceValues) -> Bool {
         isSynchronizable(web: values.web, reasoningIntent: values.reasoningIntent)
     }
 

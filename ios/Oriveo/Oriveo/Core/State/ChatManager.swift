@@ -2076,29 +2076,18 @@ final class ChatManager {
             let transportIdentity = runtimeIdentity?.wireValue ?? ""
             let capabilityModelID = runtimeIdentity?.canonicalModelID ?? ""
             let store = GenerationParameterSettingsStore.shared
-            let conversationValues = store.capabilityPreferences(
+            // Same entry as every display read: it forward-ports records written under an older
+            // runtime revision of the same final transport before reading the four scopes.
+            let scopes = store.capabilityScopeValues(
                 providerID: provider.id, modelID: capabilityModelID, conversationID: conversationID,
-                transportIdentity: transportIdentity
-            )
-            let skillValues = skillID.flatMap { skillID in
-                store.capabilityPreferences(
-                    providerID: provider.id, modelID: capabilityModelID, conversationID: nil,
-                    skillID: skillID, transportIdentity: transportIdentity
-                )
-            }
-            let connectionValues = store.capabilityPreferences(
-                providerID: provider.id, modelID: capabilityModelID, conversationID: nil,
-                transportIdentity: transportIdentity
-            )
-            let connectionScopeValues = store.connectionCapabilityPreferences(
-                providerID: provider.id, modelID: capabilityModelID, transportIdentity: transportIdentity
+                skillID: skillID, transportIdentity: transportIdentity
             )
             let typed = CapabilityPreferenceValueResolver.resolve(
                 singleSend: capabilitySelection.typedPreferences,
-                conversation: conversationValues,
-                skill: skillValues,
-                connectionModel: connectionValues,
-                connection: connectionScopeValues
+                conversation: scopes.conversation,
+                skill: scopes.skill,
+                connectionModel: scopes.connectionModel,
+                connection: scopes.connection
             )
             // The web intent follows the store **only when the store can really be addressed**.
             //
@@ -2129,10 +2118,10 @@ final class ChatManager {
             // `ReasoningMode(rawValue: "low")` returns nil and would silently swallow "fast" into an empty send; while `off`
             // and retired old levels must explicitly fall back to automatic, otherwise the previous round's level keeps taking part in the yield decision.
             let displayedIntent = CapabilityPreferenceValueResolver.displaySelection(
-                conversation: conversationValues,
-                skill: skillValues,
-                connectionModel: connectionValues,
-                connection: connectionScopeValues
+                conversation: scopes.conversation,
+                skill: scopes.skill,
+                connectionModel: scopes.connectionModel,
+                connection: scopes.connection
             ).reasoningIntent
             if let intent = capabilitySelection.typedPreferences?.reasoningIntent ?? displayedIntent {
                 requestedCapabilitySelection.reasoningMode = ReasoningMode.fromIntent(intent) ?? .automatic

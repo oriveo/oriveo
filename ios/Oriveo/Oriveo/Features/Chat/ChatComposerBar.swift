@@ -1,3 +1,4 @@
+import Combine
 import SwiftUI
 
 /// Composer shell fill per state. Light mode is opaque: the former translucent white tint is
@@ -917,6 +918,13 @@ struct ChatComposerBar: View {
         }
         .onChange(of: reduceMotion) { _, _ in configureHighlightPulse() }
         .onChange(of: currentModel?.id) { _, _ in syncStoredCapabilitySelection() }
+        // Metadata published after this composer appeared can resolve the runtime identity the
+        // stored selection is keyed by: re-read once (writes are equality-guarded).
+        .onReceive(
+            NotificationCenter.default.publisher(for: .metadataSnapshotDidPublish).receive(on: RunLoop.main)
+        ) { _ in
+            syncStoredCapabilitySelection()
+        }
         .onChange(of: conversationID) { old, new in
             syncStoredCapabilitySelection()
             VoiceConversationSession.shared.hostSwitched(from: old, to: new)
