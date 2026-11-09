@@ -29,30 +29,129 @@ struct BackupDocument: FileDocument {
 enum BackupService {
     nonisolated static let currentVersion = 1
 
+    /// Import is streamed: the backup file is never read whole and has no size cap, entries are read by name
+    /// one at a time, so only a single entry (counted on its inflated bytes, not its header) is bounded.
     nonisolated struct ImportLimits: Equatable, Sendable {
-        let maxInputBytes: Int
-        let archiveBudget: ArchiveExtractionBudget
+        let maxEntryBytes: Int
+        /// The export writes an original and a thumbnail entry per image with no image cap, so this only guards
+        /// against a pathological entry flood (65,536 central directory records still walk in milliseconds).
+        let maxEntries: Int
         let maxConversations: Int
+
+        /// Per-entry budget for `BoundedArchiveReader`; there is no total budget.
+        var archiveBudget: ArchiveExtractionBudget {
+            ArchiveExtractionBudget(maxEntryBytes: maxEntryBytes, maxTotalBytes: Int.max, maxEntries: maxEntries)
+        }
 
         static func forPhysicalMemory(_ physicalMemory: UInt64) -> ImportLimits {
             let mib = 1024 * 1024
             let memoryBytes = min(physicalMemory, UInt64(Int.max))
-            let inputBytes = min(max(Int(memoryBytes / 24), 128 * mib), 256 * mib)
-            let expandedBytes = min(max(Int(memoryBytes / 16), 192 * mib), 512 * mib)
             let entryBytes = min(max(Int(memoryBytes / 48), 64 * mib), 128 * mib)
-            return ImportLimits(
-                maxInputBytes: inputBytes,
-                archiveBudget: ArchiveExtractionBudget(
-                    maxEntryBytes: entryBytes,
-                    maxTotalBytes: expandedBytes,
-                    maxEntries: 65_536
-                ),
-                maxConversations: 250_000
-            )
+            return ImportLimits(maxEntryBytes: entryBytes, maxEntries: 65_536, maxConversations: 250_000)
         }
 
         static var currentDevice: ImportLimits {
             forPhysicalMemory(ProcessInfo.processInfo.physicalMemory)
+        }
+    }
+
+    /// The asset entries (attachments/) of one parsed backup, read by name one entry at a time through the
+    /// zip's central directory; a read holds a single entry's bytes and is bounded by
+    /// `ImportLimits.maxEntryBytes` on the inflated bytes. Keys follow `attachmentChecksums`: the name after
+    /// `attachments/`. A source made with an owned file deletes that file when it is released.
+    nonisolated final class EntrySource: @unchecked Sendable {
+        private let lock = NSLock()
+        private let archive: Archive?
+        private let index: [String: Entry]
+        private let digests: [String: String]
+        private let memory: [String: Data]
+        private let limits: ImportLimits
+        /// The plain JSON backup file, reread for the raw-bytes checksum criterion.
+        private let jsonFile: URL?
+        private let ownedFile: URL?
+
+        fileprivate init(
+            archive: Archive?, index: [String: Entry], digests: [String: String], limits: ImportLimits,
+            jsonFile: URL?, ownedFile: URL?
+        ) {
+            self.archive = archive
+            self.index = index
+            self.digests = digests
+            self.memory = [:]
+            self.limits = limits
+            self.jsonFile = jsonFile
+            self.ownedFile = ownedFile
+        }
+
+        /// Entries already in memory (the dictionary entry points kept for callers that hold the bytes).
+        init(images: [String: Data]) {
+            archive = nil
+            index = [:]
+            digests = [:]
+            memory = images
+            limits = .currentDevice
+            jsonFile = nil
+            ownedFile = nil
+        }
+
+        deinit {
+            if let ownedFile { try? FileManager.default.removeItem(at: ownedFile) }
+        }
+
+        func contains(_ key: String) -> Bool {
+            archive == nil ? memory[key] != nil : index[key] != nil
+        }
+
+        /// One entry's bytes, or nil when the backup has no such entry or it cannot be read within the limit.
+        func data(_ key: String) -> Data? {
+            try? read(key)
+        }
+
+        /// `data(_:)` off the caller's executor, so restores started on the main actor do not inflate there.
+        @concurrent
+        func load(_ key: String) async -> Data? {
+            data(key)
+        }
+
+        func read(_ key: String) throws -> Data? {
+            guard let archive else { return memory[key] }
+            guard let entry = index[key] else { return nil }
+            lock.lock()
+            defer { lock.unlock() }
+            var reader = BoundedArchiveReader(budget: limits.archiveBudget)
+            return try BackupService.boundedData(from: archive, entry: entry, reader: &reader)
+        }
+
+        /// Every entry at once, for the dictionary entry points.
+        func allData() throws -> [String: Data] {
+            guard archive != nil else { return memory }
+            var images: [String: Data] = [:]
+            for key in index.keys {
+                images[key] = try read(key)
+            }
+            return images
+        }
+
+        /// Keys whose bytes are missing or hash differently from `expected`. Archive entries use the digest
+        /// taken when the backup was parsed, so nothing is inflated again.
+        func checksumMismatches(expected: [String: String]) -> [String] {
+            expected.compactMap { key, hash in
+                let digest = archive == nil ? memory[key].map { CanonicalJSON.checksum(of: $0) } : digests[key]
+                return digest == hash ? nil : key
+            }
+        }
+
+        /// The stored data.json bytes (or the plain JSON file) for the raw checksum criterion.
+        fileprivate func storedJSON() -> Data? {
+            if let jsonFile {
+                return try? BoundedFileReader.data(at: jsonFile, maxBytes: limits.maxEntryBytes)
+            }
+            guard let archive else { return nil }
+            lock.lock()
+            defer { lock.unlock() }
+            guard let entry = archive["data.json"] else { return nil }
+            var reader = BoundedArchiveReader(budget: limits.archiveBudget)
+            return try? BackupService.boundedData(from: archive, entry: entry, reader: &reader)
         }
     }
 
@@ -339,23 +438,62 @@ enum BackupService {
     }
 
 
-    nonisolated static func loadImportData(at url: URL, limits: ImportLimits = .currentDevice) throws -> Data {
-        do {
-            return try BoundedFileReader.data(at: url, maxBytes: limits.maxInputBytes)
-        } catch BoundedFileReadError.tooLarge {
-            throw BackupError.resourceLimitExceeded
-        } catch BoundedFileReadError.notRegularFile {
+    /// Copies a picked file into the temporary directory (call it inside the security scope), so the import
+    /// can read it by entry after the scope ends. The caller owns the copy.
+    nonisolated static func copyImportFile(at url: URL) throws -> URL {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey])
+        guard values.isRegularFile == true else {
+            // Directories and iCloud placeholders: a localized "unrecognized" rather than a bare type name.
             throw BackupError.unrecognizedFormat
         }
+        let copy = FileManager.default.temporaryDirectory
+            .appendingPathComponent("backup-import-\(UUID().uuidString)", isDirectory: false)
+            .appendingPathExtension(url.pathExtension.isEmpty ? "oriveo-backup" : url.pathExtension)
+        try FileManager.default.copyItem(at: url, to: copy)
+        return copy
     }
 
+    /// Dictionary entry point kept for callers holding the bytes: the bytes go to a temporary file read by
+    /// `parseBackup(at:)`, then every asset entry is read into the dictionary.
     nonisolated static func parseBackup(
         from data: Data,
         limits: ImportLimits = .currentDevice
     ) throws -> (backupFile: BackupFile, images: [String: Data]) {
-        guard data.count <= limits.maxInputBytes else {
-            throw BackupError.resourceLimitExceeded
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("backup-parse-\(UUID().uuidString)", isDirectory: false)
+        try data.write(to: url)
+        let parsed = try parseBackup(at: url, limits: limits, ownsFile: true)
+        return (parsed.backupFile, try parsed.entries.allData())
+    }
+
+    /// Parses the backup file at `url` without reading it whole: a zip is opened for random access, data.json
+    /// (or the manifest and its chunks) is decoded, and every asset entry is inflated once, one at a time, to
+    /// check its real size and take its checksum. With `ownsFile` the file is deleted when parsing fails or
+    /// the returned source is released.
+    nonisolated static func parseBackup(
+        at url: URL,
+        limits: ImportLimits = .currentDevice,
+        ownsFile: Bool = false
+    ) throws -> (backupFile: BackupFile, entries: EntrySource) {
+        do {
+            return try parseBackupFile(at: url, limits: limits, ownedFile: ownsFile ? url : nil)
+        } catch {
+            if ownsFile { try? FileManager.default.removeItem(at: url) }
+            throw error
         }
+    }
+
+    nonisolated private static func parseBackupFile(
+        at url: URL,
+        limits: ImportLimits,
+        ownedFile: URL?
+    ) throws -> (backupFile: BackupFile, entries: EntrySource) {
+        let values = try url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
+        guard values.isRegularFile == true else { throw BackupError.unrecognizedFormat }
+        let handle = try FileHandle(forReadingFrom: url)
+        // Enough to tell a zip from JSON, and to see past a long whitespace lead-in of an oversized JSON file.
+        let head = try handle.read(upToCount: 64 * 1024) ?? Data()
+        try? handle.close()
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             let container = try decoder.singleValueContainer()
@@ -369,8 +507,11 @@ enum BackupService {
             )
         }
 
-        if data.count >= 2, data[0] == 0x50, data[1] == 0x4B {
-            guard let archive = Archive(data: data, accessMode: .read) else {
+        if head.count >= 2, head[0] == 0x50, head[1] == 0x4B {
+            let archive: Archive
+            do {
+                archive = try Archive(url: url, accessMode: .read)
+            } catch {
                 throw BackupError.zipExtractionFailed
             }
             do {
@@ -385,7 +526,7 @@ enum BackupService {
                 let manifest = try decoder.decode(BackupChunkManifest.self, from: manifestData)
                 guard manifest.totalConversations >= 0,
                       manifest.totalConversations <= limits.maxConversations,
-                      manifest.conversationChunks.count <= limits.archiveBudget.maxEntries,
+                      manifest.conversationChunks.count <= limits.maxEntries,
                       manifest.conversationChunks.allSatisfy({ $0.count >= 0 }) else {
                     throw BackupError.resourceLimitExceeded
                 }
@@ -444,16 +585,8 @@ enum BackupService {
                     encryptedKeys: headerBackupFile.encryptedKeys
                 )
 
-                var images: [String: Data] = [:]
-                for entry in archive {
-                    guard entry.path.hasPrefix("attachments/"),
-                          entry.type == .file else { continue }
-                    let filename = String(entry.path.dropFirst("attachments/".count))
-                    guard !filename.isEmpty else { continue }
-                    let fileData = try boundedData(from: archive, entry: entry, reader: &reader)
-                    images[filename] = fileData
-                }
-                return (fullBackupFile, images)
+                let entries = try assetEntries(in: archive, limits: limits, ownedFile: ownedFile)
+                return (fullBackupFile, entries)
             }
 
             guard let dataEntry = archive["data.json"] else {
@@ -462,31 +595,54 @@ enum BackupService {
             let jsonData = try boundedData(from: archive, entry: dataEntry, reader: &reader)
             let backupFile = try decoder.decode(BackupFile.self, from: jsonData)
 
-            var images: [String: Data] = [:]
-            for entry in archive {
-                guard entry.path.hasPrefix("attachments/"),
-                      entry.type == .file else { continue }
-                let filename = String(entry.path.dropFirst("attachments/".count))
-                guard !filename.isEmpty else { continue }
-                let fileData = try boundedData(from: archive, entry: entry, reader: &reader)
-                images[filename] = fileData
-            }
+            let entries = try assetEntries(in: archive, limits: limits, ownedFile: ownedFile)
+            return (backupFile, entries)
 
-            return (backupFile, images)
-
-        } else if data.count >= 1, data[0] == 0x7B {
-            guard data.count <= limits.archiveBudget.maxEntryBytes else {
+        } else if head.count >= 1, head[0] == 0x7B {
+            // The whole file is one entry, so it is bounded by the entry limit.
+            let data: Data
+            do {
+                data = try BoundedFileReader.data(at: url, maxBytes: limits.maxEntryBytes)
+            } catch BoundedFileReadError.tooLarge {
                 throw BackupError.resourceLimitExceeded
+            } catch BoundedFileReadError.notRegularFile {
+                throw BackupError.unrecognizedFormat
             }
             let backupFile = try decoder.decode(BackupFile.self, from: data)
             guard backupFile.data.conversations.count <= limits.maxConversations else {
                 throw BackupError.resourceLimitExceeded
             }
-            return (backupFile, [:])
+            let entries = EntrySource(
+                archive: nil, index: [:], digests: [:], limits: limits, jsonFile: url, ownedFile: ownedFile
+            )
+            return (backupFile, entries)
 
         } else {
             throw BackupError.unrecognizedFormat
         }
+    }
+
+    /// attachments/<name> entries keyed by `<name>`, the same key attachmentChecksums uses for them.
+    /// Each entry is inflated once here, one at a time, so an entry whose real size is over the limit fails the
+    /// preview whatever its header says, and its checksum is kept for the warning.
+    nonisolated private static func assetEntries(
+        in archive: Archive,
+        limits: ImportLimits,
+        ownedFile: URL?
+    ) throws -> EntrySource {
+        var index: [String: Entry] = [:]
+        var digests: [String: String] = [:]
+        for entry in archive where entry.type == .file {
+            guard entry.path.hasPrefix("attachments/") else { continue }
+            let key = String(entry.path.dropFirst("attachments/".count))
+            guard !key.isEmpty else { continue }
+            var reader = BoundedArchiveReader(budget: limits.archiveBudget)
+            digests[key] = CanonicalJSON.checksum(of: try boundedData(from: archive, entry: entry, reader: &reader))
+            index[key] = entry
+        }
+        return EntrySource(
+            archive: archive, index: index, digests: digests, limits: limits, jsonFile: nil, ownedFile: ownedFile
+        )
     }
 
     nonisolated private static func boundedData(
@@ -546,6 +702,14 @@ enum BackupService {
         return storedDataMatchesChecksum(rawData, expected: backupFile.checksum)
     }
 
+    /// `validateChecksum(_:rawData:)` for a parsed file: the second criterion rereads data.json (or the plain JSON
+    /// file) through the entry source instead of holding the file's bytes.
+    nonisolated static func validateChecksum(_ backupFile: BackupFile, entries: EntrySource) -> Bool {
+        if validateChecksum(backupFile) { return true }
+        guard let json = entries.storedJSON() else { return false }
+        return storedJSONMatchesChecksum(json, expected: backupFile.checksum)
+    }
+
     /// Second criterion: take the raw bytes of the top-level `data` of the file (data.json inside the ZIP, or plain JSON), compact them, and compute SHA-256.
     nonisolated private static func storedDataMatchesChecksum(_ bytes: Data, expected: String) -> Bool {
         guard !expected.isEmpty else { return false }
@@ -559,8 +723,21 @@ enum BackupService {
         } else {
             jsonBytes = bytes
         }
-        guard let raw = RawJSONScanner.topLevelValue(Array(jsonBytes), key: "data") else { return false }
+        return storedJSONMatchesChecksum(jsonBytes, expected: expected)
+    }
+
+    nonisolated private static func storedJSONMatchesChecksum(_ jsonBytes: Data, expected: String) -> Bool {
+        guard !expected.isEmpty,
+              let raw = RawJSONScanner.topLevelValue(Array(jsonBytes), key: "data") else { return false }
         return CanonicalJSON.checksum(of: Data(RawJSONScanner.compact(raw))) == expected
+    }
+
+    /// Attachment checksums against a parsed file's entries, one entry at a time; a mismatch only warns.
+    nonisolated static func validateAttachmentChecksums(
+        expected: [String: String],
+        entries: EntrySource
+    ) -> [String] {
+        entries.checksumMismatches(expected: expected)
     }
 
     nonisolated static func validateAttachmentChecksums(
@@ -582,9 +759,24 @@ enum BackupService {
     }
 
 
+    /// Dictionary entry point kept for callers holding the bytes in memory.
     static func executeImport(
         backupFile: BackupFile,
         images: [String: Data],
+        mode: ImportMode,
+        password: String?,
+        appState: AppState
+    ) async throws -> ImportResult {
+        try await executeImport(
+            backupFile: backupFile, entries: EntrySource(images: images), mode: mode, password: password,
+            appState: appState
+        )
+    }
+
+    /// Imports a parsed backup, reading each asset entry by name only when it is restored.
+    static func executeImport(
+        backupFile: BackupFile,
+        entries images: EntrySource,
         mode: ImportMode,
         password: String?,
         appState: AppState
@@ -757,7 +949,7 @@ enum BackupService {
 
     private static func importNewOnly(
         backupFile: BackupFile,
-        images: [String: Data],
+        images: EntrySource,
         restoredKeys: [UUID: (apiKey: String, preview: String)],
         partitionUID: String,
         appState: AppState
@@ -796,7 +988,7 @@ enum BackupService {
                 continue
             }
             let conv = bc.toConversation()
-            restoreImages(for: conv, from: images, partitionUID: partitionUID, result: &result)
+            await restoreImages(for: conv, from: images, partitionUID: partitionUID, result: &result)
             await MainActor.run {
                 appState.upsertConversationProjection(conv)
             }
@@ -876,7 +1068,7 @@ enum BackupService {
 
     private static func importMerge(
         backupFile: BackupFile,
-        images: [String: Data],
+        images: EntrySource,
         restoredKeys: [UUID: (apiKey: String, preview: String)],
         partitionUID: String,
         appState: AppState
@@ -948,7 +1140,7 @@ enum BackupService {
                 let merged = mergeMessages(local: localMessages, backup: bc.messages)
                 let mergedUpdatedAt = max(local.updatedAt, bc.updatedAt)
 
-                restoreImages(for: bc.toConversation(), from: images, partitionUID: partitionUID, result: &result)
+                await restoreImages(for: bc.toConversation(), from: images, partitionUID: partitionUID, result: &result)
 
                 await MainActor.run {
                     var updated = appState.conversations[localIdx]
@@ -960,7 +1152,7 @@ enum BackupService {
                 result.mergedConversations += 1
             } else {
                 let conv = bc.toConversation()
-                restoreImages(for: conv, from: images, partitionUID: partitionUID, result: &result)
+                await restoreImages(for: conv, from: images, partitionUID: partitionUID, result: &result)
                 await MainActor.run {
                     appState.upsertConversationProjection(conv)
                 }
@@ -1033,7 +1225,7 @@ enum BackupService {
 
     private static func importReplaceAll(
         backupFile: BackupFile,
-        images: [String: Data],
+        images: EntrySource,
         restoredKeys: [UUID: (apiKey: String, preview: String)],
         partitionUID: String,
         appState: AppState
@@ -1081,7 +1273,7 @@ enum BackupService {
                 result.skillsRequiringKnowledgeReupload += 1
             }
         }
-        let stagedImagesDirectory = try stageImportedImages(
+        let stagedImagesDirectory = try await stageImportedImages(
             for: importedConversations,
             from: images,
             partitionUID: partitionUID,
@@ -1266,17 +1458,19 @@ enum BackupService {
 
 
     private static func attachmentEntryData(
-        from images: [String: Data],
+        from images: EntrySource,
         attachment: Attachment,
         localImageID: String,
         suffix: String
-    ) -> Data? {
+    ) async -> Data? {
         var extensions = [fileExtension(for: attachment.mimeType)]
         if !extensions.contains("jpg") { extensions.append("jpg") }
 
         for name in ["\(attachment.id)", localImageID] {
             for ext in extensions {
-                if let data = images["\(name)\(suffix).\(ext)"] { return data }
+                let key = "\(name)\(suffix).\(ext)"
+                // The entry is inflated off the main actor, one at a time.
+                if images.contains(key), let data = await images.load(key) { return data }
             }
         }
         return nil
@@ -1284,23 +1478,23 @@ enum BackupService {
 
     private static func restoreImages(
         for conversation: Conversation,
-        from images: [String: Data],
+        from images: EntrySource,
         partitionUID: String,
         result: inout ImportResult
-    ) {
+    ) async {
         for msg in conversation.messages {
             guard let atts = msg.attachments else { continue }
             for att in atts where att.kind == .image {
                 guard let lid = att.localImageID else { continue }
 
-                if let imgData = attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: "") {
+                if let imgData = await attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: "") {
                     ImageStore.save(imageData: imgData, for: lid, partitionUID: partitionUID)
                     result.restoredImages += 1
                 } else {
                     result.skippedImages += 1
                 }
 
-                if let thumbData = attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: ".thumb") {
+                if let thumbData = await attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: ".thumb") {
                     ImageStore.saveThumbnail(imageData: thumbData, for: lid, partitionUID: partitionUID)
                 }
             }
@@ -1310,17 +1504,17 @@ enum BackupService {
 
     private static func stageImportedImages(
         for conversations: [Conversation],
-        from images: [String: Data],
+        from images: EntrySource,
         partitionUID: String,
         result: inout ImportResult
-    ) throws -> URL {
+    ) async throws -> URL {
         let stagedDirectory = AppSessionStore.userDir(for: partitionUID)
             .appendingPathComponent("Images-import-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: stagedDirectory, withIntermediateDirectories: true)
 
         do {
             for conversation in conversations {
-                try stageImages(
+                try await stageImages(
                     for: conversation,
                     from: images,
                     into: stagedDirectory,
@@ -1336,16 +1530,16 @@ enum BackupService {
 
     private static func stageImages(
         for conversation: Conversation,
-        from images: [String: Data],
+        from images: EntrySource,
         into directory: URL,
         result: inout ImportResult
-    ) throws {
+    ) async throws {
         for msg in conversation.messages {
             guard let atts = msg.attachments else { continue }
             for att in atts where att.kind == .image {
                 guard let lid = att.localImageID else { continue }
 
-                if let imgData = attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: "") {
+                if let imgData = await attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: "") {
                     try imgData.write(
                         to: directory.appendingPathComponent("\(lid).img"),
                         options: .atomic
@@ -1355,7 +1549,7 @@ enum BackupService {
                     result.skippedImages += 1
                 }
 
-                if let thumbData = attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: ".thumb") {
+                if let thumbData = await attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: ".thumb") {
                     try thumbData.write(
                         to: directory.appendingPathComponent("\(lid).thumb"),
                         options: .atomic

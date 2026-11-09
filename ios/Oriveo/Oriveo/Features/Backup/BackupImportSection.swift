@@ -11,7 +11,9 @@ struct BackupImportSection: View {
     @State private var importErrorDetail: String?
 
     @State private var parsedBackupFile: BackupFile?
-    @State private var parsedImages: [String: Data] = [:]
+    /// Entries of the parsed backup; it owns the temporary copy of the picked file and deletes it when released
+    /// (import done or failed, cancel, another file picked, the screen gone).
+    @State private var parsedEntries: BackupService.EntrySource?
     @State private var importPreview: ImportPreview?
     @State private var selectedImportMode: ImportMode = .importNewOnly
     @State private var checksumWarning = false
@@ -529,23 +531,28 @@ struct BackupImportSection: View {
             let localConversations = appState.conversations
             let localProviders = appState.providers
 
+            // Picking another file releases the previous copy.
+            parsedBackupFile = nil
+            parsedEntries = nil
+
             Task.detached(priority: .userInitiated) {
                 do {
-                    let data = try SecurityScopedFileAccess.withAccess(to: url) {
-                        try BackupService.loadImportData(at: url)
+                    // Copied inside the security scope, then read entry by entry.
+                    let copy = try SecurityScopedFileAccess.withAccess(to: url) {
+                        try BackupService.copyImportFile(at: url)
                     }
-                    let (backupFile, images) = try BackupService.parseBackup(from: data)
+                    let (backupFile, entries) = try BackupService.parseBackup(at: copy, ownsFile: true)
 
                     if backupFile.version > BackupService.currentVersion {
                         throw BackupError.versionTooNew(backupFile.version)
                     }
 
-                    let checksumValid = BackupService.validateChecksum(backupFile, rawData: data)
+                    let checksumValid = BackupService.validateChecksum(backupFile, entries: entries)
 
                     var hasChecksumWarning = false
                     if let expectedChecksums = backupFile.attachmentChecksums {
                         let corrupted = BackupService.validateAttachmentChecksums(
-                            expected: expectedChecksums, images: images
+                            expected: expectedChecksums, entries: entries
                         )
                         if !corrupted.isEmpty { hasChecksumWarning = true }
                     }
@@ -560,7 +567,7 @@ struct BackupImportSection: View {
 
                     await MainActor.run {
                         parsedBackupFile = backupFile
-                        parsedImages = images
+                        parsedEntries = entries
                         checksumWarning = shouldShowChecksumWarning
                         importPreview = preview
                         showImportPreview = true
@@ -596,19 +603,21 @@ struct BackupImportSection: View {
     }
 
     private func startImport() {
-        guard let backup = parsedBackupFile else { return }
+        guard let backup = parsedBackupFile, let entries = parsedEntries else { return }
         isImporting = true
 
         Task {
             do {
                 let result = try await BackupService.executeImport(
                     backupFile: backup,
-                    images: parsedImages,
+                    entries: entries,
                     mode: selectedImportMode,
                     password: importPassword.isEmpty ? nil : importPassword,
                     appState: appState
                 )
                 await MainActor.run {
+                    // The result sheet no longer needs the file.
+                    parsedEntries = nil
                     self.importResult = result
                     isImporting = false
                     showImportResult = true
@@ -633,6 +642,8 @@ struct BackupImportSection: View {
             } catch {
                 await MainActor.run {
                     isImporting = false
+                    parsedBackupFile = nil
+                    parsedEntries = nil
                     importError = error.localizedDescription
                     importErrorDetail = String(describing: error)
                 }
@@ -642,7 +653,7 @@ struct BackupImportSection: View {
 
     private func resetImportState() {
         parsedBackupFile = nil
-        parsedImages = [:]
+        parsedEntries = nil
         importPreview = nil
         selectedImportMode = .importNewOnly
         checksumWarning = false
