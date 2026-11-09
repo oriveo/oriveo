@@ -64,7 +64,11 @@ function isLibraryContextReference(citation: Citation): boolean {
 }
 
 function getFaviconURL(c: Citation): string | null {
-  const domain = getDomain(c.url);
+  // Library / MCP sources and non-https links keep the generic icon, same as iOS and Android.
+  if (c.source === "mcp" || c.source === "notion" || c.source === "google") return null;
+  const url = safeCitationURL(c.url);
+  if (!url) return null;
+  const domain = getDomain(url);
   if (!domain) return null;
   return `${GOOGLE_FAVICON}?domain=${encodeURIComponent(domain)}&sz=32`;
 }

@@ -44,6 +44,26 @@ describe("CitationsBlock link safety", () => {
     );
   });
 
+  it("loads the host favicon for web sources but not for MCP sources", () => {
+    const { container } = render(
+      <CitationsBlock
+        citations={[
+          { url: "https://www.example.com/a", title: "Web" },
+          {
+            url: "library-context://mcp/doc-1",
+            title: "MCP doc",
+            docId: "doc-1",
+            source: "mcp",
+          },
+        ]}
+      />,
+    );
+
+    const images = Array.from(container.querySelectorAll("img"));
+    expect(images).toHaveLength(1);
+    expect(images[0]?.getAttribute("src")).toContain("domain=example.com");
+  });
+
   it("renders a Library identity without turning its local reference into a link", () => {
     const { container } = render(
       <CitationsBlock
