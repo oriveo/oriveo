@@ -9,18 +9,21 @@ import SwiftUI
 struct BackupDocument: FileDocument {
     static var readableContentTypes: [UTType] = [.oriveoBackup, .json]
 
-    var data: Data
+    /// The exported zip in the temporary directory; the export screen deletes it once the exporter is done.
+    let fileURL: URL
 
-    init(data: Data) {
-        self.data = data
+    init(fileURL: URL) {
+        self.fileURL = fileURL
     }
 
+    /// Export-only document: backups are imported from a file URL instead of being read through this type.
     init(configuration: ReadConfiguration) throws {
-        data = configuration.file.regularFileContents ?? Data()
+        throw CocoaError(.featureUnsupported)
     }
 
+    /// Hands the exporter the file itself, so the zip is never loaded into memory.
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
-        FileWrapper(regularFileWithContents: data)
+        try FileWrapper(url: fileURL, options: [])
     }
 }
 
@@ -155,20 +158,25 @@ enum BackupService {
         }
     }
 
-    private struct ImageStoreReplacement {
+    nonisolated private struct ImageStoreReplacement: Sendable {
         let targetDirectory: URL
         let backupDirectory: URL?
     }
 
-    private struct BackupImageEntry {
-        let filename: String
-        let data: Data
+    /// One asset entry of an export: its full zip name and a reader of its bytes. The reader runs once for the
+    /// checksum and once while writing, so at most one entry's bytes are held at a time.
+    nonisolated private struct BackupAssetEntry: Sendable {
+        let name: String
+        let read: @Sendable () -> Data?
     }
 
     private struct PreparedBackupPayload {
         let backupFile: BackupFile
-        let imageEntries: [BackupImageEntry]
+        /// attachments/ entries in message order.
+        let entries: [BackupAssetEntry]
     }
+
+    nonisolated private static let attachmentsPrefix = "attachments/"
 
     #if DEBUG
     @MainActor
@@ -183,9 +191,55 @@ enum BackupService {
     private static func currentBeforeReplaceAllCommitHook() -> (() async throws -> Void)? {
         testingHooks.beforeReplaceAllCommit
     }
+
+    /// Records, for each image disk step of export and import, whether it ran on the main thread. Only records
+    /// while enabled.
+    nonisolated final class DiskThreadProbe: @unchecked Sendable {
+        struct Record: Equatable, Sendable {
+            let step: String
+            let onMainThread: Bool
+        }
+
+        private let lock = NSLock()
+        private var enabled = false
+        private var records: [Record] = []
+
+        func start() {
+            lock.withLock {
+                enabled = true
+                records = []
+            }
+        }
+
+        /// Stops recording and returns what was recorded since `start()`.
+        func stop() -> [Record] {
+            lock.withLock {
+                enabled = false
+                defer { records = [] }
+                return records
+            }
+        }
+
+        func record(_ step: String) {
+            let onMain = Thread.isMainThread
+            lock.withLock {
+                guard enabled else { return }
+                records.append(Record(step: step, onMainThread: onMain))
+            }
+        }
+    }
+
+    nonisolated static let diskThreadProbe = DiskThreadProbe()
     #endif
 
+    nonisolated private static func recordDiskStep(_ step: String) {
+        #if DEBUG
+        diskThreadProbe.record(step)
+        #endif
+    }
 
+
+    /// Thin wrapper over `exportBackupFile` for callers that want the bytes: reads the file back and deletes it.
     static func exportBackup(
         providers: [Provider],
         conversations: [Conversation],
@@ -200,6 +254,42 @@ enum BackupService {
         notes: [Note] = [],
         noteFolders: [NoteFolder] = []
     ) async throws -> Data {
+        let url = try await exportBackupFile(
+            providers: providers,
+            conversations: conversations,
+            folders: folders,
+            skills: skills,
+            preferences: preferences,
+            lastUsedModelRef: lastUsedModelRef,
+            includeKeys: includeKeys,
+            password: password,
+            allowEmpty: allowEmpty,
+            imagePartitionUID: imagePartitionUID,
+            notes: notes,
+            noteFolders: noteFolders
+        )
+        return try await Task.detached {
+            defer { try? FileManager.default.removeItem(at: url) }
+            return try Data(contentsOf: url)
+        }.value
+    }
+
+    /// Writes the backup zip to a temporary file and returns its URL; the caller owns the file. data.json goes
+    /// first, then each attachment is read and written one at a time, so the archive is never held in memory.
+    static func exportBackupFile(
+        providers: [Provider],
+        conversations: [Conversation],
+        folders: [Folder] = [],
+        skills: [Skill] = [],
+        preferences: AppPreference,
+        lastUsedModelRef: LastUsedModelRef?,
+        includeKeys: Bool,
+        password: String?,
+        allowEmpty: Bool = false,
+        imagePartitionUID: String? = nil,
+        notes: [Note] = [],
+        noteFolders: [NoteFolder] = []
+    ) async throws -> URL {
         let payload = try await prepareBackupPayload(
             providers: providers,
             conversations: conversations,
@@ -214,41 +304,57 @@ enum BackupService {
             notes: notes,
             noteFolders: noteFolders
         )
-        let backupFile = payload.backupFile
-        let imageEntries = payload.imageEntries
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         encoder.dateEncodingStrategy = .iso8601
-        let backupJSON = try encoder.encode(backupFile)
+        let backupJSON = try encoder.encode(payload.backupFile)
+        let entries = payload.entries
 
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("backup-export-\(UUID().uuidString)", isDirectory: false)
+            .appendingPathExtension("oriveo-backup")
         return try await Task.detached {
-            guard let archive = Archive(accessMode: .create) else {
-                throw BackupError.zipCreationFailed
+            do {
+                try writeBackupArchive(to: url, header: backupJSON, entries: entries)
+            } catch {
+                try? FileManager.default.removeItem(at: url)
+                throw error
             }
-            try archive.addEntry(
-                with: "data.json",
-                type: .file,
-                uncompressedSize: UInt32(backupJSON.count),
-                provider: { (position: Int, size: Int) in
-                    backupJSON[position..<(position + size)]
-                }
-            )
-            for entry in imageEntries {
-                try archive.addEntry(
-                    with: "attachments/\(entry.filename)",
-                    type: .file,
-                    uncompressedSize: UInt32(entry.data.count),
-                    provider: { (position: Int, size: Int) in
-                        entry.data[position..<(position + size)]
-                    }
-                )
-            }
-            guard let zipData = archive.data else {
-                throw BackupError.zipCreationFailed
-            }
-            return zipData
+            return url
         }.value
+    }
+
+    /// An entry whose file went away after the checksum pass is left out, as the checksum pass leaves out one
+    /// that is already gone; import then only warns about it.
+    nonisolated private static func writeBackupArchive(
+        to url: URL,
+        header: Data,
+        entries: [BackupAssetEntry]
+    ) throws {
+        let archive: Archive
+        do {
+            archive = try Archive(url: url, accessMode: .create)
+        } catch {
+            throw BackupError.zipCreationFailed
+        }
+        recordDiskStep("export.write")
+        try addArchiveEntry(archive, name: backupHeaderFilename, data: header)
+        for entry in entries {
+            guard let data = entry.read() else { continue }
+            try addArchiveEntry(archive, name: entry.name, data: data)
+        }
+    }
+
+    nonisolated private static func addArchiveEntry(_ archive: Archive, name: String, data: Data) throws {
+        try archive.addEntry(
+            with: name,
+            type: .file,
+            uncompressedSize: UInt32(data.count),
+            provider: { (position: Int, size: Int) in
+                data[position..<(position + size)]
+            }
+        )
     }
 
     nonisolated private struct BackupChunkManifest: Codable {
@@ -263,7 +369,7 @@ enum BackupService {
     }
 
     nonisolated private static let backupManifestFilename = "manifest.json"
-    private static let backupHeaderFilename = "data.json"
+    nonisolated private static let backupHeaderFilename = "data.json"
 
     private static func prepareBackupPayload(
         providers: [Provider],
@@ -283,7 +389,7 @@ enum BackupService {
 
         // Cold-start memory is a summary (messages is empty). Export must hydrate
         // full threads from the store, or a backup taken right after launch writes 0 bodies.
-        let conversationsForExport = try Self.conversationsHydratedForExport(
+        let conversationsForExport = try await Self.conversationsHydratedForExport(
             conversations,
             storeUID: imagePartitionUID
         )
@@ -349,30 +455,22 @@ enum BackupService {
         let dataJSON = try CanonicalJSON.encode(backupData)
         let checksum = CanonicalJSON.checksum(of: dataJSON)
 
-        var attachmentChecksums: [String: String] = [:]
-        var imageEntries: [BackupImageEntry] = []
-
+        // Each file is read once for its checksum and dropped, off the main actor; the writer reads it again.
+        var imageRefs: [AttachmentImageRef] = []
         for conv in backupConversations {
             for msg in conv.messages {
                 guard let atts = msg.attachments else { continue }
                 for att in atts where att.kind == .image {
                     guard let lid = att.localImageID else { continue }
-                    let ext = fileExtension(for: att.mimeType)
-
-                    if let imgData = ImageStore.loadImageData(for: lid, partitionUID: imagePartitionUID) {
-                        let filename = "\(att.id).\(ext)"
-                        imageEntries.append(BackupImageEntry(filename: filename, data: imgData))
-                        attachmentChecksums[filename] = CanonicalJSON.checksum(of: imgData)
-                    }
-
-                    if let thumbData = ImageStore.loadThumbnailData(for: lid, partitionUID: imagePartitionUID) {
-                        let thumbFilename = "\(att.id).thumb.\(ext)"
-                        imageEntries.append(BackupImageEntry(filename: thumbFilename, data: thumbData))
-                        attachmentChecksums[thumbFilename] = CanonicalJSON.checksum(of: thumbData)
-                    }
+                    imageRefs.append(AttachmentImageRef(
+                        attachmentID: "\(att.id)", localImageID: lid, ext: fileExtension(for: att.mimeType)
+                    ))
                 }
             }
         }
+        let attachmentAssets = await attachmentAssetEntries(imageRefs, partitionUID: imagePartitionUID)
+        let attachmentChecksums = attachmentAssets.checksums
+        let assetEntries = attachmentAssets.entries
 
         var encryptedKeys: String?
         if includeKeys, let password, !password.isEmpty {
@@ -404,17 +502,57 @@ enum BackupService {
             attachmentChecksums: attachmentChecksums.isEmpty ? nil : attachmentChecksums,
             encryptedKeys: encryptedKeys
         )
-        return PreparedBackupPayload(backupFile: backupFile, imageEntries: imageEntries)
+        return PreparedBackupPayload(backupFile: backupFile, entries: assetEntries)
+    }
+
+    /// One chat image attachment to export: entry names come from the attachment id and extension, bytes from
+    /// the local image id.
+    nonisolated private struct AttachmentImageRef: Sendable {
+        let attachmentID: String
+        let localImageID: String
+        let ext: String
+    }
+
+    /// The attachments/ entries (original, then thumbnail, in `refs` order) and their checksums keyed by file
+    /// name. Each image is read once for its checksum and dropped, off the caller's executor; an image that is
+    /// missing is left out.
+    @concurrent
+    nonisolated private static func attachmentAssetEntries(
+        _ refs: [AttachmentImageRef],
+        partitionUID: String?
+    ) async -> (checksums: [String: String], entries: [BackupAssetEntry]) {
+        var checksums: [String: String] = [:]
+        var entries: [BackupAssetEntry] = []
+        for ref in refs {
+            let lid = ref.localImageID
+            recordDiskStep("export.read")
+            if let imgData = ImageStore.loadImageData(for: lid, partitionUID: partitionUID) {
+                let filename = "\(ref.attachmentID).\(ref.ext)"
+                checksums[filename] = CanonicalJSON.checksum(of: imgData)
+                entries.append(BackupAssetEntry(name: attachmentsPrefix + filename) {
+                    ImageStore.loadImageData(for: lid, partitionUID: partitionUID)
+                })
+            }
+            if let thumbData = ImageStore.loadThumbnailData(for: lid, partitionUID: partitionUID) {
+                let thumbFilename = "\(ref.attachmentID).thumb.\(ref.ext)"
+                checksums[thumbFilename] = CanonicalJSON.checksum(of: thumbData)
+                entries.append(BackupAssetEntry(name: attachmentsPrefix + thumbFilename) {
+                    ImageStore.loadThumbnailData(for: lid, partitionUID: partitionUID)
+                })
+            }
+        }
+        return (checksums, entries)
     }
 
     /// Summary projections carry no message bodies, so export hydrates them from the authoritative
     /// store; conversations already loaded keep their in-memory version (a background write may not
     /// have landed yet). A failed read throws: silently exporting a backup without bodies is worse
-    /// than a failed export.
+    /// than a failed export. The store is read off the main thread, so an export started on the main
+    /// actor does not block it.
     static func conversationsHydratedForExport(
         _ conversations: [Conversation],
         storeUID: String?
-    ) throws -> [Conversation] {
+    ) async throws -> [Conversation] {
         guard conversations.contains(where: { !$0.messagesAreLoaded }) else {
             return conversations
         }
@@ -423,10 +561,7 @@ enum BackupService {
         }
         // One read transaction for the whole store is much faster than querying per conversation;
         // loaded conversations still use their in-memory version below.
-        let full = try ConversationRuntimeBridge().fetchConversationProjection(
-            uid: storeUID,
-            hydrateFilePayloads: true
-        )
+        let full = try await storedConversationsForExport(uid: storeUID)
         let byID = Dictionary(full.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         return conversations.map { conversation in
             guard !conversation.messagesAreLoaded, let stored = byID[conversation.id] else { return conversation }
@@ -437,6 +572,19 @@ enum BackupService {
         }
     }
 
+
+    /// The full projection is read on a background queue, because the bridge is main-actor isolated and a
+    /// `@concurrent` caller would hop back to the main actor to read it.
+    nonisolated private static func storedConversationsForExport(uid: String) async throws -> [Conversation] {
+        try await withCheckedThrowingContinuation { continuation in
+            DispatchQueue.global(qos: .userInitiated).async {
+                recordDiskStep("export.hydrate")
+                continuation.resume(with: Result {
+                    try ConversationRuntimeBridge().fetchConversationProjection(uid: uid, hydrateFilePayloads: true)
+                })
+            }
+        }
+    }
 
     /// Copies a picked file into the temporary directory (call it inside the security scope), so the import
     /// can read it by entry after the scope ends. The caller owns the copy.
@@ -650,11 +798,16 @@ enum BackupService {
         entry: Entry,
         reader: inout BoundedArchiveReader
     ) throws -> Data {
+        let data: Data
         do {
-            return try reader.data(from: archive, entry: entry)
+            data = try reader.data(from: archive, entry: entry)
         } catch is BoundedArchiveError {
             throw BackupError.resourceLimitExceeded
         }
+        // The consumer-based extract returns the CRC-32 without checking it: an entry whose bytes do not match
+        // its recorded CRC is a corrupt archive, rejected whole as an unrecognized format.
+        guard data.crc32(checksum: 0) == entry.checksum else { throw BackupError.unrecognizedFormat }
+        return data
     }
 
 
@@ -1279,7 +1432,7 @@ enum BackupService {
             partitionUID: partitionUID,
             result: &result
         )
-        let replacement = try beginImageStoreReplacement(
+        let replacement = try await beginImageStoreReplacement(
             with: stagedImagesDirectory,
             partitionUID: partitionUID
         )
@@ -1326,14 +1479,14 @@ enum BackupService {
                 // the restored conversations in the old partition, so they are kept. Providers, folders,
                 // notes and skills are not written: they live in the memory of the currently bound AppState,
                 // and writing them would land on the rebound account.
-                finalizeImageStoreReplacement(replacement)
+                await finalizeImageStoreReplacement(replacement)
             } else {
-                rollbackImageStoreReplacement(replacement)
+                await rollbackImageStoreReplacement(replacement)
             }
             throw error
         }
 
-        finalizeImageStoreReplacement(replacement)
+        await finalizeImageStoreReplacement(replacement)
         // persistSessionNowOffMainThread above has already drained the conversation write queue, so the replaced conversations are persisted.
         await importCheckpointsAfterConversations(
             backupFile, partitionUID: partitionUID, appState: appState, drainPersistQueue: false
@@ -1488,19 +1641,35 @@ enum BackupService {
                 guard let lid = att.localImageID else { continue }
 
                 if let imgData = await attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: "") {
-                    ImageStore.save(imageData: imgData, for: lid, partitionUID: partitionUID)
+                    await saveRestoredImage(imgData, localImageID: lid, thumbnail: false, partitionUID: partitionUID)
                     result.restoredImages += 1
                 } else {
                     result.skippedImages += 1
                 }
 
                 if let thumbData = await attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: ".thumb") {
-                    ImageStore.saveThumbnail(imageData: thumbData, for: lid, partitionUID: partitionUID)
+                    await saveRestoredImage(thumbData, localImageID: lid, thumbnail: true, partitionUID: partitionUID)
                 }
             }
         }
     }
 
+
+    /// Saves one restored image (or its thumbnail) off the caller's executor.
+    @concurrent
+    nonisolated private static func saveRestoredImage(
+        _ data: Data,
+        localImageID: String,
+        thumbnail: Bool,
+        partitionUID: String
+    ) async {
+        recordDiskStep("import.restore")
+        if thumbnail {
+            ImageStore.saveThumbnail(imageData: data, for: localImageID, partitionUID: partitionUID)
+        } else {
+            ImageStore.save(imageData: data, for: localImageID, partitionUID: partitionUID)
+        }
+    }
 
     private static func stageImportedImages(
         for conversations: [Conversation],
@@ -1508,9 +1677,7 @@ enum BackupService {
         partitionUID: String,
         result: inout ImportResult
     ) async throws -> URL {
-        let stagedDirectory = AppSessionStore.userDir(for: partitionUID)
-            .appendingPathComponent("Images-import-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: stagedDirectory, withIntermediateDirectories: true)
+        let stagedDirectory = try await makeStagedImagesDirectory(partitionUID: partitionUID)
 
         do {
             for conversation in conversations {
@@ -1523,9 +1690,25 @@ enum BackupService {
             }
             return stagedDirectory
         } catch {
-            try? FileManager.default.removeItem(at: stagedDirectory)
+            await removeStagedImagesDirectory(stagedDirectory)
             throw error
         }
+    }
+
+    /// Creates the empty staging directory of a replace-all import off the caller's executor. The image counts
+    /// stay with the main-actor caller; only the disk work moves.
+    @concurrent
+    nonisolated private static func makeStagedImagesDirectory(partitionUID: String) async throws -> URL {
+        recordDiskStep("import.stageDir")
+        let stagedDirectory = AppSessionStore.userDir(for: partitionUID)
+            .appendingPathComponent("Images-import-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: stagedDirectory, withIntermediateDirectories: true)
+        return stagedDirectory
+    }
+
+    @concurrent
+    nonisolated private static func removeStagedImagesDirectory(_ stagedDirectory: URL) async {
+        try? FileManager.default.removeItem(at: stagedDirectory)
     }
 
     private static func stageImages(
@@ -1540,23 +1723,24 @@ enum BackupService {
                 guard let lid = att.localImageID else { continue }
 
                 if let imgData = await attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: "") {
-                    try imgData.write(
-                        to: directory.appendingPathComponent("\(lid).img"),
-                        options: .atomic
-                    )
+                    try await writeStagedImage(imgData, to: directory.appendingPathComponent("\(lid).img"))
                     result.restoredImages += 1
                 } else {
                     result.skippedImages += 1
                 }
 
                 if let thumbData = await attachmentEntryData(from: images, attachment: att, localImageID: lid, suffix: ".thumb") {
-                    try thumbData.write(
-                        to: directory.appendingPathComponent("\(lid).thumb"),
-                        options: .atomic
-                    )
+                    try await writeStagedImage(thumbData, to: directory.appendingPathComponent("\(lid).thumb"))
                 }
             }
         }
+    }
+
+    /// Writes one staged image file atomically off the caller's executor.
+    @concurrent
+    nonisolated private static func writeStagedImage(_ data: Data, to url: URL) async throws {
+        recordDiskStep("import.stage")
+        try data.write(to: url, options: .atomic)
     }
 
     @MainActor
@@ -1566,10 +1750,13 @@ enum BackupService {
         }
     }
 
-    private static func beginImageStoreReplacement(
+    /// Moves the live image directory aside and the staged one in, off the caller's executor.
+    @concurrent
+    nonisolated private static func beginImageStoreReplacement(
         with stagedDirectory: URL,
         partitionUID: String
-    ) throws -> ImageStoreReplacement {
+    ) async throws -> ImageStoreReplacement {
+        recordDiskStep("import.swap")
         let fileManager = FileManager.default
         let targetDirectory = AppSessionStore.imagesDir(for: partitionUID)
         let backupDirectory = AppSessionStore.userDir(for: partitionUID)
@@ -1600,14 +1787,18 @@ enum BackupService {
         }
     }
 
-    private static func finalizeImageStoreReplacement(_ replacement: ImageStoreReplacement) {
+    @concurrent
+    nonisolated private static func finalizeImageStoreReplacement(_ replacement: ImageStoreReplacement) async {
+        recordDiskStep("import.finalize")
         if let backupDirectory = replacement.backupDirectory {
             try? FileManager.default.removeItem(at: backupDirectory)
         }
         ImageStore.clearAllCaches()
     }
 
-    private static func rollbackImageStoreReplacement(_ replacement: ImageStoreReplacement) {
+    @concurrent
+    nonisolated private static func rollbackImageStoreReplacement(_ replacement: ImageStoreReplacement) async {
+        recordDiskStep("import.rollback")
         let fileManager = FileManager.default
         if fileManager.fileExists(atPath: replacement.targetDirectory.path) {
             try? fileManager.removeItem(at: replacement.targetDirectory)

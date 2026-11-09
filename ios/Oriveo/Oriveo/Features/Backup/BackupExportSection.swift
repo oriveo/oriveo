@@ -43,7 +43,15 @@ struct BackupExportSection: View {
             case .failure:
                 exportError = L10n.tr("Failed to save backup file.", table: .backup)
             }
-            exportDocument = nil
+            discardExportFile()
+        }
+        .onChange(of: showExporter) { _, presented in
+            // Covers cancel, which does not call the completion; the exporter has its copy by the time it closes.
+            if !presented { discardExportFile() }
+        }
+        .onDisappear {
+            // The exporter sheet does not hide this view; leaving the screen with no exporter up drops the file.
+            if !showExporter { discardExportFile() }
         }
         .alert(
             L10n.tr("Export Complete", table: .backup),
@@ -141,10 +149,11 @@ struct BackupExportSection: View {
         isExporting = true
         exportError = nil
         exportSuccess = false
+        discardExportFile()
 
         Task {
             do {
-                let data = try await BackupService.exportBackup(
+                let fileURL = try await BackupService.exportBackupFile(
                     providers: appState.providers,
                     conversations: appState.conversations,
                     folders: appState.folders,
@@ -158,7 +167,7 @@ struct BackupExportSection: View {
                     noteFolders: appState.noteManager.allNoteFoldersForSync()
                 )
                 await MainActor.run {
-                    exportDocument = BackupDocument(data: data)
+                    exportDocument = BackupDocument(fileURL: fileURL)
                     showExporter = true
                     isExporting = false
                 }
@@ -171,6 +180,14 @@ struct BackupExportSection: View {
         }
     }
 
+
+    /// Deletes the exported temporary file once the exporter has finished, been cancelled, or is replaced.
+    private func discardExportFile() {
+        if let fileURL = exportDocument?.fileURL {
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+        exportDocument = nil
+    }
 
     private func dataRow(icon: String, label: String, value: String) -> some View {
         HStack(spacing: OriveoTheme.Spacing.sm) {
