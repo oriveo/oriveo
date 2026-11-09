@@ -44,6 +44,23 @@ function firstFrameMs(node: () => React.ReactElement): number {
   return runs[2];
 }
 
+function pairedFirstFrameMs(a: () => React.ReactElement, b: () => React.ReactElement): [number, number] {
+  // Interleave the two renders and keep each one's fastest run: scheduler and GC noise on shared runners only adds time,
+  // so the minimum tracks the intrinsic first-frame cost and a burst cannot land on one length alone
+  let minA = Infinity;
+  let minB = Infinity;
+  for (let r = 0; r < 7; r += 1) {
+    for (const [node, slot] of [[a, 0], [b, 1]] as const) {
+      const t0 = performance.now();
+      act(() => { render(node()); });
+      const ms = performance.now() - t0;
+      cleanup();
+      if (slot === 0) minA = Math.min(minA, ms); else minB = Math.min(minB, ms);
+    }
+  }
+  return [minA, minB];
+}
+
 async function renderFully(content: string): Promise<HTMLElement> {
   const { container } = render(<ProgressiveMarkdownRenderer content={content} />);
   const root = container.firstElementChild as HTMLElement;
@@ -157,6 +174,10 @@ describe('ProgressiveMarkdownRenderer', () => {
     const s300 = sectionFixture(300);
     const s1500 = sectionFixture(1500);
     const online = onlineFixture(3200);
+    const [progressiveS300, progressiveS1500] = pairedFirstFrameMs(
+      () => <ProgressiveMarkdownRenderer content={s300} />,
+      () => <ProgressiveMarkdownRenderer content={s1500} />,
+    );
     const r = {
       whole: {
         online3200: firstFrameMs(() => <MarkdownRenderer content={online} />),
@@ -165,10 +186,15 @@ describe('ProgressiveMarkdownRenderer', () => {
       },
       progressive: {
         online3200: firstFrameMs(() => <ProgressiveMarkdownRenderer content={online} />),
-        s300: firstFrameMs(() => <ProgressiveMarkdownRenderer content={s300} />),
-        s1500: firstFrameMs(() => <ProgressiveMarkdownRenderer content={s1500} />),
+        s300: progressiveS300,
+        s1500: progressiveS1500,
       },
     };
+    for (const md of [s300, s1500]) {
+      const { container } = render(<ProgressiveMarkdownRenderer content={md} />);
+      expect((container.firstElementChild as HTMLElement).dataset.sectionsMounted).toBe('1');
+      cleanup();
+    }
     console.log('NOTE_BODY_FIRST_FRAME_MS', JSON.stringify(r));
     expect(r.progressive.s1500).toBeLessThanOrEqual(r.progressive.s300 * 1.3);
     expect(r.progressive.online3200).toBeLessThan(r.whole.online3200 / 4);
