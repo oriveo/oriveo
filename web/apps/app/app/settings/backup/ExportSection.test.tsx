@@ -5,7 +5,8 @@ import { ExportSection } from './ExportSection';
 
 const mocks = vi.hoisted(() => ({
   exportBackup: vi.fn(),
-  saveBackupFile: vi.fn(),
+  openBackupSaveDestination: vi.fn(),
+  downloadBackupBlob: vi.fn(),
 }));
 
 type MockState = {
@@ -24,7 +25,8 @@ vi.mock('../../../providers/StoreProvider', () => ({
 
 vi.mock('../../../lib/backup', () => ({
   exportBackup: (...args: unknown[]) => mocks.exportBackup(...args),
-  saveBackupFile: (...args: unknown[]) => mocks.saveBackupFile(...args),
+  openBackupSaveDestination: (...args: unknown[]) => mocks.openBackupSaveDestination(...args),
+  downloadBackupBlob: (...args: unknown[]) => mocks.downloadBackupBlob(...args),
 }));
 
 vi.mock('@oriveo/ui', () => ({
@@ -77,7 +79,9 @@ describe('ExportSection', () => {
       providers: [{ id: 'provider-1' }, { id: 'provider-2' }],
     };
     mocks.exportBackup.mockReset();
-    mocks.saveBackupFile.mockReset();
+    mocks.openBackupSaveDestination.mockReset();
+    mocks.openBackupSaveDestination.mockResolvedValue(null);
+    mocks.downloadBackupBlob.mockReset();
   });
 
   it('renders the current data overview counts', () => {
@@ -112,7 +116,6 @@ describe('ExportSection', () => {
   it('exports the backup and saves the generated file on success', async () => {
     const blob = new Blob(['backup-data']);
     mocks.exportBackup.mockResolvedValue(blob);
-    mocks.saveBackupFile.mockResolvedValue(undefined);
 
     render(<ExportSection />);
 
@@ -124,10 +127,17 @@ describe('ExportSection', () => {
         password: undefined,
       });
     });
-    expect(mocks.saveBackupFile).toHaveBeenCalledWith(
-      blob,
+    expect(mocks.openBackupSaveDestination).toHaveBeenCalledWith(
       expect.stringMatching(/^Oriveo-Backup-\d{4}-\d{2}-\d{2}\.oriveo$/),
     );
+    expect(mocks.openBackupSaveDestination.mock.invocationCallOrder[0])
+      .toBeLessThan(mocks.exportBackup.mock.invocationCallOrder[0]);
+    await waitFor(() => {
+      expect(mocks.downloadBackupBlob).toHaveBeenCalledWith(
+        blob,
+        expect.stringMatching(/^Oriveo-Backup-\d{4}-\d{2}-\d{2}\.oriveo$/),
+      );
+    });
     expect(screen.getByText('success')).toBeTruthy();
   });
 

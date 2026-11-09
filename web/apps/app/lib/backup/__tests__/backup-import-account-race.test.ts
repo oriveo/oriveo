@@ -106,7 +106,7 @@ function preview(overrides: Partial<ImportPreview['backupFile']['data']> = {}): 
         ...overrides,
       },
     },
-    imageEntries: new Map(),
+    imageEntries: { names: [], has: () => false, read: async () => null },
   } as ImportPreview;
 }
 

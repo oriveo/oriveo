@@ -12,7 +12,8 @@
 export {
   exportBackup,
   exportBackupToAutomaticStorage,
-  saveBackupFile,
+  openBackupSaveDestination,
+  downloadBackupBlob,
 } from './backup-export';
 export type {
   AutomaticBackupStorage,

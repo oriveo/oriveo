@@ -366,7 +366,7 @@ describe('backup-service', () => {
       expect(backupFile.version).toBe(1);
       expect(backupFile.data.conversations).toHaveLength(1);
       expect(backupFile.data.conversations[0].title).toBe('Hello');
-      expect(imageEntries.size).toBe(0);
+      expect(imageEntries.names).toHaveLength(0);
     });
 
     it('parses the plain JSON format', async () => {

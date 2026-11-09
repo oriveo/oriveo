@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { Button, Dialog } from '@oriveo/ui';
-import { exportBackup, saveBackupFile } from '../../../lib/backup';
+import { downloadBackupBlob, exportBackup, openBackupSaveDestination } from '../../../lib/backup';
 import { useAppStore } from '../../../providers/StoreProvider';
 import styles from './BackupPage.module.css';
 import { BackupPasswordInput } from './BackupPasswordInput';
@@ -35,17 +35,24 @@ export function ExportSection() {
       return;
     }
 
+    const filename = `Oriveo-Backup-${new Date().toISOString().slice(0, 10)}.oriveo`;
+    const options = {
+      includeApiKeys: includeKeys,
+      password: includeKeys ? exportPassword : undefined,
+    };
+
     setExporting(true);
     setExportError('');
     setExportSuccess(false);
 
     try {
-      const blob = await exportBackup({
-        includeApiKeys: includeKeys,
-        password: includeKeys ? exportPassword : undefined,
-      });
-      const filename = `Oriveo-Backup-${new Date().toISOString().slice(0, 10)}.oriveo`;
-      await saveBackupFile(blob, filename);
+      // The save picker must open inside this click, before the export work; cancelling it exports nothing.
+      const destination = await openBackupSaveDestination(filename);
+      if (destination) {
+        await exportBackup(options, destination);
+      } else {
+        downloadBackupBlob(await exportBackup(options), filename);
+      }
       setExportSuccess(true);
     } catch (err: any) {
       if (err?.name === 'AbortError') {

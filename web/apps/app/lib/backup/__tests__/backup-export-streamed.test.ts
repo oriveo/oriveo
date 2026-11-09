@@ -11,6 +11,7 @@ import {
   type AutomaticBackupChunkWriter,
   type AutomaticBackupStorage,
 } from '../backup-export';
+import { parseBackupFile } from '../backup-format';
 
 function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   return {
@@ -97,6 +98,11 @@ describe('backup-export streamed automatic path', () => {
     expect(result.storage).toBe('idb');
     expect(result.fileName).toBe('merge-auto.oriveo');
     expect(result.fileSizeBytes).toBeGreaterThan(0);
+    expect(result.fileSizeBytes).toBe(chunks.reduce((sum, chunk) => sum + chunk.byteLength, 0));
+
+    const { backupFile } = await parseBackupFile(new File(chunks as Uint8Array<ArrayBuffer>[], 'merge-auto.oriveo'));
+    expect(backupFile.platform).toBe('Web');
+    expect(backupFile.data.conversations.map((c) => c.id)).toEqual(['conv-1']);
   });
 
   it('exports Relay through the real streamed path without credentials or URL secrets', async () => {

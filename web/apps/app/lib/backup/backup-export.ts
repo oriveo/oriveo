@@ -3,7 +3,7 @@
  * Collect data -> sanitize -> collect images -> checksum -> optional key encryption -> ZIP.
  */
 
-import JSZip from 'jszip';
+import { BlobReader, Uint8ArrayReader, ZipWriter, configure } from '@zip.js/zip.js';
 import type { AppPreference, Conversation, LastUsedModelRef, Provider, Skill } from '@oriveo/shared';
 import { credentialFreeRelayRequested, isValidProviderKind, stripRelayURLSecrets } from '@oriveo/shared';
 import type { BackupFile, BackupData, ExportOptions } from './backup-types';
@@ -54,26 +54,73 @@ interface ExportAutomaticBackupOptions {
    Export
    ======================================================== */
 
-export async function exportBackup(options: ExportOptions): Promise<Blob> {
-  const zip = await buildBackupZip(options);
-  const blob = await zip.generateAsync({ type: 'blob' });
-  trackEvent('backup_exported', {
-    encrypted: Boolean(options.includeApiKeys),
-    size_bytes: blob.size,
-    target: 'manual_download',
-  });
-  return blob;
+// Entries are deflated on the calling thread; no worker scripts to host.
+configure({ useWebWorkers: false });
+
+/** One archive entry after the checksum pass: the Blob handle stays, its bytes were read once and dropped. */
+interface BackupArchiveEntry {
+  name: string;
+  blob: Blob;
+}
+
+interface PreparedBackupArchive {
+  dataJson: string;
+  entries: BackupArchiveEntry[];
+}
+
+/**
+ * Without a destination the archive's chunks are collected into the returned Blob (what zip.js BlobWriter does; its
+ * stream-to-Blob step breaks under jsdom, so the chunks are gathered here). With one (the Chromium save
+ * picker's writable) it is written entry by entry into it: closed on success, aborted on failure so no partial file stays.
+ */
+export async function exportBackup(options: ExportOptions): Promise<Blob>;
+export async function exportBackup(options: ExportOptions, destination: WritableStream<Uint8Array>): Promise<void>;
+export async function exportBackup(
+  options: ExportOptions,
+  destination?: WritableStream<Uint8Array>,
+): Promise<Blob | void> {
+  if (!destination) {
+    const parts: Uint8Array<ArrayBuffer>[] = [];
+    await writeZipToChunkWriter(await buildBackupZip(options), async (chunk) => {
+      parts.push(new Uint8Array(chunk));
+    });
+    const blob = new Blob(parts, { type: 'application/zip' });
+    trackEvent('backup_exported', {
+      encrypted: Boolean(options.includeApiKeys),
+      size_bytes: blob.size,
+      target: 'manual_download',
+    });
+    return blob;
+  }
+
+  const output = destination.getWriter();
+  try {
+    const bytesWritten = await writeZipToChunkWriter(await buildBackupZip(options), (chunk) => output.write(chunk));
+    await output.close();
+    trackEvent('backup_exported', {
+      encrypted: Boolean(options.includeApiKeys),
+      size_bytes: bytesWritten,
+      target: 'manual_download',
+    });
+  } catch (error) {
+    try {
+      await output.abort(error);
+    } catch {
+      // cleanup failure should not hide the root cause
+    }
+    throw error;
+  }
 }
 
 export async function exportBackupToAutomaticStorage(
   options: ExportOptions,
   automaticOptions: ExportAutomaticBackupOptions,
 ): Promise<AutomaticBackupStorageResult> {
-  const zip = await buildBackupZip(options);
+  const archive = await buildBackupZip(options);
   const writer = await automaticOptions.storage.createWriter(automaticOptions.fileName);
 
   try {
-    const bytesWritten = await writeZipToChunkWriter(zip, writer);
+    const bytesWritten = await writeZipToChunkWriter(archive, (chunk) => writer.write(chunk));
     const metadata = await writer.close();
     trackEvent('backup_exported', {
       encrypted: Boolean(options.includeApiKeys),
@@ -131,7 +178,11 @@ function toBackupConversation(conv: Conversation): Conversation {
   };
 }
 
-async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
+/**
+ * Checksum pass: every image is read once to hash it, then only its Blob handle is kept. data.json is built with
+ * those checksums; the entries are written after it, in the same order and under the same names as before.
+ */
+async function buildBackupZip(options: ExportOptions): Promise<PreparedBackupArchive> {
   const [conversations, folders, providers, notes, noteFolders, lastUsedModelRef, skills, checkpoints, memoryRows] = await Promise.all([
     getAllConversations(),
     getAllFolders(),
@@ -154,8 +205,8 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
   const sanitizedProviders = sanitizeProviders(providers);
   const sanitizedSkills = sanitizeSkillsForBackup(skills);
 
-  // Collect image attachments and write them into the ZIP.
-  const zip = new JSZip();
+  // Checksum each image; its bytes are dropped right away and only the Blob handle is kept for the write pass.
+  const entries: BackupArchiveEntry[] = [];
   const attachmentChecksums: Record<string, string> = {};
 
   for (const conv of conversations) {
@@ -176,16 +227,14 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
         // fallback so archives exported under the old naming still restore.
         if (imageBlob) {
           const filename = `${att.id}.jpg`;
-          const data = new Uint8Array(await imageBlob.arrayBuffer());
-          zip.file(`attachments/${filename}`, data);
-          attachmentChecksums[filename] = `sha256:${await sha256hex(data)}`;
+          entries.push({ name: `attachments/${filename}`, blob: imageBlob });
+          attachmentChecksums[filename] = await blobChecksum(imageBlob);
         }
 
         if (thumbBlob) {
           const thumbFilename = `${att.id}.thumb.jpg`;
-          const thumbData = new Uint8Array(await thumbBlob.arrayBuffer());
-          zip.file(`attachments/${thumbFilename}`, thumbData);
-          attachmentChecksums[thumbFilename] = `sha256:${await sha256hex(thumbData)}`;
+          entries.push({ name: `attachments/${thumbFilename}`, blob: thumbBlob });
+          attachmentChecksums[thumbFilename] = await blobChecksum(thumbBlob);
         }
       }
     }
@@ -256,78 +305,68 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
     encryptedKeys,
   };
 
-  zip.file('data.json', canonicalJSON(backupFile));
-  return zip;
+  return { dataJson: canonicalJSON(backupFile), entries };
 }
 
+async function blobChecksum(blob: Blob): Promise<string> {
+  return `sha256:${await sha256hex(new Uint8Array(await blob.arrayBuffer()))}`;
+}
+
+/**
+ * Streams the archive into a chunk sink with backpressure, returning the bytes written: data.json first, then each
+ * image entry stored as is (images are already compressed), one entry in flight at a time.
+ */
 async function writeZipToChunkWriter(
-  zip: JSZip,
-  writer: AutomaticBackupChunkWriter,
+  archive: PreparedBackupArchive,
+  write: (chunk: Uint8Array) => Promise<void>,
 ): Promise<number> {
-  return await new Promise<number>((resolve, reject) => {
-    let rejected = false;
-    let bytesWritten = 0;
-    let drain = Promise.resolve();
-
-    const fail = (error: unknown) => {
-      if (rejected) return;
-      rejected = true;
-      reject(error);
-    };
-
-    const stream = zip.generateInternalStream({
-      type: 'uint8array',
-      streamFiles: true,
-      compression: 'DEFLATE',
-    });
-
-    stream.on('data', (chunk: Uint8Array) => {
-      stream.pause();
-      drain = drain
-        .then(async () => {
-          bytesWritten += chunk.byteLength;
-          await writer.write(chunk);
-          if (!rejected) stream.resume();
-        })
-        .catch(fail);
-    });
-
-    stream.on('error', fail);
-    stream.on('end', () => {
-      drain
-        .then(() => resolve(bytesWritten))
-        .catch(fail);
-    });
-
-    stream.resume();
+  let bytesWritten = 0;
+  const sink = new WritableStream<Uint8Array>({
+    async write(chunk) {
+      bytesWritten += chunk.byteLength;
+      await write(chunk);
+    },
   });
+  const zipWriter = new ZipWriter(sink);
+  await zipWriter.add('data.json', new Uint8ArrayReader(new TextEncoder().encode(archive.dataJson)));
+  for (const entry of archive.entries) {
+    // Released Android ZipInputStream rejects STORED entries carrying a data descriptor (bit 3), so the
+    // sizes and CRC-32 go into the local header; this buffers one entry at a time.
+    await zipWriter.add(entry.name, new BlobReader(entry.blob), { level: 0, dataDescriptor: false, bufferedWrite: true });
+  }
+  await zipWriter.close();
+  return bytesWritten;
 }
 
 /* -- File System Access API progressive enhancement export ---------------- */
 
-export async function saveBackupFile(blob: Blob, filename: string): Promise<void> {
-  if ('showSaveFilePicker' in window) {
-    try {
-      const handle = await (window as any).showSaveFilePicker({
-        suggestedName: filename,
-        types: [
-          {
-            description: 'Oriveo Backup',
-            accept: { 'application/x-oriveo-backup': ['.oriveo'] },
-          },
-        ],
-      });
-      const writable = await handle.createWritable();
-      await writable.write(blob);
-      await writable.close();
-      return;
-    } catch (err: any) {
-      // The user dismissed the picker: rethrow instead of falling back.
-      if (err?.name === 'AbortError') throw err;
-    }
+/**
+ * Opens the save destination before any export work: the picker has to be shown inside the click (user activation).
+ * Returns null without the File System Access API or when it fails, so the caller falls back to a Blob download;
+ * a cancelled picker rethrows its AbortError and nothing is exported.
+ */
+export async function openBackupSaveDestination(filename: string): Promise<WritableStream<Uint8Array> | null> {
+  if (!('showSaveFilePicker' in window)) return null;
+  try {
+    const handle = await (window as any).showSaveFilePicker({
+      suggestedName: filename,
+      types: [
+        {
+          description: 'Oriveo Backup',
+          accept: { 'application/x-oriveo-backup': ['.oriveo'] },
+        },
+      ],
+    });
+    return (await handle.createWritable()) as WritableStream<Uint8Array>;
+  } catch (err: any) {
+    // A cancelled picker is not a fallback case: rethrow.
+    if (err?.name === 'AbortError') throw err;
+    return null;
   }
+}
 
-  // Fallback: Blob download
+/** Fallback when no save destination was opened: download the exported Blob. */
+export function downloadBackupBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

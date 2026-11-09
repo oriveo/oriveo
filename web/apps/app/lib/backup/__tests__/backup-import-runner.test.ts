@@ -52,7 +52,7 @@ const preview = {
     encryptedKeys: null,
     data: { conversations: [], providers: [] },
   },
-  imageEntries: new Map(),
+  imageEntries: { names: [], has: () => false, read: async () => null },
 } as unknown as ImportPreview;
 
 const result = {
