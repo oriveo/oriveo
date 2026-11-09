@@ -6,16 +6,30 @@ struct CitationRowPresentation: Equatable {
     let symbolName: String
     let title: String
     let detail: String
+    /// Site favicon for web sources (same Google s2 service as Web); nil keeps the symbol.
+    var faviconURL: URL? = nil
 
     @MainActor
     static func make(citation: Citation) -> CitationRowPresentation {
         let host = URL(string: citation.url)?.host?.replacingOccurrences(of: "www.", with: "") ?? ""
         let trimmedTitle = citation.title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        // Library, Notion and Google Drive sources have no site to show a favicon for.
+        let isWebSource = !["notion", "google", "mcp"].contains(citation.source?.lowercased() ?? "")
         return CitationRowPresentation(
             symbolName: "globe",
             title: !trimmedTitle.isEmpty ? trimmedTitle : (!host.isEmpty ? host : citation.url),
-            detail: host
+            detail: host,
+            faviconURL: isWebSource ? faviconURL(for: citation.url) : nil
         )
+    }
+
+    /// Provider-supplied favicon fields are ignored on purpose (some carry a site name); the host decides, as on Web.
+    nonisolated static func faviconURL(for rawURL: String) -> URL? {
+        guard let host = ExternalURLPolicy.httpsURL(from: rawURL)?.host?.lowercased(), !host.isEmpty else { return nil }
+        let domain = host.hasPrefix("www.") ? String(host.dropFirst(4)) : host
+        var components = URLComponents(string: "https://www.google.com/s2/favicons")
+        components?.queryItems = [URLQueryItem(name: "domain", value: domain), URLQueryItem(name: "sz", value: "64")]
+        return components?.url
     }
 }
 
@@ -204,6 +218,7 @@ final class CitationsBlock: UIView {
     }
 
 
+    /// Web sources load the site favicon over the SF Symbol placeholder; tapping the row opens Safari.
     private func makeRow(for citation: Citation, displayIndex: Int) -> UIView {
         let row = CitationRowView(citation: citation, displayIndex: displayIndex)
         row.translatesAutoresizingMaskIntoConstraints = false
@@ -238,6 +253,7 @@ private final class CitationRowView: UIControl {
     private let iconView = UIImageView()
     private let titleLabel = UILabel()
     private let domainLabel = UILabel()
+    private var faviconTask: Task<Void, Never>?
 
     var onTap: (() -> Void)?
 
@@ -287,6 +303,14 @@ private final class CitationRowView: UIControl {
 
         // Source-specific symbol is bound with the citation below.
         iconView.tintColor = UIColor(OriveoTheme.Palette.textTertiary)
+        // Fixed 16pt slot so a loaded favicon bitmap never changes the row size.
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        iconView.widthAnchor.constraint(equalToConstant: 16).isActive = true
+        iconView.heightAnchor.constraint(equalToConstant: 16).isActive = true
+        iconView.contentMode = .center
+        iconView.layer.cornerRadius = 3
+        iconView.layer.cornerCurve = .continuous
+        iconView.clipsToBounds = true
         iconView.setContentHuggingPriority(.required, for: .horizontal)
         iconView.setContentCompressionResistancePriority(.required, for: .horizontal)
         row.addArrangedSubview(iconView)
@@ -318,9 +342,32 @@ private final class CitationRowView: UIControl {
 
         iconView.image = UIImage(systemName: presentation.symbolName)?
             .withConfiguration(UIImage.SymbolConfiguration(pointSize: 14, weight: .regular))
+        iconView.contentMode = .center
         titleLabel.text = presentation.title
         domainLabel.text = presentation.detail
         domainLabel.isHidden = presentation.detail.isEmpty
+        bindFavicon(presentation.faviconURL)
+    }
+
+    /// The symbol stays as the placeholder and as the fallback when the favicon is missing or fails to load.
+    private func bindFavicon(_ url: URL?) {
+        faviconTask?.cancel()
+        guard let url else { return }
+        let loader = McpServerIconLoader.favicons
+        if let cached = loader.cachedImage(for: url) {
+            showFavicon(cached)
+            return
+        }
+        faviconTask = Task { [weak self] in
+            let image = await loader.image(for: url)
+            guard !Task.isCancelled, let image else { return }
+            self?.showFavicon(image)
+        }
+    }
+
+    private func showFavicon(_ image: UIImage) {
+        iconView.contentMode = .scaleAspectFit
+        iconView.image = image
     }
 
     @objc private func handleTap() {

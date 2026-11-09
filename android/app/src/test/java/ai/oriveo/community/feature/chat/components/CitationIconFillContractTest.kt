@@ -11,15 +11,21 @@ import org.junit.Test
  */
 class CitationIconFillContractTest {
     @Test
-    fun citationIconHasNoFill() {
-        val body = functionBody("CitationsBlock.kt", "private fun CitationRow(")
-        assertNoFilledIconSlot("CitationRow", body)
+    fun sharedSourceIconSlotHasNoFill() {
+        val body = functionBody("CitationFavicon.kt", "internal fun CitationSourceIcon(")
+        assertNoFilledIconSlot("CitationSourceIcon", body)
     }
 
     @Test
-    fun searchSourceIconHasNoFill() {
-        val body = functionBody("ExternalSearchChat.kt", "internal fun SearchSourcesBlock(")
-        assertNoFilledIconSlot("SearchSourcesBlock", body)
+    fun citationRowsUseSharedSourceIcon() {
+        for ((file, signature) in listOf(
+            "CitationsBlock.kt" to "private fun CitationRow(",
+            "ExternalSearchChat.kt" to "internal fun SearchSourcesBlock(",
+        )) {
+            val body = functionBody(file, signature)
+            assertTrue("$signature must draw its icon through CitationSourceIcon", body.contains("CitationSourceIcon("))
+            assertFalse("$signature must not draw a CircleShape fill behind the icon", body.contains("CircleShape"))
+        }
     }
 
     private fun assertNoFilledIconSlot(name: String, body: String) {

@@ -5,7 +5,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -359,10 +358,7 @@ internal fun SearchSourcesBlock(
                         style = OriveoTheme.typography.caption,
                         color = colors.textTertiary,
                     )
-                    // Bare 14dp tertiary icon in a 16dp slot, no fill behind it; matches iOS CitationRowView.
-                    Box(modifier = Modifier.size(16.dp), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Outlined.Public, contentDescription = null, modifier = Modifier.size(14.dp), tint = colors.textTertiary)
-                    }
+                    CitationSourceIcon(url = citation.url, source = citation.source, fallback = Icons.Outlined.Public)
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(
                             text = citation.title?.takeIf { it.isNotBlank() } ?: host ?: citation.url,

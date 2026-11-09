@@ -4,7 +4,6 @@ import android.net.Uri
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -175,18 +174,7 @@ private fun CitationRow(
             "google" -> Icons.Outlined.Description
             else -> Icons.Outlined.Public
         }
-        // Bare 14dp tertiary icon in a 16dp slot, no fill behind it; matches iOS CitationRowView.
-        Box(
-            modifier = Modifier.size(16.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = sourceIcon,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = colors.textTertiary,
-            )
-        }
+        CitationSourceIcon(url = citation.url, source = citation.source, fallback = sourceIcon)
 
         Column(
             modifier = Modifier.fillMaxWidth(),

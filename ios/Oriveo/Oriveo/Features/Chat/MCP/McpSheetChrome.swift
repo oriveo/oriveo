@@ -137,6 +137,8 @@ struct McpTextButtonStyle: ButtonStyle {
 /// own `URLCache`.
 nonisolated final class McpServerIconLoader: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
     static let shared = McpServerIconLoader()
+    /// Citation favicons get their own caches so they never evict server icons.
+    static let favicons = McpServerIconLoader(diskPath: "citation-favicons")
 
     static let maxBytes = 512 * 1024
 
@@ -144,8 +146,8 @@ nonisolated final class McpServerIconLoader: NSObject, URLSessionTaskDelegate, @
     private let cache: URLCache
     private var session: URLSession!
 
-    init(protocolClasses: [AnyClass]? = nil) {
-        cache = URLCache(memoryCapacity: 2 * 1024 * 1024, diskCapacity: 16 * 1024 * 1024, diskPath: "mcp-server-icons")
+    init(protocolClasses: [AnyClass]? = nil, diskPath: String = "mcp-server-icons") {
+        cache = URLCache(memoryCapacity: 2 * 1024 * 1024, diskCapacity: 16 * 1024 * 1024, diskPath: diskPath)
         super.init()
         memory.countLimit = 64
         let configuration = URLSessionConfiguration.ephemeral
