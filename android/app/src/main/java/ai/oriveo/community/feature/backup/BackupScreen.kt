@@ -38,8 +38,6 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.resolve
-import ai.oriveo.community.core.util.readBytesLimited
-import ai.oriveo.community.core.util.backupMemoryBudgetBytes
 import ai.oriveo.community.core.util.launchExternalActivityOrNotify
 import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.OriveoCard
@@ -93,10 +91,11 @@ fun BackupScreen(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         uri?.let {
-            viewModel.handleFileSelected(it) { selectedUri ->
-                context.contentResolver.openInputStream(selectedUri)?.use { stream ->
-                    stream.readBytesLimited(backupMemoryBudgetBytes())
-                } ?: throw IllegalStateException(resources.getString(R.string.backup_error_read_failed))
+            // Streamed into a cacheDir copy: the backup is never read into memory whole.
+            viewModel.handleFileSelected(it) { selectedUri, target ->
+                val input = context.contentResolver.openInputStream(selectedUri)
+                    ?: throw IllegalStateException(resources.getString(R.string.backup_error_read_failed))
+                input.use { stream -> target.outputStream().use { output -> stream.copyTo(output) } }
             }
         }
     }

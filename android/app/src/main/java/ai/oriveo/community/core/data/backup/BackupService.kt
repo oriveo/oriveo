@@ -72,21 +72,22 @@ import ai.oriveo.community.core.util.normalizeMessageIds
 import ai.oriveo.community.core.util.normalizeUuid
 import ai.oriveo.community.core.util.InputSizeLimitExceededException
 import ai.oriveo.community.core.util.readBytesLimited
-import ai.oriveo.community.core.util.backupMemoryBudgetBytes
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.Closeable
+import java.io.File
 import java.io.OutputStream
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.zip.CRC32
 import java.util.zip.ZipEntry
-import java.util.zip.ZipInputStream
+import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
 
 class BackupService(
@@ -110,14 +111,19 @@ class BackupService(
     private val memoryItemRepository: MemoryItemRepository? = null,
     /** When an import restores the last-used model, it is written through this repository so its in-memory override is refreshed too; otherwise an older explicit choice would mask the imported value. */
     private val appPreferencesRepository: AppPreferencesRepository? = null,
+    /** Cap on one zip entry's actually expanded bytes; tests inject a small one. */
+    private val maxBackupEntryBytes: Long = MAX_BACKUP_ZIP_ENTRY_BYTES,
 ) {
     private val accountId: String get() = LOCAL_PARTITION_ID
 
     companion object {
         const val CURRENT_VERSION = 1
 
+        // Entries are read one at a time, so memory is bounded by the per-entry cap; the count only guards
+        // against an entry flood. Aligned with iOS 65_536.
         private const val MAX_BACKUP_ZIP_ENTRY_COUNT = 65_536
-        private const val MAX_BACKUP_ZIP_ENTRY_BYTES = 32L * 1024L * 1024L
+        const val MAX_BACKUP_ZIP_ENTRY_BYTES = 64L * 1024L * 1024L
+        private const val ENTRY_SCAN_BUFFER_BYTES = 64 * 1024
         private const val PREF_KEY_THEME = "theme"
         private const val PREF_KEY_LANGUAGE = "language"
     }
@@ -498,8 +504,15 @@ class BackupService(
         }
     }
 
-    suspend fun inspectBackup(bytes: ByteArray): BackupInspection {
-        val (backupFile, images) = parseBackup(bytes)
+    /** In-memory backup: written to a cache temp file and previewed from it. */
+    suspend fun inspectBackup(bytes: ByteArray): BackupInspection = withScratchFile(bytes) { inspectBackup(it) }
+
+    /**
+     * Previews [file] (the app's own copy of the chosen backup): one pass opens it, checks every entry's size and
+     * digests it, and the checksum checks reuse that result. Zip entries are read one at a time.
+     */
+    suspend fun inspectBackup(file: File): BackupInspection = openBackup(file, withDigests = true).use { parsed ->
+        val backupFile = parsed.file
         validateVersion(backupFile)
 
         val localProviders = providerDao.getAll(accountId).map { it.toDomain() }
@@ -521,7 +534,7 @@ class BackupService(
             }
         }
 
-        return BackupInspection(
+        BackupInspection(
             preview = ImportPreview(
                 backupCreatedAt = backupFile.createdAt,
                 backupPlatform = backupFile.platform,
@@ -535,7 +548,7 @@ class BackupService(
                 totalImages = totalImages,
             ),
             checksumWarning = computeChecksumWarning(backupFile),
-            attachmentWarning = computeAttachmentIntegrityWarning(backupFile, images),
+            attachmentWarning = computeAttachmentIntegrityWarning(backupFile, parsed.digests),
             requiresKeyPassword = backupFile.containsKeys && !backupFile.encryptedKeys.isNullOrEmpty(),
         )
     }
@@ -551,26 +564,26 @@ class BackupService(
         }
     }
 
+    /**
+     * Compares attachmentChecksums with the digests taken entry by entry when the backup was opened; a mismatch
+     * only warns.
+     */
     private fun computeAttachmentIntegrityWarning(
         backupFile: BackupFile,
-        images: Map<String, ByteArray>,
+        digests: Map<String, String>,
     ): Boolean {
-        return try {
-            val expectedChecksums = backupFile.attachmentChecksums ?: return false
-            expectedChecksums.any { (filename, expectedChecksum) ->
-                val imageData = images[filename] ?: return@any true
-                sha256Checksum(imageData) != expectedChecksum
-            }
-        } catch (_: Exception) {
-            true
-        }
+        val expectedChecksums = backupFile.attachmentChecksums ?: return false
+        return expectedChecksums.any { (filename, expectedChecksum) -> digests[filename] != expectedChecksum }
     }
 
     suspend fun hasChecksumWarning(bytes: ByteArray): Boolean {
         return try {
-            val (backupFile, _) = parseBackup(bytes)
-            validateVersion(backupFile)
-            computeChecksumWarning(backupFile)
+            withScratchFile(bytes) { file ->
+                openBackup(file, withDigests = false).use { parsed ->
+                    validateVersion(parsed.file)
+                    computeChecksumWarning(parsed.file)
+                }
+            }
         } catch (_: BackupError) {
             true
         } catch (_: Exception) {
@@ -580,13 +593,11 @@ class BackupService(
 
     suspend fun hasAttachmentIntegrityWarning(bytes: ByteArray): Boolean {
         return try {
-            val (backupFile, images) = parseBackup(bytes)
-            validateVersion(backupFile)
-            val expectedChecksums = backupFile.attachmentChecksums ?: return false
-
-            expectedChecksums.any { (filename, expectedChecksum) ->
-                val imageData = images[filename] ?: return@any true
-                sha256Checksum(imageData) != expectedChecksum
+            withScratchFile(bytes) { file ->
+                openBackup(file, withDigests = true).use { parsed ->
+                    validateVersion(parsed.file)
+                    computeAttachmentIntegrityWarning(parsed.file, parsed.digests)
+                }
             }
         } catch (_: BackupError) {
             true
@@ -601,13 +612,40 @@ class BackupService(
         bytes: ByteArray,
         preserveUserSkillsOnReplaceAll: Boolean = false,
         targetAccountIdOverride: String? = null,
+    ): ImportResult = withScratchFile(bytes) { file ->
+        executeImport(mode, password, file, preserveUserSkillsOnReplaceAll, targetAccountIdOverride)
+    }
+
+    /**
+     * Imports [file] (the app's own copy of the chosen backup). Every entry's size and CRC-32 is checked before
+     * anything is written; entries are then read by name, one at a time, as each image is restored.
+     */
+    suspend fun executeImport(
+        mode: ImportMode,
+        password: String? = null,
+        file: File,
+        preserveUserSkillsOnReplaceAll: Boolean = false,
+        targetAccountIdOverride: String? = null,
     ): ImportResult {
         val liveAccountId = accountId
         if (targetAccountIdOverride != null && liveAccountId != targetAccountIdOverride) {
             throw BackupError.AccountChanged
         }
         val targetAccountId = targetAccountIdOverride ?: liveAccountId
-        val (backupFile, images) = parseBackup(bytes)
+        return openBackup(file, withDigests = false).use { parsed ->
+            importParsed(mode, password, parsed, preserveUserSkillsOnReplaceAll, targetAccountId)
+        }
+    }
+
+    private suspend fun importParsed(
+        mode: ImportMode,
+        password: String?,
+        parsed: ParsedBackup,
+        preserveUserSkillsOnReplaceAll: Boolean,
+        targetAccountId: String,
+    ): ImportResult {
+        val backupFile = parsed.file
+        val images = parsed.entries
         validateVersion(backupFile)
 
         val restoredKeys = mutableMapOf<String, Pair<String, String>>() // providerID → (apiKey, preview)
@@ -661,7 +699,7 @@ class BackupService(
     private suspend fun importNewOnly(
         targetAccountId: String,
         backupFile: BackupFile,
-        images: Map<String, ByteArray>,
+        images: BackupEntries,
         restoredKeys: Map<String, Pair<String, String>>,
     ): ImportResult {
         var result = ImportResult()
@@ -771,7 +809,7 @@ class BackupService(
     private suspend fun importMerge(
         targetAccountId: String,
         backupFile: BackupFile,
-        images: Map<String, ByteArray>,
+        images: BackupEntries,
         restoredKeys: Map<String, Pair<String, String>>,
     ): ImportResult {
         var result = ImportResult()
@@ -993,7 +1031,7 @@ class BackupService(
     private suspend fun importReplaceAll(
         targetAccountId: String,
         backupFile: BackupFile,
-        images: Map<String, ByteArray>,
+        images: BackupEntries,
         restoredKeys: Map<String, Pair<String, String>>,
         preserveUserSkills: Boolean,
     ): ImportResult {
@@ -1384,7 +1422,7 @@ class BackupService(
     private suspend fun importConversation(
         targetAccountId: String,
         bc: BackupConversation,
-        images: Map<String, ByteArray>,
+        images: BackupEntries,
         currentResult: ImportResult,
         databaseAlreadyAtomic: Boolean = false,
         onImageBatchCommitted: (RestoredImageBatch) -> Unit = {},
@@ -1446,73 +1484,160 @@ class BackupService(
 
     private fun restoreImages(
         bc: BackupConversation,
-        images: Map<String, ByteArray>,
+        images: BackupEntries,
         currentResult: ImportResult,
     ): ImportResult {
         return currentResult.applyImageBatch(restoreImagesWithTracking(bc, images))
     }
 
-    private fun parseBackup(bytes: ByteArray): Pair<BackupFile, Map<String, ByteArray>> {
+    /**
+     * Opens [file] (zip or plain JSON) for preview / import; the caller closes it. A zip is read through its central
+     * directory: data.json is decoded, every other entry is streamed once to enforce the per-entry cap on its actually
+     * expanded bytes (digested on the way when [withDigests]), and entries are later read by name one at a time.
+     */
+    private fun openBackup(file: File, withDigests: Boolean): ParsedBackup {
         return try {
-            // ZIP magic bytes: PK (0x50 0x4B)
-            if (bytes.size >= 2 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()) {
-                parseZipBackup(bytes)
-            } else if (bytes.isNotEmpty() && bytes[0] == 0x7B.toByte()) {
-
-                parseJsonBackup(bytes)
+            if (startsWithZipMagic(file)) {
+                openZipBackup(file, withDigests)
             } else {
-                throw BackupError.UnrecognizedFormat
+                val bytes = file.inputStream().use { it.readBytesLimited(maxBackupEntryBytes) }
+                // Plain JSON backup: the first byte must open a JSON object.
+                if (bytes.isEmpty() || bytes[0] != 0x7B.toByte()) throw BackupError.UnrecognizedFormat
+                ParsedBackup(parseJsonBackup(bytes), bytes, BackupEntries(null, emptyMap(), maxBackupEntryBytes), emptyMap())
             }
         } catch (error: BackupError) {
             throw error
+        } catch (_: InputSizeLimitExceededException) {
+            // An intact file over the per-entry cap reports too large, not unrecognized, so a valid backup isn't deleted.
+            throw BackupError.ResourceLimitExceeded
         } catch (_: Exception) {
             throw BackupError.UnrecognizedFormat
         }
     }
 
-    private fun parseZipBackup(bytes: ByteArray): Pair<BackupFile, Map<String, ByteArray>> {
-        val images = mutableMapOf<String, ByteArray>()
-        var dataJson: ByteArray? = null
-        var totalExpandedBytes = 0L
-        val expandedBudget = backupMemoryBudgetBytes()
-
-        try {
-            ZipInputStream(ByteArrayInputStream(bytes)).use { zis ->
-                var entryCount = 0
-                var entry = zis.nextEntry
-                while (entry != null) {
-                    if (++entryCount > MAX_BACKUP_ZIP_ENTRY_COUNT) throw BackupError.ResourceLimitExceeded
-                    val remaining = expandedBudget - totalExpandedBytes
-                    val entryBytes = zis.readBytesLimited(minOf(MAX_BACKUP_ZIP_ENTRY_BYTES, remaining))
-                    totalExpandedBytes += entryBytes.size
-                    if (entry.name == "data.json") {
-                        dataJson = entryBytes
-                    } else if (entry.name.startsWith("attachments/")) {
-                        val filename = entry.name.removePrefix("attachments/")
-                        if (filename.isNotEmpty()) {
-                            images[filename] = entryBytes
-                        }
-                    }
-                    zis.closeEntry()
-                    entry = zis.nextEntry
-                }
-            }
-        } catch (_: InputSizeLimitExceededException) {
-
-            throw BackupError.ResourceLimitExceeded
-        }
-
-        val jsonBytes = dataJson ?: throw BackupError.UnrecognizedFormat
-        val backupFile = json.decodeFromString<BackupFile>(String(jsonBytes, Charsets.UTF_8))
-        return backupFile to images
+    private fun startsWithZipMagic(file: File): Boolean = file.inputStream().use { input ->
+        // ZIP magic bytes: PK (0x50 0x4B)
+        input.read() == 0x50 && input.read() == 0x4B
     }
 
-    private fun parseJsonBackup(bytes: ByteArray): Pair<BackupFile, Map<String, ByteArray>> {
+    private fun openZipBackup(file: File, withDigests: Boolean): ParsedBackup {
+        val zip = ZipFile(file)
+        try {
+            val index = linkedMapOf<String, ZipEntry>()
+            var dataEntry: ZipEntry? = null
+            var entryCount = 0
+            for (entry in zip.entries()) {
+                if (++entryCount > MAX_BACKUP_ZIP_ENTRY_COUNT) throw BackupError.ResourceLimitExceeded
+                val name = entry.name
+                if (name == "data.json") {
+                    dataEntry = entry
+                } else if (name.startsWith("attachments/")) {
+                    val filename = name.removePrefix("attachments/")
+                    if (filename.isNotEmpty()) index[filename] = entry
+                }
+            }
+            val entries = BackupEntries(zip, index, maxBackupEntryBytes)
+            val jsonBytes = entries.read(dataEntry ?: throw BackupError.UnrecognizedFormat)
+            val backupFile = json.decodeFromString<BackupFile>(String(jsonBytes, Charsets.UTF_8))
+            val digests = HashMap<String, String>()
+            val buffer = ByteArray(ENTRY_SCAN_BUFFER_BYTES)
+            for ((key, entry) in index) {
+                val digest = if (withDigests) MessageDigest.getInstance("SHA-256") else null
+                entries.scan(entry, buffer, digest)
+                if (digest != null) digests[key] = checksumText(digest.digest())
+            }
+            return ParsedBackup(backupFile, jsonBytes, entries, digests)
+        } catch (error: Throwable) {
+            zip.close()
+            throw error
+        }
+    }
+
+    /** A backup opened by [openBackup]: decoded data.json, its raw bytes, per-entry digests and the entry reader. */
+    private class ParsedBackup(
+        val file: BackupFile,
+        val dataJson: ByteArray,
+        val entries: BackupEntries,
+        val digests: Map<String, String>,
+    ) : Closeable {
+        override fun close() = entries.close()
+    }
+
+    /**
+     * Attachment entries of an opened backup by lookup key (file name without `attachments/`); each read returns one
+     * entry's bytes, capped at [maxEntryBytes] actually expanded bytes. A plain JSON backup has none.
+     */
+    private class BackupEntries(
+        private val zip: ZipFile?,
+        private val index: Map<String, ZipEntry>,
+        private val maxEntryBytes: Long,
+    ) : Closeable {
+        val names: Set<String> get() = index.keys
+
+        operator fun get(name: String): ByteArray? = index[name]?.let(::read)
+
+        fun read(entry: ZipEntry): ByteArray {
+            val source = zip ?: throw BackupError.UnrecognizedFormat
+            val bytes = try {
+                source.getInputStream(entry).use { it.readBytesLimited(maxEntryBytes, expectedBytes = entry.size) }
+            } catch (_: InputSizeLimitExceededException) {
+                throw BackupError.ResourceLimitExceeded
+            }
+            verifyCrc(entry, CRC32().apply { update(bytes) })
+            return bytes
+        }
+
+        /**
+         * Streams [entry] once without keeping it: counts its real bytes against the cap, feeding [digest], and
+         * rejects the whole backup when the bytes don't match the entry's CRC-32.
+         */
+        fun scan(entry: ZipEntry, buffer: ByteArray, digest: MessageDigest?) {
+            val source = zip ?: return
+            val crc = CRC32()
+            source.getInputStream(entry).use { input ->
+                var total = 0L
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read < 0) break
+                    total += read
+                    if (total > maxEntryBytes) throw BackupError.ResourceLimitExceeded
+                    crc.update(buffer, 0, read)
+                    digest?.update(buffer, 0, read)
+                }
+            }
+            verifyCrc(entry, crc)
+        }
+
+        /** ZipFile doesn't check CRC-32 (ZipInputStream did): a mismatch means a corrupted backup. */
+        private fun verifyCrc(entry: ZipEntry, crc: CRC32) {
+            if (entry.crc != -1L && entry.crc != crc.value) throw BackupError.UnrecognizedFormat
+        }
+
+        override fun close() {
+            zip?.close()
+        }
+    }
+
+    /**
+     * Runs [block] on a cache temp file holding [bytes] (java.io.tmpdir is the app cacheDir on Android), deleted
+     * afterwards: the in-memory entry points share the file path.
+     */
+    private suspend fun <T> withScratchFile(bytes: ByteArray, block: suspend (File) -> T): T {
+        val file = File.createTempFile("oriveo-backup-bytes-", ".oriveo")
+        try {
+            file.writeBytes(bytes)
+            return block(file)
+        } finally {
+            file.delete()
+        }
+    }
+
+    private fun parseJsonBackup(bytes: ByteArray): BackupFile {
         val jsonString = String(bytes, Charsets.UTF_8)
 
         return try {
             val backupFile = json.decodeFromString<BackupFile>(jsonString)
-            backupFile to emptyMap()
+            backupFile
         } catch (_: Exception) {
 
             val legacy = json.decodeFromString<OriveoBackup>(jsonString)
@@ -1543,7 +1668,7 @@ class BackupService(
                     conversations = legacyConversations,
                 ),
             )
-            backupFile to emptyMap()
+            backupFile
         }
     }
 
@@ -1667,7 +1792,7 @@ class BackupService(
 
     private fun restoreImagesWithTracking(
         bc: BackupConversation,
-        images: Map<String, ByteArray>,
+        images: BackupEntries,
     ): RestoredImageBatch {
         var restoredImages = 0
         var skippedImages = 0
@@ -1734,7 +1859,7 @@ class BackupService(
     }
 
     private fun findAttachmentEntry(
-        images: Map<String, ByteArray>,
+        images: BackupEntries,
         names: List<String>,
         extensions: List<String>,
         suffix: String,
@@ -1750,7 +1875,7 @@ class BackupService(
                 for (extension in extensions) add("$name$suffix.$extension".lowercase())
             }
         }
-        return images.entries.firstOrNull { it.key.lowercase() in wanted }?.value
+        return images.names.firstOrNull { it.lowercase() in wanted }?.let { images[it] }
     }
 
     private fun rollbackRestoredImages(snapshots: Iterable<AttachmentImageSnapshot>) {
@@ -2017,12 +2142,9 @@ class BackupService(
         )
     }
 
-    private fun sha256Checksum(data: ByteArray): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        val hash = digest.digest(data)
-        val hex = hash.joinToString("") { "%02x".format(it) }
-        return "sha256:$hex"
-    }
+    private fun sha256Checksum(data: ByteArray): String = checksumText(MessageDigest.getInstance("SHA-256").digest(data))
+
+    private fun checksumText(hash: ByteArray): String = "sha256:" + hash.joinToString("") { "%02x".format(it) }
 
     suspend fun createBackup(): String {
         val scopedAccountId = accountId

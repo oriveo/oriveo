@@ -14,7 +14,6 @@ import ai.oriveo.community.core.model.BackupError
 import ai.oriveo.community.core.model.ImportMode
 import ai.oriveo.community.core.model.ImportPreview
 import ai.oriveo.community.core.model.ImportResult
-import ai.oriveo.community.core.util.InputSizeLimitExceededException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -90,7 +89,10 @@ class BackupViewModel(
         private set
 
     private var parsedFileUri: Uri? = null
-    private var parsedFileBytes: ByteArray? = null
+    /** Local copy of the chosen backup (in [exportScratchDir]); the service reads its entries by name. */
+    private var parsedFile: File? = null
+    /** Bumped by every [handleFileSelected]; only the latest pick may publish its copy. */
+    private var importSelection = 0
     private var parsedRequiresKeyPassword: Boolean = false
 
     init {
@@ -186,11 +188,22 @@ class BackupViewModel(
     override fun onCleared() {
 
         discardExportedFile()
+        discardImportFile()
     }
 
     private fun createExportScratchFile(): File {
         if (!exportScratchDir.exists()) exportScratchDir.mkdirs()
         return File(exportScratchDir, "$EXPORT_SCRATCH_PREFIX${System.currentTimeMillis()}$EXPORT_SCRATCH_SUFFIX")
+    }
+
+    private fun createImportScratchFile(): File {
+        if (!exportScratchDir.exists()) exportScratchDir.mkdirs()
+        return File.createTempFile(IMPORT_SCRATCH_PREFIX, EXPORT_SCRATCH_SUFFIX, exportScratchDir)
+    }
+
+    private fun discardImportFile() {
+        parsedFile?.delete()
+        parsedFile = null
     }
 
     private fun discardExportedFile() {
@@ -202,22 +215,44 @@ class BackupViewModel(
         exportSuccess = false
     }
 
-    fun handleFileSelected(uri: Uri, readBytes: suspend (Uri) -> ByteArray) {
+    /**
+     * Copies the chosen document into a scratch file with [copyInto], then previews it from that file: the backup
+     * is never held in memory as a whole.
+     */
+    fun handleFileSelected(uri: Uri, copyInto: suspend (Uri, File) -> Unit) {
+        // A newer pick supersedes this one: its copy and result are dropped when it finishes.
+        val selection = ++importSelection
         viewModelScope.launch {
             importError = null
             importErrorDetail = null
+            var copy: File? = null
             try {
-
-                val bytes = withContext(ioDispatcher) { readBytes(uri) }
-                val inspection = withContext(ioDispatcher) { backupService.inspectBackup(bytes) }
+                // ZIP parsing and validation run on the IO thread, so they don't block the main thread
+                val file = withContext(ioDispatcher) {
+                    createImportScratchFile().also {
+                        copy = it
+                        copyInto(uri, it)
+                    }
+                }
+                val inspection = if (selection == importSelection) {
+                    withContext(ioDispatcher) { backupService.inspectBackup(file) }
+                } else {
+                    null
+                }
+                if (inspection == null || selection != importSelection) {
+                    file.delete()
+                    return@launch
+                }
                 parsedFileUri = uri
-                parsedFileBytes = bytes
+                parsedFile = file
                 parsedRequiresKeyPassword = inspection.requiresKeyPassword
                 importPreview = inspection.preview
                 checksumWarning = inspection.checksumWarning
                 attachmentWarning = inspection.attachmentWarning
                 showImportPreview = true
             } catch (e: Exception) {
+                copy?.delete()
+                if (selection != importSelection) return@launch
                 importError = mapError(e)
                 importErrorDetail = e.stackTraceToString().take(500)
             }
@@ -264,7 +299,7 @@ class BackupViewModel(
             isImporting = true
             importError = null
             try {
-                val bytes = parsedFileBytes
+                val file = parsedFile
                     ?: throw IllegalStateException("No backup file loaded")
                 val result = withContext(ioDispatcher) {
 
@@ -277,7 +312,7 @@ class BackupViewModel(
                         val imported = backupService.executeImport(
                             mode = selectedImportMode,
                             password = importPassword.takeIf { it.isNotEmpty() },
-                            bytes = bytes,
+                            file = file,
                             targetAccountIdOverride = null,
                         )
                         Unit
@@ -288,6 +323,7 @@ class BackupViewModel(
                         throw e
                     }
                 }
+                discardImportFile()
                 importResult = result
                 showImportResult = true
 
@@ -299,6 +335,8 @@ class BackupViewModel(
                 passwordError = UiText.Resource(R.string.backup_error_wrong_password)
                 showPasswordPrompt = true
             } catch (e: Exception) {
+                // Only a wrong password keeps the copy, for the retry.
+                discardImportFile()
                 importError = mapError(e)
                 importErrorDetail = e.stackTraceToString().take(500)
             } finally {
@@ -329,7 +367,7 @@ class BackupViewModel(
 
     private fun resetImportState() {
         parsedFileUri = null
-        parsedFileBytes = null
+        discardImportFile()
         parsedRequiresKeyPassword = false
         importPreview = null
         importPassword = ""
@@ -343,12 +381,12 @@ class BackupViewModel(
     companion object {
         private const val EXPORT_SCRATCH_PREFIX = "oriveo-backup-export-"
         private const val EXPORT_SCRATCH_SUFFIX = ".oriveo"
+        private const val IMPORT_SCRATCH_PREFIX = "oriveo-backup-import-"
     }
 
     private fun mapError(error: Throwable): UiText = when (error) {
         is BackupError.NoDataToExport -> UiText.Resource(R.string.backup_error_no_data_to_export)
 
-        is InputSizeLimitExceededException -> UiText.Resource(R.string.backup_error_too_large)
         is BackupError.ResourceLimitExceeded -> UiText.Resource(R.string.backup_error_too_large)
         is BackupError.UnrecognizedFormat -> UiText.Resource(R.string.backup_error_invalid_format)
         is BackupError.VersionTooNew -> UiText.Resource(
