@@ -9,7 +9,7 @@ import type { BackupFile } from '../backup-types';
 import { getPartitionDB, resetDBConnection } from '../../infra/storage/idb';
 import { deleteImage, listImageIds, loadImageData, loadThumbnailData, resetImageDBConnection } from '../../infra/storage/image-store';
 import { setActiveUID } from '../../infra/storage/partition';
-import { canonicalJSON, parseBackupFile } from '../backup-format';
+import { BACKUP_VERSION, canonicalJSON, parseBackupFile } from '../backup-format';
 import { executeImport, generateImportPreview } from '../backup-import';
 import { sha256hex } from '../backup-crypto';
 import { exportBackup } from '../backup-export';
@@ -67,7 +67,7 @@ async function seedLocal(): Promise<Seed> {
   }
   const data = { providers: [], conversations: [conversation] };
   const backup: BackupFile = {
-    version: 2,
+    version: BACKUP_VERSION,
     createdAt: '2026-11-08T00:00:00.000Z',
     appVersion: '1.0.0',
     platform: 'Web',

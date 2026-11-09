@@ -9,7 +9,7 @@ import type { BackupEntryReader, BackupEntrySource, BackupFile, LegacyBackupPayl
 import { decrypt, sha256hex } from './backup-crypto';
 import { sanitizeMessageQuoteContext } from '@oriveo/shared';
 
-const BACKUP_VERSION = 1;
+export const BACKUP_VERSION = 1;
 
 // Entries are inflated on the calling thread; there are no worker scripts to host.
 configure({ useWebWorkers: false });

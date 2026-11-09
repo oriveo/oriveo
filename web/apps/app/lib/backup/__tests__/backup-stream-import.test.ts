@@ -8,7 +8,7 @@ import type { BackupFile } from '../backup-types';
 import { getPartitionDB, resetDBConnection } from '../../infra/storage/idb';
 import { deleteImage, listImageIds, loadImageData, loadThumbnailData, resetImageDBConnection } from '../../infra/storage/image-store';
 import { setActiveUID } from '../../infra/storage/partition';
-import { canonicalJSON, parseBackupFile } from '../backup-format';
+import { BACKUP_VERSION, canonicalJSON, parseBackupFile } from '../backup-format';
 import { executeImport, generateImportPreview } from '../backup-import';
 import { sha256hex } from '../backup-crypto';
 
@@ -62,7 +62,7 @@ interface ExtraEntry {
 }
 
 /**
- * Writes a version-2 backup zip: attachments/<att.id>[.thumb].png entries, then any unlisted extra entries.
+ * Writes a current-version backup zip: attachments/<att.id>[.thumb].png entries, then any unlisted extra entries.
  */
 async function buildBackup(chatImageSizes: number[], extras: ExtraEntry[] = []): Promise<BuiltBackup> {
   const zip = new JSZip();
@@ -85,7 +85,7 @@ async function buildBackup(chatImageSizes: number[], extras: ExtraEntry[] = []):
 
   const data = { providers: [], conversations: [conversation] };
   const backup: BackupFile = {
-    version: 2,
+    version: BACKUP_VERSION,
     createdAt: '2026-11-08T00:00:00.000Z',
     appVersion: '1.0.0',
     platform: 'Web',
@@ -253,7 +253,7 @@ describe('backup streamed import', () => {
 
   it('backup_streamImport_jsonOverLimitRejected', async () => {
     const backup = {
-      version: 2, createdAt: '2026-11-08T00:00:00.000Z', appVersion: '1.0.0', platform: 'Web', checksum: '',
+      version: BACKUP_VERSION, createdAt: '2026-11-08T00:00:00.000Z', appVersion: '1.0.0', platform: 'Web', checksum: '',
       containsKeys: false, encryptedKeys: null,
       data: { providers: [], conversations: [], notes: [{ padding: 'x'.repeat(Math.round(1.5 * MIB)) }] },
     };
