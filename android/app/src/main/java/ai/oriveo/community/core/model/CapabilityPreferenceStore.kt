@@ -9,6 +9,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.contentOrNull
 import ai.oriveo.community.core.provider.ModelControlRuntimeIdentity
 import ai.oriveo.community.core.provider.RelayWebPreferenceIdentity
+import ai.oriveo.community.core.util.sameNormalizedUuid
 import java.util.UUID
 
 /**
@@ -257,17 +258,17 @@ class CapabilityPreferenceStore internal constructor(
             // A draft conversation only has a local draft record (it never syncs to the cloud), but it's still the conversation layer.
             isDraftConversation -> draftRecords().lastOrNull {
                 it.providerID.equals(providerID, true) && it.modelID == modelID &&
-                    it.conversationID == conversationID && it.transportIdentity == transportIdentity
+                    sameNormalizedUuid(it.conversationID, conversationID) && it.transportIdentity == transportIdentity
             }?.values
             else -> records.lastOrNull {
                 it.scope == "conversation_connection_model" && it.providerID.equals(providerID, true) &&
-                    it.modelID == modelID && it.conversationID == conversationID &&
+                    it.modelID == modelID && sameNormalizedUuid(it.conversationID, conversationID) &&
                     it.transportIdentity == transportIdentity
             }?.values
         }
         val skill = if (skillID == null) null else records.lastOrNull {
             it.scope == "skill_agent" && it.providerID.equals(providerID, true) && it.modelID == modelID &&
-                it.skillID == skillID && it.transportIdentity == transportIdentity
+                sameNormalizedUuid(it.skillID, skillID) && it.transportIdentity == transportIdentity
         }?.values
         val model = records.lastOrNull {
             it.scope == "connection_model" && it.providerID.equals(providerID, true) && it.modelID == modelID &&
@@ -437,7 +438,7 @@ class CapabilityPreferenceStore internal constructor(
         val local = localPayload()
         val matches = { record: CapabilityPreferenceRecord ->
             record.scope == scope && record.providerID.equals(providerID, true) && record.modelID == modelID &&
-                record.conversationID == conversationID && record.skillID == skillID
+                sameNormalizedUuid(record.conversationID, conversationID) && sameNormalizedUuid(record.skillID, skillID)
         }
         if (local.records.any { matches(it) && it.transportIdentity == transportIdentity }) return@synchronized
         // "The last thing the user expressed" is taken by write order: the record list is
@@ -479,7 +480,7 @@ class CapabilityPreferenceStore internal constructor(
         val drafts = draftRecords()
         val matches = { record: CapabilityPreferenceRecord ->
             record.providerID.equals(providerID, true) && record.modelID == modelID &&
-                record.conversationID == draftSessionID
+                sameNormalizedUuid(record.conversationID, draftSessionID)
         }
         if (drafts.any { matches(it) && it.transportIdentity == transportIdentity }) return@synchronized
         val candidate = drafts.lastOrNull {
@@ -504,7 +505,7 @@ class CapabilityPreferenceStore internal constructor(
     ) = synchronized(this) {
         val current = draftRecords().toMutableList()
         current.removeAll {
-            it.providerID.equals(providerID, true) && it.modelID == modelID && it.conversationID == draftSessionID &&
+            it.providerID.equals(providerID, true) && it.modelID == modelID && sameNormalizedUuid(it.conversationID, draftSessionID) &&
                 it.transportIdentity == transportIdentity
         }
         values?.let { current += CapabilityPreferenceRecord("conversation_connection_model", providerID, modelID, draftSessionID, null, transportIdentity, it, 0, "local_draft") }
@@ -515,7 +516,7 @@ class CapabilityPreferenceStore internal constructor(
         providerID: String, modelID: String, draftSessionID: String, transportIdentity: String,
     ): CapabilityPreferenceValues? = synchronized(this) {
         draftRecords().lastOrNull {
-            it.providerID.equals(providerID, true) && it.modelID == modelID && it.conversationID == draftSessionID &&
+            it.providerID.equals(providerID, true) && it.modelID == modelID && sameNormalizedUuid(it.conversationID, draftSessionID) &&
                 it.transportIdentity == transportIdentity
         }?.values
     }
@@ -523,9 +524,30 @@ class CapabilityPreferenceStore internal constructor(
     fun migrateDraftConversation(
         providerID: String, modelID: String, draftSessionID: String, conversationID: String, transportIdentity: String,
     ) = synchronized(this) {
-        val source = draftConversation(providerID, modelID, draftSessionID, transportIdentity) ?: return@synchronized
-        setConversation(source, providerID, modelID, conversationID, transportIdentity)
-        setDraftConversation(null, providerID, modelID, draftSessionID, transportIdentity)
+        val exact = draftConversation(providerID, modelID, draftSessionID, transportIdentity)
+        if (exact != null) {
+            setConversation(exact, providerID, modelID, conversationID, transportIdentity)
+            setDraftConversation(null, providerID, modelID, draftSessionID, transportIdentity)
+            return@synchronized
+        }
+        // The draft may have been written under an older runtimeRevision of the same finalTransport
+        // (recipe refreshed between choosing and sending): forward-port its last expression onto the
+        // current identity, exactly like [forwardPortScope]. A different protocol is never migrated.
+        val candidate = draftRecords().lastOrNull {
+            it.providerID.equals(providerID, true) && it.modelID == modelID &&
+                sameNormalizedUuid(it.conversationID, draftSessionID) &&
+                isSameTransportLineage(transportIdentity, it.transportIdentity)
+        } ?: return@synchronized
+        val targetID = recordID(
+            CapabilityPreferenceRecord(
+                "conversation_connection_model", providerID, modelID, conversationID, null, transportIdentity,
+                CapabilityPreferenceValues(), 0, "",
+            ),
+        )
+        // A tombstone on the target scope wins: forward-porting never resurrects a deleted scope.
+        if ((localPayload().tombstones.firstOrNull { it.recordID == targetID }?.revision ?: 0) != 0) return@synchronized
+        setConversation(forwardedValues(candidate.values, transportIdentity), providerID, modelID, conversationID, transportIdentity)
+        setDraftConversation(null, providerID, modelID, draftSessionID, candidate.transportIdentity)
     }
 
     fun setConnectionModel(values: CapabilityPreferenceValues?, providerID: String, modelID: String, transportIdentity: String) =
@@ -610,7 +632,7 @@ class CapabilityPreferenceStore internal constructor(
     ) = synchronized(this) {
         val current = records().toMutableList()
         val matches = current.filter { it.scope == scope && it.providerID.equals(providerID, true) && it.modelID == modelID &&
-            it.conversationID == conversationID && it.skillID == skillID && it.transportIdentity == transportIdentity }
+            sameNormalizedUuid(it.conversationID, conversationID) && sameNormalizedUuid(it.skillID, skillID) && it.transportIdentity == transportIdentity }
         current.removeAll(matches.toSet())
         val idPrototype = CapabilityPreferenceRecord(scope, providerID, modelID, conversationID, skillID, transportIdentity, values ?: CapabilityPreferenceValues(), 0, "")
         val id = recordID(idPrototype)
@@ -626,7 +648,7 @@ class CapabilityPreferenceStore internal constructor(
     fun removeScopes(providerID: String? = null, modelID: String? = null, conversationID: String? = null) = synchronized(this) {
         val local = localPayload()
         val removed = local.records.filter { (providerID == null || it.providerID.equals(providerID, true)) &&
-            (modelID == null || it.modelID == modelID) && (conversationID == null || it.conversationID == conversationID) }
+            (modelID == null || it.modelID == modelID) && (conversationID == null || sameNormalizedUuid(it.conversationID, conversationID)) }
         val tombstones = local.tombstones.toMutableList()
         removed.forEach { record -> tombstones.removeAll { it.recordID == recordID(record) }; tombstones += CapabilityPreferenceTombstone(recordID(record), record.revision + 1, UUID.randomUUID().toString()) }
         write(LocalCapabilityPreferencePayload(local.records - removed.toSet(), tombstones.takeLast(300)))
@@ -637,7 +659,7 @@ class CapabilityPreferenceStore internal constructor(
         val retainedDrafts = drafts.filterNot {
             (providerID == null || it.providerID.equals(providerID, true)) &&
                 (modelID == null || it.modelID == modelID) &&
-                (conversationID == null || it.conversationID == conversationID)
+                (conversationID == null || sameNormalizedUuid(it.conversationID, conversationID))
         }
         if (retainedDrafts.size != drafts.size) {
             writeDrafts(json.encodeToString(retainedDrafts).takeIf { retainedDrafts.isNotEmpty() })
@@ -665,19 +687,14 @@ class CapabilityPreferenceStore internal constructor(
 
     fun migrateConversation(providerID: String, modelID: String, fromConversationID: String, toConversationID: String, transportIdentity: String) = synchronized(this) {
         if (fromConversationID == toConversationID) return@synchronized
-        val source = records().lastOrNull { it.scope == "conversation_connection_model" && it.providerID.equals(providerID, true) && it.modelID == modelID && it.conversationID == fromConversationID && it.transportIdentity == transportIdentity } ?: return@synchronized
+        val source = records().lastOrNull { it.scope == "conversation_connection_model" && it.providerID.equals(providerID, true) && it.modelID == modelID && sameNormalizedUuid(it.conversationID, fromConversationID) && it.transportIdentity == transportIdentity } ?: return@synchronized
         replace("conversation_connection_model", source.values, providerID, modelID, toConversationID, null, transportIdentity)
         removeScopes(providerID = providerID, modelID = modelID, conversationID = fromConversationID)
     }
 
     fun exportPayload(): CapabilityPreferenceSyncPayload = localPayload().let { local ->
         CapabilityPreferenceSyncPayload(
-            records = local.records.mapNotNull { record ->
-                if (record.modelID.isNullOrBlank() || ModelControlRuntimeIdentity.decodeStorageIdentity(record.transportIdentity) == null) {
-                    return@mapNotNull null
-                }
-                toSyncRecord(record).takeIf { it.web in setOf("off", "automatic", "force") && it.reasoningIntent in setOf(null, "off", "low", "balanced", "deep", "max") }
-            }.sortedBy { it.recordId }.take(200),
+            records = local.records.mapNotNull(::exportableSyncRecord).sortedBy { it.recordId }.take(200),
             tombstones = local.tombstones.filter(::validSyncTombstone).sortedBy { it.recordID }.takeLast(300),
         )
     }
@@ -708,15 +725,52 @@ class CapabilityPreferenceStore internal constructor(
             val currentMutation = current?.first?.mutationId ?: current?.second?.mutationID.orEmpty()
             if (tombstone.revision > currentRevision || (tombstone.revision == currentRevision && tombstone.mutationID > currentMutation)) candidates[tombstone.recordID] = null to tombstone
         }
-        listOf(exportPayload(), payload).forEach { source -> source.records.forEach(::putRecord); source.tombstones.forEach(::putTombstone) }
+        // Every local record competes, not only the 200-record wire head: the wire cap bounds the
+        // envelope, never local storage (contract localLifecycleInvariants.mergeNeverDropsLocalOutsideWire).
+        val localSyncRecords = localBeforeMerge.records.filterNot { it in dormantRecords }
+            .mapNotNull { record -> exportableSyncRecord(record)?.let { record to it } }
+        localSyncRecords.forEach { putRecord(it.second) }
+        exportPayload().tombstones.forEach(::putTombstone)
+        payload.records.forEach(::putRecord)
+        payload.tombstones.forEach(::putTombstone)
         val merged = CapabilityPreferenceSyncPayload(records = candidates.values.mapNotNull { it.first }.sortedBy { it.recordId }.take(200), tombstones = candidates.values.mapNotNull { it.second }.sortedBy { it.recordID }.takeLast(300))
+        // Local write-back keeps write order (recency eviction) and the local id casing: a local record
+        // is only replaced by a winning remote version of the same recordId, or removed by a winning
+        // tombstone. Records the wire cannot carry stay as they are; remote-only winners are appended.
+        val ownSync = localSyncRecords.associate { (record, sync) -> record to sync }
+        val emitted = mutableSetOf<String>()
+        val localRecords = buildList {
+            localBeforeMerge.records.forEach { record ->
+                if (record in dormantRecords) { add(record); return@forEach }
+                val id = recordID(record)
+                if (!emitted.add(id)) return@forEach
+                val winner = candidates[id] ?: run { add(record); return@forEach }
+                val winningRecord = winner.first ?: return@forEach
+                add(if (winningRecord == ownSync[record]) record else fromSyncRecord(winningRecord))
+            }
+            candidates.entries.sortedBy { it.key }.forEach { (id, winner) ->
+                val winningRecord = winner.first ?: return@forEach
+                if (emitted.add(id)) add(fromSyncRecord(winningRecord))
+            }
+        }
         write(
             LocalCapabilityPreferencePayload(
-                records = (dormantRecords + merged.records.map(::fromSyncRecord)).takeLast(200),
+                records = localRecords,
                 tombstones = (dormantTombstones + merged.tombstones).takeLast(300),
             ),
         )
         merged
+    }
+
+    /** The wire form of a local record, or null when the envelope cannot carry it (same filter as [exportPayload]). */
+    private fun exportableSyncRecord(record: CapabilityPreferenceRecord): CapabilityPreferenceSyncRecord? {
+        if (record.modelID.isNullOrBlank() || ModelControlRuntimeIdentity.decodeStorageIdentity(record.transportIdentity) == null) {
+            return null
+        }
+        return toSyncRecord(record).takeIf {
+            it.web in setOf("off", "automatic", "force") &&
+                it.reasoningIntent in setOf(null, "off", "low", "balanced", "deep", "max")
+        }
     }
 
     /**

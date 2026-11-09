@@ -323,21 +323,44 @@ function normalizedTombstone(value: CapabilityPreferenceTombstone): CapabilityPr
   return { recordId: value.recordId, revision: value.revision, mutationId: value.mutationId };
 }
 
-function compact(input: Stored): Stored {
-  const winners = new Map<string, CapabilityPreferenceSyncRecord | CapabilityPreferenceTombstone>();
-  for (const item of [...input.records, ...input.tombstones]) {
+/**
+ * LWW winner per recordId, in write order: a winning version sits at the position where it was
+ * appended, so a fresh write (or a winning remote version) moves to the tail while an equal echo
+ * keeps its place.
+ */
+function lwwWinners(input: Stored): { records: CapabilityPreferenceSyncRecord[]; tombstones: CapabilityPreferenceTombstone[] } {
+  const winners = new Map<string, { item: CapabilityPreferenceSyncRecord | CapabilityPreferenceTombstone; order: number }>();
+  [...input.records, ...input.tombstones].forEach((item, order) => {
     const prior = winners.get(item.recordId);
-    if (!prior || newer(item, prior)) winners.set(item.recordId, item);
-  }
-  const values = [...winners.values()];
-  // Sort order and capacity limits are part of the cross-client wire contract: every client must
-  // emit the same array, otherwise the write-back check (ordered array comparison) never matches
-  // and the two sides ping-pong ordering forever.
+    if (!prior || newer(item, prior.item)) winners.set(item.recordId, { item, order });
+  });
+  const values = [...winners.values()].sort((a, b) => a.order - b.order).map((entry) => entry.item);
   return {
-    records: values.filter(validRecord).map(normalizedRecord)
-      .sort((a, b) => compareWireId(a.recordId, b.recordId)).slice(0, MAX_RECORDS),
+    records: values.filter(validRecord).map(normalizedRecord),
     tombstones: values.filter(validTombstone).filter((item): item is CapabilityPreferenceTombstone => !validRecord(item))
-      .map(normalizedTombstone).sort((a, b) => compareWireId(a.recordId, b.recordId)).slice(-MAX_TOMBSTONES),
+      .map(normalizedTombstone),
+  };
+}
+
+/**
+ * Local retention (contract `localLifecycleInvariants.rules.localEvictionByRecency`): keeps the most
+ * recently written 200 records / 300 tombstones in write order. Never truncates by recordId —
+ * that silently dropped a just-saved choice whose id sorted last.
+ */
+function compact(input: Stored): Stored {
+  const winners = lwwWinners(input);
+  return { records: winners.records.slice(-MAX_RECORDS), tombstones: winners.tombstones.slice(-MAX_TOMBSTONES) };
+}
+
+/** Outbound / canonical envelope only: code-point order, head 200 records, tail 300 tombstones. */
+function wireEnvelope(input: Stored): Stored {
+  const winners = lwwWinners(input);
+  // The sort order and capacity limits are part of the cross-client wire contract: every client must
+  // emit the same array, otherwise the write-back check (ordered array comparison) never matches
+  // and the two sides ping-pong ordering forever (ORIVEO-APP-2M).
+  return {
+    records: winners.records.sort((a, b) => compareWireId(a.recordId, b.recordId)).slice(0, MAX_RECORDS),
+    tombstones: winners.tombstones.sort((a, b) => compareWireId(a.recordId, b.recordId)).slice(-MAX_TOMBSTONES),
   };
 }
 
@@ -514,7 +537,10 @@ export function migrateCapabilityPreferenceDraft(draftId: string | undefined, in
   // conversation are unrelated to this send and stay put, so switching back still shows what the
   // user set there. The TTL reclaims them.
   const draft = readDraftSlot(all, draftId, input);
-  if (!draft) return;
+  if (!draft) {
+    migrateForwardPortedDraft(all, draftId, input);
+    return;
+  }
   delete all[draftSlotKey(draftId, input)];
   // The bare-draftId slot is deleted only when it is the very entry just moved: it may hold a draft for a different model.
   if (all[draftId] === draft) delete all[draftId];
@@ -522,8 +548,34 @@ export function migrateCapabilityPreferenceDraft(draftId: string | undefined, in
   saveCapabilityPreferences({ ...input, scope: 'conversation_connection_model' }, draft.values);
 }
 
+/**
+ * Draft migration across a runtime revision bump (`draftMigrationForwardPorts`): with no exact slot,
+ * the latest draft of the same connection x model whose identity differs only in runtimeRevision
+ * (same finalTransport) is written to the current identity and removed. A different finalTransport
+ * never migrates; a tombstoned target scope is not resurrected.
+ */
+function migrateForwardPortedDraft(all: Record<string, Draft>, draftId: string, input: Omit<CapabilityPreferenceInput, 'scope'>): void {
+  const slotPrefix = `${draftId}${DRAFT_SLOT_KEY_SEPARATOR}`;
+  const candidate = Object.entries(all)
+    .filter(([key, draft]) => (key === draftId || key.startsWith(slotPrefix))
+      && !!draft && typeof draft.transportIdentity === 'string' && !!draft.values
+      && norm(draft.providerId) === norm(input.providerId)
+      && draft.canonicalModelId === input.canonicalModelId
+      && isSameCapabilityTransportLineage(input.transportIdentity, draft.transportIdentity))
+    .sort(([, left], [, right]) => (right.updatedAt ?? 0) - (left.updatedAt ?? 0))[0];
+  if (!candidate) return;
+  const [key, draft] = candidate;
+  delete all[key];
+  writeDrafts(all);
+  const target: CapabilityPreferenceInput = { ...input, scope: 'conversation_connection_model' };
+  let recordId: string;
+  try { recordId = capabilityPreferenceRecordId(target); } catch { return; }
+  if (read().tombstones.some((tombstone) => tombstone.recordId === recordId)) return;
+  saveCapabilityPreferences(target, draft.values);
+}
+
 export function exportCapabilityPreferenceSyncPayload(): CapabilityPreferenceSyncPayload {
-  const value = compact(read());
+  const value = wireEnvelope(read());
   return { schemaVersion: 2, records: value.records, tombstones: value.tombstones };
 }
 export function mergeCapabilityPreferenceSyncPayload(remote: unknown): CapabilityPreferenceSyncPayload {
@@ -538,12 +590,14 @@ export function mergeCapabilityPreferenceSyncPayload(remote: unknown): Capabilit
   }
   const payload = remote as Partial<CapabilityPreferenceSyncPayload>;
   const local = read();
+  // Local keeps every winning record under the local cap (`mergeNeverDropsLocalOutsideWire`); only the
+  // returned envelope is truncated, so the write-back criterion still compares envelopes only.
   const merged = compact({
     records: [...local.records, ...(Array.isArray(payload.records) ? payload.records.filter(validRecord) : [])],
     tombstones: [...local.tombstones, ...(Array.isArray(payload.tombstones) ? payload.tombstones.filter(validTombstone) : [])],
   });
   write(merged);
-  return { schemaVersion: 2, ...merged };
+  return { schemaVersion: 2, ...wireEnvelope(merged) };
 }
 
 export type CapabilityPreferenceScopeQuery = CapabilityRuntimeIdentity & {

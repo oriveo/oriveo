@@ -468,5 +468,242 @@
     "guestPromotion": "not_migrated — envelope state produced in the default scope does not carry over once a profile is chosen (resetting connection-scoped state is cheap, and the complexity and leak risk of a migration path would be disproportionate). Inheritance in either direction between two profiles is likewise forbidden.",
     "legacyBareKeyClaim": "Unpartitioned data left over from before partitioning shipped (Web's bare key) may only be inherited by the first profile to use it, and only when \"no profile has ever used this device before\"; if a profile has already used this device, that leftover data is deleted rather than inherited by the next one — the data already belongs to some profile, so the \"unowned\" premise does not hold.",
     "exportUidBinding": "The local partition/storage an exported envelope is read from and the remote copy it is written to must belong to the same profile; the export path should carry a runtime assertion (discard and report if the profile doesn't match), turning \"this should be structurally impossible\" into something actually verified at runtime."
+  },
+  "localLifecycleInvariants": {
+    "$comment": "2026-11-09 Local lifecycle invariants. The wire invariants govern what the envelope looks like; this section governs that a web search / thinking-level choice the user made reads back the same value on every read path and after every lifecycle event. Origin: a field report that web search / thinking turned itself off mid-chat and was not shown after quitting and reopening. Each client hit a different defect (iOS: the send path did not forward-port, and first-send migration ran after the page switch; Android: a sync echo lowercased the conversation id and then compared case-sensitively; all three clients, on merge, overwrote local storage wholesale by keeping the first 200 records by recordId, and Web's local write also truncated by recordId; all three clients matched drafts only by exact identity on migration). Each client has one contract-driven test that consumes the cases one by one; case names are prefixed CPL-. CPL-06 (added the same day): when local storage is exactly at capacity, a new remote record pushes a local record out of the envelope.",
+    "rules": {
+      "mergeNeverDropsLocalOutsideWire": "The 200-record cap constrains only the outbound and inbound envelopes themselves. On merge, a local record is replaced only by a winning remote version with the same recordId, or deleted by a winning tombstone. A local record that is absent from the merged envelope (because it was cut off after the 200th position) is kept as is. The merge write-back check (merged vs canonicalInbound) still compares envelopes only, so local-only records do not enter the envelope and cause no ping-pong.",
+      "localEvictionByRecency": "The local record cap (200) evicts the least recently expressed record: iOS by updatedAt, Android and Web by write order (a write moves the record to the end). Truncating local storage by recordId or by any lexicographic order is forbidden.",
+      "idLookupCaseInsensitive": "conversationId / skillId / providerId are compared locally as normalized UUIDs (case-insensitive); the envelope always uses lowercase (locked by recordIdCases). An id produced lowercase inbound and one produced uppercase locally must match each other.",
+      "everyReadPathForwardPorts": "Every read (UI display, send, panels, Skill confirmation) goes through the same lazy, per-scope forward-porting entry point (same finalTransport, differing only in runtimeRevision: the last expression is forward-ported to the current identity). Querying exactly by the current identity directly on the send path is forbidden.",
+      "draftMigrationForwardPorts": "When the first send of a new conversation migrates records from the draft id to the real conversation id, draft records whose identity shares the current identity's finalTransport and differs only in runtimeRevision are migrated too (written to the current identity); a different finalTransport is not migrated. The migration must complete before the UI reads by the real conversation id."
+    },
+    "cases": [
+      {
+        "caseId": "CPL-01_merge_keeps_local_record_beyond_wire_cap",
+        "rule": "mergeNeverDropsLocalOutsideWire",
+        "identity": {
+          "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+          "canonicalModelId": "gpt-test",
+          "finalTransport": "openai_chat",
+          "runtimeRevision": "runtime-r7",
+          "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw"
+        },
+        "seed": {
+          "scope": "conversation_connection_model",
+          "conversationIdPattern": "00000000-0000-4000-8000-{index:012d}",
+          "count": 201,
+          "values": {
+            "web": "automatic",
+            "reasoningIntent": "deep"
+          }
+        },
+        "action": "export the local envelope, then feed it back unchanged as a remote merge (self-echo)",
+        "expected": {
+          "exportedRecordCount": 200,
+          "lookupConversationId": "00000000-0000-4000-8000-000000000200",
+          "lookupValues": {
+            "web": "automatic",
+            "reasoningIntent": "deep"
+          }
+        }
+      },
+      {
+        "caseId": "CPL-02_self_echo_keeps_uppercase_conversation_lookup",
+        "rule": "idLookupCaseInsensitive",
+        "identity": {
+          "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+          "canonicalModelId": "gpt-test",
+          "finalTransport": "openai_chat",
+          "runtimeRevision": "runtime-r7",
+          "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw"
+        },
+        "write": {
+          "scope": "conversation_connection_model",
+          "conversationId": "5B80A613-2A5C-469F-A266-53C1736B1DF0",
+          "values": {
+            "web": "automatic",
+            "reasoningIntent": "deep"
+          }
+        },
+        "action": "export, then merge back unchanged",
+        "expected": {
+          "lookups": [
+            {
+              "conversationId": "5B80A613-2A5C-469F-A266-53C1736B1DF0",
+              "values": {
+                "web": "automatic",
+                "reasoningIntent": "deep"
+              }
+            },
+            {
+              "conversationId": "5b80a613-2a5c-469f-a266-53c1736b1df0",
+              "values": {
+                "web": "automatic",
+                "reasoningIntent": "deep"
+              }
+            }
+          ],
+          "exportedConversationId": "5b80a613-2a5c-469f-a266-53c1736b1df0"
+        }
+      },
+      {
+        "caseId": "CPL-03_send_resolution_forward_ports_same_transport",
+        "rule": "everyReadPathForwardPorts",
+        "write": {
+          "scope": "conversation_connection_model",
+          "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+          "canonicalModelId": "gpt-test",
+          "conversationId": "5B80A613-2A5C-469F-A266-53C1736B1DF0",
+          "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+          "values": {
+            "web": "automatic",
+            "reasoningIntent": "deep"
+          }
+        },
+        "reads": [
+          {
+            "path": "send",
+            "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yOA",
+            "expected": {
+              "web": "automatic",
+              "reasoningIntent": "deep"
+            }
+          },
+          {
+            "path": "display",
+            "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yOA",
+            "expected": {
+              "web": "automatic",
+              "reasoningIntent": "deep"
+            }
+          },
+          {
+            "path": "send",
+            "transportIdentity": "r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yOA",
+            "expected": {
+              "web": "off",
+              "reasoningIntent": null
+            },
+            "$comment": "protocol changed: no forward-porting (decision of 2026-08-16), read as unset"
+          }
+        ]
+      },
+      {
+        "caseId": "CPL-04_draft_migration_forward_ports_same_transport",
+        "rule": "draftMigrationForwardPorts",
+        "write": {
+          "scope": "draft",
+          "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+          "canonicalModelId": "gpt-test",
+          "draftId": "D0A5F7C2-1B3E-4C8D-9E6F-0A1B2C3D4E5F",
+          "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+          "values": {
+            "web": "automatic",
+            "reasoningIntent": "max"
+          }
+        },
+        "action": {
+          "migrateDraftTo": "5B80A613-2A5C-469F-A266-53C1736B1DF0",
+          "currentTransportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yOA"
+        },
+        "expected": {
+          "conversationLookup": {
+            "conversationId": "5B80A613-2A5C-469F-A266-53C1736B1DF0",
+            "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yOA",
+            "values": {
+              "web": "automatic",
+              "reasoningIntent": "max"
+            }
+          },
+          "draftRemains": false
+        }
+      },
+      {
+        "caseId": "CPL-05_local_eviction_by_recency_not_record_id",
+        "rule": "localEvictionByRecency",
+        "identity": {
+          "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+          "canonicalModelId": "gpt-test",
+          "finalTransport": "openai_chat",
+          "runtimeRevision": "runtime-r7",
+          "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw"
+        },
+        "seed": {
+          "scope": "conversation_connection_model",
+          "conversationIdPattern": "00000000-0000-4000-8000-{index:012d}",
+          "count": 200,
+          "writeOrder": "ascending index",
+          "values": {
+            "web": "automatic",
+            "reasoningIntent": null
+          }
+        },
+        "write": {
+          "scope": "conversation_connection_model",
+          "conversationId": "ffffffff-ffff-4fff-bfff-ffffffffffff",
+          "values": {
+            "web": "automatic",
+            "reasoningIntent": "low"
+          }
+        },
+        "expected": {
+          "retained": [
+            "ffffffff-ffff-4fff-bfff-ffffffffffff",
+            "00000000-0000-4000-8000-000000000199"
+          ],
+          "evicted": [
+            "00000000-0000-4000-8000-000000000000"
+          ],
+          "localRecordCount": 200
+        }
+      },
+      {
+        "caseId": "CPL-06_merge_keeps_local_record_pushed_out_by_remote",
+        "rule": "mergeNeverDropsLocalOutsideWire",
+        "$comment": "Local storage holds exactly 200 records (at the local cap). The remote brings a new record whose recordId sorts first: the merged envelope, in code-point order, keeps the head 200 and pushes out the local record with the largest recordId; the local store must still read that record. On clients that evict local storage by recency, CPL-01's 201-record seed is already down to 200 records once written, so it cannot exercise this cell.",
+        "identity": {
+          "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+          "canonicalModelId": "gpt-test",
+          "finalTransport": "openai_chat",
+          "runtimeRevision": "runtime-r7",
+          "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw"
+        },
+        "seed": {
+          "scope": "conversation_connection_model",
+          "conversationIdPattern": "00000000-0000-4000-8000-{index:012d}",
+          "count": 200,
+          "writeOrder": "ascending index",
+          "values": {
+            "web": "automatic",
+            "reasoningIntent": "deep"
+          }
+        },
+        "remoteExtraRecord": {
+          "recordId": "scope:connection:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+          "scope": "connection",
+          "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+          "canonicalModelId": "gpt-test",
+          "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+          "web": "off",
+          "reasoningIntent": "low",
+          "revision": 1,
+          "mutationId": "00000000-0000-4000-8000-000000000601"
+        },
+        "action": "remote envelope = local export result + remoteExtraRecord (re-sorted in code-point order), merged back into local storage",
+        "expected": {
+          "exportedRecordCount": 200,
+          "lookupConversationId": "00000000-0000-4000-8000-000000000199",
+          "lookupValues": {
+            "web": "automatic",
+            "reasoningIntent": "deep"
+          },
+          "connectionValues": {
+            "web": "off",
+            "reasoningIntent": "low"
+          }
+        }
+      }
+    ]
   }
 }
