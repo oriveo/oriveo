@@ -40,7 +40,7 @@ function buildPreview(overrides?: Partial<ImportPreview>): ImportPreview {
     hasImages: false,
     checksumValid: true,
     attachmentChecksumIssues: [],
-    imageEntries: new Map(),
+    imageEntries: { names: [], has: () => false, read: async () => null },
     ...overrides,
   };
 }

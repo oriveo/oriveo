@@ -8,6 +8,8 @@ import { isValidProviderKind, parseQuoteContext, parseSeed } from '@oriveo/share
 import { parseBudgetCap } from '@oriveo/core/context/budget';
 import type { AppPreference } from '@oriveo/shared';
 import type {
+  BackupEntryReader,
+  BackupEntrySource,
   BackupFile,
   ImportMode,
   ImportPreview,
@@ -31,7 +33,7 @@ import {
 import { saveImage, deleteImage } from '../infra/storage/image-store';
 import { type ContextCheckpointRow, putContextCheckpoint } from '../infra/storage/context-checkpoint-store';
 import { sha256hex, decrypt, base64ToUint8 } from './backup-crypto';
-import { canonicalJSON } from './backup-format';
+import { canonicalJSON, scannedEntryDigests, toBackupEntryReader } from './backup-format';
 import { resetProviderStatus, stripBackupLocalOnlyMessageFields } from './backup-export';
 import { getPreference, setPreference } from '../infra/storage/preferences';
 import { trackEvent } from '../core/telemetry';
@@ -127,8 +129,9 @@ function rebuildOfficialProviderFromMetadata(provider: Provider): Provider {
 
 export async function generateImportPreview(
   backupFile: BackupFile,
-  imageEntries: Map<string, Uint8Array>,
+  entrySource: BackupEntrySource,
 ): Promise<ImportPreview> {
+  const imageEntries = toBackupEntryReader(entrySource);
   const [existingConvs, existingProviders, existingNotes, existingNoteFolders] = await Promise.all([
     getAllConversations(),
     getAllProviders(),
@@ -169,14 +172,21 @@ export async function generateImportPreview(
   // Attachment checksum verification
   const attachmentChecksumIssues: string[] = [];
   if (backupFile.attachmentChecksums) {
+    // A zip reader arrives with every entry already scanned and digested at parse time; other readers are read here.
+    const scanned = scannedEntryDigests(imageEntries);
     for (const [filename, expected] of Object.entries(backupFile.attachmentChecksums)) {
-      const data = imageEntries.get(filename);
-      if (!data) {
+      let actualHash: string | undefined;
+      if (scanned) {
+        actualHash = scanned.get(filename);
+      } else {
+        const data = await imageEntries.read(filename);
+        actualHash = data ? await sha256hex(data) : undefined;
+      }
+      if (actualHash === undefined) {
         attachmentChecksumIssues.push(filename);
         continue;
       }
       const expectedHash = expected.startsWith('sha256:') ? expected.slice(7) : expected;
-      const actualHash = await sha256hex(data);
       if (expectedHash !== actualHash) {
         attachmentChecksumIssues.push(filename);
       }
@@ -197,7 +207,7 @@ export async function generateImportPreview(
     newProviderCount: backupProviders.length - existingProviderCount,
     newNoteCount: backupNotes.length - existingNoteCount,
     newNoteFolderCount: backupNoteFolders.length - existingNoteFolderCount,
-    hasImages: imageEntries.size > 0,
+    hasImages: imageEntries.names.length > 0,
     checksumValid,
     attachmentChecksumIssues,
     imageEntries,
@@ -243,7 +253,9 @@ export async function executeImport(
     restoredLastUsedModel: false,
   };
 
-  const { backupFile, imageEntries } = preview;
+  const { backupFile } = preview;
+  // Literal previews (tests, older callers) may still carry a Map.
+  const imageEntries = toBackupEntryReader(preview.imageEntries as BackupEntrySource);
 
   // Decrypt the API keys, if present
   let keyMap: Map<string, { apiKey: string; apiKeyPreview: string }> | null = null;
@@ -529,7 +541,7 @@ function normalizeImportedConversation(conv: Conversation): Conversation {
 
 async function executeImportNew(
   backupFile: BackupFile,
-  imageEntries: Map<string, Uint8Array>,
+  imageEntries: BackupEntryReader,
   keyMap: Map<string, { apiKey: string; apiKeyPreview: string }> | null,
   result: ImportResult,
 ) {
@@ -599,7 +611,7 @@ async function executeImportNew(
 
 async function executeMerge(
   backupFile: BackupFile,
-  imageEntries: Map<string, Uint8Array>,
+  imageEntries: BackupEntryReader,
   keyMap: Map<string, { apiKey: string; apiKeyPreview: string }> | null,
   result: ImportResult,
 ) {
@@ -808,7 +820,7 @@ async function executeMerge(
 
 async function executeReplaceAll(
   backupFile: BackupFile,
-  imageEntries: Map<string, Uint8Array>,
+  imageEntries: BackupEntryReader,
   keyMap: Map<string, { apiKey: string; apiKeyPreview: string }> | null,
   result: ImportResult,
   expectedUID: string | undefined,
@@ -1149,16 +1161,18 @@ function imageExtensionCandidates(mimeType?: string): string[] {
  * the fixed name-candidate x extension-candidate fallback order, which restores both old and new
  * archives from any client.
  */
-function findAttachmentEntry(
-  imageEntries: Map<string, Uint8Array>,
+async function findAttachmentEntry(
+  imageEntries: BackupEntryReader,
   candidateNames: (string | undefined)[],
   extensions: string[],
   suffix: string,
-): Uint8Array | undefined {
+): Promise<Uint8Array | undefined> {
   for (const name of candidateNames) {
     if (!name) continue;
     for (const ext of extensions) {
-      const data = imageEntries.get(`${name}${suffix}.${ext}`);
+      const entryName = `${name}${suffix}.${ext}`;
+      if (!imageEntries.has(entryName)) continue;
+      const data = await imageEntries.read(entryName);
       if (data) return data;
     }
   }
@@ -1168,7 +1182,7 @@ function findAttachmentEntry(
 /** Restore a conversation's images from the ZIP into the ImageStore */
 async function restoreConversationImages(
   conv: Conversation,
-  imageEntries: Map<string, Uint8Array>,
+  imageEntries: BackupEntryReader,
   result: ImportResult,
   expectedUID?: string,
 ) {
@@ -1179,8 +1193,9 @@ async function restoreConversationImages(
 
       const candidateNames = [att.id, att.localImageID];
       const extensions = imageExtensionCandidates(att.mimeType);
-      const imageData = findAttachmentEntry(imageEntries, candidateNames, extensions, '');
-      const thumbData = findAttachmentEntry(imageEntries, candidateNames, extensions, '.thumb');
+      const imageData = await findAttachmentEntry(imageEntries, candidateNames, extensions, '');
+      if (!imageData) continue;
+      const thumbData = await findAttachmentEntry(imageEntries, candidateNames, extensions, '.thumb');
 
       if (imageData && thumbData) {
         await saveImage(

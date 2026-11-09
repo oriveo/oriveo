@@ -100,8 +100,22 @@ export interface ImportPreview {
   hasImages: boolean;
   checksumValid: boolean | null;       // null = no checksum, from an older version
   attachmentChecksumIssues: string[];  // file names that did not match
-  imageEntries: Map<string, Uint8Array>;  // image data from the ZIP, held in memory
+  /** Zip entries under attachments/ (relative names), read one at a time. */
+  imageEntries: BackupEntryReader;
 }
+
+/**
+ * Random access to the image entries of a backup by name. Only names are kept in memory; each read
+ * decompresses one entry and rejects with RESOURCE_LIMIT_EXCEEDED past the per-entry byte cap.
+ */
+export interface BackupEntryReader {
+  readonly names: readonly string[];
+  has(name: string): boolean;
+  read(name: string): Promise<Uint8Array | null>;
+}
+
+/** What import entry points accept: a reader, or an in-memory map (normalized to a reader). */
+export type BackupEntrySource = BackupEntryReader | ReadonlyMap<string, Uint8Array>;
 
 /* ── Import result ─────────────────────────────────────────── */
 

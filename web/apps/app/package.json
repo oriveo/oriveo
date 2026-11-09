@@ -17,6 +17,7 @@
     "@oriveo/ui": "*",
     "@phosphor-icons/react": "2.1.10",
     "@sentry/nextjs": "^10.72.0",
+    "@zip.js/zip.js": "^2.24.0",
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "highlight.js": "^11.12.0",

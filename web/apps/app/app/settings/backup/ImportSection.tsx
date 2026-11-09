@@ -14,6 +14,7 @@ type ImportStep = 'idle' | 'password' | 'preview' | 'keyPassword' | 'importing' 
 
 export function ImportSection() {
   const t = useTranslations('pages.backup');
+  const tChat = useTranslations('pages.chat');
   const tc = useTranslations('common');
 
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -38,6 +39,7 @@ export function ImportSection() {
     } catch (err: any) {
       if (err?.message === 'PASSWORD_REQUIRED') { setImportStep('password'); }
       else if (err?.message === 'VERSION_TOO_NEW') { setImportError(t('versionTooNew', { version: err.version })); setImportStep('idle'); }
+      else if (err?.message === 'RESOURCE_LIMIT_EXCEEDED') { setImportError(tChat('attachmentTooLargeTitle')); setImportStep('idle'); }
       else { setImportError(t('invalidFile')); setImportStep('idle'); }
     }
   }, [t]);
@@ -49,7 +51,9 @@ export function ImportSection() {
       const { backupFile, imageEntries } = await parseBackupFile(importFile, importPassword);
       const previewData = await generateImportPreview(backupFile, imageEntries);
       setPreview(previewData); setImportStep('preview');
-    } catch { setImportError(t('wrongPassword')); }
+    } catch (err: any) {
+      setImportError(err?.message === 'RESOURCE_LIMIT_EXCEEDED' ? tChat('attachmentTooLargeTitle') : t('wrongPassword'));
+    }
   }
 
   function handleStartImport() {
@@ -73,6 +77,7 @@ export function ImportSection() {
       setImportResult(result); setImportStep('done');
     } catch (err: any) {
       if (err?.message === 'WRONG_PASSWORD') { setImportError(t('wrongPassword')); setImportStep('keyPassword'); }
+      else if (err?.message === 'RESOURCE_LIMIT_EXCEEDED') { setImportError(tChat('attachmentTooLargeTitle')); setImportStep('preview'); }
       else { setImportError(t('importFailed')); setImportStep('preview'); }
     }
   }
