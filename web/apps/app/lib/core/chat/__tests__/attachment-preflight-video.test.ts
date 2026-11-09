@@ -19,13 +19,14 @@ vi.mock('../../attachments/attachment-transport-resolver', async (importOriginal
 import { resolveAttachmentLineForMessages } from '../../attachments/attachment-transport-resolver';
 import { findUnsendableAttachmentsBeforeSend } from '../attachment-preflight';
 import { buildOutboundMessages, modelPanelOutboundHasVideo } from '../outbound-history';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const repoRoot = resolve(process.cwd(), '../../..');
-const selection = JSON.parse(readFileSync(resolve(repoRoot, 'shared/test-fixtures/provider-toolcall/gemini_interactions.selection.v1.json'), 'utf8')) as {
+const repoRootDir = repoRoot();
+const selection = JSON.parse(readFileSync(resolve(repoRootDir, 'shared/test-fixtures/provider-toolcall/gemini_interactions.selection.v1.json'), 'utf8')) as {
   model: { providerKind: string; modelId: string; transport: string }; capability_controls: Record<string, unknown>;
 };
-const golden = JSON.parse(readFileSync(resolve(repoRoot, 'shared/test-fixtures/provider-toolcall/gemini_interactions.request-golden.v1.json'), 'utf8')) as { reasoning_recipe: { id: string } };
-const registry = JSON.parse(readFileSync(resolve(repoRoot, 'shared/capabilityrecipe/capability_runtime.v1.json'), 'utf8')) as {
+const golden = JSON.parse(readFileSync(resolve(repoRootDir, 'shared/test-fixtures/provider-toolcall/gemini_interactions.request-golden.v1.json'), 'utf8')) as { reasoning_recipe: { id: string } };
+const registry = JSON.parse(readFileSync(resolve(repoRootDir, 'shared/capabilityrecipe/capability_runtime.v1.json'), 'utf8')) as {
   schemaVersion: number; recipes: Record<string, unknown>; sourceIndex: Record<string, unknown>; controlDefinitions: Record<string, unknown>;
 };
 const metadata = async () => ({

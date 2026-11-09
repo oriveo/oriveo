@@ -14,13 +14,14 @@ import { buildProviderRequest } from '@oriveo/core/providers/request-builders/di
 import type { ChatMessage } from '@oriveo/shared';
 import { outboundHistoryHasVideo, resolveAttachmentLineForMessages } from '../../attachments/attachment-transport-resolver';
 import { buildChatHistory } from '../../../utils/chat-stream-utils';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const repoRoot = resolve(process.cwd(), '../../..');
-const fixtureDir = resolve(repoRoot, 'shared/test-fixtures/provider-toolcall');
+const repoRootDir = repoRoot();
+const fixtureDir = resolve(repoRootDir, 'shared/test-fixtures/provider-toolcall');
 const selection = JSON.parse(readFileSync(resolve(fixtureDir, 'gemini_interactions.selection.v1.json'), 'utf8')) as Selection;
 const golden = JSON.parse(readFileSync(resolve(fixtureDir, 'gemini_interactions.request-golden.v1.json'), 'utf8')) as { reasoning_recipe: Record<string, unknown> & { id: string } };
 const registry = JSON.parse(readFileSync(
-  resolve(repoRoot, 'shared/capabilityrecipe/capability_runtime.v1.json'),
+  resolve(repoRootDir, 'shared/capabilityrecipe/capability_runtime.v1.json'),
   'utf8',
 )) as { schemaVersion: number; recipes: Record<string, unknown>; sourceIndex: Record<string, unknown>; controlDefinitions: Record<string, unknown> };
 

@@ -18,6 +18,7 @@ import {
   capabilityRuntimeIdentity,
   displayCapabilityPreferences,
 } from './capability-preference-settings';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 const memory = new Map<string, string>();
 vi.stubGlobal('window', {});
@@ -32,7 +33,7 @@ const base = {
   runtimeRevision: 'runtime-r7',
   transportIdentity,
 };
-const fixture = JSON.parse(readFileSync(resolve(process.cwd(), '../../..', 'shared/model-contracts/capability_preference_sync.v1.json'), 'utf8'));
+const fixture = JSON.parse(readFileSync(sharedPath('model-contracts/capability_preference_sync.v1.json'), 'utf8'));
 describe('capability_preference_sync.v1', () => {
   beforeEach(() => memory.clear());
   it('exports only flat typed records and a durable tombstone', () => {

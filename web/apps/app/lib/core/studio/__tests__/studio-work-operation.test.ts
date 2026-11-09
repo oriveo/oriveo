@@ -11,8 +11,9 @@ import {
   type StudioOperationContext,
   type StudioOperationDecision,
 } from '../studio-work-operation';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const SHARED_DIR = 'shared';
 
 interface OperationCase {

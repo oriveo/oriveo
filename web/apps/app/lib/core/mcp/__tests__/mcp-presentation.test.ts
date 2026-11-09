@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { McpToolStep } from '@oriveo/shared';
 import { MCP_RUNTIME_CONFIG_FALLBACK, isLocalOnlyUrl, planMcpTools, type McpConnectionState, type McpServerRecord, type McpToolSnapshot } from '@oriveo/core/mcp/index';
@@ -14,6 +13,7 @@ import {
   mcpServerInitial,
 } from '../mcp-presentation';
 import { buildMcpStepsPresentation, mcpStepFailureKey } from '../mcp-steps-presentation';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -155,7 +155,7 @@ describe('helpers', () => {
     expect(mcpDisplayAddress('https://mcp.example.com/v1/workspaces/mcp')).toBe('mcp.example.com/v1/workspaces/mcp');
 
     const fixture: { cases: Array<{ caseId: string; url: string; expect: { localOnly: boolean } }> } = JSON.parse(
-      readFileSync(resolve(__dirname, '../../../../../../../shared/test-fixtures/mcp/local-only.json'), 'utf8'),
+      readFileSync(sharedPath('test-fixtures/mcp/local-only.json'), 'utf8'),
     );
     expect(fixture.cases.some((testCase) => testCase.expect.localOnly)).toBe(true);
     for (const testCase of fixture.cases) {

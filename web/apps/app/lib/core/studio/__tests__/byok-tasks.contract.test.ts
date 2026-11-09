@@ -25,8 +25,9 @@ import {
   type ByokReconcileAction,
   type ByokRetryDecision,
 } from '../byok-tasks';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const CONTRACTS = resolve(ROOT, 'shared/studio-contracts');
 const FIXTURE_PATH = resolve(CONTRACTS, 'byok_image_tasks.v1.json');
 

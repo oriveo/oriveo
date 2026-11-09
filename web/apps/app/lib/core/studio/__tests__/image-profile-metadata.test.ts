@@ -17,8 +17,9 @@ import {
   type MetadataIndexPayload,
 } from '../../metadata/metadata-split';
 import { imageMetadataSliceFromMetadata, resolveImageProfile } from '../image-profile';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 
 type JsonRecord = Record<string, unknown>;

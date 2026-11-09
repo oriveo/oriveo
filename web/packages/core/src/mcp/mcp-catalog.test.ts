@@ -11,8 +11,9 @@ import {
   permissionAfterConfirming,
 } from './mcp-catalog';
 import { MCP_RUNTIME_CONFIG_FALLBACK, parseToolDefinition, type McpToolDefinition } from './mcp-types';
+import { sharedPath } from '../../../../test-support/repo-root';
 
-const FIXTURES = resolve(__dirname, '../../../../../shared/test-fixtures/mcp');
+const FIXTURES = sharedPath('test-fixtures/mcp');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const load = (name: string): any => JSON.parse(readFileSync(resolve(FIXTURES, name), 'utf8'));
 const SERVER = 'srv-1';

@@ -8,6 +8,7 @@ import { adaptMoonshotToolLoopResponse } from '@oriveo/core/providers/response-a
 import type { StreamEvent } from '../providers/types';
 import { buildCapabilityResultContext, collectCapabilityResults, type CapabilityResultContext } from './capability-result-runtime';
 import { decideCapabilityRecovery } from './capability-recovery-runtime';
+import { repoRoot } from '../../../../../test-support/repo-root';
 
 type Coverage = {
   providerKind: Parameters<typeof createProxyChunkParser>[0];
@@ -30,7 +31,7 @@ type RecoveryCase = {
 };
 type Definition = NonNullable<CapabilityResultContext['entries'][number]['definition']>;
 
-const repositoryRoot = resolve(process.cwd(), '../../..');
+const repositoryRoot = repoRoot();
 const facts = JSON.parse(readFileSync(resolve(repositoryRoot, 'shared/model-contracts/provider_recipe_result_facts.v1.json'), 'utf8')) as {
   providerResultCoverage: Coverage[];
   recoveryCases: RecoveryCase[];

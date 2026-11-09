@@ -15,8 +15,9 @@ import {
   type ReferenceRoute,
   type ReferenceRouteLimits,
 } from '../reference-budget';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const CONTRACTS = resolve(ROOT, 'shared/studio-contracts');
 const FIXTURE_PATH = resolve(CONTRACTS, 'byok_reference_budget.v1.json');
 

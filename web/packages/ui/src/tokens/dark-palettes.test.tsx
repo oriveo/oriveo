@@ -3,11 +3,12 @@ import { join } from 'node:path';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { customPaletteCssVars } from '../../../shared/src/theme/custom-palette';
 import { LIGHT_BRAND_CSS_VARS, customLightBrandCssVars } from '../../../shared/src/theme/light-brand';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 /**
  * The 7 dark palettes: variables.css must equal the shared JSON value for value.
  */
-const REPO_ROOT = join(process.cwd(), '../../..');
+const REPO_ROOT = repoRoot();
 const CSS_PATH = join(REPO_ROOT, 'web/packages/ui/src/tokens/variables.css');
 const JSON_PATH = join(REPO_ROOT, 'shared/theme-contracts/dark-palettes.v1.json');
 

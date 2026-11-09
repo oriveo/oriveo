@@ -7,18 +7,14 @@
  * equal expect.evidenceUrls; silent cases produce no citations.
  */
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { sendRelayStream, type RelayOrchestratorDeps } from '../relay-orchestrator';
 import type { StreamEvent, StreamOptions } from '../types';
 import type { UpstreamTransport } from '../../ports';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 // __tests__ -> providers -> src -> core -> packages -> web -> <repo root>
-const FIXTURE_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../../../shared/test-fixtures/relay/web-probe.v1.json',
-);
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/web-probe.v1.json');
 
 interface EvidenceCase {
   caseId: string;

@@ -4,12 +4,13 @@ import { describe, expect, it } from 'vitest';
 import { McpClient, McpClientError, encodeHeaderValue } from './mcp-client';
 import { McpTransportError, type McpHttpRequest, type McpHttpResponse, type McpTransport } from './mcp-transport';
 import { MCP_RUNTIME_CONFIG_FALLBACK, type McpRuntimeConfig } from './mcp-types';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 /**
  * The protocol client replayed against frozen fixtures. The transport is a scripted fake; assertions target
  * the requests the client **actually sends** (headers and bodies built by production code) and how it judges the fixture responses.
  */
-const FIXTURES = resolve(__dirname, '../../../../../shared/test-fixtures/mcp/protocol');
+const FIXTURES = sharedPath('test-fixtures/mcp/protocol');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const load = (name: string): any => JSON.parse(readFileSync(resolve(FIXTURES, name), 'utf8'));
 const loadText = (name: string): string => readFileSync(resolve(FIXTURES, name), 'utf8');

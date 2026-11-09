@@ -6,7 +6,6 @@
 
 import 'fake-indexeddb/auto';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Attachment, ChatMessage, Conversation, Provider } from '@oriveo/shared';
 import { buildProviderRequest } from '@oriveo/core/providers/request-builders/dispatch';
@@ -47,9 +46,10 @@ import {
   __seedMetadataCacheForTest,
   initMetadata,
 } from '../../metadata/metadata-client';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 const officialRecipes = (JSON.parse(readFileSync(
-  resolve(__dirname, '../../../../../../../shared/capabilityrecipe/capability_runtime.v1.json'),
+  sharedPath('capabilityrecipe/capability_runtime.v1.json'),
   'utf8',
 )) as { recipes: Record<string, { requestOps: Array<{ op: string; intent?: string; pointer: string; value: unknown }> }> }).recipes;
 

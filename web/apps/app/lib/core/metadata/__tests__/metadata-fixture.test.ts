@@ -9,19 +9,15 @@ import 'fake-indexeddb/auto';
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { pruneBlobs } from '../../../infra/storage/blob-cache';
 import {
   __readMetadataCacheForTest as readMetadataCache,
   __seedMetadataCacheForTest as seedMetadataCache,
 } from '../metadata-client';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 // vitest runs with cwd = apps/app, so walk up three levels to the repository root.
-const FIXTURE_PATH = resolve(
-  process.cwd(),
-  '../../..',
-  'shared/test-fixtures/relay/metadata-fixture.json',
-);
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/metadata-fixture.json');
 
 function loadFixture(): Record<string, unknown> {
   const raw = readFileSync(FIXTURE_PATH, 'utf-8');

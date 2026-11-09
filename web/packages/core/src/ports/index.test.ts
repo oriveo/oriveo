@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 import { INPUT_CAPABILITY_KEYS } from '../providers/capability-evidence-facade';
 import { resolveRelayEnvelope } from '../providers/relay-runtime-support';
 import type { MetadataProviderConfig, RelayRuntimeConfig } from './index';
+import { repoRoot } from '../../../../test-support/repo-root';
 
-const REPO_ROOT = resolve(__dirname, '../../../../..');
+const REPO_ROOT = repoRoot();
 const WEB_ROOT = resolve(__dirname, '../../../..');
 
 function sourceFiles(dir: string): string[] {

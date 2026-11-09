@@ -8,11 +8,11 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
-import { resolve } from 'node:path';
 import { createDirectMcpTransport, type McpAuthorizationLauncher, type McpFetch, type McpTransport } from '@oriveo/core/mcp/index';
 import type { McpPreopenedAuthorization } from '../../../lib/core/mcp/browser-mcp-runtime';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
-const MOCK = resolve(__dirname, '../../../../../../shared/test-fixtures/mcp/mock-server.mjs');
+const MOCK = sharedPath('test-fixtures/mcp/mock-server.mjs');
 const children = new Set<ChildProcess>();
 
 export function killAllMockServers(): void {

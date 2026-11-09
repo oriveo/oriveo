@@ -26,13 +26,14 @@ import {
   CHARSET_PUNCT_1252,
 } from '../extractors/text-decoding';
 import { CJK_RADICAL_EQUIVALENTS, foldRadicals } from '../extractors/pdf-text-extractor';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 vi.mock('../../telemetry', () => ({ trackEvent: vi.fn() }));
 // Tests run on Node 22 (jsdom), which lacks the new browser APIs the pdfjs main build uses, such as `Promise.try` and `Uint8Array#toHex`;
 // switch to the same-version legacy build (same engine, ships these polyfills); the code under test is still the production extractPdfText.
 vi.mock('pdfjs-dist', () => import('pdfjs-dist/legacy/build/pdf.mjs'));
 
-const FIXTURE_DIR = resolve(__dirname, '../../../../../../../shared/test-fixtures/attachments/extraction');
+const FIXTURE_DIR = sharedPath('test-fixtures/attachments/extraction');
 const MESSAGES_DIR = resolve(__dirname, '../../../../messages');
 const readJson = <T,>(path: string): T => JSON.parse(readFileSync(path, 'utf8')) as T;
 

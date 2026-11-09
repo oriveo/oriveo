@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 import {
   compatibleRelayKinds,
@@ -8,6 +7,7 @@ import {
   suggestedRelayKind,
   type RelayModelFamily,
 } from './family-heuristics';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 interface Fixture {
   modelId: string;
@@ -19,10 +19,7 @@ interface Fixture {
  *  `shared/test-fixtures/relay/family-fixtures.json`
  * iOS / Android  
  */
-const FIXTURE_PATH = resolve(
-  __dirname,
-  '../../../../../shared/test-fixtures/relay/family-fixtures.json',
-);
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/family-fixtures.json');
 const fixtures = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as Fixture[];
 
 describe('inferModelFamily', () => {

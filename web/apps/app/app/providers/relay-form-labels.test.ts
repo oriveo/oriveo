@@ -17,13 +17,10 @@ import {
   type RelayFormField,
 } from '@oriveo/core/providers/relay-form-validation';
 import { RELAY_FORM_ISSUE_MESSAGE_KEYS } from '../../lib/core/providers/relay-form-messages';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 // vitest starts with cwd = apps/app, so four levels up is the repository root.
-const FIXTURE_PATH = resolve(
-  process.cwd(),
-  '../../..',
-  'shared/test-fixtures/relay/form-validation.v1.json',
-);
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/form-validation.v1.json');
 
 interface Fixture {
   form: { fields: { field: string; labelEN: string | null }[] };

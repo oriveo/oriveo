@@ -20,6 +20,7 @@ import {
   __resetUnknownReportedForTest,
   limitCapabilityBadges,
 } from './ModelCapabilityBadge';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 // next-intl mock: return the key unchanged.
 vi.mock('next-intl', () => ({
@@ -202,7 +203,7 @@ describe('ModelCapabilityBadges (Presentation Contract)', () => {
 // ModelRowCapabilityContractTest read the same fixture.
 const rowContract = JSON.parse(
   readFileSync(
-    path.resolve(__dirname, '../../../../../shared/model-contracts/model_row_capability_badges.v1.json'),
+    sharedPath('model-contracts/model_row_capability_badges.v1.json'),
     'utf8',
   ),
 ) as { contractVersion: number; maxVisible: number; cases: { name: string; input: string[]; expected: string[] }[] };

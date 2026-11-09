@@ -17,11 +17,12 @@ import {
   uniqueSlug,
 } from './mcp-pure';
 import { parseMcpRuntimeConfig, MCP_RUNTIME_CONFIG_FALLBACK } from './mcp-types';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 /**
  * Replay of the fixtures shared by all clients. The fixtures are frozen and every expected value comes from the fixture files themselves.
  */
-const FIXTURES = resolve(__dirname, '../../../../../shared/test-fixtures/mcp');
+const FIXTURES = sharedPath('test-fixtures/mcp');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const load = (name: string): any => JSON.parse(readFileSync(resolve(FIXTURES, name), 'utf8'));
 

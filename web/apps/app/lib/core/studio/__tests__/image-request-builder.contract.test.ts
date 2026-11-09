@@ -17,8 +17,9 @@ import {
   type ImageRequestAdvanced,
   type ImageRequestFile,
 } from '../image-request-builder';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 const BUILDER_ROUTES = [
   'openai_images',

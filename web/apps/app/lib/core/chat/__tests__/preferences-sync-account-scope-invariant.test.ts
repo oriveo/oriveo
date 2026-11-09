@@ -38,9 +38,10 @@ import {
   clearPartitionedStoreForUID,
   readPartitionedStore,
 } from '../../../infra/storage/partitioned-local-store';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 const contract = (name: string) => JSON.parse(readFileSync(
-  resolve(process.cwd(), '../../..', `shared/model-contracts/${name}`), 'utf8',
+  resolve(repoRoot(), `shared/model-contracts/${name}`), 'utf8',
 ));
 const capabilityInvariants = contract('capability_preference_sync.v1.json').accountScopeInvariants;
 const generationInvariants = contract('generation_parameter_sync.v1.json').accountScopeInvariants;

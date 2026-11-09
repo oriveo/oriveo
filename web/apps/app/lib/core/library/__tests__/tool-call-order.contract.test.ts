@@ -51,6 +51,7 @@ import {
   type ToolCallRecoveryIdentity,
 } from '../../chat/capability-recovery-runtime';
 import { toolCallVerdictForSend } from '../../chat/relay-rejection-loop';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 type Verdict = boolean | null;
 interface ToolCallOrderCase {
@@ -64,7 +65,7 @@ interface ToolCallOrderCase {
   expect: { verdict: Verdict; sendsTools: boolean };
 }
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const fixture = JSON.parse(readFileSync(
   resolve(ROOT, 'shared/test-fixtures/capability/tool-call-order.v1.json'), 'utf8',
 )) as { cases: ToolCallOrderCase[] };

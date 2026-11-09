@@ -13,8 +13,6 @@
  * To change a rule, change the fixture first, then the implementations.
  */
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   RELAY_FORM_FIELDS,
@@ -25,12 +23,9 @@ import {
   type RelayFormField,
   type RelayFormMode,
 } from '../relay-form-validation';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
-// __tests__ -> providers -> src -> core -> packages -> <repo root>
-const FIXTURE_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../../../shared/test-fixtures/relay/form-validation.v1.json',
-);
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/form-validation.v1.json');
 
 interface FixtureFieldDefinition {
   field: string;

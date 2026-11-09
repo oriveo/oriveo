@@ -33,8 +33,9 @@ import type { ImageMetadataSlice } from '../image-profile';
 import { loadImageData, resetImageDBConnection, saveImage } from '../../../infra/storage/image-store';
 import { resetDBConnection } from '../../../infra/storage/idb';
 import { setActiveUID } from '../../../infra/storage/partition';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
 const SHARED = resolve(ROOT, 'shared');
 const FIXTURE = resolve(SHARED, 'studio-contracts/chat_image_dispatch.v1.json');

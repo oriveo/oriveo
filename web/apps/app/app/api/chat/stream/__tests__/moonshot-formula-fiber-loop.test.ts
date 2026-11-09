@@ -12,6 +12,7 @@ import { adaptMoonshotFormulaFiberResponse } from "../response-adapters/moonshot
 import type { ProviderRequest } from "../request-builders/types";
 import { createProxyChunkParser } from "@oriveo/core/providers/proxy-chunk-parser";
 import type { StreamEvent } from "@oriveo/core/providers/types";
+import { sharedPath } from '../../../../../../../test-support/repo-root';
 
 /** The usage reported by the closing usage frame once the production client parser (Moonshot) has parsed it. */
 function parsedUsage(usageChunk: unknown) {
@@ -45,7 +46,7 @@ async function readChunks(response: Response): Promise<Array<Record<string, any>
 /** A recorded Kimi stream (usage sits in choices[0].usage, in the same frame as finish_reason). */
 function recordedResponse(name: string): Response {
   const body = readFileSync(
-    resolve(__dirname, "../../../../../../../../", "shared/test-fixtures/provider-toolcall/recorded", name),
+    resolve(sharedPath("test-fixtures/provider-toolcall/recorded"), name),
     "utf8",
   );
   return new Response(body, { status: 200, headers: { "Content-Type": "text/event-stream" } });

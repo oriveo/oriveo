@@ -9,8 +9,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { checkImageProfile } from '../image-profile';
 import { normalizeImageParams, type ImageParamRequest } from '../image-param-normalization';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 
 interface NormalizationCase {

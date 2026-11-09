@@ -22,12 +22,13 @@ import { McpCredentialStore, createMemoryMcpCredentialStorage, type McpCredentia
 import { MCP_FIXTURE_CLIENT_ID, MCP_FIXTURE_CLIENT_IDENTITY, MCP_FIXTURE_REDIRECT_URI } from './mcp-fixture-identity';
 import { McpTransportError, type McpHttpRequest, type McpTransport } from './mcp-transport';
 import { parseWwwAuthenticate } from './mcp-www-authenticate';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 /**
  * The authorizer against the frozen `auth/` fixtures. The transport and the browser authorization page are
  * fakes; assertions target the requests the authorizer actually sends and what it actually writes to the credential medium.
  */
-const FIXTURES = resolve(__dirname, '../../../../../shared/test-fixtures/mcp/auth');
+const FIXTURES = sharedPath('test-fixtures/mcp/auth');
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const load = (name: string): any => JSON.parse(readFileSync(resolve(FIXTURES, name), 'utf8'));
 

@@ -28,6 +28,7 @@ import {
   type CapabilityPreferences, type CapabilityRuntimeIdentity,
 } from '../capability-preference-settings';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 const memory = new Map<string, string>();
 vi.stubGlobal('window', {});
@@ -41,7 +42,7 @@ vi.stubGlobal('localStorage', {
 // The shared contract directory name is built at runtime so this file stays ASCII-only.
 const sharedDir = 'shared';
 const contract = JSON.parse(readFileSync(
-  resolve(process.cwd(), '../../..', sharedDir, 'model-contracts/capability_preference_sync.v1.json'), 'utf8',
+  resolve(repoRoot(), sharedDir, 'model-contracts/capability_preference_sync.v1.json'), 'utf8',
 ));
 type FixtureValues = { web: CapabilityPreferences['web']; reasoningIntent: ReasoningIntent | null };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

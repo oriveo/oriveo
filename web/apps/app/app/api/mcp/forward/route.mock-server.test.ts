@@ -8,6 +8,7 @@ import { __resetRateLimitForTests } from "../../chat/stream/rate-limit";
 import { __resetMcpForwardConcurrencyForTests, forwardSlotsInUse } from "./concurrency";
 import { DELETE, GET, POST } from "./route";
 import { requestUpstreamWithPinnedAddress, type UpstreamRequestInput } from "./upstream-request";
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 /**
  * Forward route × the shared mock server (`shared/test-fixtures/mcp/mock-server.mjs`, used by all clients).
@@ -101,7 +102,7 @@ beforeAll(async () => {
   // The fixture is an .mjs under the repository root (shared by all clients, no type declarations);
   // import it from a path computed at run time and take the types from MockModule above.
   const fixture = pathToFileURL(
-    resolve(__dirname, "../../../../../../../shared/test-fixtures/mcp/mock-server.mjs"),
+    sharedPath("test-fixtures/mcp/mock-server.mjs"),
   ).href;
   mockModule = (await import(/* @vite-ignore */ fixture)) as MockModule;
 });

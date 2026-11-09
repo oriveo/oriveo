@@ -30,6 +30,7 @@ import {
 import {
   exportGenerationParameterSyncPayload, mergeGenerationParameterSyncPayload,
 } from '../generation-parameter-settings';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 /**
  * Key-order-independent comparison, matching how a JSON envelope behaves once it has made a round
@@ -65,7 +66,7 @@ vi.stubGlobal('localStorage', {
 });
 
 const contract = (name: string) => JSON.parse(readFileSync(
-  resolve(process.cwd(), '../../..', `shared/model-contracts/${name}`), 'utf8',
+  resolve(repoRoot(), `shared/model-contracts/${name}`), 'utf8',
 ));
 const capability = contract('capability_preference_sync.v1.json').wireInvariants;
 const generation = contract('generation_parameter_sync.v1.json').wireInvariants;

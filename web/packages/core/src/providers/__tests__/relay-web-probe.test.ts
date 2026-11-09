@@ -7,8 +7,6 @@
  * - MERGE: merging records per connection x model x protocol.
  */
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   canonicalRelayWebFragmentJSON,
@@ -18,12 +16,10 @@ import {
   type RelayWebProbeRecord,
 } from '../relay-web-probe';
 import type { RelayWebTransport } from '@oriveo/shared/relay/web-fragments';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 // __tests__ -> providers -> src -> core -> packages -> web -> <repo root>
-const FIXTURE_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../../../shared/test-fixtures/relay/web-probe.v1.json',
-);
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/web-probe.v1.json');
 
 interface EvidenceCase {
   caseId: string;

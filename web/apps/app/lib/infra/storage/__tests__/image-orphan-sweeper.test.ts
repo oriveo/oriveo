@@ -7,6 +7,7 @@ import * as idb from '../idb';
 import { imageExists, resetImageDBConnection, saveImage } from '../image-store';
 import { setActiveUID } from '../partition';
 import { purgeUnreferencedImages, sweepOrphanImagesOnLaunch } from '../image-orphan-sweeper';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 // Wrapped in vi.fn: cases can inject read failures and assert the sweep touched no conversation-store write entry point.
 vi.mock('../idb', async (importOriginal) => {
@@ -457,7 +458,7 @@ describe('image-orphan-sweeper', () => {
   });
 });
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 
 interface StudioOrphanSweepCase {
   chatAssets: string[];

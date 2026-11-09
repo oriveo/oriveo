@@ -11,6 +11,7 @@ import {
   resolveMonthlyCostSummary,
   type MonthlyCostSummary,
 } from '../cost-summary';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 function message(overrides: Partial<ChatMessage>): ChatMessage {
   return {
@@ -261,7 +262,7 @@ interface TotalCase {
   expect: { parts: Array<{ currencyCode: string; amount: number }> };
 }
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const totalCases = (JSON.parse(readFileSync(
   resolve(ROOT, 'shared/test-fixtures/provider-pricing/cost-currency.v1.json'), 'utf8',
 )) as { totalCases: TotalCase[] }).totalCases;

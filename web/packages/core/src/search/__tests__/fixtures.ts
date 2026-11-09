@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { CatalogEntry, CatalogRegion } from '../search-catalog';
 import type { SearchRequest } from '../search-transport';
+import { repoRoot } from '../../../../../test-support/repo-root';
 
-export const REPO_ROOT = resolve(__dirname, '../../../../../..');
+export const REPO_ROOT = repoRoot();
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function loadContract(relativePath: string): any {

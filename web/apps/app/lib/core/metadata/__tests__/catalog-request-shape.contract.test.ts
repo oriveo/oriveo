@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pruneBlobs } from '../../../infra/storage/blob-cache';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 const trackEvent = vi.fn();
 vi.mock('../../telemetry', async (importOriginal) => ({
@@ -18,7 +19,7 @@ vi.mock('../../telemetry', async (importOriginal) => ({
   trackEvent: (...args: unknown[]) => trackEvent(...args),
 }));
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 
 type Announces = Record<string, string | null>;
 

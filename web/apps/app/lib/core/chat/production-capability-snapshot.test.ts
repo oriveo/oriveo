@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
 /**
@@ -20,7 +19,7 @@ import { describe, expect, it, vi } from 'vitest';
 // vitest starts with cwd = apps/app; three levels up (apps -> web -> repository root) reaches shared/.
 const snapshot = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), '../../..', 'shared/model-contracts/production-capability-snapshot.json'),
+    sharedPath('model-contracts/production-capability-snapshot.json'),
     'utf-8',
   ),
 ) as {
@@ -66,6 +65,7 @@ vi.mock('../metadata/metadata-client', async (importOriginal) => (await import('
 
 // eslint-disable-next-line import/first -- vi.mock must be evaluated before the module under test
 import { presentCapabilityControl } from './capability-control-presentation';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 type SnapshotModel = {
   providerKind: string;

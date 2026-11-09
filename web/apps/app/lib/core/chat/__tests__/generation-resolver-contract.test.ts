@@ -4,7 +4,6 @@
  * production path on web are skipped with a registered reason (not an omission, see SKIPPED).
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { guardAnthropicThinking } from '@oriveo/core/providers/request-builders/anthropic-thinking';
 import { writeGenerationParameters } from '@oriveo/core/providers/request-builders/generation-parameters';
@@ -18,6 +17,7 @@ import {
   type GenerationParameterScope,
 } from '../generation-parameter-settings';
 import { decideGenerationParameterRejection } from '../generation-parameter-rejection';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 type Layer = { scope: string; override: GenerationParameterOverride };
 type ResolverCase = {
@@ -32,11 +32,7 @@ type ResolverCase = {
   expect: Record<string, unknown>;
 };
 
-const cases = JSON.parse(readFileSync(resolve(
-  process.cwd(),
-  '../../..',
-  'shared/model-contracts/generation_parameter_contract.v1.cases.json',
-), 'utf8')) as { resolverCases: ResolverCase[]; relayWireRoundTrips: Array<Record<string, unknown>> };
+const cases = JSON.parse(readFileSync(sharedPath('model-contracts/generation_parameter_contract.v1.cases.json'), 'utf8')) as { resolverCases: ResolverCase[]; relayWireRoundTrips: Array<Record<string, unknown>> };
 
 const SCOPE: GenerationParameterScope = { providerId: 'relay-contract', modelId: 'model-a' };
 const PARAMETER = 'temperature';

@@ -7,7 +7,6 @@
  * native_part gives a body with an image block and no placeholder; placeholder gives only the placeholder line and no image block.
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, ChatMessage, Provider } from '@oriveo/shared';
 import {
@@ -24,6 +23,7 @@ import type { RequestParams } from '@oriveo/core/providers/request-builders/type
 import { buildLlamaCppNativePrompt } from '@oriveo/core/providers/relay-orchestrator';
 import { buildOutboundChatHistory, filterOutboundAttachments } from '../../chat/outbound-history';
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../../chat/stream-options';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 interface ByModelRow {
   model: string;
@@ -39,7 +39,7 @@ interface PlaceholderCase {
 }
 
 const FIXTURE = JSON.parse(readFileSync(
-  resolve(__dirname, '../../../../../../../shared/test-fixtures/attachments/image-placeholder.v1.json'),
+  sharedPath('test-fixtures/attachments/image-placeholder.v1.json'),
   'utf8',
 )) as { v: number; cases: PlaceholderCase[] };
 

@@ -13,12 +13,13 @@ import {
   lightBrandColors,
   lightBrandFor,
 } from './light-brand';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 /**
  * Light brand colors: reads the light section of the shared fixture dark-palettes.v1.json and custom.derivationCases[].light at run time,
  * field by field and channel by channel with |difference| <= 1.
  */
-const REPO_ROOT = resolve(__dirname, '../../../../..');
+const REPO_ROOT = repoRoot();
 const JSON_PATH = resolve(REPO_ROOT, 'shared/theme-contracts/dark-palettes.v1.json');
 
 type LightJson = Record<string, string>;

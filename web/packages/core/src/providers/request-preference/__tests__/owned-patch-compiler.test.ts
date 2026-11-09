@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { compileOwnedPatches } from '../owned-patch-compiler';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 const base = { tools: [{ type: 'function', name: 'weather' }] };
 const overlay = { channel: 'body_fragment', metrics: { bytes: 10, depth: 1, nodes: 1 }, declaredOwners: { '/temperature': 'generation' as const }, operations: [{ owner: 'generation' as const, op: 'set', pointer: '/temperature', value: 0 }] };
@@ -18,8 +18,8 @@ describe('owned patch compiler', () => {
     expect(compileOwnedPatches(overlay, [], base, [contribution as never])).toEqual({ accepted: false, reason: 'non_append_operation' });
   });
   it('consumes the shared compiler fixture: nested pointer, stable duplicate identity, and preview redaction', () => {
-    const fixture = JSON.parse(readFileSync(resolve(process.cwd(), '../../../shared/model-contracts/owned_patch_compiler.v1.json'), 'utf8'));
-    const canonical = JSON.parse(readFileSync(resolve(process.cwd(), '../../../shared/model-contracts/request_preference_contract.v2.json'), 'utf8'));
+    const fixture = JSON.parse(readFileSync(sharedPath('model-contracts/owned_patch_compiler.v1.json'), 'utf8'));
+    const canonical = JSON.parse(readFileSync(sharedPath('model-contracts/request_preference_contract.v2.json'), 'utf8'));
     expect(fixture.contractId).toBe('owned_patch_compiler.v1');
     expect(fixture.mustExclude).toEqual(canonical.redactedPreview.mustExclude);
     for (const item of fixture.cases) {

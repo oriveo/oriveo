@@ -43,8 +43,9 @@ import {
   notAvailableCostParts,
   type NonUsdCost,
 } from '../cost-currency';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 
 /** The fixture's costSource 'estimated' is Web's 'localEstimate'. */
 type FixtureCostSource = 'estimated' | 'unknown';

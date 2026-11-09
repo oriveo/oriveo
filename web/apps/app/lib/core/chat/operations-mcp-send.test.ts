@@ -180,8 +180,9 @@ import { buildStreamOptionsFromIntent } from './stream-options';
 import { buildChatHistory } from '../../utils/chat-stream-utils';
 import { INPUT_NEGATIVE_CACHE_STORAGE_KEY } from '../capability/input-negative-cache';
 import { __resetMemorySuggestionForTest, getPendingMemorySuggestion } from './conversation-instructions/memory-suggestion';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
-const CORPUS = resolve(__dirname, '../../../../../../shared/test-fixtures/provider-toolcall');
+const CORPUS = sharedPath('test-fixtures/provider-toolcall');
 const SERVER_ID = '00000000-0000-4000-8000-0000000000a1';
 const WEATHER = 'mcp_weather_get_weather';
 const TIME = 'mcp_weather_get_time';

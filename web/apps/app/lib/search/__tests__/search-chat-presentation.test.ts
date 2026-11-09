@@ -20,11 +20,12 @@ import {
   webSearchSettingsHref,
   type SearchErrorLocalFacts,
 } from '../search-chat-presentation';
+import { repoRoot } from '../../../../../test-support/repo-root';
 
 // Chat presentation mapping for external web search: the source card / error card inputs come from the production startSearchReply -> applySearchEvent ->
 // finishSearchReply -> externalSearchMessagePatch chain (search-turn.v1.json replyCases), never hand-written state.
 
-const REPO_ROOT = join(process.cwd(), '../../..');
+const REPO_ROOT = repoRoot();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const load = (relative: string): any => JSON.parse(readFileSync(join(REPO_ROOT, relative), 'utf8'));
 const searchTurn = load('shared/search-contracts/search-turn.v1.json') as {

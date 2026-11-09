@@ -11,6 +11,7 @@ import {
 } from '@oriveo/shared';
 import { customPaletteCssText } from '../../lib/theme/custom-palette-style';
 import { anchoredBubbleGradient } from './user-bubble-gradient';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 /**
  * Viewport-anchored vertical gradient of the user bubble:
@@ -18,7 +19,7 @@ import { anchoredBubbleGradient } from './user-bubble-gradient';
  * 2) anchoring geometry: container height H, bubble top t -> gradient start / end at -t / H - t;
  * 3) production styles: the chat bubble uses 180deg vertical stops + background-attachment: fixed, with shadow = bottom stop @ the fixture alpha.
  */
-const REPO_ROOT = join(process.cwd(), '../../..');
+const REPO_ROOT = repoRoot();
 const css = readFileSync(join(REPO_ROOT, 'web/packages/ui/src/tokens/variables.css'), 'utf8');
 const bubbleCss = readFileSync(join(process.cwd(), 'components/chat/MessageBubble.module.css'), 'utf8');
 const themeCss = readFileSync(join(process.cwd(), 'app/settings/theme/ThemeSettings.module.css'), 'utf8');

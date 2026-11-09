@@ -20,13 +20,14 @@ import { parseSSELines } from '@oriveo/core/providers/sse-parser';
 import type { ContentPart, StreamEvent } from '@oriveo/core/providers/types';
 import { AttachmentInjector } from '../../attachments/attachment-injector';
 import { DEFAULT_LIMITS } from '../../attachments/file-text-extractor';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const repoRoot = resolve(process.cwd(), '../../..');
-const fixtureDir = resolve(repoRoot, 'shared/test-fixtures/provider-toolcall');
+const repoRootDir = repoRoot();
+const fixtureDir = resolve(repoRootDir, 'shared/test-fixtures/provider-toolcall');
 const golden = JSON.parse(readFileSync(resolve(fixtureDir, 'gemini_interactions.request-golden.v1.json'), 'utf8')) as Golden;
 const replay = JSON.parse(readFileSync(resolve(fixtureDir, 'recorded/gemini_interactions.expected.json'), 'utf8')) as Replay;
 const registry = JSON.parse(readFileSync(
-  resolve(repoRoot, 'shared/capabilityrecipe/capability_runtime.v1.json'),
+  resolve(repoRootDir, 'shared/capabilityrecipe/capability_runtime.v1.json'),
   'utf8',
 )) as { recipes: Record<string, RuntimeRecipe> };
 const webRecipe = registry.recipes['gemini.interactions.web.v1']!;

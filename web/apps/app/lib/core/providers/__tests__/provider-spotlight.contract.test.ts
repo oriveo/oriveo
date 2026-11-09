@@ -11,6 +11,7 @@ import {
 } from '../../cost/cost-summary';
 import type { NonUsdCost } from '../../cost/cost-currency';
 import { selectSpotlightProvider } from '../provider-spotlight';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 type FixtureMessage = {
   providerId: string;
@@ -25,7 +26,7 @@ type FixtureCase = {
   expect: { spotlightProviderIds: string[] };
 };
 
-const repositoryRoot = resolve(process.cwd(), '../../..');
+const repositoryRoot = repoRoot();
 const fixture = JSON.parse(readFileSync(
   resolve(repositoryRoot, 'shared/test-fixtures/provider-catalog/provider-spotlight.v1.json'),
   'utf8',

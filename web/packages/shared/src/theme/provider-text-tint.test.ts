@@ -2,12 +2,13 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { PROVIDER_TEXT_TINT_RULE, providerTextTint } from './provider-text-tint';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 /**
  * Provider text tint: reads the shared fixture provider-text-tint.v1.json and asserts every case
  * per channel |diff| <= 1, plus the rule constants.
  */
-const REPO_ROOT = resolve(__dirname, '../../../../..');
+const REPO_ROOT = repoRoot();
 const JSON_PATH = resolve(REPO_ROOT, 'shared/test-fixtures/provider-tint/provider-text-tint.v1.json');
 
 const fixture = JSON.parse(readFileSync(JSON_PATH, 'utf8')) as {

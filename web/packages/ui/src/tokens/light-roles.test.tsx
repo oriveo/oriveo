@@ -1,13 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 /**
  * Light color roles contract: every web token listed in light-roles.v1.json, resolved inside the
  * `:root, [data-theme='light']` block of variables.css, equals the contract color and alpha.
  * Only the default light block is read; dark and palette blocks are out of scope.
  */
-const REPO_ROOT = resolve(__dirname, '../../../../..');
+const REPO_ROOT = repoRoot();
 const CONTRACT_PATH = resolve(REPO_ROOT, 'shared/theme-contracts/light-roles.v1.json');
 const CSS_PATH = resolve(__dirname, 'variables.css');
 

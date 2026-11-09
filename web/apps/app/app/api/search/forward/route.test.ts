@@ -8,6 +8,7 @@ import {
   __setSearchCatalogLoaderForTests,
   createSearchCatalogLoader,
 } from "../../../../lib/search/search-catalog-loader";
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 // Search forward route: golden replay (shared/search-contracts/transport-golden.v1.json) + immutable preset hosts, SSRF, rate limiting,
 // redirects, oversized responses, auth-header redaction. Upstream is always an injected requester stub and DNS is mocked; no real requests are sent.
@@ -25,7 +26,7 @@ vi.mock("node:dns/promises", () => ({
   resolve6: mocks.resolve6,
 }));
 
-const REPO_ROOT = join(process.cwd(), "../../..");
+const REPO_ROOT = repoRoot();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const load = (relative: string): any => JSON.parse(readFileSync(join(REPO_ROOT, relative), "utf8"));
 const contract = load("shared/search-contracts/search_catalog_contract.v1.json");

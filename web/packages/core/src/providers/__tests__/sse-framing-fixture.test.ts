@@ -5,12 +5,12 @@
  * the production parser handed out.
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { TransportResponse } from '../../ports';
 import { createProxyChunkParser } from '../proxy-chunk-parser';
 import { createSSEStream, parseSSELines, SSEFrameDecoder, type SSEFrame } from '../sse-parser';
 import type { StreamEvent } from '../types';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 interface FixtureFrame {
   event: string | null;
@@ -37,7 +37,7 @@ interface FixtureCase {
 
 const fixture = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), '../../../shared/test-fixtures/provider-stream/sse-framing.v1.json'),
+    sharedPath('test-fixtures/provider-stream/sse-framing.v1.json'),
     'utf8',
   ),
 ) as { schema: string; cases: FixtureCase[] };

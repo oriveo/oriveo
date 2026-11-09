@@ -9,9 +9,8 @@
  * Note: this suite only consumes the fixture; it exercises no production code changes of its own.
  */
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 interface AttachmentSupport {
   image: boolean;
@@ -113,11 +112,7 @@ interface ContractFile {
 
 // The path is resolved relative to this test file rather than the cwd, so the fixture is found whether
 // the suite runs through the workspace test script or a direct vitest invocation.
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const contractPath = path.resolve(
-  __dirname,
-  '../../../../../../shared/model-contracts/metadata_authoritative_contract.v1.json',
-);
+const contractPath = sharedPath('model-contracts/metadata_authoritative_contract.v1.json');
 const contract = JSON.parse(readFileSync(contractPath, 'utf8')) as ContractFile;
 
 /** Wrap a payload in the backend response envelope: { code, message, data }. */

@@ -1,5 +1,4 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { resolve } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
 import { McpAddCoordinator, McpAddProbe, type McpAddState } from './mcp-add-probe';
 import { McpAuthorizer, type McpAuthorizationLauncher } from './mcp-auth';
@@ -10,6 +9,7 @@ import { McpCredentialStore, createMemoryMcpCredentialStorage } from './mcp-cred
 import { createMemoryMcpServerRepository } from './mcp-memory-repository';
 import { createDirectMcpTransport, type McpFetch } from './mcp-transport';
 import { MCP_RUNTIME_CONFIG_FALLBACK, type McpRuntimeConfig } from './mcp-types';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 /**
  * Core modules against the frozen mock server (`shared/test-fixtures/mcp/mock-server.mjs`) over a real
@@ -28,7 +28,7 @@ import { MCP_RUNTIME_CONFIG_FALLBACK, type McpRuntimeConfig } from './mcp-types'
  * authorizer and add-server flow.
  */
 
-const MOCK = resolve(__dirname, '../../../../../shared/test-fixtures/mcp/mock-server.mjs');
+const MOCK = sharedPath('test-fixtures/mcp/mock-server.mjs');
 const UID = 'mock-user';
 const children = new Set<ChildProcess>();
 

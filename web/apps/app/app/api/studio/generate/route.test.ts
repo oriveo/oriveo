@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { __resetRateLimitForTests, RATE_LIMIT_CONFIG } from '../../chat/stream/rate-limit';
 import { runStudioGenerate } from './executor';
 import { POST } from './route';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 // Passthrough to the real executor; one case forces an unexpected rejection.
 vi.mock('./executor', async (importOriginal) => {
@@ -18,7 +19,7 @@ vi.mock('./executor', async (importOriginal) => {
   return { ...actual, runStudioGenerate: vi.fn(actual.runStudioGenerate) };
 });
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
 const CONTRACTS = resolve(ROOT, 'shared', 'model-contracts');
 const normalization = JSON.parse(

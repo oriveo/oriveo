@@ -9,7 +9,6 @@
  * downstream events.
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ProviderKind } from '@oriveo/shared/pure-types';
 import type { UpstreamTransport } from '../../../ports';
@@ -19,11 +18,9 @@ import type { StreamEvent } from '../../types';
 import { adaptGeminiInteractionsResponse } from '../gemini-interactions';
 import { adaptMoonshotFormulaFiberResponse } from '../moonshot-formula-fiber-loop';
 import { adaptMoonshotToolLoopResponse } from '../moonshot-tool-loop';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
-const recordedMoonshotWebSearch = readFileSync(resolve(
-  process.cwd(),
-  '../../../shared/test-fixtures/provider-toolcall/recorded/moonshot_web_search.leg1.sse',
-), 'utf8');
+const recordedMoonshotWebSearch = readFileSync(sharedPath('test-fixtures/provider-toolcall/recorded/moonshot_web_search.leg1.sse'), 'utf8');
 
 function sse(body: string): Response {
   return new Response(body, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });

@@ -152,8 +152,9 @@ import { sendLibraryMessage } from '../operations-library-send';
 import { createAppStore } from '../../store/app-store';
 import { POST as chatStreamRoute } from '../../../../app/api/chat/stream/route';
 import en from '../../../../messages/en.json';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const fixture = JSON.parse(readFileSync(
   resolve(ROOT, 'shared/test-fixtures/provider-catalog/subscription-models.v1.json'), 'utf8',
 )) as {

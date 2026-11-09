@@ -58,8 +58,9 @@ vi.mock('../../../infra/storage/image-store', async (importOriginal) => ({
 import { createAppStore } from '../../store/app-store';
 import { sendMessage } from '../operations';
 import { setActiveUID } from '../../../infra/storage/partition';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
 const SHARED = resolve(ROOT, 'shared');
 const fixture = JSON.parse(readFileSync(resolve(SHARED, 'studio-contracts/chat_image_dispatch.v1.json'), 'utf8')) as {

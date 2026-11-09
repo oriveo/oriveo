@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { createSearchCatalogLoader } from '../search-catalog-loader';
+import { repoRoot } from '../../../../../test-support/repo-root';
 
 // Server-side catalog loading: starts from the bundled snapshot, signature-verified adoption, keeps the previous copy on failure, 404 = presets unavailable, one fetch within the TTL.
 
-const REPO_ROOT = join(process.cwd(), '../../..');
+const REPO_ROOT = repoRoot();
 const contract = JSON.parse(readFileSync(join(REPO_ROOT, 'shared/search-contracts/search_catalog_contract.v1.json'), 'utf8'));
 const TEST_KEYS = { [contract.testKeys.keyId]: contract.testKeys.publicKeyB64 };
 

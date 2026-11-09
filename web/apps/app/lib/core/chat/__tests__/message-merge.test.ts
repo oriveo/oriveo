@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type { ChatMessage } from '@oriveo/shared';
 import { upsertMessages } from '../message-merge';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 function msg(id: string, role: 'user' | 'assistant', createdAt: string, overrides: Partial<ChatMessage> = {}): ChatMessage {
   return {
@@ -27,7 +27,7 @@ type TiebreakCase = {
 
 function tiebreakCase(name: string): TiebreakCase {
   const fixture = JSON.parse(readFileSync(
-    resolve(process.cwd(), '../../..', 'shared/test-fixtures/sync/message-order-tiebreak.v1.json'), 'utf8',
+    sharedPath('test-fixtures/sync/message-order-tiebreak.v1.json'), 'utf8',
   )) as { cases: TiebreakCase[] };
   const found = fixture.cases.find((c) => c.case === name);
   if (!found) throw new Error(`fixture case missing: ${name}`);
@@ -128,7 +128,7 @@ describe('upsertMessages (incremental merge by id + stable createdAt ordering, f
 
   it('messageOrderTiebreak_fixture: ties on createdAt compare roleRank first (user < assistant), and the same role keeps insertion order', () => {
     const fixture = JSON.parse(readFileSync(
-      resolve(process.cwd(), '../../..', 'shared/test-fixtures/sync/message-order-tiebreak.v1.json'), 'utf8',
+      sharedPath('test-fixtures/sync/message-order-tiebreak.v1.json'), 'utf8',
     )) as {
       cases: { case: string; messages: { id: string; role: string; createdAtMs: number | null }[]; expectedOrder: string[] }[];
     };

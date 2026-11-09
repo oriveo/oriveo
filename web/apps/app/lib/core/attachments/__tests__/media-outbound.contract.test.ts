@@ -5,7 +5,6 @@
  * and no video block or data URL in the body. The body is what the production request builder produces for "one sentence + N videos".
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   TEXT_ONLY_ROUTE_VIDEO_PLACEHOLDER,
@@ -23,6 +22,7 @@ import { buildOutboundChatHistory, filterOutboundAttachments } from '../../chat/
 import { buildProviderStreamOptions, buildStreamOptionsFromIntent } from '../../chat/stream-options';
 import { resolveInputCapabilityProjections } from '../../capability/truth/input-truth-adapter';
 import { buildChatHistory } from '../../../utils/chat-stream-utils';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 interface VideoPlaceholderCase {
   id: string;
@@ -44,12 +44,12 @@ interface NativeFileCase {
 }
 
 const FIXTURE = JSON.parse(readFileSync(
-  resolve(__dirname, '../../../../../../../shared/test-fixtures/attachments/media-outbound.v1.json'),
+  sharedPath('test-fixtures/attachments/media-outbound.v1.json'),
   'utf8',
 )) as { v: number; videoPlaceholderCases: VideoPlaceholderCase[]; nativeFileCases: NativeFileCase[] };
 
 const IMAGE_FIXTURE = JSON.parse(readFileSync(
-  resolve(__dirname, '../../../../../../../shared/test-fixtures/attachments/image-placeholder.v1.json'),
+  sharedPath('test-fixtures/attachments/image-placeholder.v1.json'),
   'utf8',
 )) as { cases: Array<{ id: string; placeholder: string }> };
 

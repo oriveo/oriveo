@@ -7,8 +7,9 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { STUDIO_IMAGE_FETCH_POLICY, fetchStudioImage, type StudioImageFetchOptions } from '../image-fetch';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const CONTRACTS = resolve(ROOT, 'shared/model-contracts');
 
 function readJson<T>(name: string): T {

@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { repoRoot } from '../../../test-support/repo-root';
 
 // Builtin skill and category names are shared by all three apps. hi / id / ru / th / tr / vi used to carry machine
 // translations (Coding as "encryption", Interview Coach as "news interview", Proofreader as "purifier"...). They were
@@ -17,7 +18,7 @@ const LOCALES: Record<string, string> = {
 type Skills = Record<string, { name?: string } | Record<string, string>>;
 
 function androidStrings(directory: string): Map<string, string> {
-  const path = join(process.cwd(), '..', '..', '..', 'android', 'app', 'src', 'main', 'res', directory, 'strings.xml');
+  const path = join(repoRoot('android/app/src/main/res'), directory, 'strings.xml');
   const out = new Map<string, string>();
   for (const match of readFileSync(path, 'utf8').matchAll(/<string name="([^"]+)"[^>]*>([\s\S]*?)<\/string>/g)) {
     out.set(match[1], match[2].replace(/\\'/g, "'").replace(/\\"/g, '"'));

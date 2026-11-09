@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { highlightCode } from '../../lib/markdown/highlight-setup';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 /**
  * Code highlighting "Oriveo Code": the web uses highlight.js.
@@ -10,7 +11,7 @@ import { highlightCode } from '../../lib/markdown/highlight-setup';
  * 2. every classifyCases entry, run through the production highlightCode and with class names swapped for roles using the selectors in highlight-theme.css, matches the expectation;
  * 3. highlight-theme.css has no slanted text.
  */
-const REPO_ROOT = join(process.cwd(), '../../..');
+const REPO_ROOT = repoRoot();
 const contract = JSON.parse(
   readFileSync(join(REPO_ROOT, 'shared/theme-contracts/code-highlight.v1.json'), 'utf8'),
 ) as {

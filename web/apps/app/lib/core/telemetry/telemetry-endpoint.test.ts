@@ -13,6 +13,7 @@ import {
   telemetryModelID,
   telemetryProviderKind,
 } from './index';
+import { repoRoot } from '../../../../../test-support/repo-root';
 
 describe('telemetryEndpoint', () => {
   it('strips credentials, query and fragment that some relays hide tokens in', () => {
@@ -179,7 +180,7 @@ describe('telemetryModelID', () => {
   });
 
   it('routes every telemetry call carrying a model identity through the helper, with no inline relay conditional or bare model.id', () => {
-    const root = resolve(process.cwd(), '../../..');
+    const root = repoRoot();
     const emitters = [
       'apps/app/lib/core/chat/send-start.ts',
       'apps/app/lib/core/chat/send-completion.ts',

@@ -18,8 +18,9 @@ import {
 import { setActiveUID } from '../../../infra/storage/partition';
 import { createCanonicalUUID } from '../../../utils/id-utils';
 import { createStudioWorkRepository } from '../studio-work-repository';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const SHARED_DIR = 'shared';
 
 type Ms = number;

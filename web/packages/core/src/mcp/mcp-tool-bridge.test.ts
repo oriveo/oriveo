@@ -33,6 +33,7 @@ import {
 import { MCP_SAFETY_PROMPT } from './mcp-pure';
 import { McpTransportError, type McpHttpRequest, type McpTransport } from './mcp-transport';
 import { MCP_RUNTIME_CONFIG_FALLBACK, type McpRuntimeConfig, type McpServerRecord, type McpToolPermission, type McpToolSnapshot } from './mcp-types';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 /**
   * MCP bridge × generic tool loop × protocol client, all production implementations. Only the two ends are
@@ -42,7 +43,7 @@ import { MCP_RUNTIME_CONFIG_FALLBACK, type McpRuntimeConfig, type McpServerRecor
   * to the server, and the tool messages fed back into the history.
  */
 
-const CORPUS = resolve(__dirname, '../../../../../shared/test-fixtures/provider-toolcall');
+const CORPUS = sharedPath('test-fixtures/provider-toolcall');
 const SERVER_ID = '00000000-0000-4000-8000-0000000000a1';
 const CONVERSATION = 'conv-1';
 const WEATHER = 'mcp_weather_get_weather';

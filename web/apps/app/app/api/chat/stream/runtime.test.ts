@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { __resetRuntimeMetadataCache, getRuntimeMetadata } from './runtime';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 interface LeanV1DroppedFields { model?: string[]; capabilityControls?: string[] }
 
@@ -138,7 +139,7 @@ describe('getRuntimeMetadata caching', () => {
 
 describe('getRuntimeMetadata index + per-provider catalog', () => {
   const fixture = JSON.parse(readFileSync(
-    resolve(process.cwd(), '../../..', 'shared/model-contracts/metadata_catalog_contract.v1.json'),
+    sharedPath('model-contracts/metadata_catalog_contract.v1.json'),
     'utf8',
   )) as {
     indexResponse: { data: { providers: Record<string, { catalogRevision: string; validation: unknown }> } };
@@ -320,7 +321,7 @@ describe('getRuntimeMetadata index + per-provider catalog', () => {
   it('upgrade: holding a schema 2 index + catalog and the server answers schema 3 with the same revision, a provider not yet held is still fetched and everything converges', async () => {
     type Wire = { data: Record<string, unknown> & { providers?: Record<string, Record<string, unknown>> } };
     const schema3 = (JSON.parse(readFileSync(
-      resolve(process.cwd(), '../../..', 'shared/model-contracts/metadata_catalog_contract.v1.json'),
+      sharedPath('model-contracts/metadata_catalog_contract.v1.json'),
       'utf8',
     )) as { schema3: {
       indexResponse: Wire; schema2IndexResponse: Wire;
@@ -363,7 +364,7 @@ describe('getRuntimeMetadata index + per-provider catalog', () => {
   it('tombstone snapshot: holding a schema 2 index + catalog, then moving to a schema 3 index while the catalog refetch for that provider fails, the tombstones are not lost', async () => {
     type Wire = { data: Record<string, unknown> & { providers?: Record<string, Record<string, unknown>> } };
     const schema3 = (JSON.parse(readFileSync(
-      resolve(process.cwd(), '../../..', 'shared/model-contracts/metadata_catalog_contract.v1.json'),
+      sharedPath('model-contracts/metadata_catalog_contract.v1.json'),
       'utf8',
     )) as { schema3: {
       indexResponse: Wire; schema2IndexResponse: Wire; schema2CatalogResponses: Record<string, Wire>;

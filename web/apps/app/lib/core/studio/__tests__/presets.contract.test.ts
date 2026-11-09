@@ -16,8 +16,9 @@ import {
   type StudioPresetApplyInput,
   type StudioPresetRefreshInput,
 } from '../presets';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const CONTRACTS = resolve(ROOT, 'shared/studio-contracts');
 
 function readJson<T>(name: string): T {

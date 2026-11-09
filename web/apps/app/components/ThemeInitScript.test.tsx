@@ -9,8 +9,9 @@ import { applyDarkPalette, useDarkPalette, useTheme } from '../lib/hooks/useThem
 import { setPreference } from '../lib/infra/storage/preferences';
 import { THEME_COLOR_DARK_DEFAULT, THEME_COLOR_LIGHT } from '../lib/theme/theme-color';
 import { CUSTOM_PALETTE_STYLE_ID, CUSTOM_PALETTE_VARS_CACHE_KEY } from '../lib/theme/custom-palette-style';
+import { repoRoot } from '../../../test-support/repo-root';
 
-const REPO_ROOT = join(process.cwd(), '../../..');
+const REPO_ROOT = repoRoot();
 const contract = JSON.parse(
   readFileSync(join(REPO_ROOT, 'shared/theme-contracts/dark-palettes.v1.json'), 'utf8'),
 ) as {

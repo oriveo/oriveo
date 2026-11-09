@@ -21,11 +21,12 @@ import {
 } from '../../metadata/metadata-client';
 import { resolveRegionLookupCatalog } from '../../../../app/providers/new/provider-config-catalog';
 import { connectionRegionId, effectiveRegionId, pricingRegionCatalog, selectRegionPricing } from '../region-pricing';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 // The pricing instant is passed explicitly: a fixed instant, never the wall clock.
 const PRICED_AT = () => new Date('2026-10-19T12:00:00Z');
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const PROVIDER = 'moonshot';
 
 type JsonRecord = Record<string, unknown>;

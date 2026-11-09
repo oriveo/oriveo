@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   GENERATION_PRESENTATION_CLASSES,
@@ -7,6 +6,7 @@ import {
   generationSupportPresentation,
   type GenerationSupportState,
 } from '../generation-support-presentation';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 interface ContractClass {
   classId: string;
@@ -26,11 +26,11 @@ interface Contract {
 // Rules and cases live in two files; the literal scan below has to cover the cases too, so merge them.
 const contract = {
   ...JSON.parse(readFileSync(
-    resolve(process.cwd(), '../../../shared/model-contracts/generation_parameter_contract.v1.json'),
+    sharedPath('model-contracts/generation_parameter_contract.v1.json'),
     'utf8',
   )),
   ...JSON.parse(readFileSync(
-    resolve(process.cwd(), '../../../shared/model-contracts/generation_parameter_contract.v1.cases.json'),
+    sharedPath('model-contracts/generation_parameter_contract.v1.cases.json'),
     'utf8',
   )),
 } as Contract;

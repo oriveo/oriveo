@@ -10,10 +10,10 @@
  * group runs the full production path with the default JSON parsing.
  */
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { McpSseParser } from './mcp-sse';
 import type { JsonValue } from './mcp-types';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 interface FixtureChunking {
   name: string;
@@ -30,7 +30,7 @@ interface FixtureCase {
 
 const fixture = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), '../../../shared/test-fixtures/provider-stream/sse-framing.v1.json'),
+    sharedPath('test-fixtures/provider-stream/sse-framing.v1.json'),
     'utf8',
   ),
 ) as { schema: string; cases: FixtureCase[] };

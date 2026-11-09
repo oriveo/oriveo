@@ -17,8 +17,9 @@ import {
   type PresetSampleStorage,
 } from '../preset-sample-cache';
 import type { StudioPresetSample } from '../presets';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const CONTRACTS = resolve(ROOT, 'shared', 'studio-contracts');
 
 interface SampleCacheCases {

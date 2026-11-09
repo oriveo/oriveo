@@ -9,8 +9,9 @@ import {
   markSeen,
 } from '../feature-badges';
 import { safeLocalStorage } from '../../infra/storage/web-storage';
+import { repoRoot } from '../../../../../test-support/repo-root';
 
-const repositoryRoot = resolve(process.cwd(), '../../..');
+const repositoryRoot = repoRoot();
 const registry = JSON.parse(
   readFileSync(resolve(repositoryRoot, 'shared/ui-contracts/feature-badges.v1.json'), 'utf8'),
 ) as { badges: Array<{ id: string }> };

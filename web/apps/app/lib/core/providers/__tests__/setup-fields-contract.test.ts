@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Provider } from '@oriveo/shared';
 import { pruneBlobs } from '../../../infra/storage/blob-cache';
 import { __seedMetadataCacheForTest as seedMetadataCache } from '../../metadata/metadata-client';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 type RawConfig = Record<string, unknown> & { kind: string; defaultBaseURL: string };
 type Fixture = {
@@ -37,7 +38,7 @@ type Fixture = {
   }>;
 };
 
-const repositoryRoot = resolve(process.cwd(), '../../..');
+const repositoryRoot = repoRoot();
 const fixture = JSON.parse(readFileSync(
   resolve(repositoryRoot, 'shared/test-fixtures/provider-catalog/setup-fields.v1.json'),
   'utf8',

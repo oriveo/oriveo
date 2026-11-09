@@ -21,6 +21,7 @@ import {
 import { buildCatalogModel } from '../../lib/core/providers/catalog-model';
 import { connectionModelPricing } from './model-price-tier-label';
 import { ModelCommercialMetaInline, ModelMetaInline } from './ModelMetaInline';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 vi.mock('next-intl', () => ({
   useLocale: () => 'en',
@@ -28,7 +29,7 @@ vi.mock('next-intl', () => ({
     values?.count != null ? `${key} ${String(values.count)}` : key,
 }));
 
-const ROOT = resolve(__dirname, '../../../../..');
+const ROOT = repoRoot();
 const PROVIDER = 'moonshot';
 type JsonRecord = Record<string, unknown>;
 

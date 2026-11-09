@@ -1,11 +1,11 @@
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { PROPOSE_MEMORY_TOOL } from '@oriveo/core/context/memory-propose';
 import { SEARCH_MEMORY_TOOL } from '@oriveo/core/context/memory-search';
 import { WEB_SEARCH_TOOL, type SearchTurnPlan } from '@oriveo/core/search/search-turn';
 import { createWebSearchEntry } from '../../../../../lib/core/chat/external-search-turn';
 import { validateChatStreamRequest, VALIDATION_LIMITS } from '../validate';
+import { sharedPath } from '../../../../../../../test-support/repo-root';
 
 /**
  * Shared source of truth for every client: `shared/test-fixtures/mcp/naming.json` (frozen).
@@ -15,7 +15,7 @@ import { validateChatStreamRequest, VALIDATION_LIMITS } from '../validate';
  */
 const NAMING_FIXTURE = JSON.parse(
   readFileSync(
-    resolve(__dirname, '../../../../../../../../shared/test-fixtures/mcp/naming.json'),
+    sharedPath('test-fixtures/mcp/naming.json'),
     'utf8',
   ),
 ) as {
@@ -26,7 +26,7 @@ const NAMING_FIXTURE = JSON.parse(
 /** Boundary vectors for slug generation: a slug contains only [a-z0-9], is 1..16 long and never contains `-`. */
 const IDENTIFIERS_FIXTURE = JSON.parse(
   readFileSync(
-    resolve(__dirname, '../../../../../../../../shared/test-fixtures/mcp/identifiers.json'),
+    sharedPath('test-fixtures/mcp/identifiers.json'),
     'utf8',
   ),
 ) as {
@@ -531,7 +531,7 @@ describe('propose_memory host tool', () => {
 
   it('propose-v3: the shared fixture v3 definition passes, the v2 shape (scope without conversation) is dropped and not sent', () => {
     const v3 = JSON.parse(readFileSync(
-      resolve(__dirname, '../../../../../../../../shared/context-contracts/memory-propose.v3.json'), 'utf8',
+      sharedPath('context-contracts/memory-propose.v3.json'), 'utf8',
     )) as { tool: { function: { parameters: { properties: { scope: { enum: string[] } } } } } };
     expect(validateChatStreamRequest({ ...validBody, tools: [v3.tool], toolChoice: 'auto' }).ok).toBe(true);
     const v2Shape = JSON.parse(JSON.stringify(v3.tool)) as typeof v3.tool;

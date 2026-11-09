@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 
 import { inferModelFamily } from './family-heuristics';
 import {
@@ -8,6 +7,7 @@ import {
   RELAY_CATALOG_GROUP_OTHER,
   relayCatalogGroups,
 } from './relay-catalog-grouping';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 interface GroupCase {
   id: string;
@@ -22,7 +22,7 @@ interface GroupFixture {
 }
 
 /** Cross-client shared source of truth: `shared/test-fixtures/relay/catalog-groups.v1.json`. */
-const FIXTURE_PATH = resolve(__dirname, '../../../../../shared/test-fixtures/relay/catalog-groups.v1.json');
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/catalog-groups.v1.json');
 const fixture = JSON.parse(readFileSync(FIXTURE_PATH, 'utf8')) as GroupFixture;
 
 describe('RD3-GROUP relay model library grouping (fixture catalog-groups.v1.json)', () => {

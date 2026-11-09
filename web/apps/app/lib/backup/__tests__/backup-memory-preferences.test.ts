@@ -8,12 +8,12 @@ import { resetImageDBConnection } from '../../infra/storage/image-store';
 import { setActiveUID } from '../../infra/storage/partition';
 import { getPreference, setPreference } from '../../infra/storage/preferences';
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { resolveDarkPaletteId } from '@oriveo/shared';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 // Source of truth for the dark palette fixture: shared/theme-contracts/dark-palettes.v1.json
 const darkPaletteCases = (JSON.parse(readFileSync(
-  join(process.cwd(), '../../..', 'shared/theme-contracts/dark-palettes.v1.json'),
+  sharedPath('theme-contracts/dark-palettes.v1.json'),
   'utf8',
 )) as { resolveCases: Array<{ name: string; stored: unknown; renders: string }> }).resolveCases;
 const darkPaletteCase = (name: string) => darkPaletteCases.find((c) => c.name === name)!;

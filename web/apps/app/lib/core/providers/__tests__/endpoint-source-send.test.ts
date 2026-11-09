@@ -6,12 +6,12 @@ import 'fake-indexeddb/auto';
 // runStreamPipeline, cross-check crosscheckAnswer) hand sendStream a base URL computed from the current metadata;
 // startup backfill classifies unclassified records by metadata and writes them back locally (without changing updatedAt, without uploading).
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildProviderRequest } from '@oriveo/core/providers/request-builders/dispatch';
 import type { AIModel, Provider } from '@oriveo/shared';
 import { pruneBlobs } from '../../../infra/storage/blob-cache';
 import { __seedMetadataCacheForTest as seedMetadataCache } from '../../metadata/metadata-client';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 const mocks = vi.hoisted(() => ({
   sendStream: vi.fn(),
@@ -249,7 +249,7 @@ type SendFixture = {
   }>;
 };
 const sendFixture = JSON.parse(readFileSync(
-  resolve(process.cwd(), '../../../shared/test-fixtures/provider-catalog/endpoint-source.v1.json'),
+  sharedPath('test-fixtures/provider-catalog/endpoint-source.v1.json'),
   'utf8',
 )) as SendFixture;
 

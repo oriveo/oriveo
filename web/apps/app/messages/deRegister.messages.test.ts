@@ -1,11 +1,11 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { repoRoot } from '../../../test-support/repo-root';
 
 // German app copy addresses the user with "du" and calls the Skills feature "Fähigkeit(en)"
 // on iOS, Android and Web alike. The scan lives in one script so all three ends share one rule.
-const script = join(process.cwd(), '..', '..', '..', '..', 'scripts', 'l10n-de-register-check.mjs');
+const script = repoRoot('scripts/l10n-de-register-check.mjs');
 
 function run(args: string[]): { code: number; out: string } {
   try {

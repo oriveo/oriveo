@@ -1,7 +1,6 @@
 // @vitest-environment jsdom
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
   exportGenerationParameterSettingsJSON,
@@ -21,13 +20,10 @@ import {
   listGenerationParameterPresets,
   saveGenerationParameterPreset,
 } from './generation-parameter-settings';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 const modelScope = { providerId: 'provider-a', modelId: 'model-a' };
-const syncFixture = JSON.parse(readFileSync(resolve(
-  process.cwd(),
-  '../../..',
-  'shared/model-contracts/generation_parameter_sync.v1.json',
-), 'utf8')) as {
+const syncFixture = JSON.parse(readFileSync(sharedPath('model-contracts/generation_parameter_sync.v1.json'), 'utf8')) as {
   schemaVersion: number;
   payload: unknown;
   idCasing: {

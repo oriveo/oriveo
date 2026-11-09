@@ -45,8 +45,9 @@ import {
 } from '../../chat/model-option-capability-shape';
 import { modelMatchesFilters } from '../../../../components/chat/ModelSwitcher/model-switcher-data';
 import type { RelayCapabilityEvidenceIdentity } from '../truth/capability-truth-adapter';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const fixture = JSON.parse(readFileSync(
   resolve(ROOT, 'shared/test-fixtures/capability/display-facts.v1.json'), 'utf8',
 )) as { thinkingCases: ThinkingCase[]; managedWebBadgeCases: WebBadgeCase[] };

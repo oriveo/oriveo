@@ -3,8 +3,6 @@
  * Source of truth: `shared/test-fixtures/relay/web-probe.v1.json` triggers / triggerCases; the clock is always injected.
  */
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { RelayWebFragment, RelayWebTransport } from '@oriveo/shared/relay/web-fragments';
 import { relayWebFragmentHash } from '../relay-web-probe';
@@ -19,12 +17,10 @@ import {
   type RelayWebProbeForm,
   type RelayWebProbeTriggerEvent,
 } from '../relay-web-probe-trigger';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 // __tests__ -> providers -> src -> core -> packages -> web -> <repo root>
-const FIXTURE_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../../../shared/test-fixtures/relay/web-probe.v1.json',
-);
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/web-probe.v1.json');
 
 interface FixtureEvent {
   type: string;

@@ -16,12 +16,13 @@ import {
   parseSeed,
   resolvePaletteChoice,
 } from './custom-palette';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 /**
  * Custom palette: reads the custom section of the shared fixture dark-palettes.v1.json at run time;
  * derivationCases match field by field and channel by channel with |difference| <= 1, and the hue slider matches values computed with the reference implementation.
  */
-const REPO_ROOT = resolve(__dirname, '../../../../..');
+const REPO_ROOT = repoRoot();
 const JSON_PATH = resolve(REPO_ROOT, 'shared/theme-contracts/dark-palettes.v1.json');
 
 interface CustomJson {

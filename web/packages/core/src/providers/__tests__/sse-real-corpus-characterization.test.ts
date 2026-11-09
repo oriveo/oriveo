@@ -21,6 +21,7 @@ import type { TransportResponse } from '../../ports';
 import { createProxyChunkParser } from '../proxy-chunk-parser';
 import { createSSEStream } from '../sse-parser';
 import type { StreamEvent } from '../types';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 interface Pin {
   entries: number;
@@ -30,7 +31,7 @@ interface Pin {
   textSha256: string;
 }
 
-const corpusDirectory = resolve(process.cwd(), '../../../shared/test-fixtures/provider-toolcall');
+const corpusDirectory = sharedPath('test-fixtures/provider-toolcall');
 const pinPath = resolve(process.cwd(), 'src/providers/__tests__/sse-real-corpus.pinned.json');
 const writePins = process.env.ORIVEO_SSE_CORPUS_PIN_WRITE === '1';
 

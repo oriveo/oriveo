@@ -3,9 +3,9 @@
  * Each pricingV2 first goes through the production decoder decodePricingV2, then to estimatePricingV2.
  */
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { decodePricingV2, estimatePricingV2, type PricingV2Usage } from './pricing-v2-estimate';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 interface FixtureCase {
   name: string;
@@ -15,10 +15,7 @@ interface FixtureCase {
   expected: { status: string; amount?: number; currencyCode?: string };
 }
 
-const fixturePath = path.resolve(
-  process.cwd(),
-  '../../../shared/test-fixtures/provider-pricing/pricing-v2-estimate.v1.json',
-);
+const fixturePath = sharedPath('test-fixtures/provider-pricing/pricing-v2-estimate.v1.json');
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as { cases: FixtureCase[] };
 
 describe('pricing-v2-estimate.v1 fixture', () => {

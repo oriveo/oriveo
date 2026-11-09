@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { ThemeOption } from '@oriveo/shared';
 import {
@@ -13,6 +12,7 @@ import {
   type AppearancePageAction,
   type PaletteCardId,
 } from './theme-page-rules';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 interface PageState {
   theme: ThemeOption;
@@ -30,7 +30,7 @@ interface AppearancePageCase {
 }
 
 const contract = JSON.parse(
-  readFileSync(join(process.cwd(), '../../..', 'shared/theme-contracts/dark-palettes.v1.json'), 'utf8'),
+  readFileSync(sharedPath('theme-contracts/dark-palettes.v1.json'), 'utf8'),
 ) as {
   order: string[];
   appearancePageCases: AppearancePageCase[];

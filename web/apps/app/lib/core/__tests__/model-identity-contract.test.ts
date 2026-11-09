@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AIModel, Provider } from '@oriveo/shared';
 import { findModelInProvider } from '../provider-model-ops';
@@ -9,6 +8,7 @@ import {
   resolveRelayStoredModel,
   sameRelayModel,
 } from '../providers/relay-model-identity';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 interface ContractModel {
   id: string;
@@ -52,10 +52,7 @@ interface ContractFile {
   relayCases: RelayCases;
 }
 
-const contractPath = path.resolve(
-  process.cwd(),
-  '../../../shared/model-contracts/model_identity_contract.v1.json',
-);
+const contractPath = sharedPath('model-contracts/model_identity_contract.v1.json');
 const contract = JSON.parse(readFileSync(contractPath, 'utf8')) as ContractFile;
 
 function makeModel(model: ContractModel): AIModel {

@@ -7,7 +7,6 @@
  */
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { AIModel, Attachment, ChatMessage, Provider } from '@oriveo/shared';
 import {
@@ -25,8 +24,9 @@ import { FileTextExtractor, resolveFileExtractionLimits } from '../file-text-ext
 import { buildChatHistory } from '../../../utils/chat-stream-utils';
 import { withoutUnreceivableImages } from '../../chat/attachment-policy';
 import { resolveInputCapabilityProjections } from '../../capability/truth/input-truth-adapter';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
-const FIXTURE_PATH = resolve(__dirname, '../../../../../../../shared/test-fixtures/attachments/delivery-golden.v1.json');
+const FIXTURE_PATH = sharedPath('test-fixtures/attachments/delivery-golden.v1.json');
 const UPDATE = process.env.UPDATE_GOLDEN === '1';
 /** A body over this many bytes is stored only as a digest and byte count. */
 const INLINE_BODY_MAX_BYTES = 4096;

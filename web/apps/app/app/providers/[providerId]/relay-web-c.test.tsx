@@ -8,6 +8,7 @@ import type { AIModel, Provider } from '@oriveo/shared';
 import { formatApiKeyPreview } from '@oriveo/shared';
 import { RelayDetail } from './RelayDetail';
 import { relayDetailBoard, relayDetailRowIconColorToken } from './relay-detail-board';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 /**
  * Generation-parameters entry: a connection-level Parameters row in the detail page's "Models" group,
@@ -161,7 +162,7 @@ describe('generation-parameters entry = the Parameters row of the detail page Mo
     try {
       const data = await import('../../dev/relay-shots/relay-shots-data');
       // The shared sample manifest lives outside web/ (cwd is this app).
-      const manifest = JSON.parse(readFileSync(join(process.cwd(), '../../../shared/test-fixtures/shots/relay.v1.json'), 'utf8'));
+      const manifest = JSON.parse(readFileSync(sharedPath('test-fixtures/shots/relay.v1.json'), 'utf8'));
       const rows = relayDetailBoard(data.demoRelayProvider('relayDetail', manifest)).modelRows;
       expect(rows.map((row) => row.id)).toEqual(['modelLibrary', 'webSearch', 'parameters']);
     } finally {

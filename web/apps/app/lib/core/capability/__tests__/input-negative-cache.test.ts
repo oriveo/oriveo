@@ -3,7 +3,6 @@
 // Web negative cache v2 of input capabilities for all connections: key = connection x model x protocol family x capability key, 7-day expiry (only expiry deletes an entry), a ruling revision mismatch only reads as null without deleting the entry; the revision is FNV-1a 32 of the canonical ruling.
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
   INPUT_NEGATIVE_CACHE_STORAGE_KEY,
@@ -16,6 +15,7 @@ import {
   readInputNegativeCache,
   recordInputNegativeCache,
 } from '../input-negative-cache';
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 const key = { connectionId: 'c1', modelId: 'm1', wireFamily: 'openai_chat_completions', capabilityKey: 'vision_input' };
 const T0 = 1_760_000_000_000;
@@ -88,7 +88,7 @@ describe('input negative cache v2', () => {
 describe('inputVerdictRevision', () => {
   // The same file on every client: shared/test-fixtures/capability/negative-cache.v1.json verdictRevisionCases
   const fixture = JSON.parse(readFileSync(
-    resolve(__dirname, '../../../../../../../shared/test-fixtures/capability/negative-cache.v1.json'), 'utf8',
+    sharedPath('test-fixtures/capability/negative-cache.v1.json'), 'utf8',
   )) as { verdictRevisionCases: Array<{ id: string; verdict: InputVerdictLike | null; revision: string }> };
   for (const item of fixture.verdictRevisionCases) {
     it(`VERDICT-REVISION-${item.id}`, () => {

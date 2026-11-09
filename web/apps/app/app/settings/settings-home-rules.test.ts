@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { settingsGridShape } from './settings-home-rules';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 interface GridCase {
   name: string;
@@ -11,7 +11,7 @@ interface GridCase {
 }
 
 const contract = JSON.parse(
-  readFileSync(join(process.cwd(), '../../..', 'shared/theme-contracts/settings-home.v1.json'), 'utf8'),
+  readFileSync(sharedPath('theme-contracts/settings-home.v1.json'), 'utf8'),
 ) as { gridCases: GridCase[] };
 
 function gridCase(name: string) {

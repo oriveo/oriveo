@@ -20,8 +20,9 @@ import {
   type ChatImageFailureKind,
 } from '../chat-image-dispatch';
 import type { ImageProfile, ImageRoute } from '../image-profile';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const FIXTURE = resolve(ROOT, 'shared/studio-contracts/chat_image_dispatch.v1.json');
 
 interface DispatchCase {

@@ -1,14 +1,14 @@
 import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { redactTargetURL } from "./redact-target-url";
+import { sharedPath } from '../../../../../../test-support/repo-root';
 
 interface LocalOnlyFixture {
   cases: Array<{ caseId: string; url: string; expect: { localOnly: boolean; reason: string } }>;
 }
 
 const fixture = JSON.parse(
-  readFileSync(resolve(__dirname, "../../../../../../../shared/test-fixtures/mcp/local-only.json"), "utf8"),
+  readFileSync(sharedPath("test-fixtures/mcp/local-only.json"), "utf8"),
 ) as LocalOnlyFixture;
 
 describe("redactTargetURL (the three secret-address criteria)", () => {

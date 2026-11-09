@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { encodeCapabilityResultContext, type CapabilityResultContext } from './capability-result-runtime';
+import { repoRoot } from '../../../../../test-support/repo-root';
 
 const context: CapabilityResultContext = {
   version: 1,
@@ -27,7 +28,7 @@ describe('capability result privacy boundary', () => {
   });
 
   it('does not add capability results to telemetry producers', () => {
-    const root = resolve(process.cwd(), '../../..');
+    const root = repoRoot();
     const sources = [
       'web/apps/app/app/api/chat/stream/route.ts',
       'web/apps/app/lib/core/chat/capability-result-runtime.ts',
@@ -41,7 +42,7 @@ describe('capability result privacy boundary', () => {
   // disappear from the dashboard entirely (online, chat_message_failed was 100% bare events).
   // The behavioural assertions for the attribute contract live in __tests__/chat-lifecycle-telemetry.test.ts.
   it('keeps capability facts out of telemetry by field, never by dropping the whole property bag', () => {
-    const root = resolve(process.cwd(), '../../..');
+    const root = repoRoot();
     const send = readFileSync(resolve(root, 'web/apps/app/lib/core/chat/operations-send.ts'), 'utf8');
     const sendStart = readFileSync(resolve(root, 'web/apps/app/lib/core/chat/send-start.ts'), 'utf8');
     const completion = readFileSync(resolve(root, 'web/apps/app/lib/core/chat/send-completion.ts'), 'utf8');

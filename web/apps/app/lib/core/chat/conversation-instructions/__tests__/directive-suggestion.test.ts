@@ -62,13 +62,14 @@ import {
   markProposeMemoryDegraded,
   resolveProposeMemoryMode,
 } from '../../propose-memory-runtime';
+import { sharedPath } from '../../../../../../../test-support/repo-root';
 
 // The fallback-route lexical bar only honors suggestionLanguages (propose v3), so the fixture sentence is zh-Hans.
 const DIRECTIVE = '\u4ee5\u540e\u6bcf\u6b21\u56de\u7b54\u90fd\u5148\u7ed9\u7ed3\u8bba';
 const EN_DIRECTIVE = 'From now on, always reply in English.';
 
 const PROPOSE_V3 = JSON.parse(readFileSync(
-  resolve(__dirname, '../../../../../../../../shared/context-contracts/memory-propose.v3.json'), 'utf8',
+  sharedPath('context-contracts/memory-propose.v3.json'), 'utf8',
 )) as { instructBarCases: Array<{ id: string; sentence: string; instructions: string; ignoreCount: number; expected: { show: boolean } }> };
 
 const provider = {

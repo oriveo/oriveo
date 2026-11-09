@@ -12,8 +12,9 @@ import {
   type StudioAvailability,
   type StudioAvailabilityInput,
 } from '../availability';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 
 interface AvailabilityCase {
   caseId: string;

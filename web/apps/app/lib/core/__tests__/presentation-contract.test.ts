@@ -19,8 +19,8 @@
  * metadata fields map to UI structure assertions.
  */
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 // Fixture types
 
@@ -128,10 +128,7 @@ interface FixtureFile {
   stateCases: StateCase[];
 }
 
-const fixturePath = path.resolve(
-  process.cwd(),
-  '../../../shared/model-contracts/presentation_fixtures.v1.json',
-);
+const fixturePath = sharedPath('model-contracts/presentation_fixtures.v1.json');
 const fixture = JSON.parse(readFileSync(fixturePath, 'utf8')) as FixtureFile;
 
 // Presentation Selector

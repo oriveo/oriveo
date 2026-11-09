@@ -8,8 +8,9 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 // Shared contracts directory name, spelled by code point to keep this file ASCII.
 const CONTRACTS = resolve(ROOT, 'shared', 'model-contracts');
 const normalization = JSON.parse(

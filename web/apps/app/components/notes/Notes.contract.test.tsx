@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PROVIDER_KINDS, type Note } from '@oriveo/shared';
@@ -9,6 +9,7 @@ import { NoteSourceCard } from './NoteSourceCard';
 import { noteSourceVars } from './NoteSourceBadge';
 import { NoteTagEditor } from './NoteTagEditor';
 import { NoteTrashView } from './NoteTrashView';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 const mocks = vi.hoisted(() => ({
   emptyTrash: vi.fn(),
@@ -443,7 +444,7 @@ describe('Notes responsive and theme style contracts', () => {
   // Notes carry no connection id: Relay seeds on "relay" like iOS fallbackId "".
   it('noteSourceColorMatchesProviderTintFixture', () => {
     const fixture = JSON.parse(
-      readFileSync(resolve(process.cwd(), '../../../shared/test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
+      readFileSync(sharedPath('test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
     ) as { cases: { id: string; brand: string; light: string; dark: string }[] };
     const byId = new Map(fixture.cases.map((c) => [c.id, c]));
     const vars = (kind: Parameters<typeof noteSourceVars>[0]) =>

@@ -10,6 +10,7 @@ import {
 import { createProxyChunkParser } from '../proxy-chunk-parser';
 import { parseSSELines } from '../sse-parser';
 import type { StreamEvent } from '../types';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 interface RecordedManifest {
   fixtures: Array<{
@@ -34,10 +35,7 @@ interface ContractManifest {
   }>;
 }
 
-const fixtureDirectory = resolve(
-  process.cwd(),
-  '../../../shared/test-fixtures/provider-toolcall/recorded',
-);
+const fixtureDirectory = sharedPath('test-fixtures/provider-toolcall/recorded');
 const manifest = JSON.parse(
   readFileSync(resolve(fixtureDirectory, 'expected.json'), 'utf8'),
 ) as RecordedManifest;

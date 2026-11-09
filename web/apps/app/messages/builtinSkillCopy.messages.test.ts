@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { repoRoot } from '../../../test-support/repo-root';
 
 // Skill descriptions and starters in hi/id/ru/th/tr/vi used to be machine translations
 // ("patient", "commitment", gendered Thai particles), and iOS fell back to English.
@@ -30,7 +31,7 @@ function readJson(path: string): unknown {
 }
 
 function androidStrings(directory: string): Map<string, string> {
-  const path = join(process.cwd(), '..', '..', '..', 'android', 'app', 'src', 'main', 'res', directory, 'strings.xml');
+  const path = join(repoRoot('android/app/src/main/res'), directory, 'strings.xml');
   if (!existsSync(path)) throw new Error(`Android ${directory}/strings.xml not found`);
   const out = new Map<string, string>();
   for (const match of readFileSync(path, 'utf8').matchAll(/<string name="([^"]+)"[^>]*>([\s\S]*?)<\/string>/g)) {
@@ -40,7 +41,7 @@ function androidStrings(directory: string): Map<string, string> {
 }
 
 function iosSkillCopy(): Map<string, Record<string, string>> {
-  const path = join(process.cwd(), '..', '..', '..', 'ios', 'Oriveo', 'Oriveo', 'Localizable.xcstrings');
+  const path = repoRoot('ios/Oriveo/Oriveo/Localizable.xcstrings');
   if (!existsSync(path)) throw new Error('Localizable.xcstrings not found');
   const strings = (readJson(path) as { strings: Record<string, { localizations?: Record<string, { stringUnit?: { value?: string } }> }> }).strings;
   const out = new Map<string, Record<string, string>>();

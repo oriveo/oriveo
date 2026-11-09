@@ -16,6 +16,7 @@ import {
   startExternalSearchReply,
   type PlanExternalSearchInput,
 } from './external-search-turn';
+import { repoRoot } from '../../../../../test-support/repo-root';
 
 // Production-path evidence for external web search: DeepSeek response goldens replace upstream HTTP while the real forward route +
 // forwardSearch + web_search executor + event loop + finalize persistence patch run; DNS is mocked and no real requests are sent.
@@ -28,7 +29,7 @@ vi.mock('node:dns/promises', () => ({
   resolve6: mocks.resolve6,
 }));
 
-const REPO_ROOT = join(process.cwd(), '../../..');
+const REPO_ROOT = repoRoot();
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const load = (relative: string): any => JSON.parse(readFileSync(join(REPO_ROOT, relative), 'utf8'));
 const contract = load('shared/search-contracts/search_catalog_contract.v1.json');

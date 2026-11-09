@@ -28,8 +28,9 @@ import { buildOpenAISubscriptionModels } from '../../providers/openai-subscripti
 import { buildGrokSubscriptionModels } from '../../providers/grok-subscription-catalog';
 import { resolveInputCapabilityProjections } from '../truth/input-truth-adapter';
 import { subscriptionInputVerdict } from '../truth/subscription-truth-adapter';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const fixture = JSON.parse(readFileSync(
   resolve(ROOT, 'shared/test-fixtures/capability/subscription-facts.v1.json'), 'utf8',
 )) as { inputCases: InputCase[]; reasoningLevelCases: ReasoningLevelCase[] };

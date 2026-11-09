@@ -24,6 +24,7 @@ import { imageExists, resetImageDBConnection, saveImage } from '../../../infra/s
 import { setActiveUID } from '../../../infra/storage/partition';
 import { createCanonicalUUID } from '../../../utils/id-utils';
 import { createStudioWorkRepository } from '../studio-work-repository';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 if (typeof Blob.prototype.arrayBuffer !== 'function') {
   Blob.prototype.arrayBuffer = function () {
@@ -46,7 +47,7 @@ const { generateImportPreview, executeImport } = await import('../../../backup')
 const { canonicalJSON } = await import('../../../backup/backup-format');
 const { sha256hex } = await import('../../../backup/backup-crypto');
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 const SHARED_DIR = 'shared';
 
 type Ms = number;

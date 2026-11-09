@@ -12,6 +12,7 @@ import type { Provider } from '@oriveo/shared';
 import { normalizeEndpointSourceURL } from '@oriveo/core/providers/transport/endpoint-resolver';
 import { pruneBlobs } from '../../../infra/storage/blob-cache';
 import { __seedMetadataCacheForTest as seedMetadataCache } from '../../metadata/metadata-client';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
 type RawConfig = Record<string, unknown> & { kind: string; defaultBaseURL: string };
 type Fixture = {
@@ -62,7 +63,7 @@ type StoredCase = {
   stored: { baseURLText: string | null; endpointSource: string | null };
 };
 
-const repositoryRoot = resolve(process.cwd(), '../../..');
+const repositoryRoot = repoRoot();
 const fixture = JSON.parse(readFileSync(
   resolve(repositoryRoot, 'shared/test-fixtures/provider-catalog/endpoint-source.v1.json'),
   'utf8',

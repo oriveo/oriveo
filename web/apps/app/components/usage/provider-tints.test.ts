@@ -5,6 +5,7 @@ import { LIGHT_BRAND_PRESETS, providerTextTint as sharedProviderTextTint } from 
 import { FALLBACK_PALETTE, RELAY_PALETTE, TINTS, providerTextTint, providerTint } from './provider-tints';
 import { PROVIDER_BRAND_COLORS } from '../../lib/constants/provider-brand-colors';
 import { heroPillLabelColor, hsbAdjusted } from '../../app/providers/[providerId]/components/ProviderDetailBrandHero';
+import { sharedPath } from '../../../../test-support/repo-root';
 
 /**
  * Monochrome brands (xAI / Grok) used a hard-coded near-black hex, which made
@@ -40,7 +41,7 @@ describe('providerTint', () => {
 
 // Provider text tint (shared fixture provider-text-tint.v1.json).
 const fixture = JSON.parse(
-  readFileSync(resolve(process.cwd(), '../../../shared/test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
+  readFileSync(sharedPath('test-fixtures/provider-tint/provider-text-tint.v1.json'), 'utf8'),
 ) as { pillLabel: { worstBackground: string }; cases: { id: string; brand: string; light: string; dark: string }[] };
 
 function luminance(hex: string): number {

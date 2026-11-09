@@ -9,6 +9,7 @@ import { InputComposer as ComposerUnderTest } from './InputComposer';
 import { resolveAttachmentCapabilities } from '../../lib/core/chat/attachment-policy';
 import { useAttachmentRejectionGate } from '../../lib/hooks/useAttachmentIntake';
 import { DEFAULT_LIMITS } from '../../lib/core/attachments/file-text-extractor';
+import { repoRoot } from '../../../../test-support/repo-root';
 
 type Messages = Record<string, unknown>;
 const messagesRoot = resolve(process.cwd(), 'messages');
@@ -1820,7 +1821,7 @@ describe('model control vocabulary', () => {
     // The vocabulary freeze spans clients: checking only the web bundle lets the next change drift.
     // The Android resource table lives in the same repository, so compare against it directly.
     const android = readFileSync(
-      resolve(process.cwd(), '../../../android/app/src/main/res/values-zh-rCN/strings.xml'),
+      repoRoot('android/app/src/main/res/values-zh-rCN/strings.xml'),
       'utf8',
     );
     const androidString = (name: string) => {

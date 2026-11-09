@@ -9,8 +9,6 @@
  * This file is the web side of that. To change a rule, change the fixture first.
  */
 import { readFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import type { RelayTransport } from '@oriveo/shared/pure-types';
 import { isDedicatedImageModel } from '@oriveo/shared/relay/image-models';
@@ -20,12 +18,10 @@ import {
   shouldForceRelayStream,
   type ChatDriverCandidate,
 } from '../relay-runtime-support';
+import { sharedPath } from '../../../../../test-support/repo-root';
 
 // __tests__ -> providers -> src -> core -> packages -> web -> <repo root>
-const FIXTURE_PATH = resolve(
-  dirname(fileURLToPath(import.meta.url)),
-  '../../../../../../shared/test-fixtures/relay/routing-fixtures.json',
-);
+const FIXTURE_PATH = sharedPath('test-fixtures/relay/routing-fixtures.json');
 
 interface FixtureCase {
   id: string;

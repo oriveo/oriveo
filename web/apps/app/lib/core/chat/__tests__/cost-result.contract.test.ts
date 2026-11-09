@@ -10,8 +10,9 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { calcCost, type PricingInput } from '../cost';
 import { emptyUsageBreakdown } from '../usage-breakdown';
+import { repoRoot } from '../../../../../../test-support/repo-root';
 
-const ROOT = resolve(__dirname, '../../../../../../..');
+const ROOT = repoRoot();
 
 interface LegacyCacheReadCase {
   id: string;
