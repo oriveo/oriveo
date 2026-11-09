@@ -167,6 +167,7 @@ class BackupServiceTest {
         metadataRefresh: suspend () -> Unit = { metadataRefreshCallCount.incrementAndGet() },
         runInTransaction: suspend (suspend () -> Unit) -> Unit = { transactionalBlock -> transactionalBlock() },
         appPreferencesRepository: AppPreferencesRepository? = null,
+        maxBackupEntryBytes: Long = BackupService.MAX_BACKUP_ZIP_ENTRY_BYTES,
     ): BackupService {
         return BackupService(
             providerDao = providerDao,
@@ -183,6 +184,7 @@ class BackupServiceTest {
             metadataRefresh = metadataRefresh,
             runInTransaction = runInTransaction,
             appPreferencesRepository = appPreferencesRepository,
+            maxBackupEntryBytes = maxBackupEntryBytes,
         )
     }
 
@@ -1963,10 +1965,12 @@ class BackupServiceTest {
             data = BackupData(conversations = emptyList()),
         )
 
-        val oversized = ByteArray(33 * 1024 * 1024)
+        // An entry over the injected per-entry limit (production 64 MiB): the file is intact, only too large,
+        // so it must report ResourceLimitExceeded rather than an unrecognized format.
+        val oversized = ByteArray(STREAM_ENTRY_LIMIT.toInt() + 512 * 1024)
 
         try {
-            backupService.executeImport(
+            createBackupService(maxBackupEntryBytes = STREAM_ENTRY_LIMIT).executeImport(
                 mode = ImportMode.Merge,
                 bytes = encodeBackupZip(
                     backupFile = backupFile,
@@ -2986,6 +2990,68 @@ class BackupServiceTest {
         assertEquals(0, result.skippedImages)
         assertEquals("image-bytes", storedImage?.toString(Charsets.UTF_8))
         assertEquals("thumb-bytes", storedThumbnail?.toString(Charsets.UTF_8))
+    }
+
+    private fun writeBackupFile(name: String, bytes: ByteArray): java.io.File =
+        filesDir.resolve(name).toFile().apply { writeBytes(bytes) }
+
+    // ---- streamed import from a file ----
+
+    @Test
+    fun `backup_streamImport_entryOverLimitRejected`() = runTest {
+        val file = writeBackupFile(
+            "stream-oversized.oriveo",
+            encodeBackupZip(
+                backupFile = imageAttachmentBackupFile(),
+                attachments = mapOf("attachments/attachment-2.jpg" to ByteArray(STREAM_ENTRY_LIMIT.toInt() + 512 * 1024)),
+            ),
+        )
+        val service = createBackupService(maxBackupEntryBytes = STREAM_ENTRY_LIMIT)
+
+        val error = runCatching { service.inspectBackup(file) }.exceptionOrNull()
+
+        assertTrue("preview must report the oversized entry, got $error", error is BackupError.ResourceLimitExceeded)
+    }
+
+    @Test
+    fun `backup_streamImport_crcMismatchRejected`() = runTest {
+        coEvery { messageDao.upsert(any()) } returns Unit
+        val payload = "stored-entry-payload-for-crc-check".toByteArray()
+        val archive = java.io.ByteArrayOutputStream().use { output ->
+            ZipOutputStream(output).use { zip ->
+                zip.putNextEntry(ZipEntry("data.json"))
+                zip.write(json.encodeToString(imageAttachmentBackupFile()).toByteArray())
+                zip.closeEntry()
+                val stored = ZipEntry("attachments/attachment-2.jpg").apply {
+                    method = ZipEntry.STORED
+                    size = payload.size.toLong()
+                    compressedSize = payload.size.toLong()
+                    crc = java.util.zip.CRC32().apply { update(payload) }.value
+                }
+                zip.putNextEntry(stored)
+                zip.write(payload)
+                zip.closeEntry()
+            }
+            output.toByteArray()
+        }
+        // Flip one byte of the stored payload: sizes still match, only the CRC no longer does.
+        val offset = (0..archive.size - payload.size).first { start ->
+            payload.indices.all { archive[start + it] == payload[it] }
+        }
+        archive[offset + 3] = (archive[offset + 3].toInt() xor 0x01).toByte()
+        val file = writeBackupFile("stream-crc-mismatch.oriveo", archive)
+        val service = createBackupService(maxBackupEntryBytes = STREAM_ENTRY_LIMIT)
+
+        val inspectError = runCatching { service.inspectBackup(file) }.exceptionOrNull()
+        val importError = runCatching { service.executeImport(mode = ImportMode.ImportNewOnly, file = file) }.exceptionOrNull()
+
+        assertTrue("preview must reject the corrupted entry, got $inspectError", inspectError is BackupError.UnrecognizedFormat)
+        assertTrue("import must reject the corrupted entry, got $importError", importError is BackupError.UnrecognizedFormat)
+        coVerify(exactly = 0) { messageDao.upsert(any()) }
+    }
+
+    private companion object {
+        const val STREAM_ENTRY_LIMIT = 1L * 1024L * 1024L
     }
 
     private fun imageAttachmentBackupFile(
