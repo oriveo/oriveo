@@ -389,26 +389,57 @@ struct BackupServiceTests {
         }
     }
 
-    @Test("Backup Input Size Is Bounded")
+    @Test("Backup input is not capped as a whole; a single entry over the limit is rejected")
     func backupInputSizeIsBounded() throws {
-        let limits = makeImportLimits(input: 8, entry: 16, total: 32, entries: 4)
-        #expect(throws: BackupError.self) {
-            _ = try BackupService.parseBackup(from: Data(repeating: 0, count: 9), limits: limits)
+        let limits = makeImportLimits(entry: 16, entries: 8)
+        let filler = Data(repeating: 0x20, count: 16)
+        let underLimit = try makeZip(entries: [
+            ("data.json", Data(#"{"version":1}"#.utf8)),
+            ("attachments/a.jpg", filler), ("attachments/b.jpg", filler), ("attachments/c.jpg", filler)
+        ])
+        #expect(underLimit.count > 16)
+        expectBackupError(.unrecognizedFormat, "every entry fits: the size is not what rejects it") {
+            _ = try BackupService.parseBackup(from: underLimit, limits: limits)
+        }
+
+        let overEntry = try makeZip(entries: [
+            ("data.json", Data(#"{"version":1}"#.utf8)), ("attachments/a.jpg", Data(repeating: 0x20, count: 17))
+        ])
+        expectBackupError(.resourceLimitExceeded, "one entry over the limit") {
+            _ = try BackupService.parseBackup(from: overEntry, limits: limits)
         }
 
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("oversized-backup-\(UUID().uuidString)")
-        try Data(repeating: 0x61, count: 9).write(to: url)
+        try Data(#"{"version":1,"data":{}}    "#.utf8).write(to: url)
         defer { try? FileManager.default.removeItem(at: url) }
-        #expect(throws: BackupError.self) {
-            _ = try BackupService.loadImportData(at: url, limits: limits)
+        expectBackupError(.resourceLimitExceeded, "a plain JSON file is one entry") {
+            _ = try BackupService.parseBackup(at: url, limits: limits)
         }
     }
 
-    @Test("Backup Archive Expansion Is Bounded")
+    private func expectBackupError(
+        _ expected: BackupError, _ note: String, _ body: () throws -> Void,
+        sourceLocation: SourceLocation = #_sourceLocation
+    ) {
+        do {
+            try body()
+            Issue.record("Expected \(expected): \(note)", sourceLocation: sourceLocation)
+        } catch let error as BackupError {
+            #expect(
+                String(describing: error) == String(describing: expected), Comment(rawValue: note),
+                sourceLocation: sourceLocation
+            )
+        } catch {
+            Issue.record("Unexpected error \(error): \(note)", sourceLocation: sourceLocation)
+        }
+    }
+
+    /// The header declares 16 bytes but the entry inflates to 64: the real bytes count against the entry limit.
+    @Test("An entry whose inflated bytes exceed the limit is rejected whatever its header declares")
     func backupArchiveExpansionIsBounded() throws {
-        let zip = try makeZip(entries: [("data.json", Data(repeating: 0x61, count: 64))])
-        let limits = makeImportLimits(input: zip.count + 1, entry: 32, total: 32, entries: 4)
+        let zip = try lyingSizeZip(path: "data.json", content: Data(repeating: 0x61, count: 64), declaredSize: 16)
+        let limits = makeImportLimits(entry: 32, entries: 4)
 
         do {
             _ = try BackupService.parseBackup(from: zip, limits: limits)
@@ -419,6 +450,219 @@ struct BackupServiceTests {
                 return
             }
         }
+    }
+
+    /// One 1.5 MiB attachment under a 1 MiB entry limit: preview through the production file path reports
+    /// resourceLimitExceeded.
+    @Test @MainActor func backup_streamImport_entryOverLimitRejected() async throws {
+        let mib = 1024 * 1024
+        let limits = makeImportLimits(entry: mib, entries: 64)
+        let source = "backup-stream-large-\(UUID().uuidString)"
+        DatabaseManager.shared.close()
+        let sourceState = makeAppState(sessionUID: source)
+        let id = "stream-large-\(UUID().uuidString)"
+        ImageStore.save(imageData: randomBytes(mib * 3 / 2), for: id, partitionUID: source)
+        let chat = TestFactories.makeConversation(
+            title: "Large",
+            messages: [TestFactories.makeMessage(role: .user, text: "image", attachments: [
+                TestFactories.makeImageAttachment(fileName: "large.jpg", mimeType: "image/jpeg", localImageID: id)
+            ])]
+        )
+        let file = try writeTemporaryBackup(try await exportChatBackup(uid: source, conversations: [chat]))
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        do {
+            _ = try previewBackupFile(at: file, limits: limits)
+            Issue.record("Expected resourceLimitExceeded")
+        } catch let error as BackupError {
+            guard case .resourceLimitExceeded = error else {
+                Issue.record("Unexpected error: \(error)")
+                return
+            }
+        }
+        await cleanupAppState(sourceState, removing: [source])
+    }
+
+    /// The import screen's copy of a picked file (copyImportFile, then parseBackup(at:ownsFile: true)) is deleted
+    /// when its entry source is released, after an import completes, and when parsing fails.
+    @Test @MainActor func backup_streamImport_tempFileDeleted() async throws {
+        let source = "backup-tempcopy-source-\(UUID().uuidString)"
+        let target = "backup-tempcopy-target-\(UUID().uuidString)"
+        DatabaseManager.shared.close()
+        let sourceState = makeAppState(sessionUID: source)
+        let id = "tempcopy-\(UUID().uuidString)"
+        let original = randomBytes(32 * 1024)
+        ImageStore.save(imageData: original, for: id, partitionUID: source)
+        let chat = TestFactories.makeConversation(
+            title: "TempCopy",
+            messages: [TestFactories.makeMessage(role: .user, text: "image", attachments: [
+                TestFactories.makeImageAttachment(fileName: "t.jpg", mimeType: "image/jpeg", localImageID: id)
+            ])]
+        )
+        let file = try writeTemporaryBackup(try await exportChatBackup(uid: source, conversations: [chat]))
+        defer { try? FileManager.default.removeItem(at: file) }
+        let fileManager = FileManager.default
+
+        // Released without importing.
+        let releasedCopy = try BackupService.copyImportFile(at: file)
+        var released: BackupService.EntrySource? = try BackupService.parseBackup(at: releasedCopy, ownsFile: true).entries
+        #expect(fileManager.fileExists(atPath: releasedCopy.path), "the copy is kept while its source is alive")
+        #expect(released != nil)
+        released = nil
+        #expect(!fileManager.fileExists(atPath: releasedCopy.path), "the copy is deleted when its source is released")
+
+        // Import completes.
+        DatabaseManager.shared.close()
+        let targetState = makeAppState(sessionUID: target)
+        targetState.providers = []
+        targetState.conversations = []
+        targetState.folders = []
+        let importedCopy = try BackupService.copyImportFile(at: file)
+        do {
+            let (backupFile, entries) = try BackupService.parseBackup(at: importedCopy, ownsFile: true)
+            let result = try await BackupService.executeImport(
+                backupFile: backupFile, entries: entries, mode: .importNewOnly, password: nil, appState: targetState
+            )
+            #expect(result.restoredImages == 1)
+            #expect(ImageStore.loadImageData(for: id, partitionUID: target) == original)
+        }
+        #expect(!fileManager.fileExists(atPath: importedCopy.path), "the copy is deleted once the import completes")
+
+        // Parsing fails.
+        let broken = try writeTemporaryBackup(Data("not a backup".utf8))
+        defer { try? FileManager.default.removeItem(at: broken) }
+        let failedCopy = try BackupService.copyImportFile(at: broken)
+        #expect(throws: BackupError.self) { _ = try BackupService.parseBackup(at: failedCopy, ownsFile: true) }
+        #expect(!fileManager.fileExists(atPath: failedCopy.path), "the copy is deleted when parsing fails")
+
+        await cleanupAppState(sourceState, removing: [source])
+        await cleanupAppState(targetState, removing: [target])
+    }
+
+    /// One STORED attachment entry with a single data byte flipped: the preview scan rejects the whole file as an
+    /// unrecognized format before anything is written.
+    @Test @MainActor func backup_streamImport_crcMismatchRejected() async throws {
+        let source = "backup-crc-source-\(UUID().uuidString)"
+        let target = "backup-crc-target-\(UUID().uuidString)"
+        DatabaseManager.shared.close()
+        let sourceState = makeAppState(sessionUID: source)
+        let id = "crc-\(UUID().uuidString)"
+        let original = randomBytes(16 * 1024)
+        ImageStore.save(imageData: original, for: id, partitionUID: source)
+        let chat = TestFactories.makeConversation(
+            title: "Crc",
+            messages: [TestFactories.makeMessage(role: .user, text: "image", attachments: [
+                TestFactories.makeImageAttachment(fileName: "c.jpg", mimeType: "image/jpeg", localImageID: id)
+            ])]
+        )
+        var bytes = try await exportChatBackup(uid: source, conversations: [chat])
+        let range = try #require(
+            bytes.range(of: original.subdata(in: 4096..<4128)), "the attachment entry is stored uncompressed"
+        )
+        bytes[range.lowerBound] ^= 0xFF
+        let file = try writeTemporaryBackup(bytes)
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        DatabaseManager.shared.close()
+        let targetState = makeAppState(sessionUID: target)
+        targetState.providers = []
+        targetState.conversations = []
+        targetState.folders = []
+        do {
+            _ = try previewBackupFile(at: file, limits: .currentDevice)
+            Issue.record("Expected unrecognizedFormat")
+        } catch BackupError.unrecognizedFormat {
+        } catch {
+            Issue.record("Unexpected error: \(error)")
+        }
+        #expect(ImageStore.loadImageData(for: id, partitionUID: target) == nil, "nothing is written")
+        #expect(targetState.conversations.isEmpty)
+        await cleanupAppState(sourceState, removing: [source])
+        await cleanupAppState(targetState, removing: [target])
+    }
+
+    /// Export hydrates conversations, reads every chat image for its checksum and writes the zip, and import saves
+    /// (merge) or stages (replace all) every image and creates, swaps in, finalizes or rolls back the image
+    /// directory, all off the main thread even when started on the main actor; the restored bytes still match.
+    @Test @MainActor func backup_export_offMainThread() async throws {
+        let source = "backup-offmain-source-\(UUID().uuidString)"
+        let merged = "backup-offmain-merge-\(UUID().uuidString)"
+        let replaced = "backup-offmain-replace-\(UUID().uuidString)"
+        DatabaseManager.shared.close()
+        let sourceState = makeAppState(sessionUID: source)
+        let id = "offmain-\(UUID().uuidString)"
+        let original = randomBytes(64 * 1024)
+        let thumbnail = randomBytes(2 * 1024)
+        ImageStore.save(imageData: original, for: id, partitionUID: source)
+        ImageStore.saveThumbnail(imageData: thumbnail, for: id, partitionUID: source)
+        let attachment = TestFactories.makeImageAttachment(fileName: "o.jpg", mimeType: "image/jpeg", localImageID: id)
+        var chat = TestFactories.makeConversation(
+            title: "OffMain", messages: [TestFactories.makeMessage(role: .user, text: "image", attachments: [attachment])]
+        )
+        // A summary-only conversation makes the export read the store; the store has no copy, so memory is kept.
+        chat.messagesAreLoaded = false
+
+        BackupService.diskThreadProbe.start()
+        let file = try await BackupService.exportBackupFile(
+            providers: [],
+            conversations: [chat],
+            preferences: AppPreference(theme: .system, language: .english),
+            lastUsedModelRef: nil,
+            includeKeys: false,
+            password: nil,
+            imagePartitionUID: source
+        )
+        defer { try? FileManager.default.removeItem(at: file) }
+
+        DatabaseManager.shared.close()
+        let mergeState = makeAppState(sessionUID: merged)
+        mergeState.providers = []
+        mergeState.conversations = []
+        mergeState.folders = []
+        let mergeOutcome = try await importBackupFile(at: file, limits: .currentDevice, appState: mergeState)
+        #expect(mergeOutcome.result.restoredImages == 1)
+        #expect(ImageStore.loadImageData(for: id, partitionUID: merged) == original)
+        #expect(ImageStore.loadThumbnailData(for: id, partitionUID: merged) == thumbnail)
+
+        DatabaseManager.shared.close()
+        let replaceState = makeAppState(sessionUID: replaced)
+        replaceState.providers = []
+        replaceState.conversations = []
+        replaceState.folders = []
+        let preview = try previewBackupFile(at: file, limits: .currentDevice)
+        let replaceResult = try await BackupService.executeImport(
+            backupFile: preview.backupFile, entries: preview.entries, mode: .replaceAll, password: nil,
+            appState: replaceState
+        )
+        #expect(replaceResult.restoredImages == 1)
+        #expect(ImageStore.loadImageData(for: id, partitionUID: replaced) == original)
+        #expect(ImageStore.loadThumbnailData(for: id, partitionUID: replaced) == thumbnail)
+
+        // A replace all that fails before its commit rolls the image directory back.
+        let rollbackPreview = try previewBackupFile(at: file, limits: .currentDevice)
+        BackupService.testingHooks.beforeReplaceAllCommit = { throw ImportReplaceAllTestError.injectedCommitFailure }
+        await #expect(throws: ImportReplaceAllTestError.self) {
+            _ = try await BackupService.executeImport(
+                backupFile: rollbackPreview.backupFile, entries: rollbackPreview.entries, mode: .replaceAll,
+                password: nil, appState: replaceState
+            )
+        }
+        BackupService.testingHooks = .init()
+        #expect(ImageStore.loadImageData(for: id, partitionUID: replaced) == original, "rollback keeps the images")
+
+        let records = BackupService.diskThreadProbe.stop()
+        let steps = Set(records.map(\.step))
+        let expected: Set<String> = [
+            "export.hydrate", "export.read", "export.write", "import.restore", "import.stageDir", "import.stage",
+            "import.swap", "import.finalize", "import.rollback",
+        ]
+        #expect(steps.isSuperset(of: expected), "missing: \(expected.subtracting(steps))")
+        let onMain = records.filter(\.onMainThread).map(\.step)
+        #expect(onMain.isEmpty, "disk steps on the main thread: \(onMain)")
+
+        await cleanupAppState(sourceState, removing: [source])
+        await cleanupAppState(mergeState, removing: [merged])
+        await cleanupAppState(replaceState, removing: [replaced])
     }
 
     @Test("Production Entry Cap Covers Large Image Libraries")
@@ -433,7 +677,7 @@ struct BackupServiceTests {
     func chunkManifestRejectsUntrustedConversationCount() throws {
         let manifest = Data(#"{"version":1,"totalConversations":2147483647,"conversationChunks":[],"headerFilename":"data.json"}"#.utf8)
         let zip = try makeZip(entries: [("manifest.json", manifest)])
-        let limits = makeImportLimits(input: zip.count + 1, entry: 1024, total: 2048, entries: 4)
+        let limits = makeImportLimits(entry: 1024, entries: 4)
 
         do {
             _ = try BackupService.parseBackup(from: zip, limits: limits)
@@ -1909,21 +2153,87 @@ struct BackupServiceTests {
         )
     }
 
-    private func makeImportLimits(
-        input: Int,
-        entry: Int,
-        total: Int,
-        entries: Int
-    ) -> BackupService.ImportLimits {
-        BackupService.ImportLimits(
-            maxInputBytes: input,
-            archiveBudget: ArchiveExtractionBudget(
-                maxEntryBytes: entry,
-                maxTotalBytes: total,
-                maxEntries: entries
-            ),
-            maxConversations: 100
+    private func makeImportLimits(entry: Int, entries: Int) -> BackupService.ImportLimits {
+        BackupService.ImportLimits(maxEntryBytes: entry, maxEntries: entries, maxConversations: 100)
+    }
+
+    /// A one-entry deflated zip whose local and central headers both declare `declaredSize` as the
+    /// uncompressed size.
+    private func lyingSizeZip(path: String, content: Data, declaredSize: UInt32) throws -> Data {
+        let archive = try #require(Archive(accessMode: .create))
+        try archive.addEntry(
+            with: path, type: .file, uncompressedSize: Int64(content.count), compressionMethod: .deflate,
+            provider: { position, size in content[Int(position)..<(Int(position) + size)] }
         )
+        var bytes = [UInt8](try #require(archive.data))
+        let size = withUnsafeBytes(of: declaredSize.littleEndian) { Array($0) }
+        // Local file header (PK 03 04): uncompressed size at offset 22; central header (PK 01 02): offset 24.
+        for (signature, offset) in [([0x50, 0x4B, 0x03, 0x04] as [UInt8], 22), ([0x50, 0x4B, 0x01, 0x02], 24)] {
+            let start = try #require(
+                (0...(bytes.count - 4)).first { Array(bytes[$0..<($0 + 4)]) == signature }
+            )
+            bytes.replaceSubrange((start + offset)..<(start + offset + 4), with: size)
+        }
+        return Data(bytes)
+    }
+
+    /// Incompressible bytes, so the zip stays as large as its entries.
+    private func randomBytes(_ count: Int) -> Data {
+        var generator = SystemRandomNumberGenerator()
+        var words = [UInt64](repeating: 0, count: (count + 7) / 8)
+        for index in words.indices { words[index] = generator.next() }
+        return words.withUnsafeBytes { Data($0.prefix(count)) }
+    }
+
+    private func writeTemporaryBackup(_ data: Data) throws -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("stream-backup-\(UUID().uuidString).oriveo-backup")
+        try data.write(to: url)
+        return url
+    }
+
+    /// The import screen's preview path for a picked file: parse, then the data and attachment checksums.
+    private func previewBackupFile(
+        at url: URL,
+        limits: BackupService.ImportLimits
+    ) throws -> (backupFile: BackupFile, entries: BackupService.EntrySource, checksumWarning: Bool) {
+        let (backupFile, entries) = try BackupService.parseBackup(at: url, limits: limits)
+        let corrupted = BackupService.validateAttachmentChecksums(
+            expected: backupFile.attachmentChecksums ?? [:], entries: entries
+        )
+        let warning = !BackupService.validateChecksum(backupFile, entries: entries) || !corrupted.isEmpty
+        return (backupFile, entries, warning)
+    }
+
+    /// Preview, then importNew, the way the import screen runs them.
+    @MainActor
+    private func importBackupFile(
+        at url: URL,
+        limits: BackupService.ImportLimits,
+        appState: AppState
+    ) async throws -> (result: ImportResult, checksumWarning: Bool) {
+        let preview = try previewBackupFile(at: url, limits: limits)
+        let result = try await BackupService.executeImport(
+            backupFile: preview.backupFile, entries: preview.entries, mode: .importNewOnly, password: nil,
+            appState: appState
+        )
+        return (result, preview.checksumWarning)
+    }
+
+    /// The exported zip as bytes, for tests that rewrite or inspect the file.
+    @MainActor
+    private func exportChatBackup(uid: String, conversations: [Conversation]) async throws -> Data {
+        let file = try await BackupService.exportBackupFile(
+            providers: [],
+            conversations: conversations,
+            preferences: AppPreference(theme: .system, language: .english),
+            lastUsedModelRef: nil,
+            includeKeys: false,
+            password: nil,
+            imagePartitionUID: uid
+        )
+        defer { try? FileManager.default.removeItem(at: file) }
+        return try Data(contentsOf: file)
     }
 
     private func makeZip(entries: [(String, Data)]) throws -> Data {
