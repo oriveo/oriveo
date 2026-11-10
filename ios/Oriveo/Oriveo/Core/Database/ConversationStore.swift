@@ -508,13 +508,21 @@ final class ConversationStore: @unchecked Sendable {
         var imageCandidates = Set<String>()
 
         try write(label: .messagePersist) { db in
+            // Without the current index rows every upsert re-tokenized the whole thread's trigram index even
+            // when no text changed; a few upserts per sent message added up to a gigabyte of writes a day on
+            // long threads.
+            let searchIndexEntries = try Self.searchIndexEntries(
+                db: db,
+                conversationIDs: prepared.map(\.id.uuidString)
+            )
             for conversation in prepared {
                 try upsertConversation(
                     conversation,
                     into: db,
                     referencedFileIDs: &referencedFileIDs,
                     imageCandidates: &imageCandidates,
-                    deletingMessageIDs: deletingMessageIDs[conversation.id] ?? []
+                    deletingMessageIDs: deletingMessageIDs[conversation.id] ?? [],
+                    searchIndexEntries: searchIndexEntries
                 )
             }
         }
@@ -1549,6 +1557,34 @@ final class ConversationStore: @unchecked Sendable {
         return entries
     }
 
+    /// The same snapshot limited to `conversationIDs` (one FTS content scan, like the rebuild's own DELETE),
+    /// for the per-conversation upsert path that runs several times per sent message.
+    nonisolated static func searchIndexEntries(
+        db: Database,
+        conversationIDs: [String]
+    ) throws -> [String: SearchIndexEntry]? {
+        guard try db.tableExists("search_index") else { return nil }
+        guard !conversationIDs.isEmpty else { return [:] }
+        var entries: [String: SearchIndexEntry] = [:]
+        var duplicated = Set<String>()
+        for start in stride(from: 0, to: conversationIDs.count, by: messageIDBatchLimit) {
+            let chunk = Array(conversationIDs[start..<min(start + messageIDBatchLimit, conversationIDs.count)])
+            let placeholders = chunk.map { _ in "?" }.joined(separator: ",")
+            let rows = try Row.fetchCursor(
+                db,
+                sql: "SELECT rowid, conversationID, title FROM search_index WHERE conversationID IN (\(placeholders))",
+                arguments: StatementArguments(chunk)
+            )
+            while let row = try rows.next() {
+                guard let conversationID: String = row["conversationID"] else { continue }
+                if entries[conversationID] != nil { duplicated.insert(conversationID) }
+                entries[conversationID] = SearchIndexEntry(rowid: row["rowid"], title: row["title"] ?? "")
+            }
+        }
+        for conversationID in duplicated { entries[conversationID] = nil }
+        return entries
+    }
+
     /// The index row already matches the given title and text: rebuilding would tokenize the whole text twice, so skip.
     nonisolated static func searchIndexMatches(
         db: Database,
@@ -2095,6 +2131,17 @@ final class ConversationStore: @unchecked Sendable {
                             extractedSizeBytes = excluded.extractedSizeBytes,
                             extractionErrorCode = excluded.extractionErrorCode,
                             originalFileID = excluded.originalFileID
+                        -- Same reason as the message rows: an unchanged row (thumbnailBase64 included) is not rewritten.
+                        WHERE
+                            attachment.localFileID IS NOT excluded.localFileID
+                            OR attachment.localImageID IS NOT excluded.localImageID
+                            OR attachment.thumbnailBase64 IS NOT excluded.thumbnailBase64
+                            OR attachment.sortOrder IS NOT excluded.sortOrder
+                            OR attachment.extractedTotalLines IS NOT excluded.extractedTotalLines
+                            OR attachment.extractedTruncated IS NOT excluded.extractedTruncated
+                            OR attachment.extractedSizeBytes IS NOT excluded.extractedSizeBytes
+                            OR attachment.extractionErrorCode IS NOT excluded.extractionErrorCode
+                            OR attachment.originalFileID IS NOT excluded.originalFileID
                         """,
                     arguments: [
                         attachment.id.uuidString,
@@ -2362,6 +2409,17 @@ final class ConversationStore: @unchecked Sendable {
                             extractedSizeBytes = excluded.extractedSizeBytes,
                             extractionErrorCode = excluded.extractionErrorCode,
                             originalFileID = excluded.originalFileID
+                        -- Same reason as the message rows: an unchanged row (thumbnailBase64 included) is not rewritten.
+                        WHERE
+                            attachment.localFileID IS NOT excluded.localFileID
+                            OR attachment.localImageID IS NOT excluded.localImageID
+                            OR attachment.thumbnailBase64 IS NOT excluded.thumbnailBase64
+                            OR attachment.sortOrder IS NOT excluded.sortOrder
+                            OR attachment.extractedTotalLines IS NOT excluded.extractedTotalLines
+                            OR attachment.extractedTruncated IS NOT excluded.extractedTruncated
+                            OR attachment.extractedSizeBytes IS NOT excluded.extractedSizeBytes
+                            OR attachment.extractionErrorCode IS NOT excluded.extractionErrorCode
+                            OR attachment.originalFileID IS NOT excluded.originalFileID
                         """,
                     arguments: [
                         attachment.id.uuidString,

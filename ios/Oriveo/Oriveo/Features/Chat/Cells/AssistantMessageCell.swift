@@ -174,6 +174,22 @@ final class AssistantMessageCell: UICollectionViewCell {
 
     nonisolated static let minStreamingInvalidateInterval: CFTimeInterval = 1.0 / 15.0
 
+    /// Wall time of the last streaming self-size pass of this cell (0 when unknown / not streaming).
+    var lastStreamingSelfSizingCost: CFTimeInterval = 0
+
+    /// Share of the main thread the streaming self-size pass may take. The pass re-measures the whole
+    /// growing tail (`boundingRect` is O(text)), so a fixed 15 Hz made long replies quadratic in cost.
+    nonisolated static let streamingSelfSizingBudget: Double = 0.15
+    /// Upper bound of the adaptive interval, so the height never trails the text by more than this.
+    nonisolated static let maxStreamingInvalidateInterval: CFTimeInterval = 0.5
+
+    /// Streaming invalidate interval: 15 Hz while the pass is cheap, stretched so the pass stays within
+    /// `streamingSelfSizingBudget` of the main thread once it is not, capped at `maxStreamingInvalidateInterval`.
+    nonisolated static func streamingInvalidateInterval(lastSelfSizingCost: CFTimeInterval) -> CFTimeInterval {
+        let budgeted = max(0, lastSelfSizingCost) / streamingSelfSizingBudget
+        return min(maxStreamingInvalidateInterval, max(minStreamingInvalidateInterval, budgeted))
+    }
+
     static func nextStreamingHeightFloor(natural: CGFloat, current: CGFloat, streaming: Bool) -> CGFloat {
         streaming ? max(current, natural) : 0
     }

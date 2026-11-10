@@ -54,4 +54,31 @@ struct AssistantStreamingHeightFloorTests {
         #expect(!AssistantMessageCell.shouldThrottleStreamingInvalidate(isStreamingActive: true, now: 100.068, lastInvalidate: 100.0))
         #expect(!AssistantMessageCell.shouldThrottleStreamingInvalidate(isStreamingActive: true, now: 100.1, lastInvalidate: 100.0))
     }
+
+    // The streaming self-size pass re-measures the whole growing tail; a fixed 15 Hz made long replies
+    // O(n²) on the main thread. The interval stretches with the pass cost.
+    @Test("Streaming invalidate interval: 15 Hz while cheap, budgeted when costly, capped")
+    func streamingInvalidateIntervalFollowsPassCost() {
+        let floor = AssistantMessageCell.minStreamingInvalidateInterval
+        let cap = AssistantMessageCell.maxStreamingInvalidateInterval
+        // Unknown or cheap pass: unchanged 15 Hz.
+        #expect(AssistantMessageCell.streamingInvalidateInterval(lastSelfSizingCost: 0) == floor)
+        #expect(AssistantMessageCell.streamingInvalidateInterval(lastSelfSizingCost: 0.005) == floor)
+        // A 30 ms pass runs at most every 200 ms: 15% of the main thread.
+        let costly = AssistantMessageCell.streamingInvalidateInterval(lastSelfSizingCost: 0.03)
+        #expect(abs(costly - 0.2) < 0.0001)
+        #expect(0.03 / costly <= AssistantMessageCell.streamingSelfSizingBudget + 0.0001)
+        // Never trails the text by more than the cap.
+        #expect(AssistantMessageCell.streamingInvalidateInterval(lastSelfSizingCost: 1) == cap)
+        // The throttle honours the stretched interval and still lets the first invalidate through.
+        #expect(AssistantMessageCell.shouldThrottleStreamingInvalidate(
+            isStreamingActive: true, now: 100.1, lastInvalidate: 100.0, minimumInterval: costly
+        ))
+        #expect(!AssistantMessageCell.shouldThrottleStreamingInvalidate(
+            isStreamingActive: true, now: 100.21, lastInvalidate: 100.0, minimumInterval: costly
+        ))
+        #expect(!AssistantMessageCell.shouldThrottleStreamingInvalidate(
+            isStreamingActive: true, now: 100.1, lastInvalidate: 0, minimumInterval: costly
+        ))
+    }
 }

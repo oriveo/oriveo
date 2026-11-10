@@ -25,7 +25,26 @@ final class ChatPassiveTextView: UITextView {
 
     /// Replacing the whole content (including attribute-only changes with unchanged length, such as plain → highlighted) must recompute the full-line backgrounds; incremental textStorage edits are invalidated explicitly by the host.
     override var attributedText: NSAttributedString! {
+        willSet { applyProvisionalLayoutWidthIfNeeded() }
         didSet { codeLineBackgrounds?.invalidate(in: self) }
+    }
+
+    /// Container width used before the view has a frame: wide enough for any phone or iPad column.
+    static let provisionalLayoutWidth: CGFloat = 1024
+
+    /// A view built off-screen (frozen blocks, a fresh cell) has a 0-wide container, and contiguous
+    /// TextKit 1 lays the whole text out on assignment with every cluster forced onto its own line:
+    /// 31 ms instead of 4.6 ms for 13k characters in the simulator, which made jumping into a long
+    /// thread hang. Give the container a width first; `widthTracksTextView` replaces it with the real
+    /// one as soon as the view is sized. Height measurement does not read this layout
+    /// (`measuredContentSize` uses `boundingRect` at the fitting width).
+    private func applyProvisionalLayoutWidthIfNeeded() {
+        guard textContainer.widthTracksTextView, textContainer.size.width <= 0 else { return }
+        let stable = computeStableWidth().flatMap { $0 > 0 ? $0 : nil }
+        textContainer.size = CGSize(
+            width: stable ?? Self.provisionalLayoutWidth,
+            height: textContainer.size.height
+        )
     }
 
     /// `makeTextKit1` builds the layout stack itself, so something has to hold the text storage strongly.

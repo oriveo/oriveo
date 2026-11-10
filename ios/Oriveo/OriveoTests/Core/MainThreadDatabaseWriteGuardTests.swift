@@ -225,4 +225,54 @@ struct MainThreadDatabaseWriteGuardTests {
         #expect(orphanRows == 0, "The continuation row of a deleted parent message is removed by the queued cleanup")
         try sidecar.close()
     }
+
+    // The per-conversation upsert (several per sent message) used to rebuild the thread's trigram index and
+    // rewrite every attachment row each time, 1 GB of disk writes a day on long threads.
+    private func threadWithImage() -> Conversation {
+        var image = Attachment(
+            id: UUID(), kind: .image, fileName: "p.png", mimeType: "image/png", base64Data: nil,
+            thumbnailBase64: String(repeating: "A", count: 4096)
+        )
+        image.storageRef = "users/u1/attachments/p.png"
+        return TestFactories.makeConversation(
+            title: "Thread with image",
+            messages: [
+                TestFactories.makeMessage(role: .user, text: "look at this picture", attachments: [image]),
+                TestFactories.makeMessage(role: .assistant, text: "a lighthouse at dusk"),
+            ]
+        )
+    }
+
+    @Test func identical_single_upsert_rewrites_only_the_conversation_row() throws {
+        let (database, store) = try makeStore()
+        defer { database.cleanUp() }
+        let thread = threadWithImage()
+        try store.upsertConversation(thread)
+
+        let before = try totalChanges(database)
+        try store.upsertConversation(thread)
+        let after = try totalChanges(database)
+
+        // Only the conversation metadata row; search index, message and attachment rows are unchanged.
+        #expect(after - before == 1)
+    }
+
+    @Test func single_upsert_text_and_title_changes_still_reach_search_index() async throws {
+        let (database, store) = try makeStore()
+        defer { database.cleanUp() }
+        var thread = threadWithImage()
+        try store.upsertConversation(thread)
+
+        thread.messages[1].text = "a lighthouse beside a sleeping walrus"
+        try store.upsertConversation(thread)
+        #expect(try await store.search(query: "walrus").map(\.id) == [thread.id])
+        #expect(try await store.search(query: "at dusk").isEmpty)
+
+        // A user rename; without hasCustomTitle the title is derived from the first user message.
+        thread.title = "Renamed zebra thread"
+        thread.hasCustomTitle = true
+        try store.upsertConversation(thread)
+        #expect(try await store.search(query: "zebra").map(\.id) == [thread.id])
+        #expect(try await store.search(query: "walrus").map(\.id) == [thread.id])
+    }
 }

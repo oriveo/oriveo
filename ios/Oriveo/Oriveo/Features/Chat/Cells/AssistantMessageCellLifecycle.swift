@@ -215,11 +215,12 @@ extension AssistantMessageCell {
     nonisolated static func shouldThrottleStreamingInvalidate(
         isStreamingActive: Bool,
         now: CFTimeInterval,
-        lastInvalidate: CFTimeInterval
+        lastInvalidate: CFTimeInterval,
+        minimumInterval: CFTimeInterval = AssistantMessageCell.minStreamingInvalidateInterval
     ) -> Bool {
         guard isStreamingActive else { return false }
         guard lastInvalidate > 0 else { return false }
-        return (now - lastInvalidate) < AssistantMessageCell.minStreamingInvalidateInterval
+        return (now - lastInvalidate) < minimumInterval
     }
 
     func requestStreamingSelfSizeInvalidate() {
@@ -232,16 +233,17 @@ extension AssistantMessageCell {
             return
         }
         let now = CACurrentMediaTime()
+        let interval = AssistantMessageCell.streamingInvalidateInterval(lastSelfSizingCost: lastStreamingSelfSizingCost)
         if AssistantMessageCell.shouldThrottleStreamingInvalidate(
             isStreamingActive: isStreamingActive,
             now: now,
-            lastInvalidate: lastStreamingInvalidateTimestamp
+            lastInvalidate: lastStreamingInvalidateTimestamp,
+            minimumInterval: interval
         ) {
             pendingStreamingHeightFlush = true
             scheduleTrailingStreamingHeightFlush(after: max(
                 0,
-                AssistantMessageCell.minStreamingInvalidateInterval
-                    - (now - lastStreamingInvalidateTimestamp)
+                interval - (now - lastStreamingInvalidateTimestamp)
             ))
             return
         }
@@ -283,6 +285,7 @@ extension AssistantMessageCell {
         pendingStreamingHeightFlush = false
         if resetTimestamp {
             lastStreamingInvalidateTimestamp = 0
+            lastStreamingSelfSizingCost = 0
         }
     }
 
@@ -300,11 +303,14 @@ extension AssistantMessageCell {
             proposed: layoutAttributes.size.width,
             fallbacks: [contentView.bounds.width, bounds.width]
         )
+        let fittingStart = CACurrentMediaTime()
         let fittedSize = contentView.systemLayoutSizeFitting(
             CGSize(width: targetWidth, height: UIView.layoutFittingCompressedSize.height),
             withHorizontalFittingPriority: .required,
             verticalFittingPriority: .fittingSizeLevel
         )
+        // Feeds the adaptive streaming throttle (`streamingInvalidateInterval`); outside streaming it is unused.
+        lastStreamingSelfSizingCost = isStreamingActive ? CACurrentMediaTime() - fittingStart : 0
         let naturalHeight = AssistantMessageCell.sanitizedFittedHeight(
             fittedSize.height,
             fallback: layoutAttributes.size.height
