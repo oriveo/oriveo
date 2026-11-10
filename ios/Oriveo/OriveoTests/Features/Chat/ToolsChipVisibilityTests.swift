@@ -30,6 +30,26 @@ struct ToolsChipVisibilityTests {
         )
     }
 
+    // The chat screen now loads the panel off the main thread; the detached load must read the same
+    // state as a main-thread load.
+    @Test("Panel load off the main thread matches the main-thread load")
+    func offMainLoadMatchesMainLoad() async throws {
+        let database = try McpTestDatabase.make(); defer { database.cleanUp() }
+        try addServer(database)
+        let onMain = try load(database)
+        let store = database.store
+        let offMain = try await Task.detached {
+            #expect(!Thread.isMainThread)
+            return try McpToolPanelModel.load(
+                conversationId: UUID(), store: store,
+                credentialStore: McpCredentialStore(storage: InMemoryMcpCredentialStorage()), uid: "u1",
+                runtimeConfig: .fallback, availability: .available
+            )
+        }.value
+        #expect(offMain == onMain)
+        #expect(offMain.hasServers)
+    }
+
     @Test("No server added: hidden even with the master switch on")
     func hiddenWithoutServers() throws {
         let database = try McpTestDatabase.make(); defer { database.cleanUp() }

@@ -279,7 +279,10 @@ final class StreamingPacer {
             profile: profile,
             cadence: cadence,
             isStreamEnd: delegate?.pacerHasPendingFinalRender == true,
-            isInsideFence: fenceParity.isInsideUnclosedFence(in: visibleText)
+            isInsideFence: fenceParity.isInsideUnclosedFence(in: visibleText),
+            // The prefix invariant is held by enqueue; without this the chunker re-runs a whole-text
+            // hasPrefix every tick (90 s of main-thread CPU on long CJK replies).
+            knownPrefixUTF16Length: visibleUTF16Count
         )
 
         switch boundary.kind {

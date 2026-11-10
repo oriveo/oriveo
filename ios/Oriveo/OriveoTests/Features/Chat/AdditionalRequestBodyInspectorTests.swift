@@ -327,4 +327,15 @@ struct AdditionalRequestBodyInspectorTests {
         AdditionalRequestBodyEditor.Palette.background.getWhite(&backgroundWhite, alpha: nil)
         #expect(gutterWhite - backgroundWhite > 0.2)
     }
+
+    // Paste reads the pasteboard off the main thread: the production helper
+    // still returns the copied text, and returns nil without touching `string` when nothing is there.
+    @Test("Paste reads the pasteboard text off the main thread")
+    func pasteReadsPasteboardOffMain() async throws {
+        let pasteboard = UIPasteboard.withUniqueName()
+        defer { UIPasteboard.remove(withName: pasteboard.name) }
+        #expect(await AdditionalRequestBodyPage.readPasteboardString(pasteboard) == nil)
+        pasteboard.string = "{\"cache_prompt\": true}"
+        #expect(await AdditionalRequestBodyPage.readPasteboardString(pasteboard) == "{\"cache_prompt\": true}")
+    }
 }

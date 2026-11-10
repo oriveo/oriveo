@@ -17,21 +17,24 @@ enum StreamingBlockChunker {
         let kind: BoundaryKind
     }
 
-
+    /// - Parameter knownPrefixUTF16Length: the caller already guarantees `visible` is a prefix of
+    ///   `target` and passes its cached UTF-16 length. nil falls back to a full `hasPrefix` check,
+    ///   which is O(whole text) per tick and is not on the NFC fast path for CJK text.
     static func nextBoundary(
         visible: String,
         target: String,
         profile: StreamingPacerLanguageProfile,
         cadence: BlockCommitCadence,
         isStreamEnd: Bool,
-        isInsideFence: Bool? = nil
+        isInsideFence: Bool? = nil,
+        knownPrefixUTF16Length: Int? = nil
     ) -> Boundary {
-        guard target.hasPrefix(visible) else {
+        if knownPrefixUTF16Length == nil, !target.hasPrefix(visible) {
             return Boundary(newVisible: target, kind: .snap)
         }
         let nsT = target as NSString
         let tLen = nsT.length
-        let vLen = (visible as NSString).length
+        let vLen = knownPrefixUTF16Length ?? (visible as NSString).length
         guard vLen < tLen else {
             return Boundary(newVisible: visible, kind: .held)
         }

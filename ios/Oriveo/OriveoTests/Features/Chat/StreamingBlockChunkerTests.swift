@@ -353,4 +353,32 @@ struct StreamingBlockChunkerTests {
         }
         #expect(visible == target)
     }
+
+    // The pacer passes its cached UTF-16 length instead of letting the chunker re-run a whole-text
+    // hasPrefix every tick; both paths must produce identical boundaries.
+    @Test("Known prefix length yields the same boundaries as the hasPrefix path")
+    func knownPrefixLengthMatchesHasPrefixPath() {
+        let target = "\u{8FD9}\u{662F}\u{4E00}\u{6BB5}\u{4E2D}\u{6587} mixed words **bold** and `code`\n\n"
+            + "| a | b |\n|---|---|\n| 1 | 2 |\n\n"
+            + "```swift\nlet x = 1\n```\n"
+            + "$$\nx^2\n$$\n"
+            + "emoji \u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467} tail line without newline"
+        for streamEnd in [false, true] {
+            var visible = ""
+            var steps = 0
+            while visible != target, steps < 500 {
+                let baseline = next(visible, target, streamEnd: streamEnd)
+                let fast = StreamingBlockChunker.nextBoundary(
+                    visible: visible, target: target,
+                    profile: .cjk, cadence: cadence, isStreamEnd: streamEnd,
+                    knownPrefixUTF16Length: (visible as NSString).length
+                )
+                #expect(fast == baseline, "diverged at utf16 \((visible as NSString).length)")
+                if baseline.newVisible == visible { break }
+                visible = baseline.newVisible
+                steps += 1
+            }
+            if streamEnd { #expect(visible == target) }
+        }
+    }
 }

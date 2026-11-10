@@ -486,6 +486,7 @@ struct ChatView: View {
     /// Remote MCP: the tool panel data of this conversation (the number on the chip comes from it too) and
     /// whether the panel is open.
     @State private var mcpPanelState: McpToolPanelState = .empty
+    @State private var mcpPanelLoadGeneration = 0
     @State private var showsMcpToolPanel = false
     @State private var isAtBottom = true
     @State private var autoScrollEnabled = true
@@ -1164,18 +1165,33 @@ struct ChatView: View {
             textModel: textAvailability,
             realtimeSelected: appState.realtimeModelSelection(for: projection.activeConversationID) != nil
         )
-        // When local storage cannot be read, draw as "no server", and do not block the chat because of it.
-        let loaded = try? McpToolPanelModel.load(
-            conversationId: mcpConversationScopeID,
-            store: appState.mcpServerDirectory.store(for: uid),
-            credentialStore: appState.mcpServerDirectory.credentialStore,
-            uid: uid,
-            runtimeConfig: MetadataClient.shared.syncMcpRuntimeConfig(),
-            availability: availability
-        )
         var fallback = McpToolPanelState.empty
         fallback.availability = availability
-        mcpPanelState = loaded ?? fallback
+        // The store reads run off the main thread: synchronously they waited seconds on the GRDB
+        // reader pool and hung the chat screen. Only the newest reload lands.
+        mcpPanelLoadGeneration &+= 1
+        let generation = mcpPanelLoadGeneration
+        guard let store = try? appState.mcpServerDirectory.store(for: uid) else {
+            mcpPanelState = fallback
+            return
+        }
+        let conversationId = mcpConversationScopeID
+        let credentialStore = appState.mcpServerDirectory.credentialStore
+        let runtimeConfig = MetadataClient.shared.syncMcpRuntimeConfig()
+        Task {
+            let loaded = await Task.detached(priority: .userInitiated) {
+                try? McpToolPanelModel.load(
+                    conversationId: conversationId,
+                    store: store,
+                    credentialStore: credentialStore,
+                    uid: uid,
+                    runtimeConfig: runtimeConfig,
+                    availability: availability
+                )
+            }.value
+            guard generation == mcpPanelLoadGeneration else { return }
+            mcpPanelState = loaded ?? fallback
+        }
     }
 
     /// The toggle write is suspended waiting on the write lock and is not waited on synchronously on the main thread (the GRDB write queue runs in call order, so rapid taps persist in tap order); after persisting, the panel re-reads from the database.

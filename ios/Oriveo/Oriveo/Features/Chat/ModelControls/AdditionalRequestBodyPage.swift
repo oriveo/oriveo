@@ -320,8 +320,18 @@ struct AdditionalRequestBodyPage: View {
     }
 
     private func pasteFromClipboard() {
-        guard let pasted = UIPasteboard.general.string, !pasted.isEmpty else { return }
-        replaceDraft(pasted)
+        Task {
+            guard let pasted = await Self.readPasteboardString(), !pasted.isEmpty else { return }
+            replaceDraft(pasted)
+        }
+    }
+
+    /// `hasStrings` does not prompt or fetch. Reading `string` blocks the calling thread for the paste
+    /// permission prompt and for Universal Clipboard transfers, which hung this page for 5 s on main
+    ///; UIPasteboard is Sendable, so the read runs off the main thread.
+    static func readPasteboardString(_ pasteboard: UIPasteboard = .general) async -> String? {
+        guard pasteboard.hasStrings else { return nil }
+        return await Task.detached(priority: .userInitiated) { pasteboard.string }.value
     }
 }
 
