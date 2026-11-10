@@ -1,5 +1,6 @@
 import com.sun.management.OperatingSystemMXBean
 import java.lang.management.ManagementFactory
+import java.util.zip.ZipFile
 
 plugins {
     alias(libs.plugins.android.application)
@@ -181,7 +182,7 @@ android {
                 // Match on Installer.class: newer plugin versions add a same-named jar with the classes stripped.
                 val agentJar = it.classpath.single { file ->
                     file.name.startsWith("byte-buddy-agent-") &&
-                        java.util.zip.ZipFile(file).use { zip -> zip.getEntry("net/bytebuddy/agent/Installer.class") != null }
+                        ZipFile(file).use { zip -> zip.getEntry("net/bytebuddy/agent/Installer.class") != null }
                 }
                 listOf("-javaagent:${agentJar.absolutePath}")
             })
