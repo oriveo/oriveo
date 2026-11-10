@@ -1981,8 +1981,9 @@ final class ConversationStore: @unchecked Sendable {
                         nonUsdCostCurrency, nonUsdCostAmount, nonUsdCostSource,
                         inputTokens, outputTokens, cacheCreationInputTokens,
                         capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice,
-                        recoveryPrimaryAction, stopReason, memoryItemIds
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        recoveryPrimaryAction, stopReason, memoryItemIds, attachedSkillIds, usedSkills,
+                        skillManifestTokens
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         text = excluded.text,
                         quoteContext = excluded.quoteContext,
@@ -2011,7 +2012,10 @@ final class ConversationStore: @unchecked Sendable {
                         toolFallbackNotice = excluded.toolFallbackNotice,
                         recoveryPrimaryAction = excluded.recoveryPrimaryAction,
                         stopReason = excluded.stopReason,
-                        memoryItemIds = excluded.memoryItemIds
+                        memoryItemIds = excluded.memoryItemIds,
+                        attachedSkillIds = excluded.attachedSkillIds,
+                        usedSkills = excluded.usedSkills,
+                        skillManifestTokens = COALESCE(excluded.skillManifestTokens, message.skillManifestTokens)
                     -- Skip rows whose values are all unchanged: a same-value UPDATE still writes the whole page
                     -- (long text included) to the WAL and stretches the write lock during a whole-table write.
                     WHERE
@@ -2045,7 +2049,6 @@ final class ConversationStore: @unchecked Sendable {
                         OR message.memoryItemIds IS NOT excluded.memoryItemIds
                         OR message.attachedSkillIds IS NOT excluded.attachedSkillIds
                         OR message.usedSkills IS NOT excluded.usedSkills
-                        OR excluded.remoteConfirmedAt > COALESCE(message.remoteConfirmedAt, 0)
                         OR (excluded.skillManifestTokens IS NOT NULL
                             AND message.skillManifestTokens IS NOT excluded.skillManifestTokens)
                     """,
@@ -2087,7 +2090,6 @@ final class ConversationStore: @unchecked Sendable {
                     message.recoveryPrimaryAction,
                     RecordMappers.encodeStopReason(message.stopReason),
                     RecordMappers.encodeMemoryItemIds(message.memoryItemIds),
-                    message.remoteConfirmedAt,
                     message.role == .user ? RecordMappers.encodeStringArray(message.attachedSkillIds) : nil,
                     message.role == .assistant ? RecordMappers.encodeUsedSkills(message.usedSkills) : nil,
                     message.skillManifestTokens
@@ -2259,8 +2261,9 @@ final class ConversationStore: @unchecked Sendable {
                         nonUsdCostCurrency, nonUsdCostAmount, nonUsdCostSource,
                         inputTokens, outputTokens, cacheCreationInputTokens,
                         capabilityExecution, unhandledToolCalls, toolSteps, toolFallbackNotice,
-                        recoveryPrimaryAction, stopReason, memoryItemIds
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        recoveryPrimaryAction, stopReason, memoryItemIds, attachedSkillIds, usedSkills,
+                        skillManifestTokens
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     ON CONFLICT(id) DO UPDATE SET
                         text = excluded.text,
                         quoteContext = excluded.quoteContext,
@@ -2289,7 +2292,10 @@ final class ConversationStore: @unchecked Sendable {
                         toolFallbackNotice = excluded.toolFallbackNotice,
                         recoveryPrimaryAction = excluded.recoveryPrimaryAction,
                         stopReason = excluded.stopReason,
-                        memoryItemIds = excluded.memoryItemIds
+                        memoryItemIds = excluded.memoryItemIds,
+                        attachedSkillIds = excluded.attachedSkillIds,
+                        usedSkills = excluded.usedSkills,
+                        skillManifestTokens = COALESCE(excluded.skillManifestTokens, message.skillManifestTokens)
                     -- Skip rows whose values are all unchanged: a same-value UPDATE still writes the whole page
                     -- (long text included) to the WAL and stretches the write lock during a whole-table write.
                     WHERE
@@ -2323,7 +2329,6 @@ final class ConversationStore: @unchecked Sendable {
                         OR message.memoryItemIds IS NOT excluded.memoryItemIds
                         OR message.attachedSkillIds IS NOT excluded.attachedSkillIds
                         OR message.usedSkills IS NOT excluded.usedSkills
-                        OR excluded.remoteConfirmedAt > COALESCE(message.remoteConfirmedAt, 0)
                         OR (excluded.skillManifestTokens IS NOT NULL
                             AND message.skillManifestTokens IS NOT excluded.skillManifestTokens)
                     """,
@@ -2365,7 +2370,6 @@ final class ConversationStore: @unchecked Sendable {
                     message.recoveryPrimaryAction,
                     RecordMappers.encodeStopReason(message.stopReason),
                     RecordMappers.encodeMemoryItemIds(message.memoryItemIds),
-                    message.remoteConfirmedAt,
                     message.role == .user ? RecordMappers.encodeStringArray(message.attachedSkillIds) : nil,
                     message.role == .assistant ? RecordMappers.encodeUsedSkills(message.usedSkills) : nil,
                     message.skillManifestTokens
