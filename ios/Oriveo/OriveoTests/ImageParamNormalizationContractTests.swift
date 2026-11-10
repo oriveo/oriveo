@@ -44,7 +44,7 @@ struct ImageParamNormalizationContractTests {
     }
 
     private static func fixture() throws -> Fixture {
-        let url = try repoFile(["\u{5171}\u{4EAB}", "model-contracts", "image_param_normalization.v1.json"])
+        let url = try repoFile(["shared", "model-contracts", "image_param_normalization.v1.json"])
         return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url))
     }
 

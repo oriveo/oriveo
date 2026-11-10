@@ -198,7 +198,7 @@ class ImageProfileMetadataDecodeTest {
     // -- helpers --
 
     private fun fixture(): JsonObject =
-        Json.parseToJsonElement(workspaceFile("\u5171\u4eab/model-contracts/metadata_catalog_contract.v1.json").readText()).jsonObject
+        Json.parseToJsonElement(workspaceFile("shared/model-contracts/metadata_catalog_contract.v1.json").readText()).jsonObject
 
     private fun schema3(): JsonObject = fixture().getValue("schema3").jsonObject
 
@@ -226,7 +226,7 @@ class ImageProfileMetadataDecodeTest {
         metadataSplitTransport = server,
         nowMillis = { 1_000L },
         failureReporter = { tags -> reports?.add(tags) ?: error("unexpected failure: $tags") },
-        metadataPayloadSchemaText = workspaceFile("\u5171\u4eab/model-contracts/metadata_payload.v2.schema.json").readText(),
+        metadataPayloadSchemaText = workspaceFile("shared/model-contracts/metadata_payload.v2.schema.json").readText(),
     ).also { it.catalogDemandSupplier = { demand } }
 
     private fun demand(vararg kinds: ProviderKind) = MetadataClient.CatalogDemand(kinds.toSet(), hasRelay = false)

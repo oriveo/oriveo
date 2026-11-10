@@ -23,7 +23,7 @@ struct StudioPresetSampleCacheTests {
     }
 
     private static func sampleCacheCases() throws -> JSONValue {
-        let url = try repoFile(["\u{5171}\u{4EAB}", "studio-contracts", "studio_presets.v1.json"])
+        let url = try repoFile(["shared", "studio-contracts", "studio_presets.v1.json"])
         let fixture = try JSONValue(data: Data(contentsOf: url))
         return try #require(fixture["clientCases"]?["sampleCache"], "clientCases.sampleCache")
     }

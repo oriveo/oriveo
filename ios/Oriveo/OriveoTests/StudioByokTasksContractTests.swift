@@ -24,7 +24,7 @@ struct StudioByokTasksContractTests {
     }
 
     static func jsonObject(_ components: [String]) throws -> [String: Any] {
-        let data = try Data(contentsOf: repoFile(["\u{5171}\u{4EAB}", "studio-contracts"] + components))
+        let data = try Data(contentsOf: repoFile(["shared", "studio-contracts"] + components))
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CocoaError(.fileReadCorruptFile)
         }

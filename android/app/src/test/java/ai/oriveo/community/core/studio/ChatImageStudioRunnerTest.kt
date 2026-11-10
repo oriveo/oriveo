@@ -41,8 +41,8 @@ import org.junit.Test
  * failed round throws the mapped chat error; the runner's own transport sends with Studio compiled out.
  */
 class ChatImageStudioRunnerTest {
-    // Shared contract directory name, built at runtime so the source stays ASCII.
-    private val sharedDir = String(charArrayOf(0x5171.toChar(), 0x4eab.toChar()))
+    // Shared contract directory name.
+    private val sharedDir = "shared"
 
     private val fixture: JsonObject by lazy {
         val path: Path = generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }

@@ -24,7 +24,7 @@ struct StudioImageErrorContractTests {
     }
 
     static func jsonObject(_ components: [String]) throws -> [String: Any] {
-        let data = try Data(contentsOf: repoFile(["\u{5171}\u{4EAB}", "model-contracts"] + components))
+        let data = try Data(contentsOf: repoFile(["shared", "model-contracts"] + components))
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CocoaError(.fileReadCorruptFile)
         }

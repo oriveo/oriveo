@@ -23,8 +23,8 @@ import org.junit.Test
  * matching chat error. Fixture chat_image_dispatch.v1.
  */
 class ChatImageDispatchContractTest {
-    // Shared contract directory name, built at runtime so the source stays ASCII.
-    private val sharedDir = String(charArrayOf(0x5171.toChar(), 0x4eab.toChar()))
+    // Shared contract directory name.
+    private val sharedDir = "shared"
 
     private val fixture: JsonObject by lazy {
         val path: Path = generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }

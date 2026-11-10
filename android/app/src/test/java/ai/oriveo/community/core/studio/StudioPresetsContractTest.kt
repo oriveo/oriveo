@@ -32,7 +32,7 @@ class StudioPresetsContractTest {
             ?: error("${relative.first()} not found")
 
     private fun load(name: String): JsonObject =
-        Json.parseToJsonElement(findUp("\u5171\u4eab/studio-contracts/$name").toFile().readText()).jsonObject
+        Json.parseToJsonElement(findUp("shared/studio-contracts/$name").toFile().readText()).jsonObject
 
     private val fixture: JsonObject by lazy { load("studio_presets.v1.json") }
     private val clientCases: JsonObject by lazy { fixture.getValue("clientCases").jsonObject }

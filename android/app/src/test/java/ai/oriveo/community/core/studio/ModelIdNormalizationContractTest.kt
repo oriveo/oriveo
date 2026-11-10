@@ -16,7 +16,7 @@ class ModelIdNormalizationContractTest {
     private val fixture: JsonObject by lazy {
         val path = generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
-            .map { it.resolve("\u5171\u4eab/model-contracts/model_id_normalization.v1.json") }
+            .map { it.resolve("shared/model-contracts/model_id_normalization.v1.json") }
             .firstOrNull { Files.exists(it) }
             ?: error("model_id_normalization.v1.json not found")
         Json.parseToJsonElement(path.toFile().readText()).jsonObject

@@ -443,7 +443,7 @@ class AttachmentOrphanSweeperTest {
     private val contracts: Path by lazy {
         generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
-            .map { it.resolve("\u5171\u4eab/studio-contracts") }
+            .map { it.resolve("shared/studio-contracts") }
             .firstOrNull { Files.exists(it.resolve("studio_data_model.v1.json")) }
             ?: error("studio_data_model.v1.json not found")
     }

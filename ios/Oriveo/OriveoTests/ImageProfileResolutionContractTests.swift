@@ -73,7 +73,7 @@ struct ImageProfileResolutionContractTests {
     }
 
     private static func load<T: Decodable>(_ type: T.Type, _ name: String) throws -> T {
-        let url = try repoFile(["\u{5171}\u{4EAB}", "model-contracts", name])
+        let url = try repoFile(["shared", "model-contracts", name])
         return try JSONDecoder().decode(T.self, from: Data(contentsOf: url))
     }
 

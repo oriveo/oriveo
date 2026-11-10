@@ -152,7 +152,7 @@ struct ProviderTextTintFixtureTests {
         var cursor = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while cursor.path != "/" {
             let candidate = cursor
-                .appendingPathComponent("\u{5171}\u{4EAB}")
+                .appendingPathComponent("shared")
                 .appendingPathComponent("test-fixtures")
                 .appendingPathComponent("provider-tint")
                 .appendingPathComponent("provider-text-tint.v1.json")

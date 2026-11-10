@@ -24,7 +24,7 @@ struct StudioPromptComposeContractTests {
     }
 
     private static func fixture() throws -> JSONValue {
-        let url = try repoFile(["\u{5171}\u{4EAB}", "studio-contracts", "studio_prompt_compose.v1.json"])
+        let url = try repoFile(["shared", "studio-contracts", "studio_prompt_compose.v1.json"])
         return try JSONValue(data: Data(contentsOf: url))
     }
 

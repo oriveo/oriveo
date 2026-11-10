@@ -204,7 +204,7 @@ struct OriveoLightRolesContractTests {
         var cursor = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while cursor.path != "/" {
             let candidate = cursor
-                .appendingPathComponent("\u{5171}\u{4EAB}") // shared contracts directory
+                .appendingPathComponent("shared") // shared contracts directory
                 .appendingPathComponent("theme-contracts")
                 .appendingPathComponent("light-roles.v1.json")
             if FileManager.default.fileExists(atPath: candidate.path) {

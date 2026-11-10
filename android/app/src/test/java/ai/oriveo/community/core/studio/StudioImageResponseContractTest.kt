@@ -33,7 +33,7 @@ class StudioImageResponseContractTest {
     private val dir: Path by lazy {
         generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
-            .map { it.resolve("\u5171\u4eab/model-contracts/image_response_samples.v1") }
+            .map { it.resolve("shared/model-contracts/image_response_samples.v1") }
             .firstOrNull { Files.exists(it.resolve("index.json")) }
             ?: error("image_response_samples.v1 not found")
     }

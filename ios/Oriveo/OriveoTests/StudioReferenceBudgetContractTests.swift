@@ -24,7 +24,7 @@ struct StudioReferenceBudgetContractTests {
     }
 
     static func fixture() throws -> [String: Any] {
-        let url = try repoFile(["\u{5171}\u{4EAB}", "studio-contracts", fixtureName])
+        let url = try repoFile(["shared", "studio-contracts", fixtureName])
         let data = try Data(contentsOf: url)
         guard let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw CocoaError(.fileReadCorruptFile)

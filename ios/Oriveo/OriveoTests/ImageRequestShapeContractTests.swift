@@ -38,7 +38,7 @@ struct ImageRequestShapeContractTests {
     }
 
     private static func load(_ name: String) throws -> [String: JSONValue] {
-        let url = try repoFile(["\u{5171}\u{4EAB}", "model-contracts", name])
+        let url = try repoFile(["shared", "model-contracts", name])
         guard case .object(let object) = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url)) else {
             throw BadFixture(description: "\(name) is not a JSON object")
         }

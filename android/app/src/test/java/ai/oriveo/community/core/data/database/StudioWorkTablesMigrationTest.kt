@@ -33,7 +33,7 @@ class StudioWorkTablesMigrationTest {
     private val freshDbName = "studio-work-tables-fresh.db"
 
     private val contracts: Path by lazy {
-        val shared = String(charArrayOf(0x5171.toChar(), 0x4eab.toChar()))
+        val shared = "shared"
         generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
             .map { it.resolve("$shared/studio-contracts") }

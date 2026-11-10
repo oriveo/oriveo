@@ -20,7 +20,7 @@ import org.junit.Test
 class StudioWorkOperationTest {
 
     private val dataModel: JsonObject by lazy {
-        val shared = String(charArrayOf(0x5171.toChar(), 0x4eab.toChar()))
+        val shared = "shared"
         val dir: Path = generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
             .map { it.resolve("$shared/studio-contracts") }

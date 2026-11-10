@@ -29,7 +29,7 @@ class StudioImageErrorContractTest {
     private val contracts: Path by lazy {
         generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
-            .map { it.resolve("\u5171\u4eab/model-contracts") }
+            .map { it.resolve("shared/model-contracts") }
             .firstOrNull { Files.exists(it.resolve("image_error_samples.v1.json")) }
             ?: error("image_error_samples.v1.json not found")
     }

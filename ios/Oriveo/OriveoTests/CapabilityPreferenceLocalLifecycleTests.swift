@@ -339,7 +339,7 @@ struct CapabilityPreferenceLocalLifecycleTests {
         var current = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while current.path != "/" {
             let candidate = current
-                .appendingPathComponent("\u{5171}\u{4EAB}")
+                .appendingPathComponent("shared")
                 .appendingPathComponent("model-contracts")
                 .appendingPathComponent("capability_preference_sync.v1.json")
             if FileManager.default.fileExists(atPath: candidate.path) { return candidate }

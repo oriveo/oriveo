@@ -42,7 +42,7 @@ class StudioImageFetcherTest {
     private val fixture: JsonObject by lazy {
         val path = generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
-            .map { it.resolve("\u5171\u4eab/model-contracts/image_response_samples.v1/index.json") }
+            .map { it.resolve("shared/model-contracts/image_response_samples.v1/index.json") }
             .firstOrNull { Files.exists(it) }
             ?: error("image_response_samples.v1 not found")
         Json.parseToJsonElement(path.toFile().readText()).jsonObject

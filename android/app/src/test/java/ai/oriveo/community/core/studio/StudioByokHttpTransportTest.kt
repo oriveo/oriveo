@@ -226,8 +226,8 @@ class StudioByokHttpTransportTest {
     private companion object {
         const val BODY_LIMIT = 41_943_040L + 1_048_576L
 
-        // Repository shared-contracts directory name, built from code points to keep the source ASCII.
-        val SHARED_DIR = String(intArrayOf(0x5171, 0x4EAB), 0, 2)
+        // Repository shared-contracts directory name.
+        val SHARED_DIR = "shared"
     }
 
     private fun readJson(path: Path): JsonObject = Json.parseToJsonElement(path.toFile().readText()).jsonObject

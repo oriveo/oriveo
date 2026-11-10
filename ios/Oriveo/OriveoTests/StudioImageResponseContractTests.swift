@@ -23,7 +23,7 @@ struct StudioImageResponseContractTests {
     }
 
     static func fixtureFile(_ name: String) throws -> URL {
-        try repoFile(["\u{5171}\u{4EAB}", "model-contracts", contractId, name])
+        try repoFile(["shared", "model-contracts", contractId, name])
     }
 
     static func index() throws -> [String: Any] {

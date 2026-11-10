@@ -39,7 +39,7 @@ class StudioPresetSampleCacheTest {
             .firstOrNull { Files.exists(it) }
             ?: error("$relative not found")
 
-    private val sharedDir = String(charArrayOf(0x5171.toChar(), 0x4eab.toChar()))
+    private val sharedDir = "shared"
 
     private val sampleCache: JsonObject by lazy {
         Json.parseToJsonElement(findUp("$sharedDir/studio-contracts/studio_presets.v1.json").toFile().readText())

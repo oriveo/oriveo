@@ -80,7 +80,7 @@ private func repoFile(_ components: [String]) throws -> URL {
 
 /// Shared corpus generated from Server output; no end builds its own.
 private func catalogCorpus() throws -> [String: Any] {
-    let url = try repoFile(["\u{5171}\u{4EAB}", "model-contracts", "metadata_catalog_contract.v1.json"])
+    let url = try repoFile(["shared", "model-contracts", "metadata_catalog_contract.v1.json"])
     return try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
 }
 

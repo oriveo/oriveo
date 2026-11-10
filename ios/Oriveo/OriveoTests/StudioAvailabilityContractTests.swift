@@ -58,7 +58,7 @@ struct StudioAvailabilityContractTests {
     }
 
     private static func fixture() throws -> Fixture {
-        let url = try repoFile(["\u{5171}\u{4EAB}", "studio-contracts", "studio_availability.v1.json"])
+        let url = try repoFile(["shared", "studio-contracts", "studio_availability.v1.json"])
         return try JSONDecoder().decode(Fixture.self, from: Data(contentsOf: url))
     }
 

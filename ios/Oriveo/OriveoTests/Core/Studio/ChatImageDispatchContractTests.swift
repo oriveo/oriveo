@@ -28,7 +28,7 @@ struct ChatImageDispatchContractTests {
     }
 
     private static func fixtureURL() throws -> URL {
-        try repoFile(["\u{5171}\u{4EAB}", "studio-contracts", "chat_image_dispatch.v1.json"])
+        try repoFile(["shared", "studio-contracts", "chat_image_dispatch.v1.json"])
     }
 
     private static func fixture() throws -> [String: Any] {

@@ -41,7 +41,7 @@ class StudioByokExecutorTest {
     private fun contractPath(name: String): Path =
         generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
-            .map { it.resolve("\u5171\u4eab/model-contracts/$name") }
+            .map { it.resolve("shared/model-contracts/$name") }
             .firstOrNull { Files.exists(it) }
             ?: error("$name not found")
 

@@ -31,7 +31,7 @@ import org.junit.Test
 class InterruptedTurnUsageContractTest {
 
     private val cases: Map<String, JsonObject> by lazy {
-        val root = Json.parseToJsonElement(workspaceFile("\u5171\u4eab/test-fixtures/provider-usage/interrupted-turn.v1.json").readText()).jsonObject
+        val root = Json.parseToJsonElement(workspaceFile("shared/test-fixtures/provider-usage/interrupted-turn.v1.json").readText()).jsonObject
         assertEquals("oriveo.fixture.interrupted-turn/v1", root["schema"]!!.jsonPrimitive.content)
         root["cases"]!!.jsonArray.map { it.jsonObject }.associateBy { it["id"]!!.jsonPrimitive.content }
             .also { assertEquals(13, it.size) }

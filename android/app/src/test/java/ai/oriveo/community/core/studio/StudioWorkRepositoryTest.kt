@@ -51,7 +51,7 @@ class StudioWorkRepositoryTest {
     private val dao: StudioWorkDao get() = requireNotNull(db).studioWorkDao()
 
     private val dataModel: JsonObject by lazy {
-        val shared = String(charArrayOf(0x5171.toChar(), 0x4eab.toChar()))
+        val shared = "shared"
         val dir = generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
             .map { it.resolve("$shared/studio-contracts") }

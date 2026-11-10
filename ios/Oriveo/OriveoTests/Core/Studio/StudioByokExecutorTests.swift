@@ -32,7 +32,7 @@ struct StudioByokExecutorTests {
     }
 
     private static func sampleFile(_ name: String) throws -> URL {
-        try repoFile(["\u{5171}\u{4EAB}", "model-contracts", "image_response_samples.v1", name])
+        try repoFile(["shared", "model-contracts", "image_response_samples.v1", name])
     }
 
     private static func jsonObject(_ url: URL) throws -> [String: Any] {
@@ -44,7 +44,7 @@ struct StudioByokExecutorTests {
 
     /// Profiles of image_param_normalization.v1.json, by name.
     private static func profileObjects() throws -> [String: [String: JSONValue]] {
-        let url = try repoFile(["\u{5171}\u{4EAB}", "model-contracts", "image_param_normalization.v1.json"])
+        let url = try repoFile(["shared", "model-contracts", "image_param_normalization.v1.json"])
         guard case .object(let root) = try JSONDecoder().decode(JSONValue.self, from: Data(contentsOf: url)),
               case .object(let profiles)? = root["profiles"]
         else { throw BadFixture(description: "profiles missing") }

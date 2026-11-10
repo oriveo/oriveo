@@ -21,8 +21,8 @@ import org.junit.Test
 class LightRolesContractTest {
 
     private object LightRolesContract {
-        /** The shared contract folder at the repo root, spelled by code points to keep this file ASCII. */
-        private val RELATIVE_PATH = String(intArrayOf(0x5171, 0x4EAB), 0, 2) + "/theme-contracts/light-roles.v1.json"
+        /** The shared contract folder at the repo root. */
+        private val RELATIVE_PATH = "shared" + "/theme-contracts/light-roles.v1.json"
 
         val root: JsonObject by lazy {
             val path = generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }

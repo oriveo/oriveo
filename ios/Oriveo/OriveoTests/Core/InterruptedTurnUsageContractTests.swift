@@ -13,7 +13,7 @@ struct InterruptedTurnUsageContractTests {
     private static func fixtureCase(_ id: String) throws -> [String: Any] {
         var cursor = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while cursor.path != "/" {
-            let candidate = cursor.appendingPathComponent("\u{5171}\u{4EAB}/test-fixtures/provider-usage/interrupted-turn.v1.json")
+            let candidate = cursor.appendingPathComponent("shared/test-fixtures/provider-usage/interrupted-turn.v1.json")
             if FileManager.default.fileExists(atPath: candidate.path) {
                 let object = try JSONSerialization.jsonObject(with: Data(contentsOf: candidate))
                 let root = try #require(object as? [String: Any])

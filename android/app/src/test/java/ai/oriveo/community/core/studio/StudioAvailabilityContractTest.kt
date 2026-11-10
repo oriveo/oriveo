@@ -23,7 +23,7 @@ class StudioAvailabilityContractTest {
     private val fixture: JsonObject by lazy {
         val path = generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
-            .map { it.resolve("\u5171\u4eab/studio-contracts/studio_availability.v1.json") }
+            .map { it.resolve("shared/studio-contracts/studio_availability.v1.json") }
             .firstOrNull { Files.exists(it) }
             ?: error("studio_availability.v1.json not found")
         Json.parseToJsonElement(path.toFile().readText()).jsonObject

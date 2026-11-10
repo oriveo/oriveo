@@ -27,7 +27,7 @@ class StudioReferenceBudgetContractTest {
     private val contracts: Path by lazy {
         generateSequence(Paths.get("").toAbsolutePath().normalize()) { it.parent }
             .take(8)
-            .map { it.resolve("\u5171\u4eab/studio-contracts") }
+            .map { it.resolve("shared/studio-contracts") }
             .firstOrNull { Files.exists(it.resolve("byok_reference_budget.v1.json")) }
             ?: error("byok_reference_budget.v1.json not found")
     }
