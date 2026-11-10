@@ -61,7 +61,7 @@ class StudioWorkTablesMigrationTest {
     }
 
     @Test
-    fun v55_upgrades_to_v56_with_empty_studio_tables() = runBlocking {
+    fun v10_upgrades_to_v11_with_empty_studio_tables() = runBlocking {
         createFromSchema(dbName, 10, seedLegacyRows = true)
         withDatabase { db ->
             val sql = db.openHelper.writableDatabase
@@ -242,15 +242,13 @@ class StudioWorkTablesMigrationTest {
             helper.writableDatabase.let { db ->
                 db.execSQL(
                     "INSERT INTO conversations (id, title, hasCustomTitle, providerID, providerKind, modelID, useMemory, " +
-                        "previewText, estimatedCost, isDraft, draftText, createdAt, updatedAt, accountId, " +
-                        "firestoreUpdatedAt, firestoreMetadataUpdatedAt, remoteMessageCount, isConflictCopy) " +
-                        "VALUES ('$CONV', 't', 0, '$PROVIDER', 'OpenAI', 'm', 1, '', 0.02, 0, '', 1, 1, '$UID', 0, 0, 1, 0)",
+                        "previewText, estimatedCost, isDraft, draftText, createdAt, updatedAt, accountId) " +
+                        "VALUES ('$CONV', 't', 0, '$PROVIDER', 'OpenAI', 'm', 1, '', 0.02, 0, '', 1, 1, '$UID')",
                 )
                 db.execSQL(
                     "INSERT INTO messages (id, accountId, conversationId, role, text, providerKind, providerName, " +
-                        "modelName, estimatedCost, state, sortOrder, customRetryWithoutFieldsAvailable, " +
-                        "libraryResearchEnabled, createdAt, remoteConfirmedAt) " +
-                        "VALUES ('$MSG', '$UID', '$CONV', 'Assistant', 'hi', 'OpenAI', 'OpenAI', 'm', 0.02, 'Delivered', 0, 0, 0, 1000, 5)",
+                        "modelName, estimatedCost, state, sortOrder, customRetryWithoutFieldsAvailable, createdAt) " +
+                        "VALUES ('$MSG', '$UID', '$CONV', 'Assistant', 'hi', 'OpenAI', 'OpenAI', 'm', 0.02, 'Delivered', 0, 0, 1000)",
                 )
             }
         } else {
