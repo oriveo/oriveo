@@ -229,11 +229,10 @@ struct MainThreadDatabaseWriteGuardTests {
     // The per-conversation upsert (several per sent message) used to rebuild the thread's trigram index and
     // rewrite every attachment row each time, 1 GB of disk writes a day on long threads.
     private func threadWithImage() -> Conversation {
-        var image = Attachment(
+        let image = Attachment(
             id: UUID(), kind: .image, fileName: "p.png", mimeType: "image/png", base64Data: nil,
             thumbnailBase64: String(repeating: "A", count: 4096)
         )
-        image.storageRef = "users/u1/attachments/p.png"
         return TestFactories.makeConversation(
             title: "Thread with image",
             messages: [
