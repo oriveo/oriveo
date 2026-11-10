@@ -289,9 +289,7 @@ struct CapabilityPreferenceLocalLifecycleTests {
     private static func isolatedStore() -> (GenerationParameterSettingsStore, () -> Void) {
         let suiteName = "capability-local-lifecycle-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
-        let store = GenerationParameterSettingsStore(
-            defaults: defaults, capabilityDidChange: {}, generationDidChange: {}
-        )
+        let store = GenerationParameterSettingsStore(defaults: defaults)
         return (store, { defaults.removePersistentDomain(forName: suiteName) })
     }
 

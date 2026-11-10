@@ -2087,12 +2087,8 @@ struct ChatView: View {
         ) { _ in
             pendingModelNameCache.removeAll()
             // Metadata that lands after the page opened can make a stored preference resolvable now:
-            // re-read it once. Free / managed web search is session state only, so it is left alone.
-            // A discrete event; the store writes below never publish metadata.
-            let form = ProviderForm.of(provider)
-            if form != .free, form != .managed {
-                restoreCapabilityPreferences(provider: provider, model: currentModel, conversationID: projection.activeConversationID)
-            }
+            // re-read it once. A discrete event; the store writes below never publish metadata.
+            restoreCapabilityPreferences(provider: provider, model: currentModel, conversationID: projection.activeConversationID)
         }
         .onChange(of: resolvedChatContext?.provider.id) { _, _ in
             restoreCapabilityPreferences(provider: provider, model: currentModel, conversationID: projection.activeConversationID)

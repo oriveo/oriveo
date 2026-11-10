@@ -226,6 +226,16 @@ struct MainThreadDatabaseWriteGuardTests {
         try sidecar.close()
     }
 
+    private func makeStore() throws -> (McpTestDatabase, ConversationStore) {
+        let database = try McpTestDatabase.make()
+        let files = AttachmentFileStore(rootDirectory: database.directory.appendingPathComponent("Files", isDirectory: true))
+        return (database, ConversationStore(dbPool: database.pool, attachmentFileStore: files))
+    }
+
+    private func totalChanges(_ database: McpTestDatabase) throws -> Int {
+        try database.pool.write { $0.totalChangesCount }
+    }
+
     // The per-conversation upsert (several per sent message) used to rebuild the thread's trigram index and
     // rewrite every attachment row each time, 1 GB of disk writes a day on long threads.
     private func threadWithImage() -> Conversation {

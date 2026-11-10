@@ -286,7 +286,8 @@ struct ConversationPersistenceSafetyTests {
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
-        state.upsertConversationProjection(conversation)
+        _ = try state.conversationRuntimeBridge.replaceAllConversations([conversation], uid: uid)
+        state.conversations = [conversation]
         try? FileManager.default.removeItem(at: recoveryURL)
 
         state.persistLifecycleCriticalData(checkpoint: false)
@@ -332,6 +333,8 @@ struct ConversationPersistenceSafetyTests {
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
+        // The sanitize UPDATE is queued on the persist queue (the main thread never writes synchronously): wait for it.
+        state.flushConversationPersistQueue()
 
         let listed = try #require(state.conversations.first(where: { $0.id == conversationID }))
         #expect(listed.messages.isEmpty, "cold-start memory keeps a summary projection")
