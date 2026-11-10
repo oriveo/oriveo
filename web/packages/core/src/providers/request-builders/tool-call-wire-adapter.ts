@@ -479,19 +479,47 @@ function jsonObject(raw: string): Record<string, unknown> {
   }
 }
 
+// Gemini `Schema` only accepts an OpenAPI subset; anything else ($schema / $ref / $defs / oneOf /
+// additionalProperties …) is dropped, mirroring iOS GeminiToolAdapter.schemaKeyAllowlist.
+const GEMINI_SCHEMA_KEYS = new Set([
+  'type', 'format', 'title', 'description', 'nullable', 'enum', 'items', 'properties', 'required',
+  'minItems', 'maxItems', 'minimum', 'maximum', 'minLength', 'maxLength', 'pattern', 'anyOf',
+  'propertyOrdering', 'default', 'example',
+]);
+
 function normalizeGeminiSchema(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(normalizeGeminiSchema);
-  if (!value || typeof value !== 'object') return value;
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
   const input = value as Record<string, unknown>;
   const output: Record<string, unknown> = {};
   for (const [key, item] of Object.entries(input)) {
-    if (key === 'additionalProperties') continue;
-    if (key === 'type' && Array.isArray(item) && item.includes('null')) {
-      output.type = item.find((entry) => entry !== 'null') ?? 'string';
-      output.nullable = true;
-      continue;
+    if (!GEMINI_SCHEMA_KEYS.has(key)) continue;
+    switch (key) {
+      case 'type':
+        if (Array.isArray(item)) {
+          const concrete = item.find((entry) => entry !== 'null');
+          if (concrete !== undefined) output.type = concrete;
+          if (item.includes('null')) output.nullable = true;
+        } else {
+          output.type = item;
+        }
+        break;
+      case 'properties':
+        // Keys here are property names, not schema keywords: only their values are schemas.
+        if (item && typeof item === 'object' && !Array.isArray(item)) {
+          output.properties = Object.fromEntries(
+            Object.entries(item as Record<string, unknown>).map(([name, schema]) => [name, normalizeGeminiSchema(schema)]),
+          );
+        }
+        break;
+      case 'items':
+        output.items = normalizeGeminiSchema(item);
+        break;
+      case 'anyOf':
+        if (Array.isArray(item)) output.anyOf = item.map(normalizeGeminiSchema);
+        break;
+      default:
+        output[key] = item;
     }
-    output[key] = normalizeGeminiSchema(item);
   }
   return output;
 }

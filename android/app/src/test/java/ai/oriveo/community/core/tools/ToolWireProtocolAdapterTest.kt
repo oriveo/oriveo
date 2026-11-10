@@ -161,7 +161,42 @@ class ToolWireProtocolAdapterTest {
             .jsonObject["thoughtSignature"]!!.jsonPrimitive.content)
     }
 
-    private fun body(protocol: ToolWireProtocol, continuation: JsonObject? = null): JsonObject =
+    // Same allowlist as iOS GeminiToolAdapter.schemaKeyAllowlist: unknown keywords are dropped, property names are not.
+    @Test
+    fun gemini_schema_allowlist_drops_unsupported_keywords_but_keeps_property_names() {
+        val mcpTool = ToolLoopToolDefinition(function = ToolLoopToolFunction(
+            name = "mcp_lookup",
+            description = "Lookup",
+            parameters = json.parseToJsonElement(
+                """{"${'$'}schema":"https://json-schema.org/draft/2020-12/schema","${'$'}defs":{"id":{"type":"string"}},
+                "type":"object","additionalProperties":false,
+                "properties":{
+                  "${'$'}ref":{"${'$'}ref":"#/${'$'}defs/id","type":"string","description":"odd name"},
+                  "mode":{"oneOf":[{"const":"a"}],"enum":["a","b"],"type":["string","null"]},
+                  "tags":{"type":"array","items":{"type":"string","additionalProperties":false}},
+                  "pick":{"anyOf":[{"type":"string","${'$'}comment":"x"},{"type":"integer"}]}
+                },"required":["mode"]}""",
+            ).jsonObject,
+        ))
+        val parameters = body(ToolWireProtocol.GeminiGenerate, tools = listOf(mcpTool))
+            .getValue("tools").jsonArray[0].jsonObject["functionDeclarations"]!!.jsonArray[0]
+            .jsonObject["parameters"]!!
+        val expected = json.parseToJsonElement(
+            """{"type":"object","properties":{
+              "${'$'}ref":{"type":"string","description":"odd name"},
+              "mode":{"enum":["a","b"],"type":"string","nullable":true},
+              "tags":{"type":"array","items":{"type":"string"}},
+              "pick":{"anyOf":[{"type":"string"},{"type":"integer"}]}
+            },"required":["mode"]}""",
+        )
+        assertEquals(expected, parameters)
+    }
+
+    private fun body(
+        protocol: ToolWireProtocol,
+        continuation: JsonObject? = null,
+        tools: List<ToolLoopToolDefinition> = listOf(tool),
+    ): JsonObject =
         ToolWireProtocolAdapter.buildBody(
             protocol = protocol,
             modelId = "model",
@@ -176,7 +211,7 @@ class ToolWireProtocolAdapterTest {
                     ),
                     ToolLoopMessage("tool", JsonPrimitive("{\"ok\":true}"), toolCallId = "call_1"),
                 ),
-                tools = listOf(tool),
+                tools = tools,
                 toolChoice = ToolLoopToolChoice.Auto,
             ),
         )

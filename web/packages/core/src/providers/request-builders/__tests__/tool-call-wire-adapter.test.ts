@@ -137,6 +137,47 @@ describe('tool-call wire adapter', () => {
     });
   });
 
+  // Same allowlist as iOS GeminiToolAdapter.schemaKeyAllowlist: unknown keywords are dropped, property names are not.
+  it('gemini_schema_allowlist_drops_unsupported_keywords_but_keeps_property_names', () => {
+    const mcpTool: ProxyToolDefinition = {
+      type: 'function',
+      function: {
+        name: 'mcp_lookup',
+        description: 'Lookup',
+        parameters: {
+          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          $defs: { id: { type: 'string' } },
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            $ref: { $ref: '#/$defs/id', type: 'string', description: 'odd name' },
+            mode: { oneOf: [{ const: 'a' }], enum: ['a', 'b'], type: ['string', 'null'] },
+            tags: { type: 'array', items: { type: 'string', additionalProperties: false } },
+            pick: { anyOf: [{ type: 'string', $comment: 'x' }, { type: 'integer' }] },
+          },
+          required: ['mode'],
+        },
+      },
+    };
+    const body = adapt(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini:streamGenerateContent?alt=sse',
+      [{ role: 'user', content: 'hi' }],
+      {},
+      undefined,
+      [mcpTool],
+    ) as { tools: Array<{ functionDeclarations: Array<{ parameters: unknown }> }> };
+    expect(body.tools[0].functionDeclarations[0].parameters).toEqual({
+      type: 'object',
+      properties: {
+        $ref: { type: 'string', description: 'odd name' },
+        mode: { enum: ['a', 'b'], type: 'string', nullable: true },
+        tags: { type: 'array', items: { type: 'string' } },
+        pick: { anyOf: [{ type: 'string' }, { type: 'integer' }] },
+      },
+      required: ['mode'],
+    });
+  });
+
   it('keeps OpenAI-compatible parallel calls and their tool result ids unchanged', () => {
     const messages: ProxyMessage[] = [
       { role: 'user', content: 'Research.' },
@@ -423,6 +464,7 @@ function adapt(
   messages: ProxyMessage[],
   body: Record<string, unknown> = {},
   instructionsMode?: 'resend' | 'omit',
+  tools: ProxyToolDefinition[] = [tool],
 ): Record<string, unknown> {
   const request: ProviderRequest = {
     url, headers: {}, body,
@@ -432,7 +474,7 @@ function adapt(
   };
   const params: Pick<RequestParams, 'messages' | 'tools' | 'toolChoice'> = {
     messages,
-    tools: [tool],
+    tools,
     toolChoice: 'auto',
   };
   return applyToolCallWireAdapter(request, params).body;

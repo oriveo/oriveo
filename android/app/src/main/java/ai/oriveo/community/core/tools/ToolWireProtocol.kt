@@ -394,21 +394,40 @@ internal object ToolWireProtocolAdapter {
         Json.parseToJsonElement(raw).jsonObject
     }.getOrElse { buildJsonObject { put("output", raw) } }
 
-    private fun normalizeGeminiSchema(value: JsonElement): JsonElement = when (value) {
-        is JsonArray -> JsonArray(value.map(::normalizeGeminiSchema))
-        is JsonObject -> buildJsonObject {
+    /**
+     * Gemini `Schema` only accepts an OpenAPI subset; anything else ($schema / $ref / $defs / oneOf /
+     * additionalProperties …) is dropped, mirroring iOS GeminiToolAdapter.schemaKeyAllowlist.
+     */
+    private val geminiSchemaKeys = setOf(
+        "type", "format", "title", "description", "nullable", "enum", "items", "properties", "required",
+        "minItems", "maxItems", "minimum", "maximum", "minLength", "maxLength", "pattern", "anyOf",
+        "propertyOrdering", "default", "example",
+    )
+
+    private fun normalizeGeminiSchema(value: JsonElement): JsonElement {
+        if (value !is JsonObject) return value
+        return buildJsonObject {
             value.forEach { (key, item) ->
-                when {
-                    key == "additionalProperties" -> Unit
-                    key == "type" && item is JsonArray && item.any { it.jsonPrimitive.contentOrNull == "null" } -> {
-                        put("type", item.firstOrNull { it.jsonPrimitive.contentOrNull != "null" } ?: JsonPrimitive("string"))
-                        put("nullable", true)
+                if (key !in geminiSchemaKeys) return@forEach
+                when (key) {
+                    "type" -> if (item is JsonArray) {
+                        item.firstOrNull { (it as? JsonPrimitive)?.contentOrNull != "null" }?.let { put("type", it) }
+                        if (item.any { (it as? JsonPrimitive)?.contentOrNull == "null" }) put("nullable", true)
+                    } else {
+                        put("type", item)
                     }
-                    else -> put(key, normalizeGeminiSchema(item))
+                    // Keys here are property names, not schema keywords: only their values are schemas.
+                    "properties" -> (item as? JsonObject)?.let { properties ->
+                        put("properties", JsonObject(properties.mapValues { (_, schema) -> normalizeGeminiSchema(schema) }))
+                    }
+                    "items" -> put("items", normalizeGeminiSchema(item))
+                    "anyOf" -> (item as? JsonArray)?.let { variants ->
+                        put("anyOf", JsonArray(variants.map(::normalizeGeminiSchema)))
+                    }
+                    else -> put(key, item)
                 }
             }
         }
-        else -> value
     }
 }
 
