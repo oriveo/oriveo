@@ -4612,8 +4612,8 @@ class MetadataClient internal constructor(
             listOf("accounts/fireworks/models/", "accounts/fireworks/routers/", "pro/").forEach { prefix ->
                 if (value.startsWith(prefix)) value = value.removePrefix(prefix)
             }
-            value = value.replace(Regex("(?:-\\d{8}|-\\d{4}-\\d{2}-\\d{2})$"), "")
-            return value.replace(Regex("(\\d)p(\\d)"), "${'$'}1.${'$'}2")
+            value = value.replace(MODEL_FACTS_DATE_SUFFIX, "")
+            return value.replace(MODEL_FACTS_DECIMAL_P, "${'$'}1.${'$'}2")
         }
 
         fun capabilityRuntimeRequest(
@@ -4779,3 +4779,8 @@ class MetadataClient internal constructor(
             instance.clampReasoningMode(mode, profileName)
     }
 }
+
+// Compiled once: normalizeModelFactsID runs per model on every catalog projection, on the main thread
+//. Top level, not in the companion, so no companion initializer can see them unset.
+private val MODEL_FACTS_DATE_SUFFIX = Regex("(?:-\\d{8}|-\\d{4}-\\d{2}-\\d{2})$")
+private val MODEL_FACTS_DECIMAL_P = Regex("(\\d)p(\\d)")

@@ -5,6 +5,20 @@ import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import java.util.Locale
+import java.util.concurrent.Executor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asExecutor
+
+/**
+ * TextToSpeech.shutdown() unbinds the engine service synchronously and can block for seconds on low-end
+ * devices, which froze the UI when it ran on the main thread. Engines are discarded after shutdown, so
+ * nothing waits for it; run it off the caller's thread.
+ */
+private val ttsShutdownExecutor: Executor = Dispatchers.IO.asExecutor()
+
+internal fun TextToSpeech.shutdownOffMain() {
+    ttsShutdownExecutor.execute { runCatching { shutdown() } }
+}
 
 /**
  * System TextToSpeech: each segment is queued with QUEUE_ADD and utteranceId "<session>:<index>"; callbacks from old sessions are dropped.
@@ -57,7 +71,7 @@ class SystemSpeechEngine(
                     initFailed = false
                     val created = createTts()
                     // When onInit(ERROR) fires synchronously inside the constructor the callback cannot clear the not-yet-assigned instance: discard it here and rebuild on the next speak
-                    if (initFailed) created.shutdown() else tts = created
+                    if (initFailed) created.shutdownOffMain() else tts = created
                 }
                 return
             }
@@ -86,7 +100,7 @@ class SystemSpeechEngine(
                 } else {
                     // Recreate the engine and retry on the next speak
                     initFailed = true
-                    tts?.shutdown()
+                    tts?.shutdownOffMain()
                     tts = null
                     val waiting = pendingListener
                     pendingSpeak = null

@@ -210,25 +210,34 @@ fun relayFirstCandidate(
  * Step 2 grouping = the same projection as the model library ([buildProviderCatalogGroups], relay models grouped uniformly by family): a temporary connection is assembled from the catalog rows and default name that will exist after registration, so
  * group names, group order and in-group order match the post-registration model library verbatim.
  */
-fun relaySetupCatalogGroups(rows: List<AIModel>, endpoint: String, searchQuery: String): List<ProviderCatalogGroup> {
-    fun project(models: List<AIModel>) = buildProviderCatalogGroups(
+fun relaySetupCatalogGroups(
+    rows: List<AIModel>,
+    endpoint: String,
+    searchQuery: String,
+    unfilteredGroups: List<ProviderCatalogGroup>? = null,
+): List<ProviderCatalogGroup> {
+    val customName = ai.oriveo.community.core.data.repository.ProviderRepository.relayDomainNameFromEndpoint(endpoint)
+    fun project(models: List<AIModel>, query: String) = buildProviderCatalogGroups(
         provider = Provider(
             id = "relay-setup-preview",
             kind = ProviderKind.Relay,
             baseUrlText = endpoint,
-            customName = ai.oriveo.community.core.data.repository.ProviderRepository.relayDomainNameFromEndpoint(endpoint),
+            customName = customName,
             catalogModels = models,
         ),
-        searchQuery = searchQuery,
+        searchQuery = query,
     )
-    var groups = project(rows)
+    var groups = project(rows, searchQuery)
     // Relay models are identified by literal ID: the canonical dedup of the model library projection folds dated snapshot spellings, and step 2 selection and saving
     // must not swallow them: rows swallowed only by date-suffix folding are appended to the end of their group, projected on their own (group name and order rules unchanged).
     // IDs that differ only by case are still the same model and are not appended back.
-    val shown = groups.flatMap { group -> group.models.map { it.id.lowercase() } }.toMutableSet()
+    // "Folded" is judged on the unfiltered projection only: a row the search doesn't match was filtered, not folded.
+    // Judging on the search projection re-projected every row on its own per keystroke, freezing low-end devices.
+    val unfiltered = if (searchQuery.isBlank()) groups else unfilteredGroups ?: project(rows, "")
+    val shown = unfiltered.flatMap { group -> group.models.map { it.id.lowercase() } }.toMutableSet()
     rows.forEach { model ->
         if (!shown.add(model.id.trim().lowercase())) return@forEach
-        val own = project(listOf(model)).firstOrNull() ?: return@forEach
+        val own = project(listOf(model), searchQuery).firstOrNull() ?: return@forEach
         groups = if (groups.any { it.id == own.id }) {
             groups.map { group -> if (group.id == own.id) group.copy(models = group.models + own.models) else group }
         } else {

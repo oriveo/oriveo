@@ -6,7 +6,11 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /** The production [SystemSpeechEngine] with a fake TextToSpeech factory: rebuilding after an initialization failure. */
@@ -41,6 +45,29 @@ class SystemSpeechEngineTest {
         // Old behavior: the failed instance stayed in tts, the second speak neither rebuilt nor called back, and read-aloud got stuck in Speaking
         assertEquals(listOf(SpeechError.UNAVAILABLE), second.errors)
         assertEquals(2, created.size)
-        created.forEach { verify { it.shutdown() } }
+        created.forEach { verify(timeout = 5_000) { it.shutdown() } }
+    }
+
+    @Test
+    fun `discarded engine shuts down off the calling thread`() {
+        // Synchronous shutdown on the main thread froze frames for seconds
+        val context = mockk<Context>(relaxed = true)
+        every { context.applicationContext } returns context
+        val shutdownThread = arrayOfNulls<Thread>(1)
+        val done = CountDownLatch(1)
+        val engine = SystemSpeechEngine(context, ttsFactory = { _, listener ->
+            listener.onInit(TextToSpeech.ERROR)
+            mockk<TextToSpeech>(relaxed = true).also {
+                every { it.shutdown() } answers {
+                    shutdownThread[0] = Thread.currentThread()
+                    done.countDown()
+                }
+            }
+        })
+
+        engine.speak(listOf("Hello."), Locale.ENGLISH, RecordingListener())
+
+        assertTrue(done.await(5, TimeUnit.SECONDS))
+        assertNotEquals(Thread.currentThread(), shutdownThread[0])
     }
 }

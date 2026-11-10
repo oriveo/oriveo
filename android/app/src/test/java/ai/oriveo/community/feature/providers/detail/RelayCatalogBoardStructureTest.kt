@@ -638,6 +638,27 @@ class RelayCatalogBoardStructureTest {
     }
 
     @Test
+    fun `BOARD-CATALOG-09b relay setup search re-adds only date-folded rows, judged on the unfiltered projection`() {
+        // The fold check used the search projection, re-projecting every unmatched row
+        val rows = listOf("gpt-4o", "gpt-4o-2024-08-06", "claude-sonnet-4-5", "my-custom-model").map { AIModel(id = it, name = it) }
+        val endpoint = "https://api.myrelay.dev"
+        val unfiltered = ai.oriveo.community.feature.providers.relay.relaySetupCatalogGroups(rows, endpoint, "")
+        assertEquals(rows.map { it.id }.toSet(), unfiltered.flatMap { g -> g.models.map { it.id } }.toSet())
+
+        fun ids(query: String, passUnfiltered: Boolean) =
+            ai.oriveo.community.feature.providers.relay.relaySetupCatalogGroups(rows, endpoint, query, unfiltered.takeIf { passUnfiltered })
+                .flatMap { g -> g.models.map { it.id } }.toSet()
+
+        listOf(true, false).forEach { pass ->
+            // A date-folded snapshot that matches the search is re-added; rows the search misses are not
+            assertEquals(setOf("gpt-4o-2024-08-06"), ids("2024", pass))
+            assertEquals(setOf("claude-sonnet-4-5"), ids("claude", pass))
+            assertEquals(setOf("gpt-4o", "gpt-4o-2024-08-06"), ids("gpt-4o", pass))
+            assertEquals(emptySet<String>(), ids("zzz", pass))
+        }
+    }
+
+    @Test
     fun `BOARD-CATALOG-10 header, key chips and per-key status strip only with two or more keys`() {
         val enabled = listOf(
             AIModel(id = "gpt-5", name = "gpt-5", relayKeyID = "k2"),

@@ -43,6 +43,7 @@ import ai.oriveo.community.core.voice.PcmWindowAccumulator
 import ai.oriveo.community.core.voice.PcmSource
 import ai.oriveo.community.core.voice.RecordingWriter
 import ai.oriveo.community.core.voice.STTSegment
+import ai.oriveo.community.core.voice.shutdownOffMain
 import java.io.File
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
@@ -1293,12 +1294,12 @@ class SystemConversationTts(
                 }
             } == true
         } catch (error: CancellationException) {
-            created?.shutdown()
+            created?.shutdownOffMain()
             throw error
         }
         val engine = created ?: return null
         if (!ready) {
-            engine.shutdown()
+            engine.shutdownOffMain()
             return null
         }
         engine.setOnUtteranceProgressListener(router)
@@ -1309,7 +1310,7 @@ class SystemConversationTts(
         val engine = tts ?: return
         tts = null
         runCatching { engine.stop() }
-        engine.shutdown()
+        engine.shutdownOffMain()
     }
 
     override suspend fun speak(text: String, onLevel: (Float) -> Unit): TtsOutcome {

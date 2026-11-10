@@ -64,7 +64,7 @@ class AndroidSystemTtsVoiceProbe(
                 } else {
                     null
                 }
-                runCatching { tts.shutdown() }
+                tts.shutdownOffMain()
                 if (cont.isActive) cont.resume(result)
             }
             val created = runCatching {
@@ -86,7 +86,7 @@ class AndroidSystemTtsVoiceProbe(
                 initStatus
             }
             if (early != null) finish(created, early)
-            cont.invokeOnCancellation { runCatching { created.shutdown() } }
+            cont.invokeOnCancellation { created.shutdownOffMain() }
         }
     }
 }

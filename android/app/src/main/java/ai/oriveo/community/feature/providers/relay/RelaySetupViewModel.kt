@@ -258,12 +258,14 @@ class RelaySetupViewModel(
             .map { ProviderRepository.relayCatalogRow(it).copy(isManual = true) }
 
     /** The group projection runs a full catalog resolution: cache the latest two results keyed by (catalog rows, address, search term) (the full list + the current search), so recomposition does not recompute. */
-    private val groupsCache = LinkedHashMap<Triple<List<AIModel>, String, String>, List<ProviderCatalogGroup>>()
+    // Access order: with insertion order every keystroke evicted the unfiltered entry, so both were recomputed.
+    private val groupsCache = LinkedHashMap<Triple<List<AIModel>, String, String>, List<ProviderCatalogGroup>>(4, 0.75f, true)
 
     private fun catalogGroups(query: String): List<ProviderCatalogGroup> {
         val key = Triple(step2Rows, endpoint, query)
         groupsCache[key]?.let { return it }
-        val groups = relaySetupCatalogGroups(key.first, key.second, query)
+        val unfiltered = if (query.isBlank()) null else catalogGroups("")
+        val groups = relaySetupCatalogGroups(key.first, key.second, query, unfiltered)
         groupsCache[key] = groups
         while (groupsCache.size > 2) groupsCache.remove(groupsCache.keys.first())
         return groups
