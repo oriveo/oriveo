@@ -110,12 +110,17 @@ export function requestUpstreamWithPinnedAddress(
     };
     if (options.ca) baseOptions.ca = options.ca;
     if (shouldPinIP) {
+      // The callback must be async, like dns.lookup: called synchronously, a connect that fails
+      // synchronously (e.g. ENETUNREACH on a host without an IPv6 route) makes the socket emit
+      // its error before ClientRequest listens, which becomes an uncaughtException.
       baseOptions.lookup = (_hostname, lookupOptions, callback) => {
-        if (typeof lookupOptions === "object" && lookupOptions?.all) {
-          callback(null, [{ address: input.address.address, family: input.address.family }]);
-          return;
-        }
-        callback(null, input.address.address, input.address.family);
+        process.nextTick(() => {
+          if (typeof lookupOptions === "object" && lookupOptions?.all) {
+            callback(null, [{ address: input.address.address, family: input.address.family }]);
+            return;
+          }
+          callback(null, input.address.address, input.address.family);
+        });
       };
     }
 

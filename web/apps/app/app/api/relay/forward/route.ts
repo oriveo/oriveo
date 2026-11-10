@@ -471,12 +471,15 @@ function requestUpstreamWithPinnedAddress(input: UpstreamRequestInput): Promise<
       servername: input.url.hostname,
     };
     if (shouldPinIP) {
+      // Async callback for the same reason as in mcp/forward/upstream-request.ts.
       baseOptions.lookup = (_hostname, options, callback) => {
-        if (typeof options === "object" && options?.all) {
-          callback(null, [{ address: input.address.address, family: input.address.family }]);
-          return;
-        }
-        callback(null, input.address.address, input.address.family);
+        process.nextTick(() => {
+          if (typeof options === "object" && options?.all) {
+            callback(null, [{ address: input.address.address, family: input.address.family }]);
+            return;
+          }
+          callback(null, input.address.address, input.address.family);
+        });
       };
     }
     const request = client.request(

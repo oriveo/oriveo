@@ -282,6 +282,34 @@ describe("requestUpstreamWithPinnedAddress (real https loopback server)", () => 
       ),
     ).rejects.toThrow(/ECONNREFUSED/);
   });
+
+  it("synchronous connect failure rejects the promise instead of leaking an uncaughtException", async () => {
+    // TCP connect to the broadcast address fails inside the connect syscall (macOS EAFNOSUPPORT,
+    // Linux EACCES / ENETUNREACH), the same net-internal path as a host with no IPv6 route.
+    const uncaught: unknown[] = [];
+    const onUncaught = (error: unknown) => uncaught.push(error);
+    process.on("uncaughtException", onUncaught);
+    try {
+      await expect(
+        requestUpstreamWithPinnedAddress(
+          {
+            url: new URL(`https://unroutable.test.example:${port}/mcp`),
+            method: "POST",
+            headers: {},
+            body: "{}",
+            signal: new AbortController().signal,
+            address: { address: "255.255.255.255", family: 4 },
+          },
+          { pinAddress: true, ca },
+        ),
+      ).rejects.toThrow(/connect/);
+      await new Promise((resolve) => setImmediate(resolve));
+      expect(uncaught).toEqual([]);
+    } finally {
+      process.off("uncaughtException", onUncaught);
+    }
+    expect(seen).toHaveLength(0);
+  });
 });
 
 describe("toFetchResponse (status code to Response)", () => {
