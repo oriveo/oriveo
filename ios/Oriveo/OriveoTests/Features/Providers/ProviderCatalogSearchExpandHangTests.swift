@@ -309,8 +309,9 @@ struct ProviderCatalogSearchExpandHangTests {
             field = firstView(of: UITextField.self, in: host.view)
         }
         let searchField = try #require(field, "the inline catalog search field did not appear (the catalog projection never settled)")
+        let hitIDs = catalog.dropFirst(Self.enabledCount).map(\.id).filter { $0.hasPrefix("search-model-") }
 
-        ProviderCatalogModelRow.debugBodyEvaluationCount = 0
+        resetBuildCounters()
         _ = searchField.becomeFirstResponder()
         searchField.insertText("model")
         searchField.sendActions(for: .editingChanged)
@@ -319,11 +320,13 @@ struct ProviderCatalogSearchExpandHangTests {
         host.view.layoutIfNeeded()
         await settle(0.5)
 
-        let rowBodies = ProviderCatalogModelRow.debugBodyEvaluationCount
-        let materialized = accessibilityNodes(where: { $0.hasPrefix("search-model-") }, in: host.view).count
+        let built = buildCount(hitIDs: hitIDs, root: host.view)
+        let rowBodies = built.bodies
+        let materialized = built.materialized
         print("[HANG-COST] home inline catalog fully expanded by search: catalog row body evaluations \(rowBodies), matching rows in the tree \(materialized)")
         #expect(searchField.text == "model")
-        #expect(materialized > 0)
+        // Hit rows were built, so the groups are expanded (the accessibility tree is not counted: see `runScenario`).
+        #expect(built.distinct > 0)
         #expect(rowBodies <= Self.visibleRowCeiling)
         await MetadataClient.shared.resetForTesting()
     }
@@ -446,7 +449,10 @@ struct ProviderCatalogSearchExpandHangTests {
         """)
         #expect(searchField.text == "model")
         // Projection settled and groups expanded: matching rows are visible in the viewport (proving that what is measured is the fully expanded state, not a spinner or the collapsed state).
-        #expect(afterDismiss.materialized > 0)
+        // Counted by the rows' own capability projections, not the accessibility tree: on the iOS 27.2 simulator that
+        // tree stays empty when first queried after the keyboard, and querying it earlier turns it on for the whole
+        // process, adding its upkeep to the timed segments of every later test.
+        #expect(afterDismiss.distinct > 0)
         await MetadataClient.shared.resetForTesting()
         return Sample(
             keyboardStall: keyboardStall, pasteStall: pasteStall, dismissStall: dismissStall, firstReveal: firstReveal, jank: jank, hits: hitIDs.count,
