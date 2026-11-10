@@ -241,10 +241,10 @@ class HomeViewModelBehaviorTest {
     }
 
     @Test
-    fun `setActiveModel keeps the picked model when the managed catalog lookup fails`() = runTest {
-        // The picker lists the last good catalog; going offline after that must not crash the pick.
-        coEvery { providerRepository.getById("oriveo-ai") } throws
-            ai.oriveo.community.core.model.ProviderServiceError.Upstream(503, "catalog down")
+    fun `setActiveModel keeps the picked model when the provider lookup fails`() = runTest {
+        // The picker lists the last good model list; a failing lookup after that must not crash the pick.
+        coEvery { providerRepository.getById("relay-1") } throws
+            ai.oriveo.community.core.model.ProviderServiceError.Upstream(503, "lookup down")
 
         val viewModel = HomeViewModel(
             appPreferencesRepository = appPreferencesRepository,
@@ -253,22 +253,16 @@ class HomeViewModelBehaviorTest {
             folderRepository = folderRepository,
             noteRepository = noteRepository,
             globalSnackbarManager = globalSnackbarManager,
-            authController = authController,
-            accountSession = accountSession,
-            usageApi = usageApi,
-            budgetAlertChecker = budgetAlertChecker,
-            usageReporter = usageReporter,
             skillRepository = skillRepository,
-            entitlementManager = entitlementManager,
             chatStreamingManager = chatStreamingManager,
             ioDispatcher = dispatcher,
             defaultDispatcher = dispatcher,
         )
 
-        viewModel.setActiveModel("oriveo-ai", "oriveo-chat")
+        viewModel.setActiveModel("relay-1", "gpt-4o")
         advanceUntilIdle()
 
-        coVerify { appPreferencesRepository.setLastUsedModel("oriveo-ai", "oriveo-chat") }
+        coVerify { appPreferencesRepository.setLastUsedModel("relay-1", "gpt-4o") }
     }
 
     @Test
