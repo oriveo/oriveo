@@ -19,6 +19,8 @@ struct OnboardingFlowView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var progress: Double = 0
+    /// Last page the copy pager settled on; a width change scrolls back to it (see `OnboardingMath.settledAct`).
+    @State private var settledAct = 0
     @State private var isExiting = false
     @State private var isStageAnimating = true
 
@@ -77,6 +79,15 @@ struct OnboardingFlowView: View {
                     guard initialAct != .brand else { return }
                     reader.scrollTo(initialAct.rawValue, anchor: .center)
                     progress = Double(initialAct.rawValue)
+                }
+                // Folding / unfolding changes the page width but not the scroll offset: realign to the settled page.
+                .onChange(of: proxy.size.width) { _, _ in
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        reader.scrollTo(settledAct, anchor: .center)
+                        progress = Double(settledAct)
+                    }
                 }
             }
             .scaleEffect(isExiting ? 0.96 : 1)
@@ -180,6 +191,13 @@ struct OnboardingFlowView: View {
             geometry.contentOffset.x
         } action: { _, offsetX in
             progress = Double(offsetX / max(metrics.size.width, 1))
+            if let act = OnboardingMath.settledAct(
+                offsetX: Double(offsetX),
+                pageWidth: Double(metrics.size.width),
+                actCount: OnboardingAct.allCases.count
+            ) {
+                settledAct = act
+            }
         }
     }
 

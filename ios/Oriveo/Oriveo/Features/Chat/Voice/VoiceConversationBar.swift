@@ -327,7 +327,7 @@ enum VoiceStageChrome {
         (session.isPresented(in: conversationID) && session.surface != nil)
             || session.isEngineSwitching(in: conversationID)
             || realtimeSelected
-            || VoiceConversationDemo.status != nil
+            || VoiceConversationDemo.shows(on: .chat)
     }
 
     /// Page brand glow and aurora ambient base: 0 while the stage is up.
@@ -382,6 +382,10 @@ enum VoiceConversationDemo {
     static var shotsStageClock: TimeInterval?
     /// Sample shots only: settings read by the recognition language capsule (sample UserDefaults suite); nil reads standard settings.
     static var shotsSettings: VoiceEngineSettings?
+    /// Shots only: draw the demo bar on this page alone; nil draws it on both home and chat (launch-argument behavior).
+    /// In two-pane wide layouts the home sidebar and the chat page share the screen, so an unscoped demo draws two
+    /// voice stages.
+    static var shotsPage: VoiceConversationPage?
     #endif
 
     static var status: VoiceConversationLogic.StatusKey? {
@@ -393,6 +397,15 @@ enum VoiceConversationDemo {
 
     static var displayState: VoiceConversationLogic.DisplayState? {
         displayState(for: status)
+    }
+
+    /// Whether this page draws the demo voice bar.
+    static func shows(on page: VoiceConversationPage) -> Bool {
+        guard status != nil else { return false }
+        #if DEBUG
+        if let shotsPage { return shotsPage == page }
+        #endif
+        return true
     }
 
     static func displayState(for status: VoiceConversationLogic.StatusKey?) -> VoiceConversationLogic.DisplayState? {

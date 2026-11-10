@@ -92,6 +92,7 @@ enum VoiceShots {
         }
 
         VoiceConversationDemo.shotsStatus = staged.status
+        VoiceConversationDemo.shotsPage = .chat
         applyBarOverrides(staged)
         let conversation: Conversation
         do {

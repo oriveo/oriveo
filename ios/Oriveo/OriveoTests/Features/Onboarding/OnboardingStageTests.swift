@@ -25,6 +25,20 @@ struct OnboardingStageTests {
         #expect(OnboardingMath.tri(9, 1, 1) == 0)
     }
 
+    @Test("settledAct only reports a page when the offset sits on a boundary of the current width")
+    func settledActAfterResize() {
+        // Resting on act 1 of a 382pt page: settled.
+        #expect(OnboardingMath.settledAct(offsetX: 382, pageWidth: 382, actCount: 4) == 1)
+        #expect(OnboardingMath.settledAct(offsetX: 382.3, pageWidth: 382, actCount: 4) == 1)
+        // iPhone Duo unfolds to 867pt but the offset stays at 382: between pages, keep the last settled act.
+        #expect(OnboardingMath.settledAct(offsetX: 382, pageWidth: 867, actCount: 4) == nil)
+        // Mid-swipe and rubber band past either end.
+        #expect(OnboardingMath.settledAct(offsetX: 191, pageWidth: 382, actCount: 4) == nil)
+        #expect(OnboardingMath.settledAct(offsetX: -382, pageWidth: 382, actCount: 4) == nil)
+        #expect(OnboardingMath.settledAct(offsetX: 1528, pageWidth: 382, actCount: 4) == nil)
+        #expect(OnboardingMath.settledAct(offsetX: 0, pageWidth: 0, actCount: 4) == nil)
+    }
+
     @Test("Smoothstep Endpoints")
     func smoothstepEndpoints() {
         #expect(OnboardingMath.smoothstep(0) == 0)

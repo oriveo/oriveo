@@ -722,7 +722,7 @@ struct ChatComposerBar: View {
 
     /// While the voice stage is shown, the panel spans the full width at the bottom (including the safe area), with no bar inset or gradient background and no managed quota line; other banners keep their own margins.
     private var showsVoiceStage: Bool {
-        voiceConversationController != nil || VoiceConversationDemo.status != nil
+        voiceConversationController != nil || VoiceConversationDemo.shows(on: .chat)
     }
 
     var body: some View {
@@ -772,7 +772,7 @@ struct ChatComposerBar: View {
                 }
                 .recognitionLanguageSheet(isPresented: $showsRecognitionLanguageSheet)
                 .transition(.opacity)
-            } else if VoiceConversationDemo.status != nil {
+            } else if VoiceConversationDemo.shows(on: .chat) {
                 VoiceConversationDemo.bar()
             } else {
                 if showsModeControls {

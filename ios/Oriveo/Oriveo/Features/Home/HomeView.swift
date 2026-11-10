@@ -1049,7 +1049,7 @@ struct HomeView: View {
     @ViewBuilder
     private var auroraComposerCard: some View {
         // Do not wrap the voice stage in a glass card: the panel takes the original card's position and the full screen width (cancels the page margin; the fog bleeds to both sides).
-        let showsVoiceStage = heroVoiceConversationController != nil || VoiceConversationDemo.status != nil
+        let showsVoiceStage = heroVoiceConversationController != nil || VoiceConversationDemo.shows(on: .home)
         Group {
             if showsVoiceStage {
                 auroraComposerCardContent
@@ -1102,7 +1102,7 @@ struct HomeView: View {
                 .recognitionLanguageSheet(isPresented: $showsRecognitionLanguageSheet)
             }
             .transition(.opacity)
-        } else if VoiceConversationDemo.status != nil {
+        } else if VoiceConversationDemo.shows(on: .home) {
             VoiceConversationDemo.bar(page: .home)
         } else if let controller = DictationHub.shared.controller {
             // While dictating, the input box stays on screen (not editable); the button row below is replaced by the recording bar.

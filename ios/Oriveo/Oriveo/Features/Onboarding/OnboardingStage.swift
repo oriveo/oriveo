@@ -30,6 +30,17 @@ enum OnboardingMath {
         from + (to - from) * t
     }
 
+    /// The page the copy pager rests on, or nil while it is between pages. A resize (iPhone Duo fold / unfold)
+    /// leaves the scroll offset at the old page width, so the offset only counts as settled when it lands on a
+    /// page boundary of the current width; the view realigns to the last settled page after a width change.
+    static func settledAct(offsetX: Double, pageWidth: Double, actCount: Int) -> Int? {
+        guard pageWidth > 0, actCount > 0 else { return nil }
+        let position = offsetX / pageWidth
+        let page = position.rounded()
+        guard abs(position - page) * pageWidth < 0.5, page >= 0, page < Double(actCount) else { return nil }
+        return Int(page)
+    }
+
     static func tri(_ p: Double, _ center: Double, _ half: Double) -> Double {
         guard half > 0 else { return p == center ? 1 : 0 }
         return clamp(1 - abs(p - center) / half, 0, 1)
