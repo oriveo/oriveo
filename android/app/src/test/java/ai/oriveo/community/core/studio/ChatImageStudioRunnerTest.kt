@@ -196,8 +196,12 @@ class ChatImageStudioRunnerTest {
             val withUsage = serverKey == "openAI"
             val transport = FakeTransport(200, successBody(ref, withUsage))
             val store = FakeStore()
+            val base = ChatImageDispatch.studioBaseUrl(
+                profiles.getValue(ref).jsonObject.str("route"),
+                input.str("connectionBaseUrl"),
+            )
             val result = runner(transport, store, slice(serverKey, modelId, ref))
-                .run(request(kindOf(serverKey), modelId, prompt = input.str("prompt")))
+                .run(request(kindOf(serverKey), modelId, prompt = input.str("prompt"), baseUrl = base))
 
             if (transport.sent.size != 1) {
                 mismatches += "$caseId: ${transport.sent.size} requests"
@@ -205,7 +209,7 @@ class ChatImageStudioRunnerTest {
             }
             val sent = transport.sent.single()
             if (sent.method != expect.str("method")) mismatches += "$caseId: method ${sent.method}"
-            if (!sent.url.endsWith(expect.str("pathSuffix"))) mismatches += "$caseId: url ${sent.url}"
+            if (sent.url != expect.str("url")) mismatches += "$caseId: url ${sent.url}, expected ${expect.str("url")}"
             val body = (sent.body as? ImageRequestBody.Json)?.json
             if (body == null) {
                 mismatches += "$caseId: body is not JSON"
