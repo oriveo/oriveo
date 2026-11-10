@@ -2,6 +2,7 @@ import Accelerate
 import CoreGraphics
 import Foundation
 import SwiftUI
+import UIKit
 import Testing
 @testable import Oriveo
 
@@ -688,18 +689,64 @@ struct VoiceAuroraOrbTests {
         return pass(pass(plane))
     }
 
-    /// Renders at 1x into premultiplied RGBA bytes in DeviceRGB.
-    private static func renderRGBA(_ content: some View, side: Int) -> [UInt8]? {
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = 1
-        guard let image = renderer.cgImage, image.width == side, image.height == side else { return nil }
-        var pixels = [UInt8](repeating: 0, count: side * side * 4)
+    /// Hosts [content] in a real window and reads the on-screen composite (drawHierarchy, the same render path as the
+    /// app) as DeviceRGB premultiplied RGBA bytes at [scale]. Not ImageRenderer.cgImage: its offscreen backend is not
+    /// fixed and once measured σ/radius ≈ 0.709 instead of the on-screen value.
+    private static func onScreenRGBA(_ content: some View, width: Double, height: Double, scale: Double) -> (pixels: [UInt8], w: Int, h: Int)? {
+        guard let scene = UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first else { return nil }
+        let size = CGSize(width: width, height: height)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(origin: .zero, size: size)
+        window.backgroundColor = .clear
+        let host = UIHostingController(rootView: content)
+        // No safe area: the content must start at the canvas origin the samples assume.
+        host.safeAreaRegions = []
+        host.view.backgroundColor = .clear
+        window.rootViewController = host
+        window.isHidden = false
+        defer {
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        host.view.frame = window.bounds
+        host.view.layoutIfNeeded()
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = scale
+        format.opaque = false
+        format.preferredRange = .standard
+        let image = UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            _ = window.drawHierarchy(in: window.bounds, afterScreenUpdates: true)
+        }
+        guard let cg = image.cgImage else { return nil }
+        let w = cg.width, h = cg.height
+        var pixels = [UInt8](repeating: 0, count: w * h * 4)
         guard let context = CGContext(
-            data: &pixels, width: side, height: side, bitsPerComponent: 8, bytesPerRow: side * 4,
+            data: &pixels, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
             space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
-        context.draw(image, in: CGRect(x: 0, y: 0, width: side, height: side))
-        return pixels
+        context.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return (pixels, w, h)
+    }
+
+    /// Renders on screen at the native scale and box-averages s×s pixels down to 1× (the same area coverage as the
+    /// analytic subsampling; reading at 1× directly adds a resampling error).
+    private static func renderRGBA(_ content: some View, side: Int) -> [UInt8]? {
+        let s = max(1, Int(UIScreen.main.scale.rounded()))
+        guard let shot = onScreenRGBA(content, width: Double(side), height: Double(side), scale: Double(s)),
+              shot.w == side * s, shot.h == side * s else { return nil }
+        var out = [UInt8](repeating: 0, count: side * side * 4)
+        for y in 0..<side {
+            for x in 0..<side {
+                for c in 0..<4 {
+                    var sum = 0
+                    for dy in 0..<s {
+                        for dx in 0..<s { sum += Int(shot.pixels[((y * s + dy) * shot.w + x * s + dx) * 4 + c]) }
+                    }
+                    out[(y * side + x) * 4 + c] = UInt8((Double(sum) / Double(s * s)).rounded())
+                }
+            }
+        }
+        return out
     }
 
     /// Draws a Canvas with a white left half and a transparent right half, applies blur(radius:) to the whole layer, and measures the width over which α falls from 84% to 16% along the middle row; σ = width / 2 (pt).
@@ -715,16 +762,8 @@ struct VoiceAuroraOrbTests {
             }
         }
         .frame(width: width, height: height)
-        let renderer = ImageRenderer(content: content)
-        renderer.scale = scale
-        guard let image = renderer.cgImage else { return nil }
-        let w = image.width, h = image.height
-        var pixels = [UInt8](repeating: 0, count: w * h * 4)
-        guard let context = CGContext(
-            data: &pixels, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4,
-            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return nil }
-        context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+        guard let shot = onScreenRGBA(content, width: width, height: height, scale: scale) else { return nil }
+        let (pixels, w, h) = shot
         let row = h / 2
         let alpha = (0..<w).map { Double(pixels[(row * w + $0) * 4 + 3]) / 255 }
         // Linearly interpolates the x (pixel) where α first drops below level.
@@ -738,4 +777,3 @@ struct VoiceAuroraOrbTests {
         return (lo - hi) / scale / 2
     }
 }
-
