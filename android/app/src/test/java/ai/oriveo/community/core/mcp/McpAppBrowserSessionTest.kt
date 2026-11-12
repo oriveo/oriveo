@@ -47,7 +47,6 @@ class McpAppBrowserSessionTest {
                 browserReturns(url)?.let(::deliverLikeTheRedirectActivity)
                 true
             },
-            dismissGraceMillis = 10,
         )
         auth = FakeMcpAuthTransport()
         credentials = McpCredentialStore(InMemoryPrefs())
@@ -180,22 +179,53 @@ class McpAppBrowserSessionTest {
     // ── The user closes the sign-in page / the browser cannot be opened ─────
 
     @Test
-    fun `coming back to the app without a callback ends the sign-in as cancelled`() = runBlocking {
-        browserReturns = { null }
-        val returning = launch(Dispatchers.Default) {
-            delay(80)
-            router.notifyHostResumed()
-        }
+    fun `coming back to the app without a callback keeps waiting until the authorization times out`() = runBlocking {
+        val session = McpAppBrowserSession(
+            router = router,
+            openPage = { url ->
+                opened += url
+                router.notifyHostResumed()
+                true
+            },
+            timeoutMillis = 300,
+        )
+        val timingAuthorizer = McpAuthorizer(auth, session, credentials, clientMetadataUrl = CLIENT_METADATA_URL)
+        val outcome = timingAuthorizer.discover(null, ENDPOINT) as McpAuthDiscoveryOutcome.Ready
+        val started = System.nanoTime()
         try {
-            authorizer.authorize(plan(), "s1", UID)
-            fail("without a redirect the authorization must not complete")
+            timingAuthorizer.authorize(outcome.plan, "s1", UID)
+            fail("no callback must not complete the authorization")
         } catch (error: McpAuthorizerException) {
             assertEquals(McpAuthorizerException.Kind.Cancelled, error.kind)
         }
-        returning.join()
+        assertTrue("resume alone does not end the wait", (System.nanoTime() - started) / 1_000_000 >= 300)
         assertTrue(auth.formRequests.isEmpty())
         // This authorization is over: nobody claims a late callback.
         assertFalse(router.deliver(successCallback(opened.single(), REDIRECT_URI)))
+    }
+
+    @Test
+    fun `a callback arriving 700 ms after the app resumed is still claimed`() = runBlocking {
+        // A server that already granted consent 302s without a user tap, so Custom Tabs keeps the https App Link and
+        // the app resumes first; the web page's oriveo:// fallback only arrives later.
+        val session = McpAppBrowserSession(
+            router = router,
+            openPage = { url ->
+                opened += url
+                launch(Dispatchers.Default) {
+                    router.notifyHostResumed()
+                    delay(700)
+                    deliverLikeTheRedirectActivity(successCallback(url, REDIRECT_URI))
+                }
+                true
+            },
+        )
+        val lateAuthorizer = McpAuthorizer(auth, session, credentials, clientMetadataUrl = CLIENT_METADATA_URL)
+        val outcome = lateAuthorizer.discover(null, ENDPOINT) as McpAuthDiscoveryOutcome.Ready
+        val obtained = lateAuthorizer.authorize(outcome.plan, "s1", UID)
+
+        assertNotNull("a late callback after resume is still claimed", obtained.accessToken)
+        assertEquals(1, auth.formRequests.size)
     }
 
     @Test

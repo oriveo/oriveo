@@ -9,13 +9,10 @@ import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchCustomTab
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 import java.lang.ref.WeakReference
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * The sign-in page could not be opened (no browser / disabled by policy), or the user came back without a redirect. The
+ * The sign-in page could not be opened (no browser / disabled by policy), or no redirect arrived before the timeout. The
  * authorizer treats it as "sign-in not completed".
  */
 class McpBrowserSessionException(reason: String) : Exception(reason)
@@ -24,10 +21,10 @@ class McpBrowserSessionException(reason: String) : Exception(reason)
  * Android implementation of the browser session: Custom Tabs opens the authorization page, [McpOAuthRedirectActivity]
  * receives the redirect and hands it to [McpOAuthCallbackRouter], and this class waits for it by `state`.
  *
- * The system gives no callback when the user closes Custom Tabs, so that can only be inferred from "the main UI is back
- * in the foreground but no redirect arrived". The redirect path is "the trampoline Activity delivers the URL first,
- * then brings the main UI to the foreground", so on a normal completion the URL always arrives before
- * [McpOAuthCallbackRouter.hostResumed]; [dismissGraceMillis] only leaves room for scheduling between those two steps.
+ * Coming back to the app never ends the sign-in: when the server already granted consent and 302s without a user
+ * tap, Custom Tabs keeps the https App Link and the app resumes first, and the web page's `oriveo://` fallback only
+ * arrives afterwards; switching to a mail or authenticator app looks the same. The wait ends on the callback, the
+ * user's cancel (the caller's coroutine is cancelled), or [timeoutMillis], which matches Web's overall limit.
  *
  * `state`, `iss` and the redirect URI itself are not validated here: the URL is handed back unchanged to
  * [McpAuthorizer.completeAuthorization].
@@ -36,7 +33,7 @@ class McpAppBrowserSession(
     private val router: McpOAuthCallbackRouter,
     /** Opens the authorization page; returns false if it cannot be opened. */
     private val openPage: (url: String) -> Boolean,
-    private val dismissGraceMillis: Long = 600,
+    private val timeoutMillis: Long = AUTHORIZATION_TIMEOUT_MILLIS,
 ) : McpBrowserSession {
 
     override suspend fun authorize(url: String, redirectUri: String): String {
@@ -46,25 +43,16 @@ class McpAppBrowserSession(
             ?: throw McpBrowserSessionException("missing state")
         val waiter = router.register(state)
         try {
-            return coroutineScope {
-                // Subscribe before opening the browser: UNDISPATCHED guarantees we are already listening for "back in
-                // the foreground" when it opens.
-                val watchdog = launch(start = CoroutineStart.UNDISPATCHED) {
-                    router.hostResumed.collect {
-                        delay(dismissGraceMillis)
-                        waiter.completeExceptionally(McpBrowserSessionException("dismissed"))
-                    }
-                }
-                try {
-                    if (!openPage(url)) throw McpBrowserSessionException("no browser")
-                    waiter.await()
-                } finally {
-                    watchdog.cancel()
-                }
-            }
+            if (!openPage(url)) throw McpBrowserSessionException("no browser")
+            return withTimeoutOrNull(timeoutMillis) { waiter.await() }
+                ?: throw McpBrowserSessionException("timeout")
         } finally {
             router.cancel(state)
         }
+    }
+
+    companion object {
+        const val AUTHORIZATION_TIMEOUT_MILLIS: Long = 10 * 60_000
     }
 }
 

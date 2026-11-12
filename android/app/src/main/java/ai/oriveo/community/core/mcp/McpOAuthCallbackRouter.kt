@@ -23,9 +23,9 @@ class McpOAuthCallbackRouter {
     private val _hostResumed = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
     /**
-     * The main UI returned to the foreground. Custom Tabs gives no callback when it is closed, so the browser session uses
-     * this to detect "the user came back without a callback" (= the user closed the sign-in page themselves). No replay:
-     * only an occurrence after subscribing counts.
+     * The main UI returned to the foreground. Custom Tabs gives no callback when it is closed, so this is the only hint
+     * that the user may have left the sign-in page; it must never end the sign-in by itself, because a late
+     * `oriveo://` fallback still arrives after it. No replay: only resumes after subscribing count.
      */
     val hostResumed: SharedFlow<Unit> = _hostResumed.asSharedFlow()
 
