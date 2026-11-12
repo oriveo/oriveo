@@ -513,4 +513,20 @@ describe('model options popover geometry', () => {
       .toMatch(/color\s*:\s*var\(--o-text-disabled-on-control\)/);
     expect(ruleBody('.modelControlInlineAction:disabled', composerCss)).not.toMatch(/opacity/);
   });
+
+  // tertiary is the base rule's --o-text-secondary by design; any other tone without a rule silently falls back to it
+  it('every modelControlNote data-tone other than tertiary has its own color rule', () => {
+    const tones = new Set<string>();
+    for (const match of paneTsx.matchAll(/modelControlNote\}\s+data-tone="([a-z]+)"/g)) tones.add(match[1]);
+    // the dynamic data-tone={entry.tone} takes its values from ModelControlFooterTone
+    const layoutTs = readFileSync(join(process.cwd(), 'lib/core/chat/model-control-capability-layout.ts'), 'utf8');
+    const union = /export type ModelControlFooterTone = ([^;]+);/.exec(layoutTs);
+    expect(union, 'ModelControlFooterTone is declared').toBeTruthy();
+    for (const match of union![1].matchAll(/'([a-z]+)'/g)) tones.add(match[1]);
+    expect([...tones].sort()).toEqual(['error', 'tertiary', 'warning']);
+    for (const tone of tones) {
+      if (tone === 'tertiary') continue;
+      expect(ruleBody(`.modelControlNote[data-tone='${tone}']`, composerCss)).toMatch(/color\s*:\s*var\(--o-[a-z-]+\)/);
+    }
+  });
 });

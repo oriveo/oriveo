@@ -25,6 +25,7 @@ struct NotesView: View {
     @State private var folderDeleteConfirming = false
     /// Sidebar width lined up with the fold in two columns; nil without a fold, which keeps the default width.
     @State private var foldListWidth: CGFloat?
+    @Environment(\.layoutDirection) private var layoutDirection
     /// The default note shown in the wide right column when none is selected. The last id is remembered so a sort change does not jump; the first note is taken again only the first time or when it is no longer in the current filtered list.
     @State private var splitDefaultNoteID: UUID?
 
@@ -89,7 +90,9 @@ struct NotesView: View {
                 let fold = proxy.reservedRegions(kind: .division).first(where: \.isActive)
                 // Full width including the leading and trailing safe areas, measured the same way as the two-column test
                 let fullWidth = proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing
-                return NavigationManager.foldAlignedSidebarWidth(divisionMidX: fold?.frame.midX, containerWidth: fullWidth)
+                return NavigationManager.foldAlignedSidebarWidth(
+                    divisionMidX: fold?.frame.midX, containerWidth: fullWidth, layoutDirection: layoutDirection
+                )
                 #endif
             } action: { foldListWidth = $0 }
         } else {

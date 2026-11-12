@@ -331,11 +331,17 @@ final class NavigationManager {
     /// `containerWidth` is the full width including the leading and trailing safe areas; when the
     /// two sides of the fold cannot hold a 360pt sidebar and a 420pt conversation column it does not
     /// follow (no such device exists; this is defensive).
-    static func foldAlignedSidebarWidth(divisionMidX: CGFloat?, containerWidth: CGFloat) -> CGFloat? {
-        guard let divisionMidX,
-              divisionMidX >= 360,
-              containerWidth - divisionMidX >= 420 else { return nil }
-        return divisionMidX
+    /// `divisionMidX` is measured from the physical left edge (reservedRegions do not flip with the layout
+    /// direction); in RTL the sidebar sits on the right, so its width is measured from the right edge.
+    static func foldAlignedSidebarWidth(
+        divisionMidX: CGFloat?,
+        containerWidth: CGFloat,
+        layoutDirection: LayoutDirection = .leftToRight
+    ) -> CGFloat? {
+        guard let divisionMidX else { return nil }
+        let sidebarWidth = layoutDirection == .rightToLeft ? containerWidth - divisionMidX : divisionMidX
+        guard sidebarWidth >= 360, containerWidth - sidebarWidth >= 420 else { return nil }
+        return sidebarWidth
     }
 
     /// Moves the conversation to the carrier that matches the new layout, keeping the

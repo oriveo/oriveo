@@ -927,6 +927,10 @@
   color: var(--o-warning-text);
 }
 
+.modelControlNote[data-tone='error'] {
+  color: var(--o-error-text);
+}
+
 .modelControlNote svg {
   flex: 0 0 auto;
   margin-top: 2px;

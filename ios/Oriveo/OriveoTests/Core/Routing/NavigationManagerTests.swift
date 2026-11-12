@@ -249,6 +249,29 @@ struct NavigationManagerTests {
         #expect(NavigationManager.foldAlignedSidebarWidth(divisionMidX: divisionMidX, containerWidth: containerWidth) == expected)
     }
 
+    @Test(
+        "RTL half-fold: the fold is measured from the physical left, the sidebar is on the right",
+        arguments: [
+            (CGFloat?.some(475.5), CGFloat(951), CGFloat?.some(475.5)),
+            // Fold at physical x = 420: sidebar on the right 531, conversation on the left 420
+            (420, 951, 531),
+            // The same fold gives 531 in LTR and 420 in RTL
+            (531, 951, 420),
+            // Only 359 left for the sidebar
+            (592, 951, nil),
+            // Only 419 left for the conversation
+            (419, 951, nil),
+            (nil, 951, nil),
+        ] as [(CGFloat?, CGFloat, CGFloat?)]
+    )
+    func foldAlignedSidebarWidthRightToLeft(divisionMidX: CGFloat?, containerWidth: CGFloat, expected: CGFloat?) {
+        #expect(
+            NavigationManager.foldAlignedSidebarWidth(
+                divisionMidX: divisionMidX, containerWidth: containerWidth, layoutDirection: .rightToLeft
+            ) == expected
+        )
+    }
+
     @Test("Resizing A Regular Window Across 780pt Moves The Conversation Between Carriers")
     func regularWindowResizeAcrossThresholdMovesChat() {
         let nav = NavigationManager()

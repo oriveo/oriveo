@@ -932,6 +932,7 @@ fileprivate struct TabSplitLayout<Sidebar: View, Detail: View>: View {
     private let sidebar: Sidebar
     private let detail: Detail
     @State private var foldSidebarWidth: CGFloat?
+    @Environment(\.layoutDirection) private var layoutDirection
 
     init(@ViewBuilder sidebar: () -> Sidebar, @ViewBuilder detail: () -> Detail) {
         self.sidebar = sidebar()
@@ -955,7 +956,9 @@ fileprivate struct TabSplitLayout<Sidebar: View, Detail: View>: View {
             let fold = proxy.reservedRegions(kind: .division).first(where: \.isActive)
             // Full width including the leading and trailing safe areas (the Duo's 84pt vertical status bar on the right), measured the same way as the two-column test
             let fullWidth = proxy.size.width + proxy.safeAreaInsets.leading + proxy.safeAreaInsets.trailing
-            return NavigationManager.foldAlignedSidebarWidth(divisionMidX: fold?.frame.midX, containerWidth: fullWidth)
+            return NavigationManager.foldAlignedSidebarWidth(
+                divisionMidX: fold?.frame.midX, containerWidth: fullWidth, layoutDirection: layoutDirection
+            )
             #endif
         } action: { foldSidebarWidth = $0 }
     }
