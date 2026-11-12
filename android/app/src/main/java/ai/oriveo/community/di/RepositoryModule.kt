@@ -118,6 +118,8 @@ val repositoryModule = module {
             contextCompaction = get(),
             contextDefaultCap = { get<AppPreferencesRepository>().getContextDefaultCap() },
             contextCapConfirm = get(),
+            // Direct image sends go through the studio pipeline (chat_image_dispatch.v1).
+            chatImageStudioRunner = ai.oriveo.community.core.studio.ChatImageStudioRunner.create(get()),
         )
     }
 

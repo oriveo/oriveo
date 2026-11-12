@@ -188,7 +188,38 @@ class ChatRepository(
     private val contextCapConfirm: ai.oriveo.community.core.context.ContextCapConfirmCoordinator? = null,
     /** Runs the context projection off the caller; tests inject their dispatcher so a send stays on it. */
     private val ioDispatcher: kotlinx.coroutines.CoroutineDispatcher = Dispatchers.IO,
+    /**
+     * Studio pipeline for direct image sends (chat_image_dispatch.v1); null keeps every image send on the legacy
+     * images request.
+     */
+    private val chatImageStudioRunner: ai.oriveo.community.core.studio.ChatImageStudioRunner? = null,
 ) {
+    /**
+     * Studio result of a direct image send, or null to keep the legacy request: no runner wired, the dispatch keeps
+     * legacy, or no base URL is known. Prompt and attachments come from the last message of the legacy image
+     * request built by [imageRequest] (only called when a runner is wired). A failed round throws the mapped
+     * [ai.oriveo.community.core.model.ProviderServiceError]. Kept out of sendMessage for the D8 null-check issue.
+     */
+    private suspend fun studioImageResult(
+        provider: Provider,
+        modelId: String,
+        apiKey: String,
+        imageRequest: () -> TransportInput,
+    ): ProviderChatResult? {
+        val runner = chatImageStudioRunner ?: return null
+        val last = imageRequest().messages.lastOrNull() ?: return null
+        return runner.run(
+            ai.oriveo.community.core.studio.ChatImageStudioRunner.Request(
+                provider = provider.kind,
+                modelId = modelId,
+                apiKey = apiKey,
+                baseUrl = studioChatBaseUrl(provider),
+                prompt = last.text,
+                attachments = last.attachments.orEmpty(),
+            ),
+        )
+    }
+
     /** Stateful continuation fingerprints, recorded by assistant message id at the same moment as previousResponseId; in memory only, and after a process restart they count as changed. */
     private val continuationFingerprints = java.util.concurrent.ConcurrentHashMap<String, ContinuationFingerprint>()
 
@@ -1275,30 +1306,40 @@ class ChatRepository(
                 } else if (supportsImageGen && provider.kind != ProviderKind.Relay) {
                     // Judged tool but this exit does not carry propose_memory: this message reruns the fallback (directive suggestion plus v1 memory routing) and no degradation is recorded.
                     if (proposeTools.isNotEmpty()) memoryPropose?.onToolsNotAttached()
-                    // Purpose imageGeneration goes to a dedicated image endpoint (route = images_api / dashscope_multimodal /
-                    // minimax_image_generation); route = chat_api (conversational image output such as Gemini's image modality) is still a chat request and carries the full chat projection.
-                    val dedicatedImageRoute = MetadataClient.imageGenRoute(
-                        MetadataClient.resolveCatalogModel(relayUpstreamModelId, provider.kind)?.profiles?.imageGen,
-                    ) in DEDICATED_IMAGE_GEN_ROUTES
-                    val transport = if (dedicatedImageRoute) {
+                    // Studio pipeline first (chat_image_dispatch.v1): a null result keeps the legacy request below unchanged.
+                    val studioResult = studioImageResult(provider, relayUpstreamModelId, effectiveApiKey) {
                         imageGenerationRequest(effectiveRequestOptions)
-                    } else {
-                        (webProjection ?: sendProjection).planned.transportInput(effectiveRequestOptions, providerMessages)
                     }
-                    val done = service.sendMessage(
-                        apiKey = effectiveApiKey,
-                        modelID = relayUpstreamModelId,
-                        messages = transport.messages,
-                        baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider),
-                        supportsImageGen = true,
-                        reasoningMode = effectiveReasoning,
-                        webSearchEnabled = effectiveWebSearchEnabled,
-                        requestOptions = transport.options,
-                    )
-                    finalResult = done.result
-                    // Continue: the original text plus this round's result (an ordinary send has initialText = "", which is the original behavior)
-                    outputs.streamingText.value = initialText + done.result.appendedText(initialText)
-                    done.result.attachments?.let { streamingAttachments.addAll(it) }
+                    if (studioResult != null) {
+                        finalResult = studioResult
+                        outputs.streamingText.value = initialText + studioResult.appendedText(initialText)
+                        studioResult.attachments?.let { streamingAttachments.addAll(it) }
+                    } else {
+                        // Purpose imageGeneration goes to a dedicated image endpoint (route = images_api / dashscope_multimodal /
+                        // minimax_image_generation); route = chat_api (conversational image output such as Gemini's image modality) is still a chat request and carries the full chat projection.
+                        val dedicatedImageRoute = MetadataClient.imageGenRoute(
+                            MetadataClient.resolveCatalogModel(relayUpstreamModelId, provider.kind)?.profiles?.imageGen,
+                        ) in DEDICATED_IMAGE_GEN_ROUTES
+                        val transport = if (dedicatedImageRoute) {
+                            imageGenerationRequest(effectiveRequestOptions)
+                        } else {
+                            (webProjection ?: sendProjection).planned.transportInput(effectiveRequestOptions, providerMessages)
+                        }
+                        val done = service.sendMessage(
+                            apiKey = effectiveApiKey,
+                            modelID = relayUpstreamModelId,
+                            messages = transport.messages,
+                            baseUrl = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider),
+                            supportsImageGen = true,
+                            reasoningMode = effectiveReasoning,
+                            webSearchEnabled = effectiveWebSearchEnabled,
+                            requestOptions = transport.options,
+                        )
+                        finalResult = done.result
+                        // Continue: the original text plus this round's result (an ordinary send has initialText = "", which is the original behavior)
+                        outputs.streamingText.value = initialText + done.result.appendedText(initialText)
+                        done.result.attachments?.let { streamingAttachments.addAll(it) }
+                    }
                 } else if (useNonStreamingRelayRuntime) {
                     // Judged tool but this exit does not carry propose_memory: this message reruns the fallback (directive suggestion plus v1 memory routing) and no degradation is recorded.
                     if (proposeTools.isNotEmpty()) memoryPropose?.onToolsNotAttached()
@@ -3194,3 +3235,16 @@ internal fun resolveSendModelSelection(
 internal class ContextRejectedError(
     val reject: ai.oriveo.community.core.context.ContextReject,
 ) : IllegalStateException("context rejected: ${reject.wire}")
+
+/**
+ * Base URL the legacy official image request effectively calls: the user's or region address, else the built-in
+ * default of the provider kind; https is added when the stored text has no scheme. Null when none is known.
+ */
+internal fun studioChatBaseUrl(provider: Provider): String? {
+    val raw = ai.oriveo.community.core.provider.transport.OfficialEndpointSource.effectiveBaseUrlText(provider)
+        ?.trim()?.takeIf { it.isNotEmpty() }
+        ?: provider.kind.defaultBaseUrl?.trim()?.takeIf { it.isNotEmpty() }
+        ?: return null
+    val hasScheme = raw.startsWith("https://", ignoreCase = true) || raw.startsWith("http://", ignoreCase = true)
+    return (if (hasScheme) raw else "https://$raw").trimEnd('/')
+}
